@@ -22,4 +22,4 @@ class Bot(discord.Client):
         await self.change_presence(activity=discord.Game(name="!help"))
 
     async def on_message(self, message):
-
+        print('Message from {0.author}: {0.content}'.format(message))
