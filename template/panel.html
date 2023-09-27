@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #36393e;
+            color: #c0c2ca;
+        }
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #424549;
+            padding: 10px 20px;
+        }
+        .navbar a {
+            color: #7289da;
+            text-decoration: none;
+            padding: 8px 16px;
+            transition: background-color 0.3s;
+            background-color: #1e2124;
+            border-radius: 5px;
+        }
+        .navbar a:hover {
+            background-color: #282b30;
+        }
+        .toggle-section {
+            display: flex;
+            align-items: center;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 34px;
+            margin-right: 10px;
+        }
+        .toggle-switch input {
+            display: none;
+        }
+        .slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #282b30;
+            transition: 0.4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: #7289da;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #1e2124;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        button {
+            background-color: #282b30;
+            color: #7289da;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1e2124;
+        }
+        input[type="file"] {
+            margin-top: 20px;
+            color: #7289da;
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="toggle-section">
+        <label class="toggle-switch">
+            <input type="checkbox" id="botToggle">
+            <span class="slider"></span>
+        </label>
+        <p>Bot: <span id="botStatus">OFF</span></p>
+    </div>
+    <a href="/logout/" class="logout-btn">Logout</a>
+</div>
+
+<input type="file" id="gameFile" accept=".json">
+<button id="scheduleGame">Schedule New Jeopardy Game</button>
+
+<script>
+    const botToggle = document.getElementById('botToggle');
+    const botStatus = document.getElementById('botStatus');
+
+    botToggle.addEventListener('change', function() {
+        if (this.checked) {
+            botStatus.textContent = 'ON';
+        } else {
+            botStatus.textContent = 'OFF';
+        }
+    });
+
+    const scheduleGameBtn = document.getElementById('scheduleGame');
+    const gameFileInput = document.getElementById('gameFile');
+
+    scheduleGameBtn.addEventListener('click', async function() {
+        if (gameFileInput.files.length === 0) {
+            alert('Please select a JSON file to schedule the game.');
+            return;
+        }
+
+        const file = gameFileInput.files[0];
+        const formData = new FormData();
+        formData.append('gameFile', file);
+
+        try {
+            const response = await fetch('/schedule-game-endpoint', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            alert(result.message);
+        } catch (error) {
+            alert('Error scheduling the game. Please try again.');
+        }
+    });
+</script>
+
+</body>
+</html>
