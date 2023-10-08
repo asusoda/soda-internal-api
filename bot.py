@@ -1,25 +1,20 @@
-from typing import Any, Coroutine
 import discord
-from discord.ext import commands
-import os
-import requests
-import json
-import random
-import asyncio
-import datetime
-from datetime import datetime
-import time
-import sys
+from discord.ext import commands, ipc
 
-class Bot(discord.Client):
+class MyBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def __init__(self, intents, logger):
-        super().__init__(intents=intents)
-        self.logger = logger
+    def set_token(self, token):
+        self.token = token
 
     async def on_ready(self):
-        print('Logged on as', self.user)
-        await self.change_presence(activity=discord.Game(name="!help"))
+        """Called upon the READY event"""
+        print("Bot is ready.")
+        for guild in self.guilds:
+            print(guild.name)
 
-    async def on_message(self, message):
-        print('Message from {0.author}: {0.content}'.format(message))
+
+    def run(self):
+        """Starts the bot"""
+        super().run(self.token, reconnect=True)
