@@ -3,6 +3,8 @@ from quart_discord import DiscordOAuth2Session
 import os
 import json
 from bot import MyBot
+import asyncio
+from quart import jsonify
 
 app = Quart("SODA Discord Bot", static_folder="static", template_folder="templates")
 app.secret_key = os.urandom(24) 
@@ -13,9 +15,9 @@ app.config["DISCORD_REDIRECT_URI"] = "http://localhost:5000/callback"
 app.config["DISCORD_BOT_TOKEN"] = "MTE1Mzk0MDI3Mjg2NzE4MDU5NA.GW4vDt.TTACYu1rK2KwI3qRTmcfAsPcF8IARJQQAK_Kco"
 
 AUTHORIZED_USERS = json.load(open("authorised.json", "r"))
-
+bot_running = False
 bot = MyBot()
-
+bot.set_token(app.config["DISCORD_BOT_TOKEN"])
 discord = DiscordOAuth2Session(app) #handle session for authentication
 
 @app.route("/")
@@ -48,8 +50,8 @@ async def start_bot():
     if await discord.authorized:
         user = await discord.fetch_user()
         if user.id in AUTHORIZED_USERS:
-            bot = MyBot()
-            bot.run()
+            asyncio.create_task(bot.start())
+            bot_running = True
             return await render_template("dashboard.html", authorized=await discord.authorized, user=user)
         else:
             return await render_template("dashboard.html", authorized=await discord.authorized, user=user, error="You are not authorized to start the bot.")
@@ -57,6 +59,21 @@ async def start_bot():
         return await render_template("dashboard.html", authorized=await discord.authorized, user=user, error="You are not logged in.")
 
 @app.route("/stop_bot", methods=["POST"])
+async def stop_bot():
+    if await discord.authorized:
+        user = await discord.fetch_user()
+        if user.id in AUTHORIZED_USERS:
+            await bot.logout()
+            bot_running = False
+            return await render_template("dashboard.html", authorized=await discord.authorized, user=user)
+        else:
+            return await render_template("dashboard.html", authorized=await discord.authorized, user=user, error="You are not authorized to stop the bot.")
+    else:
+        return await render_template("dashboard.html", authorized=await discord.authorized, user=user, error="You are not logged in.")
+
+@app.route("/status", methods=["GET"])
+async def status():
+    return jsonify({"status": bot_running})
 
 
 if __name__ == "__main__":
