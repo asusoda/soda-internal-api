@@ -108,10 +108,13 @@
     const botStatus = document.getElementById('botStatus');
     
     async function toggleBot(isOn) {
-        const url = isOn ? '/start-bot-endpoint' : '/stop-bot-endpoint';
+      const url = isOn ? '/start_bot' : '/stop_bot';
         try {
             const response = await fetch(url, {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
             });
             if (!response.ok) {
                 throw new Error('Network response was not ok ' + response.statusText);
@@ -128,6 +131,7 @@
     }
 
     botToggle.addEventListener('change', function() {
+        toggleBot(this.checked);
         if (this.checked) {
             botStatus.textContent = 'ON';
         } else {

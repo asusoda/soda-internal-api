@@ -1,9 +1,9 @@
 import discord
-from discord.ext import commands, ipc
+from discord.ext import commands
 
 class MyBot(commands.Bot):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__( *args, **kwargs)
 
     def set_token(self, token):
         self.token = token
