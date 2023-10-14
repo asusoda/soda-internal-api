@@ -1,20 +1,16 @@
-import discord
-import logging
+
 from discord.ext import commands
 from discord.ext import tasks
+from ..utils.JeprodayGame import JeprodayGame
+from ..utils.JeprodayQuestion import JeprodayQuestion
 import os
 import requests
 import json
 import random
 import uuid
+import discord
+import logging
 
-class JeprodayQuestion:
-    def __init__(self, category, question, answer, value, uuid):
-        self.category = category
-        self.question = question
-        self.answer = answer
-        self.value = value
-        self.answered = False
 
 
 class GameCog(commands.Cog):
@@ -22,7 +18,7 @@ class GameCog(commands.Cog):
     def __init__(self, bot, logger, questions) -> None:
             self.bot = bot
             self.logger = logger
-            self.questions = questions
+            self.game = JeprodayGame
 
     @commands.command()
     async def show(self, ctx):

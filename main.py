@@ -86,26 +86,6 @@ async def stop_bot():
 async def status():
     return jsonify({"status": bot_running})
 
-@app.route('/upload_game', methods=['POST'])
-async def upload_game():
-    # Check if the post request has the file part
-    if 'gameFile' not in await requests.files:
-        return jsonify({"message": "No file part", "status": "error"}), 400
-
-    file = (await request.files)['gameFile']
-
-    # If the user does not select a file, the browser might submit an empty file without a filename
-    if file.filename == '':
-        return jsonify({"message": "No selected file", "status": "error"}), 400
-
-    # Check if the uploaded file is a JSON
-    if file and file.filename.endswith('.json'):
-        # Secure the filename to avoid potential security issues
-        filename = os.path.join('games', file.filename)
-        await file.save(filename)
-        return jsonify({"message": "File uploaded successfully", "status": "success"}), 200
-
-    return jsonify({"message": "Invalid file type", "status": "error"}), 400
 
 
 

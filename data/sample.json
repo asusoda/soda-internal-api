@@ -1,0 +1,36 @@
+{
+    "game" : {
+        "name" : "Game 1",
+        "description" : "This is a game",
+        "teams" : 2,
+        "players" : 4,
+        "categories" : 2,
+        "per_category" : 2
+    },
+    "questions": {
+        "category1" : [
+            {
+                "question" : "Question 1",
+                "answer" : "Answer 1",
+                "value" : 100
+            },
+            {
+                "question" : "Question 2",
+                "answer" : "Answer 2",
+                "value" : 200
+            }
+        ],
+        "category2" : [
+            {
+                "question" : "Question 1",
+                "answer" : "Answer 1",
+                "value" : 100
+            },
+            {
+                "question" : "Question 2",
+                "answer" : "Answer 2",
+                "value" : 200
+            }
+        ]
+    }
+}
