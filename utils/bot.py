@@ -13,7 +13,7 @@ from ..cogs.MusicCog import MusicCog
 
 
 
-class MyBot(commands.Bot):
+class BotFork(commands.Bot):
     def __init__(self, *args, **kwargs):
         self.setup = False
         super().__init__( *args, **kwargs)
@@ -31,18 +31,18 @@ class MyBot(commands.Bot):
         if not self.setup:
             self.setup = True
             super().run(self.token, reconnect=True)
-            super().add_cog(Moderation(self))
-            super().add_cog(GameCog(self))
-            super().add_cog(MusicCog(self))
+            # super().add_cog(Moderation(self))
+            # super().add_cog(GameCog(self))
+            # super().add_cog(MusicCog(self))
 
         else:
             asyncio.run(self.change_presence(status=discord.Status.online))
 
     async def stop(self):
         """Stops the bot"""
-        super().remove_cog("Moderation")
-        super().remove_cog("GameCog")
-        super().remove_cog("MusicCog")
+        # super().remove_cog("Moderation")
+        # super().remove_cog("GameCog")
+        # super().remove_cog("MusicCog")
         await self.change_presence(status=discord.Status.offline)
 
         

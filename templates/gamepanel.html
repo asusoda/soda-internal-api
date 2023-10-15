@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Control Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #36393e;
+            color: #c0c2ca;
+        }
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #424549;
+            padding: 10px 20px;
+        }
+        .navbar a {
+            color: #7289da;
+            text-decoration: none;
+            padding: 8px 16px;
+            transition: background-color 0.3s;
+            background-color: #1e2124;
+            border-radius: 5px;
+        }
+        .navbar a:hover {
+            background-color: #282b30;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #1e2124;
+            text-align: left;
+        }
+        .reveal-btn {
+            background-color: rgb(104, 188, 104);
+            color: #c0c2ca;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .answer-btn {
+            background-color: rgb(219, 105, 105);
+            color: #c0c2ca;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <a href="/dashboard">Back to Dashboard</a>
+    <div class="game-info">
+        <h1>Game 1</h1>
+        <p>Description: This is a game</p>
+        <p>Teams: 2, Players: 4, Categories: 2, Questions per Category: 2</p>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Value</th>
+            <th>Question</th>
+            <th>Answer</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Category 1 -->
+        <tr>
+            <td>category1</td>
+            <td>100</td>
+            <td>Question 1</td>
+            <td>Answer 1</td>
+            <td>
+                <button class="reveal-btn" onclick="postRequest('/reveal', '1234')">Reveal</button>
+                <button class="answer-btn" onclick="postRequest('/answer', '1234')">Answer</button>
+            </td>
+        </tr>
+        <tr>
+            <td>category1</td>
+            <td>200</td>
+            <td>Question 2</td>
+            <td>Answer 2</td>
+            <td>
+                <button class="reveal-btn" onclick="postRequest('/reveal', '1233')">Reveal</button>
+                <button class="answer-btn" onclick="postRequest('/answer', '1233')">Answer</button>
+            </td>
+        </tr>
+        <!-- Category 2 -->
+        <tr>
+            <td>category2</td>
+            <td>100</td>
+            <td>Question 1</td>
+            <td>Answer 1</td>
+            <td>
+                <button class="reveal-btn" onclick="postRequest('/reveal', '1232')">Reveal</button>
+                <button class="answer-btn" onclick="postRequest('/answer', '1232')">Answer</button>
+            </td>
+        </tr>
+        <tr>
+            <td>category2</td>
+            <td>200</td>
+            <td>Question 2</td>
+            <td>Answer 2</td>
+            <td>
+                <button class="reveal-btn" onclick="postRequest('/reveal', '1231')">Reveal</button>
+                <button class="answer-btn" onclick="postRequest('/answer', '1231')">Answer</button>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<script>
+    function postRequest(endpoint, uuid) {
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid: uuid })
+        })
+        .then(response => response.json())
+        .then(data => alert(data.message))
+        .catch(error => console.error('Error:', error));
+    }
+
+    function generatePanel(gameData) {
+    const panelContainer = document.getElementById('panel-container');  // Assume you have a div with id 'panel-container' to hold the panel
+
+    // Create the navbar
+    const navbar = document.createElement('div');
+    navbar.className = 'navbar';
+    navbar.innerText = `Game: ${gameData.game.name}`;
+    panelContainer.appendChild(navbar);
+
+    // Create the table
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
+
+    // Create table header
+    const headerRow = document.createElement('tr');
+    ['Category', 'Value', 'Question', 'Answer', 'Actions'].forEach(text => {
+        const th = document.createElement('th');
+        th.innerText = text;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Create table body
+    Object.keys(gameData.questions).forEach(category => {
+        gameData.questions[category].forEach(questionData => {
+            const row = document.createElement('tr');
+
+            const categoryCell = document.createElement('td');
+            categoryCell.innerText = category;
+            row.appendChild(categoryCell);
+
+            const valueCell = document.createElement('td');
+            valueCell.innerText = questionData.value;
+            row.appendChild(valueCell);
+
+            const questionCell = document.createElement('td');
+            questionCell.innerText = questionData.question;
+            row.appendChild(questionCell);
+
+            const answerCell = document.createElement('td');
+            answerCell.innerText = questionData.answer;
+            row.appendChild(answerCell);
+
+            const actionsCell = document.createElement('td');
+            const revealButton = document.createElement('button');
+            revealButton.innerText = 'Reveal';
+            revealButton.className = 'reveal-button';
+            revealButton.addEventListener('click', () => revealQuestion(questionData.uuid));
+            actionsCell.appendChild(revealButton);
+
+            const answerButton = document.createElement('button');
+            answerButton.innerText = 'Answer';
+            answerButton.className = 'answer-button';
+            answerButton.addEventListener('click', () => answerQuestion(questionData.uuid));
+            actionsCell.appendChild(answerButton);
+
+            row.appendChild(actionsCell);
+
+            tbody.appendChild(row);
+        });
+    });
+    table.appendChild(tbody);
+    panelContainer.appendChild(table);
+}
+
+function revealQuestion(uuid) {
+    fetch(`/reveal?uuid=${uuid}`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            // handle response...
+        });
+}
+
+function answerQuestion(uuid) {
+    fetch(`/answer?uuid=${uuid}`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            // handle response...
+        });
+}
+
+</script>
+
+</body>
+</html>
+
+

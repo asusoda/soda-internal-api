@@ -12,24 +12,28 @@
             {
                 "question" : "Question 1",
                 "answer" : "Answer 1",
-                "value" : 100
+                "value" : 100,
+                "uuid" : "1234"
             },
             {
                 "question" : "Question 2",
                 "answer" : "Answer 2",
-                "value" : 200
+                "value" : 200,
+                "uuid" : "1233"
             }
         ],
         "category2" : [
             {
                 "question" : "Question 1",
                 "answer" : "Answer 1",
-                "value" : 100
+                "value" : 100,
+                "uuid" : "1232"
             },
             {
                 "question" : "Question 2",
                 "answer" : "Answer 2",
-                "value" : 200
+                "value" : 200,
+                "uuid" : "1231"
             }
         ]
     }

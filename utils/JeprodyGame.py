@@ -1,5 +1,5 @@
 import uuid
-from JeopardyQuestion import JeopardyQuestion
+from  ..utils.JeopardyQuestion import JeopardyQuestion
 class JeopardyGame:
     def __init__(self, game_data):
         self.name = game_data['game']['name']
