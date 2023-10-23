@@ -1,5 +1,7 @@
+from typing import Any
 import uuid
-from  ..utils.JeopardyQuestion import JeopardyQuestion
+
+from utils.JeprodyQuestion import JeopardyQuestion
 class JeopardyGame:
     def __init__(self, game_data):
         self.name = game_data['game']['name']
@@ -31,3 +33,9 @@ class JeopardyGame:
             question.answered = True
             return True
         return False
+       
+    def get(self, name):
+        if name in ['name', 'description', 'teams', 'players', 'categories', 'per_category', 'questions']:
+            return getattr(self, name)
+        else:
+            raise AttributeError(f'Attribute {name} does not exist')

@@ -62,67 +62,13 @@
 <div class="navbar">
     <a href="/dashboard">Back to Dashboard</a>
     <div class="game-info">
-        <h1>Game 1</h1>
-        <p>Description: This is a game</p>
-        <p>Teams: 2, Players: 4, Categories: 2, Questions per Category: 2</p>
+        {{ game_info|safe }}
     </div>
 </div>
 
-<table>
-    <thead>
-        <tr>
-            <th>Category</th>
-            <th>Value</th>
-            <th>Question</th>
-            <th>Answer</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        <!-- Category 1 -->
-        <tr>
-            <td>category1</td>
-            <td>100</td>
-            <td>Question 1</td>
-            <td>Answer 1</td>
-            <td>
-                <button class="reveal-btn" onclick="postRequest('/reveal', '1234')">Reveal</button>
-                <button class="answer-btn" onclick="postRequest('/answer', '1234')">Answer</button>
-            </td>
-        </tr>
-        <tr>
-            <td>category1</td>
-            <td>200</td>
-            <td>Question 2</td>
-            <td>Answer 2</td>
-            <td>
-                <button class="reveal-btn" onclick="postRequest('/reveal', '1233')">Reveal</button>
-                <button class="answer-btn" onclick="postRequest('/answer', '1233')">Answer</button>
-            </td>
-        </tr>
-        <!-- Category 2 -->
-        <tr>
-            <td>category2</td>
-            <td>100</td>
-            <td>Question 1</td>
-            <td>Answer 1</td>
-            <td>
-                <button class="reveal-btn" onclick="postRequest('/reveal', '1232')">Reveal</button>
-                <button class="answer-btn" onclick="postRequest('/answer', '1232')">Answer</button>
-            </td>
-        </tr>
-        <tr>
-            <td>category2</td>
-            <td>200</td>
-            <td>Question 2</td>
-            <td>Answer 2</td>
-            <td>
-                <button class="reveal-btn" onclick="postRequest('/reveal', '1231')">Reveal</button>
-                <button class="answer-btn" onclick="postRequest('/answer', '1231')">Answer</button>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div class="panel-container">
+    {{ game_panel|safe }}
+</div>
 
 <script>
     function postRequest(endpoint, uuid) {
@@ -138,72 +84,7 @@
         .catch(error => console.error('Error:', error));
     }
 
-    function generatePanel(gameData) {
-    const panelContainer = document.getElementById('panel-container');  // Assume you have a div with id 'panel-container' to hold the panel
-
-    // Create the navbar
-    const navbar = document.createElement('div');
-    navbar.className = 'navbar';
-    navbar.innerText = `Game: ${gameData.game.name}`;
-    panelContainer.appendChild(navbar);
-
-    // Create the table
-    const table = document.createElement('table');
-    const thead = document.createElement('thead');
-    const tbody = document.createElement('tbody');
-
-    // Create table header
-    const headerRow = document.createElement('tr');
-    ['Category', 'Value', 'Question', 'Answer', 'Actions'].forEach(text => {
-        const th = document.createElement('th');
-        th.innerText = text;
-        headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    // Create table body
-    Object.keys(gameData.questions).forEach(category => {
-        gameData.questions[category].forEach(questionData => {
-            const row = document.createElement('tr');
-
-            const categoryCell = document.createElement('td');
-            categoryCell.innerText = category;
-            row.appendChild(categoryCell);
-
-            const valueCell = document.createElement('td');
-            valueCell.innerText = questionData.value;
-            row.appendChild(valueCell);
-
-            const questionCell = document.createElement('td');
-            questionCell.innerText = questionData.question;
-            row.appendChild(questionCell);
-
-            const answerCell = document.createElement('td');
-            answerCell.innerText = questionData.answer;
-            row.appendChild(answerCell);
-
-            const actionsCell = document.createElement('td');
-            const revealButton = document.createElement('button');
-            revealButton.innerText = 'Reveal';
-            revealButton.className = 'reveal-button';
-            revealButton.addEventListener('click', () => revealQuestion(questionData.uuid));
-            actionsCell.appendChild(revealButton);
-
-            const answerButton = document.createElement('button');
-            answerButton.innerText = 'Answer';
-            answerButton.className = 'answer-button';
-            answerButton.addEventListener('click', () => answerQuestion(questionData.uuid));
-            actionsCell.appendChild(answerButton);
-
-            row.appendChild(actionsCell);
-
-            tbody.appendChild(row);
-        });
-    });
-    table.appendChild(tbody);
-    panelContainer.appendChild(table);
-}
+    
 
 function revealQuestion(uuid) {
     fetch(`/reveal?uuid=${uuid}`, { method: 'POST' })

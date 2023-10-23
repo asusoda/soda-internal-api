@@ -2,10 +2,10 @@
     "game" : {
         "name" : "Game 1",
         "description" : "This is a game",
-        "teams" : 2,
         "players" : 4,
         "categories" : 2,
-        "per_category" : 2
+        "per_category" : 2, 
+        "teams": ["Team 1", "Team 2", "Team 3", "Team 4"]
     },
     "questions": {
         "category1" : [

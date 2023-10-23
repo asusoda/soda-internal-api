@@ -1,6 +1,8 @@
 import uuid
 
-class JeprodayQuestion:
+class JeopardyQuestion():
+
+    
     def __init__(self, category, question, answer, value):
         self.category = category
         self.question = question

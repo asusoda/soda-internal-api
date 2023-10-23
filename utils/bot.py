@@ -6,9 +6,8 @@ import json
 import random
 import uuid
 import asyncio
-from ..cogs.ModerationCog import Moderation
-from ..cogs.GameCog import GameCog
-from ..cogs.MusicCog import MusicCog
+from cogs.GameCog import GameCog
+#from cogs.MusicCog import MusicCog
 
 
 

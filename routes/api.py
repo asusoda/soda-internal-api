@@ -1,5 +1,5 @@
-from quart import render_template, redirect, url_for, jsonify
-from .main import app, discord, bot, AUTHORIZED_USERS, bot_running, intents, db
+from quart import render_template, redirect, url_for, jsonify, request
+from shared import app, discord_oauth, bot, AUTHORIZED_USERS, bot_running, discord
 import json
 import asyncio
 import discord as dpy
@@ -50,3 +50,10 @@ async def get_game_data():
     with open('game_data.json') as f:
         game_data = json.load(f)
     return jsonify(game_data)
+
+
+@app.route('/awardPoints', methods=['POST'])
+async def award_points():
+    team = request.form['team']
+    points = request.form['points']
+
