@@ -22,4 +22,5 @@ This project provides a web-based control panel for managing a Jeopardy-themed D
 
 1. Clone the repository:
    ```bash
-   https://github.com/code-wolf-byte/soda-bot.git
+   https://github.com/asusoda/soda-bot.git
+   
