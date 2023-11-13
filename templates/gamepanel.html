@@ -95,7 +95,29 @@ function revealQuestion(uuid) {
         });
 }
 
-function answerQuestion(uuid) {
+function answerQuestion(answer, uuid) {
+        // var div = document.getElementsByClassName(uuid);
+
+        // var tb = div[0].getElementsByTagName('button');
+        // //var buttons =  tb[0].getElementsByTagName('button');
+
+        // console.log("TB:", tb);
+        // console.log("TB.innerHTML:", tb.);
+
+        // for (var i = 0; i < buttons.length; i++) {
+        //     console.log('Button:', buttons[i]);
+        //     buttons[i].disabled = true;
+        // }
+
+        var buttons = document.getElementsByClassName(uuid);
+        for(var i = 0; i < buttons.length; i++) {
+            if(buttons[i].tagName === 'BUTTON') {
+    
+                buttons[i].disabled = true;
+            }
+        
+    }
+    
     fetch(`/answer?uuid=${uuid}`, { method: 'POST' })
         .then(response => response.json())
         .then(data => {

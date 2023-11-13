@@ -1,9 +1,10 @@
 
 from discord.ext import commands
 from discord.ext import tasks
-
+from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
 
 from utils.JeprodyGame import JeopardyGame
+from utils.Team import Team
 from utils.JeprodyQuestion import JeopardyQuestion
 
 import os
@@ -14,41 +15,23 @@ import uuid
 import discord
 import logging
 
-class TempConfig():
-
-        def __init__(self, roles, category, channels) -> None:
-                self.roles = roles
-                self.category = category
-                self.channels = channels
-
-        def purge(self):
-                for channel in self.channels:
-                        channel.delete()
-                for role in self.roles:
-                        role.delete()
-                self.category.delete()
-
 
 class GameCog(commands.Cog):
  
-        def __init__(self, bot, logger, questions) -> None:
-            self.bot = bot
+        def __init__(self, bot, logger) -> None:
+            self.bot    = bot
             self.logger = logger
-            self.game = None
-            self.scheduler = AsyncIOScheduler()
+            self.game = JeopardyGame(game_data=json.load(open('game.json', 'r')))
+            self.teams : Optional[Team] = []
+            self.questions : Optional[JeopardyQuestion] = []
+            for team in self.game.teams:
+                self.logger.info(f"Team: {team}")
+                self.teams.append(Team(team))
+            for question in self.game.get_questions():
+                self.logger.info(f"Question: {question}")
+                self.questions.append(question)
 
-        @commands.command()
-        async def show(self, ctx):
-                """Show the list of Jeproday questions in an embed UI."""
-                embed = discord.Embed(title="Jeproday Questions", description="Here are the available questions:", color=0x00ff00)
-                
-                for question in self.questions:
-                        if not question.answered:
-                                embed.add_field(name=question.category, value= question.value , inline=False)
-                        else:
-                                embed.add_field(name=question.category, value= "XXXXXXX", inline=False)
-                
-                await ctx.send(embed=embed)
+             
 
         def set_game(self, game):
                 if self.game is None:
@@ -60,26 +43,9 @@ class GameCog(commands.Cog):
                 self.game = None
 
 
-        async def send_announcment(self):
-                channel_id = 1234567890  # Replace with your channel ID
-                channel = self.bot.get_channel(channel_id)
-                
-                embed = discord.Embed(title="Jeopardy Game Announcement", description="Join our Jeopardy game!", color=0x00ff00)
-                embed.add_field(name="Number of Teams", value="5", inline=True)
-                embed.add_field(name="Players per Team", value="4", inline=True)
-                
-                message = await channel.send(embed=embed)
-    
-        async def start_game(self):
-                guild = self.bot.guilds[0]
-                category = await guild.create_category("Jeopardy")
-                await category.edit(position=0)
-                roles = []
-                for i in range(5):
-                          role = await guild.create_role(name=f"Team {i+1}")
-                          role.edit(colour=discord.Colour(random.randint(0, 0xFFFFFF)))
-                          roles.append(role)
-                
+        
+        
+        
 
 
      

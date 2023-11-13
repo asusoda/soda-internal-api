@@ -39,3 +39,16 @@ class JeopardyGame:
             return getattr(self, name)
         else:
             raise AttributeError(f'Attribute {name} does not exist')
+        
+    def toJSON(self):
+        data  = {}
+        data['game'] = {}
+        data['game']['name'] = self.name
+        data['game']['description'] = self.description
+        data['game']['teams'] = self.teams
+        data['game']['players'] = self.players
+        data['game']['categories'] = self.categories
+        data['game']['per_category'] = self.per_category
+        data['game']['uuid'] = str(uuid.uuid4())
+        data['questions'] = {}
+        

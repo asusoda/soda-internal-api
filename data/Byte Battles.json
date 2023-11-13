@@ -1,0 +1,174 @@
+{
+    "game": {
+      "name": "Byte Battles",
+      "description": "A classic game of Jeopardy with various categories related to computing.",
+      "players": 4,
+      "categories": 5,
+      "per_category": 5,
+      "teams": ["Team 1", "Team 2", "Team 3", "Team 4"],
+      "uuid" : "game-1"
+    },
+    "questions": {
+      "History of Computing": [
+        {
+          "question": "Who is Ada Lovelace?",
+          "answer": "Ada Lovelace is credited with creating plans for the first computer, the Analytical Engine.",
+          "value": 100,
+          "uuid": "h-100"
+        },
+        {
+          "question": "Who is Alan Turing?",
+          "answer": "Alan Turing was a mathematician who is considered one of the fathers of computer science and artificial intelligence.",
+          "value": 200,
+          "uuid": "h-200"
+        },
+        {
+          "question": "What is Intel?",
+          "answer": "Intel is a company that created the first successful commercial microprocessor, the Intel 4004.",
+          "value": 300,
+          "uuid": "h-300"
+        },
+        {
+          "question": "What is Philadelphia known for in computing history?",
+          "answer": "Philadelphia is known for the ENIAC, the first electronic general-purpose computer.",
+          "value": 400,
+          "uuid": "h-400"
+        },
+        {
+          "question": "What is the ARPANET?",
+          "answer": "The ARPANET was the first major packet-switching network which later evolved into the internet.",
+          "value": 500,
+          "uuid": "h-500"
+        }
+      ],
+      "Computer Hardware": [
+        {
+          "question": "What is the primary function of a CPU?",
+          "answer": "The CPU executes instructions and performs calculations for the computer.",
+          "value": 100,
+          "uuid": "hw-100"
+        },
+        {
+          "question": "What is Flash memory?",
+          "answer": "Flash memory is non-volatile memory that can be electronically erased and reprogrammed.",
+          "value": 200,
+          "uuid": "hw-200"
+        },
+        {
+          "question": "What is RAID?",
+          "answer": "RAID stands for Redundant Array of Independent Disks, aimed at improving data reliability and performance.",
+          "value": 300,
+          "uuid": "hw-300"
+        },
+        {
+          "question": "What is a GPU?",
+          "answer": "A GPU, or Graphics Processing Unit, is specialized hardware for rendering images and videos.",
+          "value": 400,
+          "uuid": "hw-400"
+        },
+        {
+          "question": "What is a motherboard?",
+          "answer": "A motherboard is the main circuit board in a computer, connecting and coordinating all the hardware components.",
+          "value": 500,
+          "uuid": "hw-500"
+        }
+      ],
+      "Computer Networks": [
+        {
+          "question": "What is a LAN?",
+          "answer": "A LAN, or Local Area Network, typically covers the network within a single building or campus.",
+          "value": 100,
+          "uuid": "cn-100"
+        },
+        {
+          "question": "What is ICANN?",
+          "answer": "ICANN is the organization responsible for assigning IP addresses and managing DNS.",
+          "value": 200,
+          "uuid": "cn-200"
+        },
+        {
+          "question": "What is DSL?",
+          "answer": "DSL stands for Digital Subscriber Line, a technology for data transmission over telephone lines.",
+          "value": 300,
+          "uuid": "cn-300"
+        },
+        {
+          "question": "What does a router do?",
+          "answer": "A router forwards data packets between computer networks.",
+          "value": 400,
+          "uuid": "cn-400"
+        },
+        {
+          "question": "What is NFC?",
+          "answer": "NFC, or Near Field Communication, is a technology for short-range wireless connectivity, often used for mobile payments.",
+          "value": 500,
+          "uuid": "cn-500"
+        }
+      ],
+      "Algorithms and Data Structures": [
+        {
+            "question": "What is a linked list?",
+            "answer": "A linked list is a sequential data structure where each element points to the next, allowing for efficient insertions and deletions.",
+            "value": 100,
+            "uuid": "ads-100"
+          },
+          {
+            "question": "What is a binary search algorithm?",
+            "answer": "Binary search is a divide-and-conquer algorithm that finds the position of a target value within a sorted array by repeatedly dividing the search interval in half.",
+            "value": 200,
+            "uuid": "ads-200"
+          },
+          {
+            "question": "What is Big O notation?",
+            "answer": "Big O notation describes the upper bound of the time complexity of an algorithm, characterizing its worst-case scenario performance.",
+            "value": 300,
+            "uuid": "ads-300"
+          },
+          {
+            "question": "What is a stack data structure?",
+            "answer": "A stack is a collection of elements that follows the last in, first out (LIFO) principle, where the last element added is the first to be removed.",
+            "value": 400,
+            "uuid": "ads-400"
+          },
+          {
+            "question": "What is a hash table?",
+            "answer": "A hash table is a data structure that implements an associative array, a structure that can map keys to values using a hash function to compute an index into an array of buckets.",
+            "value": 500,
+            "uuid": "ads-500"
+          }
+    ],
+    "Artificial Intelligence": [
+        {
+          "question": "What is a perceptron in the context of AI?",
+          "answer": "A perceptron is a type of artificial neuron used in supervised learning to classify input data.",
+          "value": 100,
+          "uuid": "ai-100"
+        },
+        {
+          "question": "Explain 'supervised learning' in machine learning.",
+          "answer": "Supervised learning is a type of machine learning where a model is trained on labeled data to make predictions or decisions.",
+          "value": 200,
+          "uuid": "ai-200"
+        },
+        {
+          "question": "What does 'heuristic' refer to in AI?",
+          "answer": "A heuristic is a problem-solving approach that uses a practical method or various shortcuts to produce solutions that may not be optimal but are sufficient for reaching an immediate goal.",
+          "value": 300,
+          "uuid": "ai-300"
+        },
+        {
+          "question": "What is 'reinforcement learning'?",
+          "answer": "Reinforcement learning is a type of machine learning where an agent learns to make decisions by performing actions in an environment to achieve maximum cumulative reward.",
+          "value": 400,
+          "uuid": "ai-400"
+        },
+        {
+          "question": "Define 'genetic algorithms' in the AI field.",
+          "answer": "Genetic algorithms are search heuristics inspired by the process of natural selection, used to solve optimization and search problems by iteratively choosing a set of solutions and using them to form new solution sets.",
+          "value": 500,
+          "uuid": "ai-500"
+        }
+      ]
+
+}
+}
