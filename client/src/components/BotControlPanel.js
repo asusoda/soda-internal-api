@@ -7,6 +7,7 @@ import UploadFileCard from './UploadFileCard';
 function BotControlPanel() {
     const [botStatus, setBotStatus] = useState(false); // false indicates 'OFF', true indicates 'ON'
     const [games, setGames] = useState([]);
+    const [activeGame, setActiveGame] = useState(null); // New state for active game
     useEffect(() => {
         // Function to fetch bot status
         const fetchBotStatus = async () => {
@@ -18,14 +19,33 @@ function BotControlPanel() {
                 console.error('Error:', error);
             }
         };
-
         fetchBotStatus();
     }, []);
 
     useEffect(() => {
         // Function to fetch available games
+       
         fetchGames();
+        fetchActiveGame();
     }, []);
+
+    const ActiveGamePanel = () => (
+        <div className="bg-green-300 text-gray-800 p-4 rounded-lg shadow-lg m-4 cursor-pointer">
+            <h2 className="text-2xl font-bold">Active Game: {activeGame.game.name}</h2>
+            <p>Click to go to the game</p>
+        </div>
+    );
+
+    const fetchActiveGame = async () => {
+        try {
+            const response = await axios.get('/api/getactivegame');
+             console.log(response.data);
+            setActiveGame(response.data); // Set active game data
+        } catch (error) {
+            console.error('Error fetching active game:', error);
+            setActiveGame(null); // Ensure active game is null if fetch fails
+        }
+    };
 
     const toggleBot = async () => {
         const url = botStatus ? '/api/stopbot' : '/api/startbot';
@@ -87,6 +107,7 @@ function BotControlPanel() {
                 </div>
                 <a href="/logout/" className="text-blue-400 hover:text-blue-300 transition">Logout</a>
             </div>
+            {activeGame && <ActiveGamePanel />}
             {games.map(game => (
                 <GameCard key={game.file_name} game={game} />
             ))}

@@ -1,6 +1,6 @@
 from shared import bot, app
-from routes.api import *
 from routes.views import *
+from routes.api import *
 import random
 import discord
 from cogs.BasicCog import BasicCog

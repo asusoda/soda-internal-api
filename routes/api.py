@@ -7,74 +7,14 @@ import asyncio
 import os
 
 
-# @app.route("/start_bot", methods=["POST"])
-# async def start_bot():
-#     global bot_running  # Declare bot_running as global
-#     if await discord_oauth.authorized:
-#         user = await discord_oauth.fetch_user()
-#         print(user)
-#         print(user.id)
-#         print(AUTHORIZED_USERS)
-#         if str(user.id) in AUTHORIZED_USERS:
-#             asyncio.create_task(bot.start(token=app.config["DISCORD_BOT_TOKEN"]))
-#             bot_running = True
-#             return jsonify({"message": "Bot started successfully", "status": "success"}), 200
-#         else:
-#             print(user.id)
-#             return jsonify({"message": "You are not authorized to start the bot.", "status": "unauthorized"}), 403
-#     else:
-#         return jsonify({"message": "You are not logged in.", "status": "unauthorized"}), 401
-
-
-# @app.route("/stop_bot", methods=["POST"])
-# async def stop_bot():
-#     global bot_running  # Declare bot_running as global
-#     if await discord_oauth.authorized:
-#         user = await discord_oauth.fetch_user()
-#         if str(user.id) in AUTHORIZED_USERS:
-#             await bot.close()
-#             bot_running = False
-#             return jsonify({"message": "Bot stopped successfully", "status": "success"}), 200
-#         else:
-#             return jsonify({"message": "You are not authorized to stop the bot.", "status": "unauthorized"}), 403
-#     else:
-#         return jsonify({"message": "You are not logged in.", "status": "unauthorized"}), 401
-
-# @app.route("/status", methods=["GET"])
-# async def status():
-#     return jsonify({"status": bot_running})
-
-
-
-# @app.route('/getGameData', methods=['GET'])
-# async def get_game_data():
-#     # Assuming your game data is stored in a file called 'game_data.json'
-#     with open('game_data.json') as f:
-#         game_data = json.load(f)
-#     return jsonify(game_data)
-
-
-# @app.route('/awardPoints', methods=['POST'])
-# async def award_points():
-#     team = request.form['team']
-#     points = request.form['points']
-
-@app.route("/login/")
-def login():
-    return discord_oauth.create_session()
-
-
-@app.route("/callback/")
-def callback():
-    code = request.args.get("code")
-    discord_oauth.callback()
-    return redirect(url_for("gamepanel"))
-
-
 @app.errorhandler(Unauthorized)
 def redirect_unauthorized(e):
     return redirect(url_for("login"))
 
+@app.route("/logout/")
+def logout():
+    discord_oauth.revoke()
+    return redirect(url_for("index"))
 
 @app.route("/me/")
 @requires_authorization
@@ -188,7 +128,6 @@ def is_valid_game_json(data):
 
 @app.route('/api/uploadgame', methods=['POST'])
 def upload_game():
-    # Assuming the file is received as part of a form
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
@@ -251,3 +190,48 @@ async def set_active_game():
                     return jsonify({'message': 'Active game set successfully'}), 200
     return jsonify({'error': 'Game not found'}), 404
 
+
+@app.route('/api/getactivegame', methods=['GET'])
+def get_active_game():
+    if bot.active_game not in [None, ""]:
+        print(bot.active_game.to_json())
+        return jsonify(bot.active_game.to_json()), 200
+    else:
+        return jsonify({'error': 'No active game set'}), 404
+    
+
+@app.route('/api/getactivegamedata', methods=['GET'])
+def get_active_game_data():
+    if bot.active_game not in [None, ""]:
+        return jsonify(bot.active_game.to_json()), 200
+    else:
+        return jsonify({'error': 'No active game set'}), 404
+
+@app.route('/api/awardpoints', methods=['POST'])
+def award_points():
+    team = request.args.get("team")
+    points = request.args.get("points")
+    bot.award_points(team, points)
+    return jsonify({'message': 'Points awarded successfully'}), 200
+
+@app.route('/api/cleanactivegame', methods=['POST'])
+def clean_active_game():
+    bot.clean_game()
+    return jsonify({'message': 'Active game cleaned successfully'}), 200
+
+@app.route('/api/getactivegamestate', methods=['GET'])
+def get_active_game_state():
+    if bot.active_game not in [None, ""]:
+        return jsonify(bot.active_game.get_state()), 200
+    else:
+        return jsonify({'error': 'No active game set'}), 404
+    
+@app.route('/api/startactivegame', methods=['POST'])
+def start_active_game():
+    bot.start_game()
+    return jsonify({'message': 'Active game started successfully'}), 200
+
+@app.route('/api/endactivegame', methods=['POST'])
+def end_active_game():
+    bot.end_game()
+    return jsonify({'message': 'Active game ended successfully'}), 200

@@ -6,9 +6,8 @@ import json
 import random
 import uuid
 import asyncio
-#from cogs.GameCog import GameCog
 from cogs.BasicCog import BasicCog
-#from cogs.MusicCog import MusicCog
+from utils.Jeopardy import JeopardyGame
 
 
 
@@ -78,6 +77,11 @@ class BotFork(commands.Bot):
             category=category,
             overwrites=overwrites
         )
+        self.scoreboard_channel = await guild.create_text_channel(
+            "scoreboard",
+            category=category,
+            overwrites=overwrites
+        )
 
         for role in roles:
             overwrites = {
@@ -101,7 +105,7 @@ class BotFork(commands.Bot):
         await self.announcement_channel.send(embed=embed)
 
     def set_active_game(self, data):
-        self.active_game = data
+        self.active_game = JeopardyGame(data)
         print(self.active_game)
         self.loop.create_task(self.async_set_active_game(data))
 
@@ -119,7 +123,11 @@ class BotFork(commands.Bot):
         for role in roles:
             await role.delete()
 
+    def award_points(self, team, points):
+        self.active_game.award_points(team, points)
+
     
     def get_active_game(self):
         return self.active_game
 
+  

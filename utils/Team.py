@@ -19,3 +19,6 @@ class Team():
     def getScore(self) -> int:
         return self.score
     
+    def add_team_member(self, member_id : int) -> None:
+        self.members.append(member_id)
+    
