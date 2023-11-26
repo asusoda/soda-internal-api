@@ -3,7 +3,7 @@ from routes.views import *
 from routes.api import *
 import random
 import discord
-from cogs.BasicCog import BasicCog
+
                 
 
 

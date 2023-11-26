@@ -1,7 +1,29 @@
 from typing import Any
 import uuid
 from utils.Team import Team
-from utils.JeopardyQuestion import JeopardyQuestion
+
+class JeopardyQuestion():
+
+    
+    def __init__(self, category, question, answer, value):
+        self.category = category
+        self.question = question
+        self.answer = answer
+        self.value = value
+        self.answered = False
+        self.id = uuid.uuid4()
+        
+
+    def to_json(self):
+        return {
+            "category": self.category,
+            "question": self.question,
+            "answer": self.answer,
+            "value": self.value,
+            "answered": self.answered,
+            "id": str(self.id)
+        }
+        
 class JeopardyGame:
     def __init__(self, game_data):
         self.name = game_data['game']['name']
@@ -12,6 +34,8 @@ class JeopardyGame:
         self.per_category = game_data['game']['per_category']
         self.questions = self._create_questions(game_data['questions'])
         self.uuid = uuid.uuid4()
+        self.is_announced = False
+        self.is_started = False
 
     def _create_questions(self, questions_data):
         questions = {}
@@ -77,3 +101,12 @@ class JeopardyGame:
                 team.add_points(points)
                 return True
         return False
+
+
+    def announce(self):
+        self.is_announced = True
+
+    def start(self):
+        self.is_started = True
+
+    

@@ -179,16 +179,18 @@ def get_game_questions():
 async def set_active_game():
     uuid = request.args.get("uuid")
     files = listdir(app.config['UPLOAD_FOLDER'])
-    for file in files:
-        if file.endswith(".json"):
-            with open(f'./data/{file}') as f:
-                game_data = json.load(f)
-                if game_data["game"]["uuid"] == uuid:
-                    print("Bot" + str(bot))
-                    bot.set_active_game(game_data)
-                    
-                    return jsonify({'message': 'Active game set successfully'}), 200
-    return jsonify({'error': 'Game not found'}), 404
+    if bot_running:
+        for file in files:
+            if file.endswith(".json"):
+                with open(f'./data/{file}') as f:
+                    game_data = json.load(f)
+                    if game_data["game"]["uuid"] == uuid:
+                        print("Bot" + str(bot))
+                        bot.set_active_game(game_data)
+                        return jsonify({'message': 'Active game set successfully'}), 200
+        return jsonify({'error': 'Game not found!!'}), 404
+    else:
+        return jsonify({'error': 'Bot not running!!'}), 400
 
 
 @app.route('/api/getactivegame', methods=['GET'])
@@ -199,13 +201,6 @@ def get_active_game():
     else:
         return jsonify({'error': 'No active game set'}), 404
     
-
-@app.route('/api/getactivegamedata', methods=['GET'])
-def get_active_game_data():
-    if bot.active_game not in [None, ""]:
-        return jsonify(bot.active_game.to_json()), 200
-    else:
-        return jsonify({'error': 'No active game set'}), 404
 
 @app.route('/api/awardpoints', methods=['POST'])
 def award_points():
@@ -235,3 +230,22 @@ def start_active_game():
 def end_active_game():
     bot.end_game()
     return jsonify({'message': 'Active game ended successfully'}), 200
+
+
+@app.route('/api/getfeatures', methods=['GET'])
+def get_features():
+    features = {
+                 "Authentication" : "auth", 
+                 "Jeprody" : "jeprody",
+                 "Bot Management" : "bot"
+                 }
+                
+    return jsonify(features), 200
+
+
+
+
+@app.route('/api/clean', methods=['POST'])
+async def clean():
+    bot.clean_game()
+    return jsonify({'message': 'Active game cleaned successfully'}), 200
