@@ -16,7 +16,7 @@ function App() {
       <Route path='/' element={<BotControlPanel />} />
       <Route path='/gamepanel/' element={<GamePanel />} />
       <Route path='/activegame/' element = {<ActiveGame />} />
-      <Route path='/jeprody' element= {<Jeopardy />} />
+      <Route path='/jeopardy' element= {<Jeopardy />} />
     </Routes>
   );
 }

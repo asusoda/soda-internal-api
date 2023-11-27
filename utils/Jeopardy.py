@@ -1,7 +1,7 @@
-from typing import Any
-import uuid
+from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
 from utils.Team import Team
-
+import uuid
+import discord
 class JeopardyQuestion():
 
     
@@ -28,8 +28,8 @@ class JeopardyGame:
     def __init__(self, game_data):
         self.name = game_data['game']['name']
         self.description = game_data['game']['description']
-        self.teams = game_data['game']['teams']
-        self.players = game_data['game']['players']
+        self.teams = self._create_teams(game_data['game']['teams'])
+        self.players = []
         self.categories = game_data['game']['categories']
         self.per_category = game_data['game']['per_category']
         self.questions = self._create_questions(game_data['questions'])
@@ -46,10 +46,10 @@ class JeopardyGame:
                 questions[category].append(question_obj)
         return questions
     
-    def _create_teams(self, teams_data):
+    def _create_teams(self, data):
         teams = []
-        for team in teams_data:
-            teams.append(Team(team['name'], team['players']))
+        for team in data:
+            teams.append(Team(team))
 
     def get_question(self, category, value):
         for q in self.questions[category]:
@@ -109,4 +109,5 @@ class JeopardyGame:
     def start(self):
         self.is_started = True
 
-    
+    def add_member(self, member : discord.Member):
+        self.players.append(member)

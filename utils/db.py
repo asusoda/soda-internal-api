@@ -5,6 +5,7 @@ class DBManager():
 
     def __init__(self, config: Config) -> None:
         # Ensure the DB type is MongoDB
+        required_collections = ["staff", "games"]
         if config.get_db_type() != "mongodb":
             raise ValueError("Only MongoDB is supported in this DBManager")
 
@@ -12,6 +13,11 @@ class DBManager():
         db_uri = config.get_db_uri().replace("<password>", config.get_db_password())
         self.client = MongoClient(db_uri)
         self.db = self.client[config.get_db_name()]
+        for collection in required_collections:
+            if not self.collection_exists(collection):
+                self.create_collection(collection)
+
+        
 
 
     def create_collection(self, collection_name: str, options: dict = {}) -> str:
@@ -90,21 +96,72 @@ class DBManager():
         """
         return collection_name in self.db.list_collection_names()
     
-    def add_category(self, name, description):
-        """Adds a new category."""
-        return self.categories_collection.insert_one({"name": name, "description": description}).inserted_id
+    def add_or_update_game(self, game_data: dict) -> str:
+        """
+        Add a new game to the 'games' collection or update an existing one with the same name.
+        
+        Args:
+            game_data (dict): The game data to be added or updated.
+            
+        Returns:
+            str: The ID of the inserted or updated game.
+        """
+        collection = self.db['games']
+        # Assuming 'name' is a unique identifier for each game
+        query = {"game.name": game_data['game']['name']}
+        existing_game = collection.find_one(query)
 
-    def add_question(self, category, question, answer, value, uuid):
-        """Adds a new question."""
-        data = {
-            "category": category,
-            "question": question,
-            "answer": answer,
-            "value": value,
-            "uuid": uuid
-        }
-        return self.questions_collection.insert_one(data).inserted_id
+        if existing_game:
+            # Update the existing game record
+            result = collection.replace_one(query, game_data)
+            return str(result.upserted_id) if result.upserted_id else existing_game['_id']
+        else:
+            # Insert a new game record
+            return str(collection.insert_one(game_data).inserted_id)
+        
+    
+    def get_game(self, game_name: str) -> dict:
+        """
+        Get the game with the specified name.
+        
+        Args:
+            game_name (str): Name of the game to be retrieved.
+            
+        Returns:
+            dict: The game data.
+        """
+        collection = self.db['games']
+        query = {"game.name": game_name}
+        return collection.find_one(query)
+    
+    def get_all_games(self) -> list:
+        """
+        Get all the games.
+        
+        Returns:
+            list: List of all the games.
+        """
+        collection = self.db['games']
+        data = list(collection.find())
+        for game in data:
+            game['_id'] = str(game['_id'])
+        return data
+    
+    def delete_game(self, game_name: str) -> int:
+        """
+        Delete the game with the specified name.
+        
+        Args:
+            game_name (str): Name of the game to be deleted.
+            
+        Returns:
+            int: Number of games deleted.
+        """
+        collection = self.db['games']
+        query = {"game.name": game_name}
+        result = collection.delete_one(query)
+        return result.deleted_count
+    
 
-    def get_questions_by_category(self, category_name):
-        """Retrieve all questions from the specified category."""
-        return list(self.questions_collection.find({"category": category_name}))
+        
+    

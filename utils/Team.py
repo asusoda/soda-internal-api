@@ -1,9 +1,9 @@
 from typing import List, Dict, Tuple, Set, Union, Optional, Any, Callable, TypeVar, Generic
 class Team():
 
-    def __init__(self, name : str, members : List[int] ) -> None:
+    def __init__(self, name : str ) -> None:
         self.name = name
-        self.members = members
+        self.members = []
         self.score = 0
 
 

@@ -1,6 +1,6 @@
 from flask import jsonify, request, redirect, url_for
 from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
-from shared import app,  bot, AUTHORIZED_USERS, bot_running, discord_oauth
+from shared import app,  bot, AUTHORIZED_USERS, bot_running, discord_oauth, db
 from os import listdir
 import json
 import asyncio
@@ -85,23 +85,18 @@ async def stop_bot():
 @app.route('/api/getavailablegames', methods=['GET'])
 def get_available_games():
     try:
-        files = listdir(os.path.join(app.config['UPLOAD_FOLDER']))
-        print(files)
-        games = []
-        for file in files:
-            if file.endswith(".json"):
-                with open(f'./data/{file}') as f:
-                    game_data = json.load(f)
-                    game = {
-                        "name": game_data["game"]["name"],
-                        "description": game_data["game"]["description"],
-                        "file_name": file,
-                        "uuid": game_data["game"]["uuid"]
-                    }
-                    games.append(game)
-        return jsonify(games), 200
+        games = db.get_all_games()
+        game_data = []
+        for game in games:
+            game_ = game["game"]
+            game_data.append({
+                "name": game_["name"],
+                "description": game_["description"],
+                "uuid": game_["uuid"]
+            })
+
+        return jsonify(game_data), 200
     except Exception as e:
-        print(e)
         return jsonify({'error': str(e)}), 400
     
 
@@ -133,15 +128,11 @@ def upload_game():
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-    
     try:
         game_data = json.load(file)
         if not is_valid_game_json(game_data):
             return jsonify({'error': 'Invalid game JSON format'}), 400
-        
-        with open(app.config['UPLOAD_FOLDER'] + file.filename, 'w') as f:
-            json.dump(game_data, f)
-
+        db.add_or_update_game(game_data)
         return jsonify({'message': 'File uploaded and validated successfully'}), 200
 
     except json.JSONDecodeError:
@@ -149,6 +140,17 @@ def upload_game():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     
+@app.route('/api/getgame', methods=['GET'])
+def get_game():
+    name = request.args.get("name")
+    games = db.get_all_games()
+    data = {}
+    for game in games:
+        if game["game"]["name"] == name:
+            data["info"] = game["game"]
+            data["questions"] = game["questions"]
+            return jsonify(data), 200
+    return jsonify({'error': 'Game not found'}), 404
 
 @app.route('/api/getgameinfo', methods=['GET'])
 def get_game_info():
@@ -177,27 +179,24 @@ def get_game_questions():
 
 @app.route('/api/setactivegame', methods=['POST'])
 async def set_active_game():
-    uuid = request.args.get("uuid")
-    files = listdir(app.config['UPLOAD_FOLDER'])
+    name = request.args.get("name")
     if bot_running:
-        for file in files:
-            if file.endswith(".json"):
-                with open(f'./data/{file}') as f:
-                    game_data = json.load(f)
-                    if game_data["game"]["uuid"] == uuid:
-                        print("Bot" + str(bot))
-                        bot.set_active_game(game_data)
-                        return jsonify({'message': 'Active game set successfully'}), 200
-        return jsonify({'error': 'Game not found!!'}), 404
+        games = db.get_all_games()
+        data = {}
+        for game in games:
+            if game["game"]["name"] == name:
+                data = {"game": game["game"], "questions": game["questions"]}
+                bot.execute("GameCog", "set_game", data)
+                return jsonify({'message': 'Active game set successfully'}), 200
+
     else:
         return jsonify({'error': 'Bot not running!!'}), 400
 
 
 @app.route('/api/getactivegame', methods=['GET'])
 def get_active_game():
-    if bot.active_game not in [None, ""]:
-        print(bot.active_game.to_json())
-        return jsonify(bot.active_game.to_json()), 200
+    if bot.execute("GameCog", "get_game") not in [None, ""]:
+        return jsonify(bot.execute("GameCog", "get_game")), 200
     else:
         return jsonify({'error': 'No active game set'}), 404
     
@@ -235,12 +234,24 @@ def end_active_game():
 @app.route('/api/getfeatures', methods=['GET'])
 def get_features():
     features = {
-                 "Authentication" : "auth", 
-                 "Jeprody" : "jeprody",
-                 "Bot Management" : "bot"
+                 "Authentication" :{ "link":"auth",
+                                      "img": "users.svg"
+                 },
+                 "Jeprody" : {
+                                "link":"jeopardy",
+                                "img": "jeopardy.svg"
+                 },
+                 "Bot Management" : {
+                                "link":"bot",
+                                "img": "settings.svg"
+                 }
                  }
                 
     return jsonify(features), 200
+
+@app.route('/api/createchannels', methods=['POST'])
+def create_channels():
+    bot.execute("GameCog", "create_channels")
 
 
 
@@ -249,3 +260,4 @@ def get_features():
 async def clean():
     bot.clean_game()
     return jsonify({'message': 'Active game cleaned successfully'}), 200
+

@@ -4,7 +4,8 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate, Link } from 'react-router-dom';
 
-function FeatureCard({ title, link }) {
+function FeatureCard({ title, link, icon }) {
+
     const navigate = useNavigate();
 
     const handleClick = () => {
@@ -12,8 +13,10 @@ function FeatureCard({ title, link }) {
     };
 
     return (
-        <div className="bg-blue-300 text-gray-800 p-4 rounded-lg shadow-lg m-4 cursor-pointer" onClick={handleClick}>
-            <h2 className="text-2xl font-bold">{title}</h2>
+        console.log(icon, title, link),
+        <div className="w-40 h-40 bg-blue-300 text-gray-800 p-4 rounded-lg shadow-lg m-4 flex flex-col items-center justify-center cursor-pointer" onClick={handleClick}>
+            <img src={`/static/${icon}`} alt={`${title} icon`} className="w-12 h-12 mb-2" />
+            <h2 className="text-xl font-bold text-center">{title}</h2>
         </div>
     );
 }
@@ -111,9 +114,11 @@ function BotControlPanel() {
                 <a href="/logout/" className="text-blue-400 hover:text-blue-300 transition">Logout</a>
             </div>
             {activeGame && <ActiveGamePanel />}
-            {Object.entries(features).map(([featureName, featureRoute]) => (
-                <FeatureCard title={featureName} link={featureRoute} />
-            ))}
+            <div className="flex flex-wrap gap-4">
+            {Object.entries(features).map(([featureName, featureData]) => (
+                    <FeatureCard title={featureName} link={featureData.link} icon={featureData.img} />
+                ))}
+            </div>
             <ToastContainer />
         </div>
         

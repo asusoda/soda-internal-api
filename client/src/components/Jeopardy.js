@@ -11,7 +11,7 @@ function GameCard({ game }) {
                 <p className="mb-2">{game.description}</p>
             </div>
             <Link 
-                to={`/gamepanel?uuid=${game.uuid}`}
+                to={`/gamepanel?name=${game.name}`}
                 className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded text-center block"
             >
                 View Game
