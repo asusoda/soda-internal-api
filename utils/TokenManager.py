@@ -16,6 +16,13 @@ class TokenManager:
 
     def decode_token(self, token):
         return jwt.decode(token, self.public_key, algorithms=[self.algorithm])
+    
+    def is_token_valid(self, token):
+        try:
+            self.decode_token(token)
+            return True
+        except jwt.InvalidSignatureError:
+            return False
 
     def is_token_expired(self, token):
         try:

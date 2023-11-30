@@ -1,6 +1,7 @@
 from utils.config import Config
 from utils.bot import BotFork
 from utils.db import DBManager
+from utils.TokenManager import TokenManager
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
 
@@ -11,6 +12,7 @@ import random
 
 config = Config()
 db = DBManager(config)
+token_manager = TokenManager()
 app = Flask("SODA Discord Bot", static_folder="static", template_folder="templates")
 
 app.secret_key = config.get_secret_key()
