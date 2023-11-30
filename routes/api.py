@@ -1,20 +1,15 @@
 from flask import jsonify, request, redirect, url_for
-from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
-from shared import app,  bot, AUTHORIZED_USERS, bot_running, discord_oauth, db
+from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized, current_app, exceptions
+from shared import app,  bot, bot_running, discord_oauth, db
 from os import listdir
 import json
-import asyncio
-import os
+
 
 
 @app.errorhandler(Unauthorized)
 def redirect_unauthorized(e):
     return redirect(url_for("login"))
 
-@app.route("/logout/")
-def logout():
-    discord_oauth.revoke()
-    return redirect(url_for("index"))
 
 @app.route("/me/")
 @requires_authorization
@@ -43,8 +38,6 @@ def get_game_data():
         game_data = json.load(f)
     return jsonify(game_data)
 
-
-    
 
 @app.route('/api/startgame', methods=['POST'])
 def start_game():
@@ -250,10 +243,9 @@ def get_features():
     return jsonify(features), 200
 
 @app.route('/api/createchannels', methods=['POST'])
-def create_channels():
-    bot.execute("GameCog", "create_channels")
-
-
+async def create_channels():
+    await bot.execute("GameCog", "setup_game")
+    return jsonify({'message': 'Channels created successfully'}), 200
 
 
 @app.route('/api/clean', methods=['POST'])

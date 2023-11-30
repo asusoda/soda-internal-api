@@ -14,85 +14,111 @@ from utils.Jeopardy import JeopardyGame
 
 
 
+import discord
+import threading
+import asyncio
+import nest_asyncio
+import inspect
+from discord.ext import commands
 
 class BotFork(commands.Bot):
+    """
+    An extended version of the discord.ext.commands.Bot class. This class 
+    supports additional functionality like managing cogs and controlling 
+    the bot's online status.
+
+    Attributes:
+        setup (bool): Indicates if the bot has been set up.
+        active_game (Any): Stores the current active game instance.
+        token (str): Discord bot token.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the BotFork instance.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         self.setup = False
         self.active_game = None
-        super().__init__( *args, **kwargs, guild_ids = [])
+        self.command_queue = asyncio.Queue()
+        self.processing_task = asyncio.create_task(self.process_command_queue())
+        super().__init__(*args, **kwargs, guild_ids=[])
         super().add_cog(HelperCog(self))
         super().add_cog(GameCog(self))
 
     def set_token(self, token):
+        """
+        Sets the bot token.
+
+        Args:
+            token (str): Discord bot token.
+        """
         self.token = token
 
     async def on_ready(self):
+        """
+        Asynchronous event handler for when the bot is ready.
+        """
         print("Bot is ready.")
-    
 
     def run(self):
-        """Starts the bot"""
+        """
+        Starts the bot. If the bot is already set up, changes the bot's presence to online.
+        """
         if not self.setup:
             self.setup = True
-            
             threading.Thread(target=super().run, args=(self.token,)).start()
         else:
             asyncio.run(self.change_presence(status=discord.Status.online))
 
-    
     async def stop(self):
-        """Stops the bot"""
+        """
+        Asynchronous method to stop the bot, changing its presence to offline.
+        """
         await self.change_presence(status=discord.Status.offline)
 
-        
+
+    async def process_command_queue(self):
+        while True:
+            cog_name, command, args, kwargs = await self.command_queue.get()
+            cog = self.get_cog(cog_name)
+            if cog is None:
+                print(f"Cog {cog_name} not found")
+                continue
+
+            method = getattr(cog, command, None)
+            if method is None:
+                print(f"Command {command} not found in cog {cog_name}")
+                continue
+
+            if asyncio.iscoroutinefunction(method):
+                await method(*args, **kwargs)
+            else:
+                method(*args, **kwargs)
+            self.command_queue.task_done()
+
     def execute(self, cog_name, command, *args, **kwargs):
-        """Executes a command in the specified cog synchronously."""
-        cog = self.get_cog(cog_name)
-        if cog is None:
-            raise ValueError(f"Cog {cog_name} not found")
+        """
+        Executes a command in the specified cog.
 
-        method = getattr(cog, command, None)
-        if method is None:
-            raise ValueError(f"Command {command} not found in cog {cog_name}")
+        Args:
+            cog_name (str): The name of the cog where the command resides.
+            command (str): The command to be executed.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
 
-        if inspect.iscoroutinefunction(method):
-            # If the method is a coroutine, run it in the event loop
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(method(*args, **kwargs))
-        else:
-            # If the method is not a coroutine, just call it directly
-            return method(*args, **kwargs)
-
-    def game(self, data):
-        self.active_game = data
-        self.set_active_game(data)
-
-
-    def set_active_game(self, data):
-        self.active_game = JeopardyGame(data)
-        cog = self.get_cog("GameCog")
-        cog.set_game(data)    
-
-
-    async def clean_game(self):
-        guild = self.guilds[0]
-        for category in guild.categories:
-            if category.name == "Jeopardy":
-                for channel in category.channels:
-                    await channel.delete()
-                await category.delete()
-        roles = []
-        for role in guild.roles:
-            if role.name.startswith("Team"):
-                roles.append(role)
-        for role in roles:
-            await role.delete()
-
-    def award_points(self, team, points):
-        self.active_game.award_points(team, points)
+        Returns:
+            The result of the executed command.
+        
+        Raises:
+            ValueError: If the cog or command is not found.
+        """
+        async def execute(self, cog_name, command, *args, **kwargs):
+            threading.Thread(target= await self.command_queue.put, args=(cog_name, command, args, kwargs)).start()
+    
 
     
-    def get_active_game(self):
-        return self.active_game
-
   

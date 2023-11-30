@@ -21,4 +21,13 @@ class Team():
     
     def add_team_member(self, member_id : int) -> None:
         self.members.append(member_id)
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "members": self.members,
+            "score": self.score
+        }
+    def get_name(self) -> str:
+        return self.name
     

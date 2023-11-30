@@ -1,0 +1,94 @@
+{
+    "officers": [
+        {
+            "name": "Neel Madhav",
+            "role": "President",
+            "email": "ndogra2@asu.edu"
+        },
+        {
+            "name": "Brightan Hsu",
+            "role": "Vice President of Operations",
+            "email": "bhsu4@asu.edu"
+        },
+        {
+            "name": "Teresa Tran",
+            "role": "Vice President of Finance",
+            "email": "tttran29@asu.edu"
+        },
+        {
+            "name": "Spencer Ozgur",
+            "role": "Industry Director",
+            "email": "sozgur@asu.edu"
+        },
+        {
+            "name": "Logan Van Pelt",
+            "role": "Industry Outreach",
+            "email": "lrvanpel@asu.edu"
+        },
+        {
+            "name": "Sathwik Reddy Mopuru",
+            "role": "Industry Outreach",
+            "email": "smopuru@asu.edu"
+        },
+        {
+            "name": "Harsh Kumar",
+            "role": "Technical Development Director",
+            "email": "hkumar30@asu.edu"
+        },
+        {
+            "name": "Jonathan Zhao",
+            "role": "Technical Officer",
+            "email": "jjzhao@asu.edu"
+        },
+        {
+            "name": "Nhut Nguyen",
+            "role": "Technical Officer",
+            "email": "nmnguye5@asu.edu"
+        },
+        {
+            "name": "Mahir Bose",
+            "role": "Technical Officer",
+            "email": "mbose4@asu.edu"
+        },
+        {
+            "name": "Ilia Rubashkin",
+            "role": "Technical Officer",
+            "email": "irubashk@asu.edu"
+        },
+        {
+            "name": "Tung Nguyen",
+            "role": "Marketing Director",
+            "email": "vnguye54@asu.edu"
+        },
+        {
+            "name": "Sebastian Martinez",
+            "role": "Marketing Officer",
+            "email": "sjmart28@asu.edu"
+        },
+        {
+            "name": "Anand Krishna Mishra",
+            "role": "Marketing Officer",
+            "email": "amishr87@asu.edu"
+        },
+        {
+            "name": "Chiran Raj",
+            "role": "Community Officer",
+            "email": "crajverm@asu.edu"
+        },
+        {
+            "name": "Gina Lee",
+            "role": "Community Officer",
+            "email": "glee62@asu.edu"
+        },
+        {
+            "name": "Shannon Boesch",
+            "role": "Graphic Designer",
+            "email": "sboesch@asu.edu"
+        },
+        {
+            "name": "Shreyash Singh",
+            "role": "Photographer/Videographer",
+            "email": "ssing375@asu.edu"
+        }
+    ]
+}

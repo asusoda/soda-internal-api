@@ -13,6 +13,7 @@ def index():
         return render_template("login.html")   
 
 
+
 @app.route("/login/")
 def login():
     return discord_oauth.create_session()
@@ -22,6 +23,11 @@ def callback():
     code = request.args.get("code")
     discord_oauth.callback()
     return redirect(url_for("panel")) 
+
+@app.route("/logout/")
+def logout():
+    discord_oauth.revoke()
+    return redirect(url_for("index"))
 
 @app.route("/panel")
 def panel():

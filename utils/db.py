@@ -13,12 +13,23 @@ class DBManager():
         db_uri = config.get_db_uri().replace("<password>", config.get_db_password())
         self.client = MongoClient(db_uri)
         self.db = self.client[config.get_db_name()]
+        self.access_tokens = {}
         for collection in required_collections:
             if not self.collection_exists(collection):
                 self.create_collection(collection)
 
-        
+        self.auth_users_cache = self.load_auth_users_cache()
 
+        
+    def load_auth_users_cache(self) -> dict:
+        """
+        Load authorized users into cache from the database.
+
+        Returns:
+            dict: A dictionary of authorized users with user_id as key.
+        """
+        users = self.get_auth_users()
+        return {user['user_id']: user for user in users}
 
     def create_collection(self, collection_name: str, options: dict = {}) -> str:
         """
@@ -164,4 +175,66 @@ class DBManager():
     
 
         
+    def add_auth_user(self, user_id: str):
+        """
+        Add a new user to the 'staff' collection.
+        
+        Args:
+            user_id (str): ID of the user to be added.
+        """
+        collection = self.db['staff']
+        query = {"user_id": user_id}
+        existing_user = collection.find_one(query)
+        if not existing_user:
+            collection.insert_one({"user_id": user_id})
+            self.auth_users_cache[user_id] = {"user_id": user_id}
+
+    def remove_auth_user(self, user_id: str):
+        """
+        Remove a user from the 'staff' collection.
+        
+        Args:
+            user_id (str): ID of the user to be removed.
+        """
+        collection = self.db['staff']
+        query = {"user_id": user_id}
+        collection.delete_one(query)
+        self.auth_users_cache.pop(user_id, None)
+
+    def get_auth_users(self) -> list:
+        """
+        Get all the authenticated users.
+        
+        Returns:
+            list: List of all the authenticated users.
+        """
+        collection = self.db['staff']
+        data = list(collection.find())
+        for user in data:
+            user['_id'] = str(user['_id'])
+
+        return data
     
+    def is_user_authorized(self, user_id: str) -> bool:
+        """
+        Check if a user is authorized using cache.
+
+        Args:
+            user_id (str): ID of the user to be checked.
+
+        Returns:
+            bool: True if user is authorized, False otherwise.
+        """
+        return user_id in self.auth_users_cache
+    
+
+    def bind_access_token(self, user_id: str, token: str):
+        """
+        Bind an access token to a user.
+
+        Args:
+            user_id (str): ID of the user.
+            token (str): The access token.
+        """
+        self.access_tokens[token] = user_id
+        

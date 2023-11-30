@@ -19,8 +19,7 @@ app.config["DISCORD_CLIENT_ID"] = config.get_client_id()
 app.config["DISCORD_CLIENT_SECRET"] = config.get_client_secret()
 app.config["DISCORD_REDIRECT_URI"] = config.get_redirect_uri()
 app.config["DISCORD_BOT_TOKEN"] = config.get_bot_token()
-app.config["DISCORD_API_BASE_URL"] = "https://discord.com/api/v10"
-app.config["UPLOAD_FOLDER"] = "./data/"
+
 
 AUTHORIZED_USERS = json.load(open("authorised.json", "r"))['users']
 bot_running = False
