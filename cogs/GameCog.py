@@ -9,6 +9,20 @@ from utils.Jeopardy import JeopardyGame
 from utils.Team import Team
 
 
+class QuestionPost(discord.ui.View):
+
+    def __init__ (self, channel: discord.StageChannel):
+        super().__init__()
+        self.channel = channel
+
+    @discord.ui.button(label="Buzz In", style=discord.ButtonStyle.blurple)
+    async def button_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
+        user = interaction.user         
+        await interaction.response.send_message(f"<@{user.id}> You buzzed in!")
+        button.disabled = True
+        return user
+    
+
 class GameCog(commands.Cog):
     """
     A cog for managing a game (Jeopardy-style) within a Discord server. It handles game setup,
@@ -40,8 +54,10 @@ class GameCog(commands.Cog):
         self.voice_channels = []
         self.scoreboard_channel = None
         self.scoreboard = None
+        self.date = None
+        self.time = None
 
-    def set_game(self, game: dict) -> bool:
+    def set_game(self, game: dict, date: str, time: str) -> bool:
         """
         Sets the game instance for the cog.
 
@@ -52,6 +68,8 @@ class GameCog(commands.Cog):
             bool: True if the game is set successfully.
         """
         self.game = JeopardyGame(game)
+        self.date = date
+        self.time = time
         return True
 
     def get_game(self) -> Optional[dict]:
@@ -65,32 +83,15 @@ class GameCog(commands.Cog):
             return None
         return self.game.to_json()
 
-    def setup_game(self):
-        """`
-        Asynchronously sets up the game environment in the Discord server.
+
+    def is_setup(self) -> bool:
         """
-        guild = self.bot.guilds[0]
-        category = self.bot.execute("HelperCog", "create_category", guild, "Jeopardy")
-        self.game_category = category
-             
-        for team in self.game.teams:
-            role = self.bot.execute("HelperCog", "create_role", guild, team.get_name())
-            self.roles.append(role)
+        Checks if the game environment is set up.
 
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
-                role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
-            }
-
-            channel = self.bot.execute("HelperCog", "create_voice_channel", guild, team.get_name(), category, overwrites)
-            self.voice_channels.append(channel)
-
-        self.announcement_channel = self.bot.execute("HelperCog", "create_text_channel", guild, "announcements", category)
-        self.scoreboard_channel = self.bot.execute("HelperCog", "create_text_channel", guild, "scoreboard", category)
-
-        return True
-    
-
+        Returns:
+            bool: True if the game environment is set up.
+        """
+        return self.game.is_announced
 
 
     async def clear_game(self):
@@ -116,7 +117,7 @@ class GameCog(commands.Cog):
         self.game = None
         return True
 
-    def add_member(self, member: discord.Member) -> bool:
+    def add_member(self, member: discord.User) -> bool:
         """
         Adds a member to the current game.
 
@@ -129,11 +130,64 @@ class GameCog(commands.Cog):
         self.game.add_member(member)
         return True
         
+    def remove_member(self, member: discord.User) -> bool:
+        """
+        Removes a member from the current game.
 
+        Args:
+            member (discord.Member): The member to remove from the game.
 
+        Returns:
+            bool: True if the member is removed successfully.
+        """
+        self.game.remove_member(member)
+        return True
+
+    async def setup_game(self):
+        """
+        Asynchronously sets up the game environment in the Discord server.
+        """
+        guild = self.bot.guilds[0]
+        print("Creating channels and roles")
+        category = await guild.create_category("Jeopardy")
+        await category.edit(position=0)
+        self.game_category = category
+        self.stage = await guild.create_stage_channel("Stage", category=category)
+        for team in self.game.teams:
+            role = await guild.create_role(name=team.get_name())
+            self.roles.append(role)
+
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
+                role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
+            }
+            channel = await guild.create_voice_channel(team.get_name(), overwrites=overwrites, category=category)
+            self.voice_channels.append(channel)
+
+        self.announcement_channel = await guild.create_text_channel("announcements", category=category)
+        self.scoreboard_channel = await guild.create_text_channel("scoreboard", category=category)
+        self.game.is_announced = True
+        embed = discord.Embed(
+        title="🌟 JEOPARDY GAME NIGHT ANNOUNCEMENT 🌟",
+        description="Get ready for an exciting evening of trivia and fun!",
+        color=discord.Color.random()  
+    )
+        embed.add_field(name="Date", value=self.date, inline=False)
+        embed.add_field(name="Time", value=self.time, inline=False)
+        embed.add_field(name="Location", value="SODA Discord Server", inline=False)
+        embed.add_field(name="How to Enroll?", value="React with ✅.", inline=False)
+        embed.set_footer(text="React with ✅ to enroll!")
+        message = await self.announcement_channel.send(embed=embed)
+        await message.add_reaction("✅")
+        self.bot.execute("HelperCog", "add_to_listner", message, "✅" )
+        return True
         
-        
-        
+            
+    async def show_question(self, uuid):
+        """
+        Asynchronously shows a question to the players.
 
-
-     
+        Args:
+            uuid (str): The UUID of the question to show.
+        """
+        question = self.g

@@ -12,7 +12,7 @@ import random
 
 config = Config()
 db = DBManager(config)
-token_manager = TokenManager()
+# token_manager = TokenManager()
 app = Flask("SODA Discord Bot", static_folder="static", template_folder="templates")
 
 app.secret_key = config.get_secret_key()

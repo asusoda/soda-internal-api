@@ -8,7 +8,6 @@ class TokenManager:
         self.algorithm = algorithm
 
 
-  
     def generate_token(self, payload, exp_minutes=60):
         expiration = datetime.datetime.utcnow() + datetime.timedelta(minutes=exp_minutes)
         payload.update({'exp': expiration})

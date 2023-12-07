@@ -1,6 +1,7 @@
 from shared import bot, app, db
 from routes.views import *
 from routes.api import *
+from routes.game_api import *
 import os 
 import random
 import discord

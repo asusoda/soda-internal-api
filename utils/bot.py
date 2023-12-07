@@ -21,6 +21,7 @@ import nest_asyncio
 import inspect
 from discord.ext import commands
 
+nest_asyncio.apply()
 class BotFork(commands.Bot):
     """
     An extended version of the discord.ext.commands.Bot class. This class 
@@ -43,8 +44,6 @@ class BotFork(commands.Bot):
         """
         self.setup = False
         self.active_game = None
-        self.command_queue = asyncio.Queue()
-        self.processing_task = asyncio.create_task(self.process_command_queue())
         super().__init__(*args, **kwargs, guild_ids=[])
         super().add_cog(HelperCog(self))
         super().add_cog(GameCog(self))
@@ -62,9 +61,11 @@ class BotFork(commands.Bot):
         """
         Asynchronous event handler for when the bot is ready.
         """
-        print("Bot is ready.")
+        for guild in self.guilds:
+            print(f'{self.user} is connected to the following guild:\n'
+                  f'{guild.name}(id: {guild.id})')
 
-    def run(self):
+    async def run(self):
         """
         Starts the bot. If the bot is already set up, changes the bot's presence to online.
         """
@@ -72,7 +73,7 @@ class BotFork(commands.Bot):
             self.setup = True
             threading.Thread(target=super().run, args=(self.token,)).start()
         else:
-            asyncio.run(self.change_presence(status=discord.Status.online))
+           await self.change_presence(status=discord.Status.online)
 
     async def stop(self):
         """
@@ -81,44 +82,59 @@ class BotFork(commands.Bot):
         await self.change_presence(status=discord.Status.offline)
 
 
-    async def process_command_queue(self):
-        while True:
-            cog_name, command, args, kwargs = await self.command_queue.get()
-            cog = self.get_cog(cog_name)
-            if cog is None:
-                print(f"Cog {cog_name} not found")
-                continue
-
-            method = getattr(cog, command, None)
-            if method is None:
-                print(f"Command {command} not found in cog {cog_name}")
-                continue
-
-            if asyncio.iscoroutinefunction(method):
-                await method(*args, **kwargs)
-            else:
-                method(*args, **kwargs)
-            self.command_queue.task_done()
-
     def execute(self, cog_name, command, *args, **kwargs):
-        """
-        Executes a command in the specified cog.
+        """Executes a command in the specified cog synchronously."""
+        cog = self.get_cog(cog_name)
+        if cog is None:
+            raise ValueError(f"Cog {cog_name} not found")
 
-        Args:
-            cog_name (str): The name of the cog where the command resides.
-            command (str): The command to be executed.
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
+        method = getattr(cog, command, None)
+        if method is None:
+            raise ValueError(f"Command {command} not found in cog {cog_name}")
+
+        if inspect.iscoroutinefunction(method):
+            # If the method is a coroutine, run it in the event loop
+            return self.loop.create_task(method(*args, **kwargs))
+        else:
+            # If the method is not a coroutine, just call it directly
+            return method(*args, **kwargs)
+    
+
+    def get_guilds(self):
+        """
+        Retrieves a list of guilds the bot is a member of.
 
         Returns:
-            The result of the executed command.
-        
-        Raises:
-            ValueError: If the cog or command is not found.
+            list: A list of guilds.
         """
-        async def execute(self, cog_name, command, *args, **kwargs):
-            threading.Thread(target= await self.command_queue.put, args=(cog_name, command, args, kwargs)).start()
-    
-
-    
+        return super().guilds
   
+    # async def setup_game(self):
+    #     """
+    #     Sets up a game instance.
+
+    #     Args:
+    #         game (dict): The game data.
+    #     """
+    #     game = self.active_game
+    #     guild = self.guilds[0]
+    #     category = await guild.create_category("Jeopardy")
+    #     game_category = category
+    #     voice_channels = [] 
+    #     for team in game.teams:
+    #         role = await guild.create_role(name=team.get_name())
+    #         self.roles.append(role)
+
+    #         overwrites = {
+    #             guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
+    #             role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
+    #         }
+
+    #         channel = await guild.create_voice_channel(team.get_name(), category=category, overwrites=overwrites)
+    #         voice_channels.append(channel)
+
+    #     announcement_channel = await guild.create_text_channel("announcements", category=category)
+    #     scoreboard_channel = await guild.create_text_channel("scoreboard", category=category)
+
+    #     game_cog = self.get_cog("GameCog")
+    #     return await game_cog.setup_game(self.announcement_channel, self.game_category, self.scoreboard_channel, self.roles, self.voice_channels)

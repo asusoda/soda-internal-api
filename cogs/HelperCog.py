@@ -51,8 +51,12 @@ class HelperCog(commands.Cog):
                 category (discord.CategoryChannel): The category to create the channel in.
                 overwrites (dict, optional): A dictionary of role overwrites.
                 """
-                channel = await guild.create_text_channel(name, category=category, overwrites=overwrites)
-                return channel
+                if overwrites is None:
+                        channel = await guild.create_text_channel(name, category=category)
+                        return channel
+                else:
+                        channel = await guild.create_text_channel(name, category=category, overwrites=overwrites)
+                        return channel
     
         async def create_voice_channel(self, guild: discord.Guild, name : str, category : Optional[discord.CategoryChannel], overwrites : Optional[Dict[discord.Role, discord.PermissionOverwrite]] = None):
                 """
@@ -217,12 +221,46 @@ class HelperCog(commands.Cog):
                 reaction (discord.Reaction): The reaction that was added.
                 user (discord.User): The user that added the reaction.
                 """
+                print("Reaction added")
                 for message in self.message_listen_for:
                         if reaction.message.id == message["message"].id:
                                 if reaction.emoji == message["emoji"]:
                                         self.bot.execute("GameCog", "add_member", user)
+
+        @commands.Cog.listener()
+        async def on_reaction_remove(self, reaction : discord.Reaction, user : discord.User):
+                """     
+                Asynchronous event handler for when a reaction is removed from a message.
+                
+                Args:
+                reaction (discord.Reaction): The reaction that was removed.
+                user (discord.User): The user that removed the reaction.
+                """
+                print("Reaction removed")
+                for message in self.message_listen_for:
+                        if reaction.message.id == message["message"].id:
+                                if reaction.emoji == message["emoji"]:
+                                        self.bot.execute("GameCog", "remove_member", user)
  
 
+        @discord.slash_command(name="clear", description="Clears the game environment from the Discord server.", guild_ids=[1011586463219060807])
+        async def clear(self, ctx : commands.Context):
+                """
+                Clears the game environment from the Discord server.
+                """
+                await ctx.defer()
+                guild = self.bot.guilds[0]
+                for category in guild.categories:
+                        if category.name == "Jeopardy":
+                                for channel in category.channels:
+                                        await channel.delete()
+                                await category.delete()
+                
+                for role in guild.roles:
+                        if role.name.startswith("Team"):
+                                await role.delete()
+
+                await ctx.send("Cleared the game environment.")
     
 
 

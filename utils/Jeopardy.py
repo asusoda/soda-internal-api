@@ -92,7 +92,9 @@ class JeopardyGame:
                 "teams": [team.to_json() for team in self.teams],
                 "categories": self.categories,
                 "per_category": self.per_category,
-                "uuid": str(self.uuid)
+                "uuid": str(self.uuid),
+                "announced": self.is_announced,
+                "started": self.is_started
             },
             "questions": {category: [question.to_json() for question in questions] for category, questions in self.questions.items()}
         }
@@ -121,7 +123,7 @@ class JeopardyGame:
         """
         return [Team(team_data) for team_data in data]
 
-    def get_question(self, category, value):
+    def get_question(self, uuid):
         """
         Retrieves an unanswered question of a specific value from a given category.
 
@@ -132,8 +134,11 @@ class JeopardyGame:
         Returns:
             JeopardyQuestion or None: The question object if found, otherwise None.
         """
-        return next((question for question in self.questions[category] if question.value == value and not question.answered), None)
-
+        for questions in self.questions.values():
+            for question in questions:
+                if question.id == uuid:
+                    return question
+        return None
     def mark_question_as_answered(self, category, value):
         """
         Marks a question as answered in a specific category and value.

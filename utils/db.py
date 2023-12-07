@@ -237,4 +237,15 @@ class DBManager():
             token (str): The access token.
         """
         self.access_tokens[token] = user_id
+
+    def is_admin_access_token(self, token: str) -> bool:
+        """
+        Check if an access token is an admin token.
+
+        Args:
+            token (str): The access token.
+
+        Returns:
+            bool: True if the token is an admin token, False otherwise.
+        """
         

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { toast } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 
 
 const GameBoard = ({ data, onQuestionSelect }) => {
@@ -106,7 +106,7 @@ const ActiveGamePanel = () => {
     const handleCreateChannels = async () => {
         try {
             const response = await axios.post('/api/createchannels');
-            setActiveGameData(response.data);
+            
         }
         catch (error) {
             console.error('Error creating channels:', error);
@@ -116,7 +116,41 @@ const ActiveGamePanel = () => {
     const handleEndGame = () => {
         // Implement end game logic
     }
-
+    const SetupButton = () => {
+        const handleCreateChannelsAndAnnounce = async () => {
+            try {
+                const response = await axios.post('/api/createchannels');
+                toast.success('Channels created and game announced');
+            } catch (error) {
+                console.error('Error creating channels and announcing game:', error);
+                toast.error('Error creating channels and announcing game');
+            }
+        };
+    
+        const handleStartGame = async () => {
+            try {
+                // Logic to start the game
+                toast.success('Game started successfully');
+            } catch (error) {
+                console.error('Error starting the game:', error);
+                toast.error('Error starting the game');
+            }
+        };
+    
+        if (!activeGameData.game.announced) {
+            return (
+                <button onClick={handleCreateChannelsAndAnnounce} className="bg-blue-500 text-white p-2 rounded mt-2">
+                    Create Channels and Announce Game
+                </button>
+            );
+        } else {
+            return (
+                <button onClick={handleStartGame} className="bg-green-500 text-white p-2 rounded mt-2">
+                    Start Game
+                </button>
+            );
+        }
+    };;
 
     if (!activeGameData) {
         return <Spinner />;
@@ -127,7 +161,7 @@ const ActiveGamePanel = () => {
 
         <div className="p-6 bg-gray-800 min-h-screen text-white">
              <div className="navbar flex justify-between items-center bg-gray-700 p-3 rounded">
-             <button onClick={handleCreateChannels} className="bg-blue-500 text-white p-2 rounded mt-2">Create Channels and announce game</button>
+             <SetupButton />
              
             <button onClick={handleEndGame} className="bg-red-500 text-white p-2 rounded mt-2">End Game and Delete Channels</button>
              </div>
@@ -135,6 +169,7 @@ const ActiveGamePanel = () => {
             <p>{activeGameData.game.description}</p>
             <GameBoard data={activeGameData.questions} onQuestionSelect={handleQuestionSelect} />
             <QuestionPanel question={selectedQuestion} teams={activeGameData.game.teams} />
+            <ToastContainer />
         </div>
     );
 };

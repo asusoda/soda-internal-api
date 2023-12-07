@@ -2,6 +2,30 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
+import '../styles/GamePanel.css';
+
+function ActiveGameModal({ isOpen, onClose, onConfirm, gameName }) {
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+
+  const handleSubmit = () => {
+    onConfirm(gameName, date, time);
+    onClose();
+  };
+ 
+  return (
+    <div className={`modal ${isOpen ? 'block' : 'hidden'}`}>
+      <div className="modal-content">
+        <span className="close" onClick={onClose}>&times;</span>
+        <h2>Set Active Game Time</h2>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-2 mb-2 border border-gray-300 rounded input-type" />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full p-2 mb-4 border border-gray-300 rounded input-type" />
+        <button onClick={handleSubmit} className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Confirm</button>
+      </div>
+    </div>
+  );
+}
+
 
 function GameBoard({ categories, onQuestionClick }) {
   return (
@@ -28,13 +52,15 @@ function GameBoard({ categories, onQuestionClick }) {
 }
 
   function QuestionPanel({ question, name }) {
-    const setActiveGame = async () => {
+    const [modalOpen, setModalOpen] = useState(false);
+
+    const setActiveGame = async (name, date, time) => {
       try {
         if (botStatus === false) {
           toast.error('Please start the bot before setting the active game.');
           return;
         }
-        const response = await axios.post(`/api/setactivegame?name=${name}`);
+        const response = await axios.post(`/api/setactivegame?name=${name}&date=${date}&time=${time}`);
         toast.success(response.data.message);
       } catch (error) {
         toast.error(error.response?.data?.error || 'An error occurred while setting the active game.');
@@ -64,11 +90,17 @@ function GameBoard({ categories, onQuestionClick }) {
         )}
         {/* Button to set the game as active */}
         <button
-          className="mt-4 bg-lime-300 text-white font-bold py-2 px-4 rounded hover:bg-pastel-green-300"
-          onClick={setActiveGame}
-        >
-          Set as Active Game
-        </button>
+        className="mt-4 bg-lime-300 text-white font-bold py-2 px-4 rounded hover:bg-pastel-green-300"
+        onClick={() => setModalOpen(true)}
+      >
+        Set as Active Game
+      </button>
+      <ActiveGameModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={setActiveGame}
+        gameName={name}
+      />
         <ToastContainer />
       </div>
     );
