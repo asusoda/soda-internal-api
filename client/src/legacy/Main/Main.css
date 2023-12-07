@@ -1,0 +1,53 @@
+#main {
+	display: flex;
+	justify-content: space-evenly;
+	align-items: center;
+	min-height: 100vh;
+	flex-wrap: wrap;
+	padding: 10px;
+}
+
+#main #logo {
+	max-height: 150px;
+}
+
+#main #title {
+	font-family: 'RopaSansPro-Light';
+	font-size: 2em;
+	text-align: center;
+	padding: 10px;
+}
+
+#main #bold {
+	font-family: 'RopaSansPro-Medium';
+	padding-bottom: 8px;
+}
+
+#main #statistic {
+	padding-bottom: 10px;
+	padding-left: 20px;
+	padding-right: 20px;
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+#main #social {
+
+	justify-content: center;
+	display: flex;
+	flex-wrap: wrap;
+	padding-bottom: 10px;
+
+}
+
+#main #info {
+	font-family: 'RopaSansPro-Light';
+	font-size: 2em;
+	text-align: center;
+	padding: 10px;
+}
+
+#particles {
+	pointer-events:none; /* This prevents interaction with the background but fixes weird issue with the social buttons */
+}

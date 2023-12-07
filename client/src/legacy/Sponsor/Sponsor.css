@@ -1,0 +1,40 @@
+.Sponsor {
+	padding: 10px;
+}
+
+#sponsors {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	max-width: 800px;
+	margin: 3vh auto 3vh auto;
+}
+
+#sponsors #gold {
+
+	flex-wrap: nowrap;
+	align-items: center;
+	display: flex;
+
+}
+
+#sponsor #title {
+	font-family: 'RopaSansPro-Medium';
+	font-size: 2em;
+	text-align: center;
+	padding: 3vw;
+	padding-bottom: 0vw;
+}
+
+#sponsors #deloitte {
+	background-color: black;
+}
+
+#sponsors #starbucks {
+	max-width: 200px;
+}
+
+#sponsors #amazon {
+	max-width: 250px;
+}
