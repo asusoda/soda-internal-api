@@ -1,5 +1,5 @@
 from utils.config import Config
-from discord.bot import BotFork
+from discord_modules.bot import BotFork
 from utils.db import DBManager
 from utils.TokenManager import TokenManager
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
@@ -23,7 +23,7 @@ app.config["DISCORD_REDIRECT_URI"] = config.get_redirect_uri()
 app.config["DISCORD_BOT_TOKEN"] = config.get_bot_token()
 
 
-AUTHORIZED_USERS = json.load(open("authorised.json", "r"))['users']
+AUTHORIZED_USERS = ['689510313971810437']
 bot_running = False
 
 
