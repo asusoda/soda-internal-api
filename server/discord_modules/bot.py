@@ -8,9 +8,9 @@ import uuid
 import inspect
 import asyncio
 import threading
-from cogs.HelperCog import HelperCog
-from cogs.GameCog import GameCog
-from utils.Jeopardy import JeopardyGame
+from discord_modules.cogs.HelperCog import HelperCog
+from discord_modules.cogs.GameCog import GameCog
+from  discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
 
 
 
@@ -21,7 +21,7 @@ import nest_asyncio
 import inspect
 from discord.ext import commands
 
-nest_asyncio.apply()
+
 class BotFork(commands.Bot):
     """
     An extended version of the discord.ext.commands.Bot class. This class 
@@ -82,8 +82,8 @@ class BotFork(commands.Bot):
         await self.change_presence(status=discord.Status.offline)
 
 
-    def execute(self, cog_name, command, *args, **kwargs):
-        """Executes a command in the specified cog synchronously."""
+    def execute(self, cog_name, command, *args, priority='NORMAL', **kwargs):
+        """Executes a command in the specified cog with optional priority."""
         cog = self.get_cog(cog_name)
         if cog is None:
             raise ValueError(f"Cog {cog_name} not found")
@@ -93,8 +93,13 @@ class BotFork(commands.Bot):
             raise ValueError(f"Command {command} not found in cog {cog_name}")
 
         if inspect.iscoroutinefunction(method):
-            # If the method is a coroutine, run it in the event loop
-            return self.loop.create_task(method(*args, **kwargs))
+            if priority == 'NOW':
+                # For highest priority, run the coroutine immediately
+                nest_asyncio.apply()
+                return asyncio.run(method(*args, **kwargs))
+            else:
+                # For normal priority, schedule it in the event loop
+                return self.loop.create_task(method(*args, **kwargs))
         else:
             # If the method is not a coroutine, just call it directly
             return method(*args, **kwargs)
@@ -138,3 +143,6 @@ class BotFork(commands.Bot):
 
     #     game_cog = self.get_cog("GameCog")
     #     return await game_cog.setup_game(self.announcement_channel, self.game_category, self.scoreboard_channel, self.roles, self.voice_channels)
+
+
+

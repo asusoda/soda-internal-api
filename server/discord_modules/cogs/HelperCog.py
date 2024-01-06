@@ -131,17 +131,17 @@ class HelperCog(commands.Cog):
                 """
                 if view is None:
                         if embed is None:
-                                message = await channel.send(content)
+                                message = self.bot.loop.create_task(channel.send(content))
                         elif content is None:
-                                message = await channel.send(embed=embed)
+                                message = self.bot.loop.create_task(channel.send(embed=embed))
                         else:
                                 raise Exception("Both embed and content cannot be None.")
                         return message
                 else:
                         if embed is None:
-                                message = await channel.send(content, view=view)
+                                message = self.bot.loop.create_task(channel.send(content, view=view))
                         elif content is None:
-                                message = await channel.send(embed=embed, view=view)
+                                message = self.bot.loop.create_task(channel.send(embed=embed, view=view))
                         else:
                                 raise Exception("Both embed and content cannot be None.")
                         return message
@@ -221,7 +221,7 @@ class HelperCog(commands.Cog):
                 reaction (discord.Reaction): The reaction that was added.
                 user (discord.User): The user that added the reaction.
                 """
-                print("Reaction added")
+                print(f"Reaction added by {user.name}")
                 for message in self.message_listen_for:
                         if reaction.message.id == message["message"].id:
                                 if reaction.emoji == message["emoji"]:

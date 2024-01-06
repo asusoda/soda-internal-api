@@ -175,3 +175,27 @@ def start_active_game():
 def end_active_game():
     bot.end_game()
     return jsonify({'message': 'Active game ended successfully'}), 200
+
+
+@app.route('/api/revealquestion', methods=['POST'])
+def reveal_question():
+    uuid = request.args.get("uuid")
+    bot.execute("GameCog", "show_question", uuid)
+    return jsonify({'message': 'Question revealed successfully'}), 200
+
+
+@app.route('/api/revealanswer', methods=['POST'])
+def reveal_answer():
+    uuid = request.args.get("uuid")
+    bot.execute("GameCog", "show_answer", uuid)
+    return jsonify({'message': 'Answer revealed successfully'}), 200
+
+
+# @app.route('/api/awardpoints', methods=['POST'])
+# async def award_points():
+#     team = request.args.get("team")
+#     points = request.args.get("points")
+#     await bot.execute("GameCog", "award_points", team, points)
+#     return jsonify({'message': 'Points awarded successfully'}), 200
+
+

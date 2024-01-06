@@ -1,44 +1,9 @@
 from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
-from utils.Team import Team
+from  discord_modules.cogs.jeopardy.Team import Team
+from discord_modules.cogs.jeopardy.JeopardyQuestion import JeopardyQuestion
 import uuid
 import discord
-class JeopardyQuestion:
-    """
-    Represents a single Jeopardy question.
 
-    Attributes:
-        category (str): The category of the question.
-        question (str): The question text.
-        answer (str): The answer to the question.
-        value (int): The point value of the question.
-        answered (bool): Whether the question has been answered.
-        id (uuid.UUID): Unique identifier for the question.
-    """
-
-    def __init__(self, category, question, answer, value):
-        self.category = category
-        self.question = question
-        self.answer = answer
-        self.value = value
-        self.answered = False
-        self.id = uuid.uuid4()
-
-    def to_json(self):
-        """
-        Converts the JeopardyQuestion instance to a JSON-serializable dictionary.
-
-        Returns:
-            dict: A dictionary representation of the question.
-        """
-        return {
-            "category": self.category,
-            "question": self.question,
-            "answer": self.answer,
-            "value": self.value,
-            "answered": self.answered,
-            "id": str(self.id)
-        }
-        
 import uuid
 import discord
 
@@ -77,6 +42,8 @@ class JeopardyGame:
         self.uuid = uuid.uuid4()
         self.is_announced = False
         self.is_started = False
+        self.messages = []
+
 
     def to_json(self):
         """
@@ -85,6 +52,12 @@ class JeopardyGame:
         Returns:
             dict: A dictionary representation of the game.
         """
+        quest = {}
+        for question in self.questions:
+            if question.category not in quest:
+                quest[question.category] = []
+            quest[question.category].append(question.to_json())
+
         return {
             "game": {
                 "name": self.name,
@@ -96,7 +69,7 @@ class JeopardyGame:
                 "announced": self.is_announced,
                 "started": self.is_started
             },
-            "questions": {category: [question.to_json() for question in questions] for category, questions in self.questions.items()}
+            "questions": quest
         }
 
     def _create_questions(self, questions_data):
@@ -109,7 +82,12 @@ class JeopardyGame:
         Returns:
             dict: Organized questions by category.
         """
-        return {category: [JeopardyQuestion(category, q['question'], q['answer'], q['value']) for q in qs] for category, qs in questions_data.items()}
+        print(questions_data)
+        queations = []
+        for categoory in questions_data.keys():
+            for question in questions_data[categoory]:
+                queations.append(JeopardyQuestion(categoory, question['question'], question['answer'], question['value']))
+        return queations
 
     def _create_teams(self, data):
         """
@@ -207,3 +185,34 @@ class JeopardyGame:
         Adds a player
         """
         self.players.append(member)
+
+    def get_question_by_uuid(self, uuid: str) -> Optional[JeopardyQuestion]:
+        """
+        Retrieves a question by its UUID.
+
+        Args:
+            uuid (uuid.UUID): The UUID of the question.
+
+        Returns:
+            JeopardyQuestion or None: The question object if found, otherwise None.
+        """
+        for question in self.questions:
+            if question.id == uuid:
+                return question
+        return None
+    
+    def answer_question(self, uuid: str) -> bool:
+        """
+        Marks a question as answered in a specific category and value.
+
+        Args:
+            uuid (uuid.UUID): The UUID of the question.
+
+        Returns:
+            bool: True if the question was successfully marked as answered, False otherwise.
+        """
+        question = self.get_question_by_uuid(uuid)
+        if question:
+            question.answered = True
+            return True, question
+        return False

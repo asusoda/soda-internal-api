@@ -5,24 +5,37 @@ from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
 import discord
 import random
 import asyncio
-from  discord.Jeopardy import JeopardyGame
-from discord.Team import Team
-
+from  discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
+from  discord_modules.cogs.jeopardy.JeopardyQuestion import JeopardyQuestion
+from  discord_modules.cogs.jeopardy.Team import Team
 
 class QuestionPost(discord.ui.View):
 
-    def __init__ (self, channel: discord.StageChannel):
-        super().__init__()
-        self.channel = channel
+        def __init__ (self, question: JeopardyQuestion, voice: discord.StageChannel):
+            """
+            Initializes the QuestionPost instance.
 
-    @discord.ui.button(label="Buzz In", style=discord.ButtonStyle.blurple)
-    async def button_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
-        user = interaction.user         
-        await interaction.response.send_message(f"<@{user.id}> You buzzed in!")
-        button.disabled = True
-        return user
+            Args:
+                question (JeopardyQuestion): The question to display.
+                voice (discord.StageChannel): The voice channel to move the user to.
+
+            """
+            super().__init__(timeout=None)
+            self.question = question
+            self.voice = voice
+
+   
+        @discord.ui.button(label="Buzz In", style=discord.ButtonStyle.blurple)
+        async def button_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
+            button.disabled = True
+            user = interaction.user
+            button.label = (f"{user.name} buzzed in!")         
+            await interaction.response.edit_message(view=self)
+            await user.move_to(self.voice)
+            await user.request_to_speak()
     
-
+    
+        
 class GameCog(commands.Cog):
     """
     A cog for managing a game (Jeopardy-style) within a Discord server. It handles game setup,
@@ -38,8 +51,8 @@ class GameCog(commands.Cog):
         scoreboard_channel (discord.TextChannel): The channel for displaying the game scoreboard.
         scoreboard (Any): The scoreboard object for the game.
     """
-
-    def __init__(self, bot):
+    
+    def __init__(self, bot : commands.Bot):
         """
         Initializes the GameCog instance.
 
@@ -56,6 +69,9 @@ class GameCog(commands.Cog):
         self.scoreboard = None
         self.date = None
         self.time = None
+        self.question_post = {}
+        self.stage = None
+        self.guild = None
 
     def set_game(self, game: dict, date: str, time: str) -> bool:
         """
@@ -115,6 +131,7 @@ class GameCog(commands.Cog):
         self.scoreboard_channel = None
         self.scoreboard = None
         self.game = None
+        self.question_post = {}
         return True
 
     def add_member(self, member: discord.User) -> bool:
@@ -143,29 +160,38 @@ class GameCog(commands.Cog):
         self.game.remove_member(member)
         return True
 
+
+
+    async def start_game(self):
+        """
+        Asynchronously starts the game.
+        """
+        self.game.start()
+        self.scoreboard_channel = await self.guild.create_text_channel("scoreboard", category=self.game_category)
+
+        return True
+
     async def setup_game(self):
         """
         Asynchronously sets up the game environment in the Discord server.
         """
-        guild = self.bot.guilds[0]
-        print("Creating channels and roles")
+        self.guild = self.bot.guilds[0]
         category = await guild.create_category("Jeopardy")
         await category.edit(position=0)
         self.game_category = category
-        self.stage = await guild.create_stage_channel("Stage", category=category)
+        self.stage = await self.guild.create_stage_channel(name = "Game Stage",topic = self.game.name ,category=category)
         for team in self.game.teams:
-            role = await guild.create_role(name=team.get_name())
+            role = await self.guild.create_role(name=team.get_name())
             self.roles.append(role)
 
             overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
+                self.guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
                 role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
             }
-            channel = await guild.create_voice_channel(team.get_name(), overwrites=overwrites, category=category)
+            channel = await self.guild.create_voice_channel(team.get_name(), overwrites=overwrites, category=category)
             self.voice_channels.append(channel)
 
-        self.announcement_channel = await guild.create_text_channel("announcements", category=category)
-        self.scoreboard_channel = await guild.create_text_channel("scoreboard", category=category)
+        self.announcement_channel = await self.guild.create_text_channel("announcements", category=category)
         self.game.is_announced = True
         embed = discord.Embed(
         title="🌟 JEOPARDY GAME NIGHT ANNOUNCEMENT 🌟",
@@ -174,7 +200,7 @@ class GameCog(commands.Cog):
     )
         embed.add_field(name="Date", value=self.date, inline=False)
         embed.add_field(name="Time", value=self.time, inline=False)
-        embed.add_field(name="Location", value="SODA Discord Server", inline=False)
+        embed.add_field(name="Location", value="The SoDA Discord Server", inline=False)
         embed.add_field(name="How to Enroll?", value="React with ✅.", inline=False)
         embed.set_footer(text="React with ✅ to enroll!")
         message = await self.announcement_channel.send(embed=embed)
@@ -182,12 +208,79 @@ class GameCog(commands.Cog):
         self.bot.execute("HelperCog", "add_to_listner", message, "✅" )
         return True
         
-            
-    async def show_question(self, uuid):
+    
+    
+    async def show_question(self, uuid : str):
         """
         Asynchronously shows a question to the players.
 
         Args:
             uuid (str): The UUID of the question to show.
         """
-        question = self.g
+        if uuid in self.question_post.keys():
+            question_data = self.game.get_question_by_uuid(uuid)
+            embed = discord.Embed(
+                title="🌟QUESTION🌟",
+                description= "Here is the question again! \n" ,
+                color=discord.Color.random()  
+            )
+            embed.add_field(name="Category", value=question_data.category, inline=True)
+            embed.add_field(name="Value", value=question_data.value, inline=True)
+            embed.add_field(name="Question", value=question_data.question, inline=False)
+            question = QuestionPost(question_data, self.stage)
+            await self.question_post[uuid].edit(embed=embed, view=question)
+        else:
+            question_data = self.game.get_question_by_uuid(uuid)
+            embed = discord.Embed(
+                title="🌟QUESTION🌟",
+                description= "Here is the question! \n" ,
+                color=discord.Color.random()  
+            )
+            embed.add_field(name="Category", value=question_data.category, inline=True)
+            embed.add_field(name="Value", value=question_data.value, inline=True)
+            embed.add_field(name="Question", value=question_data.question, inline=False)
+            question = QuestionPost(question_data, self.stage)
+            self.question_post[uuid] = await self.announcement_channel.send(embed=embed, view=question)
+            return True
+    
+
+    async def show_answer(self, uuid  : str):
+        """
+        Asynchronously shows the answer to a question.
+
+        Args:
+            uuid (str): The UUID of the question to show the answer to.
+        """
+        
+        boolean, question_data = self.game.answer_question(uuid)
+        if boolean:
+            embed = discord.Embed(
+                title="🌟ANSWER🌟",
+                description= "Here is the answer! \n" ,
+                color=discord.Color.random()  
+            )
+            embed.add_field(name="Category", value=question_data.category, inline=True)
+            embed.add_field(name="Value", value=question_data.value, inline=True)
+            embed.add_field(name="Question", value=question_data.question, inline=False)
+            embed.add_field(name="Answer", value=question_data.answer, inline=False)
+            await self.announcement_channel.send(embed=embed)
+
+            return True
+        else:
+            return False
+
+
+    async def award_points(self, team_name: str, points: int):
+            """
+            Asynchronously awards points to a team.
+
+            Args:
+                team_name (str): The name of the team to award points to.
+                points (int): The number of points to award.
+            """
+            self.game.award_points(team_name, points)
+            return True
+
+
+    async def update_boards(self):
+        pass
