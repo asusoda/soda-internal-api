@@ -31,7 +31,7 @@ def status():
 
 
 
-@app.route('/api/getfeatures', methods=['GET'])
+@app.route('/api/getfeatures', methods=['GET'], subdomain="api")
 def get_features():
     features = {
                  "Authentication" :{ "link":"auth",
@@ -62,4 +62,6 @@ async def create_channels():
 async def clean():
     bot.clean_game()
     return jsonify({'message': 'Active game cleaned successfully'}), 200
+
+
 
