@@ -31,7 +31,7 @@ def status():
 
 
 
-@app.route('/api/getfeatures', methods=['GET'], subdomain="api")
+@app.route('/api/getfeatures', methods=['GET'])
 def get_features():
     features = {
                  "Authentication" :{ "link":"auth",
