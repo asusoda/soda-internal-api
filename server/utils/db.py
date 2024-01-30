@@ -5,7 +5,7 @@ class DBManager():
 
     def __init__(self, config: Config) -> None:
         # Ensure the DB type is MongoDB
-        required_collections = ["staff", "games"]
+        required_collections = ["staff", "games", "activegame"]
         if config.get_db_type() != "mongodb":
             raise ValueError("Only MongoDB is supported in this DBManager")
 
@@ -249,3 +249,30 @@ class DBManager():
             bool: True if the token is an admin token, False otherwise.
         """
         
+    def clear_active_game(self):
+        """
+        Clear the active game.
+        """
+        collection = self.db['activegame']
+        collection.delete_many({})
+
+    def get_active_game(self) -> dict:
+        """
+        Get the active game.
+        
+        Returns:
+            dict: The active game.
+        """
+        collection = self.db['activegame']
+        return collection.find_one({})
+    
+    def set_active_game(self, game_name: str):
+        """
+        Set the active game.
+        
+        Args:
+            game_name (str): Name of the game to be set as active.
+        """
+        collection = self.db['activegame']
+        collection.delete_many({})
+        collection.insert_one({"game_name": game_name})

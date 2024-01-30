@@ -67,6 +67,7 @@ class GameCog(commands.Cog):
         self.voice_channels = []
         self.scoreboard_channel = None
         self.scoreboard = None
+        self.gameboard = None
         self.date = None
         self.time = None
         self.question_post = {}
@@ -151,6 +152,7 @@ class GameCog(commands.Cog):
         """
         Removes a member from the current game.
 
+
         Args:
             member (discord.Member): The member to remove from the game.
 
@@ -160,23 +162,65 @@ class GameCog(commands.Cog):
         self.game.remove_member(member)
         return True
 
-
-
     async def start_game(self):
         """
         Asynchronously starts the game.
         """
         self.game.start()
         self.scoreboard_channel = await self.guild.create_text_channel("scoreboard", category=self.game_category)
-
+        self.game.attach_roles(self.roles)
+        self.balance_teams()
+        await self.assign_roles()
+        await self.update_scoreboard()
+        await self.update_gameboard()
         return True
+    
+    
+    def balance_teams(self):
+        """
+        Balances the teams in the game.
+        """
+        members = self.game.get_members()
+        random.shuffle(members)  # Shuffle the members list to randomize team assignments
+
+        player_count = len(members)
+        team_count = len(self.game.teams)
+
+        if team_count == 0:
+            raise ValueError("No teams are set up in the game.")
+
+        team_size = player_count // team_count
+
+        # Clear current members from each team
+        for team in self.game.teams:
+            team.members.clear()
+
+        # Distribute members evenly across teams
+        for i, member in enumerate(members):
+            self.game.teams[i % team_count].members.append(member)
+
+        # Handle any remaining members if the division isn't exact
+        remaining_members = player_count % team_count
+        if remaining_members > 0:
+            extra_members = members[-remaining_members:]
+            for i, member in enumerate(extra_members):
+                self.game.teams[i].members.append(member)
+
+        
+    async def assign_roles(self):
+        """
+        Assigns roles to each team.
+        """
+        for team in self.game.teams:
+            for member in team.members:
+                await member.add_roles(team.role)
 
     async def setup_game(self):
         """
         Asynchronously sets up the game environment in the Discord server.
         """
         self.guild = self.bot.guilds[0]
-        category = await guild.create_category("Jeopardy")
+        category = await self.guild.create_category("Jeopardy")
         await category.edit(position=0)
         self.game_category = category
         self.stage = await self.guild.create_stage_channel(name = "Game Stage",topic = self.game.name ,category=category)
@@ -241,10 +285,11 @@ class GameCog(commands.Cog):
             embed.add_field(name="Question", value=question_data.question, inline=False)
             question = QuestionPost(question_data, self.stage)
             self.question_post[uuid] = await self.announcement_channel.send(embed=embed, view=question)
+            await self.update_gameboard()
             return True
     
 
-    async def show_answer(self, uuid  : str):
+    async def show_answer(self, uuid : str):
         """
         Asynchronously shows the answer to a question.
 
@@ -279,8 +324,69 @@ class GameCog(commands.Cog):
                 points (int): The number of points to award.
             """
             self.game.award_points(team_name, points)
+            await self.update_scoreboard()
             return True
 
 
-    async def update_boards(self):
-        pass
+    async def update_scoreboard(self):
+        if self.game.is_started:
+            if self.scoreboard is None:
+                embed = discord.Embed(
+                title="🌟SCOREBOARD🌟",
+                description= "Here is the scoreboard! \n" ,
+                color=discord.Color.blurple() 
+                )
+                for team in self.game.teams:
+                    embed.add_field(name=team.name, value=team.score, inline=True)
+                
+                self.scoreboard = await self.scoreboard_channel.send(embed=embed)
+            else:
+                embed = discord.Embed(
+                title="🌟SCOREBOARD🌟",
+                description= "Here is the scoreboard! \n" ,
+                color=discord.Color.blurple() 
+                )
+                for team in self.game.teams:
+                    embed.add_field(name=team.name, value=team.score, inline=True)
+                await self.scoreboard.edit(embed=embed)
+        else:
+            pass
+
+    async def update_gameboard(self):
+        if self.game.is_started:
+            if self.gameboard is None:
+                data = self.game.get_board()
+                embed = discord.Embed(title=f"Jeopardy Game: {self.game.name}", description=self.game.description, color=0x1E90FF)
+                for category in data.keys():
+                    question_data = data[category]
+                    embed.add_field(name=category, value= str(question_data), inline=False)
+                self.gameboard = await self.announcement_channel.send(embed=embed)
+
+            else:
+                data = self.game.get_board()
+                embed = discord.Embed(title=f"Jeopardy Game: {self.game.name}", description=self.game.description, color=0x1E90FF)
+                for category in data.keys():
+                    question_data = data[category]
+
+                    embed.add_field(name=category, value= str(question_data), inline=False)
+                await self.gameboard.edit(embed=embed)
+
+                    
+    async def end_game(self):
+        """
+        Asynchronously ends the game.
+        """
+        embed = discord.Embed(
+            title="🌟GAME OVER🌟",
+            description= "Thanks for playing! \n" ,
+            color=discord.Color.green()
+        )
+        winners = self.game.get_winners()
+        if len(winners) == 1:
+            embed.add_field(name="Winner", value=winners[0], inline=False)
+        else:
+            embed.add_field(name="Winners", value=', '.join(winners), inline=False)
+
+        await self.announcement_channel.send(embed=embed)
+        return True
+    

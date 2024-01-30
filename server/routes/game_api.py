@@ -45,7 +45,6 @@ def stop_game():
     pass
 
 
-
 @app.route('/api/botstatus', methods=['GET'])
 def bot_status():
     return jsonify({"status": bot_running})
@@ -146,14 +145,6 @@ async def get_active_game():
         return jsonify({'error': 'No active game set'}), 404
 
 
-
-@app.route('/api/awardpoints', methods=['POST'])
-async def award_points():
-    team = request.args.get("team")
-    points = request.args.get("points")
-    await bot.award_points(team, points)
-    return jsonify({'message': 'Points awarded successfully'}), 200
-
 @app.route('/api/cleanactivegame', methods=['POST'])
 async def clean_active_game():
     await bot.clean_game()
@@ -168,7 +159,7 @@ def get_active_game_state():
     
 @app.route('/api/startactivegame', methods=['POST'])
 def start_active_game():
-    bot.start_game()
+    bot.execute("GameCog", "start_game")
     return jsonify({'message': 'Active game started successfully'}), 200
 
 @app.route('/api/endactivegame', methods=['POST'])
@@ -191,11 +182,11 @@ def reveal_answer():
     return jsonify({'message': 'Answer revealed successfully'}), 200
 
 
-# @app.route('/api/awardpoints', methods=['POST'])
-# async def award_points():
-#     team = request.args.get("team")
-#     points = request.args.get("points")
-#     await bot.execute("GameCog", "award_points", team, points)
-#     return jsonify({'message': 'Points awarded successfully'}), 200
+@app.route('/api/awardpoints', methods=['POST'])
+async def award_points():
+    team = request.args.get("team")
+    points = request.args.get("points")
+    await bot.execute("GameCog", "award_points", team, points)
+    return jsonify({'message': 'Points awarded successfully'}), 200
 
 

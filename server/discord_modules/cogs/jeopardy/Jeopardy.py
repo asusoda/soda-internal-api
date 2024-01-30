@@ -37,6 +37,7 @@ class JeopardyGame:
         self.teams = self._create_teams(game_data['game']['teams'])
         self.players = []
         self.categories = game_data['game']['categories']
+        self.category_name = ()
         self.per_category = game_data['game']['per_category']
         self.questions = self._create_questions(game_data['questions'])
         self.uuid = uuid.uuid4()
@@ -87,6 +88,7 @@ class JeopardyGame:
         for categoory in questions_data.keys():
             for question in questions_data[categoory]:
                 queations.append(JeopardyQuestion(categoory, question['question'], question['answer'], question['value']))
+                self.category_name = categoory
         return queations
 
     def _create_teams(self, data):
@@ -216,3 +218,48 @@ class JeopardyGame:
             question.answered = True
             return True, question
         return False
+    
+    def get_winners(self) -> List[str]:
+        """
+        Retrieves the winning team(s).
+
+        Returns:
+            list: A list of winning Team objects.
+        """
+        winners = []
+        max_points = max([team.points for team in self.teams])
+        for team in self.teams:
+            if team.points == max_points:
+                for member in team.members:
+                    winners.append(member)
+
+
+    def attach_roles(self, roles: list[discord.Role]) -> None:
+        """
+        Attaches roles to teams
+        """
+        for team in self.teams:
+            for role in roles:
+                if team.name == role.name: 
+                    team.attach_role(role)
+                    
+    def get_members(self):
+        """
+        Retrieves the members of the game
+        """
+        return self.players
+    
+    def get_board(self):
+        """
+        Retrieves the board
+        """
+        data = {}
+        for question in self.questions:
+            if question.category not in data.keys():
+                data[question.category] = []
+            if not question.answered:
+                data[question.category].append(question.value)
+            else:
+                data[question.category].append("XXXX")
+
+        return data

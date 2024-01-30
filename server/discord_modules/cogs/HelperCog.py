@@ -260,7 +260,7 @@ class HelperCog(commands.Cog):
                         if role.name.startswith("Team"):
                                 await role.delete()
 
-                await ctx.send("Cleared the game environment.")
+                await ctx.respond("Cleared the game environment.")
     
 
 
