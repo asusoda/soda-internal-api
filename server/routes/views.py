@@ -7,9 +7,7 @@ import json
 
 @app.route("/")
 def index():
-    if discord_oauth.authorized:
-        return redirect(url_for("panel"))
-    else:
+
         return render_template("login.html")   
 
 

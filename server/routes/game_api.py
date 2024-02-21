@@ -52,7 +52,7 @@ def bot_status():
 
 @app.route('/api/startbot', methods=['POST'])
 async def start_bot():
-    global bot_running
+    global bot_running 
     bot_running = True
     await bot.run()
     return jsonify({"message": "Bot started successfully", "status": "success"}), 200
@@ -116,8 +116,6 @@ def get_game():
             data["questions"] = game["questions"]
             return jsonify(data), 200
     return jsonify({'error': 'Game not found'}), 404
-
-
 
 
 @app.route('/api/setactivegame', methods=['POST'])

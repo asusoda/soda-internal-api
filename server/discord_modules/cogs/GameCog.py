@@ -8,31 +8,7 @@ import asyncio
 from  discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
 from  discord_modules.cogs.jeopardy.JeopardyQuestion import JeopardyQuestion
 from  discord_modules.cogs.jeopardy.Team import Team
-
-class QuestionPost(discord.ui.View):
-
-        def __init__ (self, question: JeopardyQuestion, voice: discord.StageChannel):
-            """
-            Initializes the QuestionPost instance.
-
-            Args:
-                question (JeopardyQuestion): The question to display.
-                voice (discord.StageChannel): The voice channel to move the user to.
-
-            """
-            super().__init__(timeout=None)
-            self.question = question
-            self.voice = voice
-
-   
-        @discord.ui.button(label="Buzz In", style=discord.ButtonStyle.blurple)
-        async def button_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
-            button.disabled = True
-            user = interaction.user
-            button.label = (f"{user.name} buzzed in!")         
-            await interaction.response.edit_message(view=self)
-            await user.move_to(self.voice)
-            await user.request_to_speak()
+from  discord_modules.cogs.UI import QuestionPost
     
     
         
@@ -271,8 +247,8 @@ class GameCog(commands.Cog):
             embed.add_field(name="Category", value=question_data.category, inline=True)
             embed.add_field(name="Value", value=question_data.value, inline=True)
             embed.add_field(name="Question", value=question_data.question, inline=False)
-            question = QuestionPost(question_data, self.stage)
-            await self.question_post[uuid].edit(embed=embed, view=question)
+            question = QuestionPost(question=question_data, voice=self.stage, cog=self, avoid=self.question_post[uuid]['rolesAnswered'], question_uuid=uuid)
+            await self.question_post[uuid]['message_id'].edit(embed=embed, view=question)
         else:
             question_data = self.game.get_question_by_uuid(uuid)
             embed = discord.Embed(
@@ -283,8 +259,11 @@ class GameCog(commands.Cog):
             embed.add_field(name="Category", value=question_data.category, inline=True)
             embed.add_field(name="Value", value=question_data.value, inline=True)
             embed.add_field(name="Question", value=question_data.question, inline=False)
-            question = QuestionPost(question_data, self.stage)
-            self.question_post[uuid] = await self.announcement_channel.send(embed=embed, view=question)
+            question = QuestionPost(question=question_data, voice=self.stage, cog=self, question_uuid=uuid, avoid=[])
+            self.question_post[uuid] = {
+                                        "message_id":await self.announcement_channel.send(embed=embed, view=question),
+                                        "rolesAnswered": []
+                                        }
             await self.update_gameboard()
             return True
     
@@ -389,4 +368,20 @@ class GameCog(commands.Cog):
 
         await self.announcement_channel.send(embed=embed)
         return True
+    
+    def get_member_role(self, member) -> discord.Role: 
+        """
+        Retrieves the role assigned to a member.
+
+        Args:
+            member (discord.Member): The member to retrieve the role for.
+
+        Returns:
+            discord.Role: The role assigned to the member.
+        """
+        for role in self.roles:
+            if role in member.roles:
+                return role
+        return None
+
     

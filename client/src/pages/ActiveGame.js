@@ -31,16 +31,63 @@ const GameBoard = ({ data, onQuestionSelect }) => {
 const QuestionPanel = ({ question, teams }) => {
     const [selectedTeam, setSelectedTeam] = useState('');
 
-    const handleRevealQuestion = () => {
-        // Implement reveal question logic
+    const handleRevealQuestion = async () => {
+        if (!question) {
+            toast.error('Please select a question');
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/revealquestion', null, {
+                params: {
+                    uuid: question.id
+                }
+            });
+            toast.success(response.data.message);
+        } catch (error) {
+            console.error('Error revealing question:', error);
+            toast.error('Error revealing question');
+        }
     };
 
-    const handleRevealAnswer = () => {
-        // Implement reveal answer logic
+    const handleRevealAnswer = async () => {
+        if (!question) {
+            toast.error('Please select a question');
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/revealanswer', null, {
+                params: {
+                    uuid: question.id
+                }
+            });
+            toast.success(response.data.message);
+        } catch (error) {
+            console.error('Error revealing answer:', error);
+            toast.error('Error revealing answer');
+        }
     };
 
     const handleAwardPoints = async () => {
-        // Implement award points logic
+        if (!selectedTeam || !question) {
+            toast.error('Please select a team and a question');
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/awardpoints', null,{
+                params: {
+                    team: selectedTeam,
+                    points: question.value
+                }
+            });
+
+            toast.success(response.data.message);
+        } catch (error) {
+            console.error('Error awarding points:', error);
+            toast.error('Error awarding points');
+        }
     };
 
     return (
@@ -60,7 +107,7 @@ const QuestionPanel = ({ question, teams }) => {
                             className="mt-2 bg-white text-black"
                         >
                             {teams.map((team) => (
-                                <option key={team} value={team}>{team}</option>
+                                <option key={team.name} value={team.name}>{team.name}</option>
                             ))}
                         </select>
                     &nbsp;&nbsp;&nbsp;
@@ -129,7 +176,7 @@ const ActiveGamePanel = () => {
     
         const handleStartGame = async () => {
             try {
-                // Logic to start the game
+                const response = await axios.post('/api/startactivegame');
                 toast.success('Game started successfully');
             } catch (error) {
                 console.error('Error starting the game:', error);
