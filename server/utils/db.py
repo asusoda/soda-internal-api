@@ -276,3 +276,52 @@ class DBManager():
         collection = self.db['activegame']
         collection.delete_many({})
         collection.insert_one({"game_name": game_name})
+
+    def set_active_game_dict_entry(self, key: str, value: str):
+        """
+        Set the active game dictionary entry.
+        
+        Args:
+            key (str): Key of the entry.
+            value (str): Value of the entry.
+        """
+        collection = self.db['activegame']
+        collection.update_one({}, {"$set": {key: value}})
+    
+    def append_active_game_dict_entry(self, key: str, value: str):
+        """
+        Append to the active game dictionary entry.
+        
+        Args:
+            key (str): Key of the entry.
+            value (str): Value to be appended.
+        """
+        collection = self.db['activegame']
+        collection.update_one({}, {"$push": {key: value}})
+
+    def remove_active_game_dict_entry(self, key: str, value: str):
+        """
+        Remove from the active game dictionary entry.
+        
+        Args:
+            key (str): Key of the entry.
+            value (str): Value to be removed.
+        """
+        collection = self.db['activegame']
+        collection.update_one({}, {"$pull": {key: value}})
+
+    def get_active_game_dict_entry(self, key: str) -> str:
+        """
+        Get the active game dictionary entry.
+        
+        Args:
+            key (str): Key of the entry.
+        
+        Returns:
+            str: Value of the entry.
+        """
+        collection = self.db['activegame']
+        data = collection.find_one({})
+        return data.get(key, None)
+    
+    

@@ -129,7 +129,9 @@ async def set_active_game():
         for game in games:
             if game["game"]["name"] == name:
                 data = {"game": game["game"], "questions": game["questions"]}
-                bot.execute("GameCog", "set_game", data, date, time)
+                # bot.execute("GameCog", "set_game", data, date, time)
+                cog = bot.get_cog("GameCog")
+                await cog.set_game(data, date, time)
                 return jsonify({'message': 'Active game set successfully'}), 200
     else:
         return jsonify({'error': 'Bot not running!!'}), 400
@@ -138,7 +140,9 @@ async def set_active_game():
 @app.route('/api/getactivegame', methods=['GET'])
 async def get_active_game():
     if bot.execute("GameCog", "get_game") not in [None, ""]:
-        return jsonify(bot.execute("GameCog", "get_game")), 200
+        # return jsonify(bot.execute("GameCog", "get_game")), 200
+        cog = bot.get_cog("GameCog")
+        return jsonify(cog.get_game()), 200
     else:
         return jsonify({'error': 'No active game set'}), 404
 
@@ -156,8 +160,11 @@ def get_active_game_state():
         return jsonify({'error': 'No active game set'}), 404
     
 @app.route('/api/startactivegame', methods=['POST'])
-def start_active_game():
-    bot.execute("GameCog", "start_game")
+async def start_active_game():
+    # bot.execute("GameCog", "start_game")
+    cog = bot.get_cog("GameCog")
+    await cog.start_game()
+
     return jsonify({'message': 'Active game started successfully'}), 200
 
 @app.route('/api/endactivegame', methods=['POST'])
@@ -169,14 +176,17 @@ def end_active_game():
 @app.route('/api/revealquestion', methods=['POST'])
 def reveal_question():
     uuid = request.args.get("uuid")
-    bot.execute("GameCog", "show_question", uuid)
+    # bot.execute("GameCog", "show_question", uuid)
+    cog = bot.get_cog("GameCog")
+    cog.show_question(uuid)
     return jsonify({'message': 'Question revealed successfully'}), 200
 
 
 @app.route('/api/revealanswer', methods=['POST'])
-def reveal_answer():
+async def reveal_answer():
     uuid = request.args.get("uuid")
-    bot.execute("GameCog", "show_answer", uuid)
+    cog = bot.get_cog("GameCog")
+    await cog.show_answer(uuid)
     return jsonify({'message': 'Answer revealed successfully'}), 200
 
 
@@ -184,7 +194,9 @@ def reveal_answer():
 async def award_points():
     team = request.args.get("team")
     points = request.args.get("points")
-    await bot.execute("GameCog", "award_points", team, points)
+    # await bot.execute("GameCog", "award_points", team, points)
+    cog = bot.get_cog("GameCog")
+    cog.award_points(team, points)
     return jsonify({'message': 'Points awarded successfully'}), 200
 
 

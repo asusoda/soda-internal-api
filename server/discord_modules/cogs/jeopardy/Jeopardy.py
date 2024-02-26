@@ -263,3 +263,18 @@ class JeopardyGame:
                 data[question.category].append("XXXX")
 
         return data
+    
+    def get_questions_in_sorted_categories_and_by_points(self):
+        """
+        Retrieves the questions in sorted categories and by points
+        """
+        data = {}
+        for question in self.questions:
+            if question.category not in data.keys():
+                data[question.category] = []
+            if not question.answered:
+                data[question.category].append(question.value)
+            else:
+                data[question.category].append("XXXX")
+
+        return data

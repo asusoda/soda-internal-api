@@ -44,3 +44,25 @@ class QuestionPost(discord.ui.View):
                 await interaction.response.edit_message(view=self)
                 await user.move_to(self.voice)
                 await user.request_to_speak()
+
+
+class AnsweredQuestion(discord.ui.View):
+    def __init__(self, question: JeopardyQuestion, answer: str):
+        """
+        Initializes the AnsweredQuestion instance.
+
+        Args:
+            question (JeopardyQuestion): The question that was answered.
+            answer (str): The answer to the question.
+        """
+        super().__init__(timeout=None)
+        self.question = question
+        self.answer = answer
+        self.add_item(discord.ui.Button(label="Reveal Answer", style=discord.ButtonStyle.blurple))
+
+    @discord.ui.button(label="Reveal Answer", style=discord.ButtonStyle.blurple)
+    async def reveal_answer(self, button: discord.ui.Button, interaction: discord.Interaction):
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send(f"The answer is: {self.answer}", ephemeral=True)
+    
