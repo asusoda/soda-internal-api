@@ -131,7 +131,7 @@ async def set_active_game():
                 data = {"game": game["game"], "questions": game["questions"]}
                 # bot.execute("GameCog", "set_game", data, date, time)
                 cog = bot.get_cog("GameCog")
-                await cog.set_game(data, date, time)
+                cog.set_game(data, date, time)
                 return jsonify({'message': 'Active game set successfully'}), 200
     else:
         return jsonify({'error': 'Bot not running!!'}), 400
