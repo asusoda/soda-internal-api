@@ -1,9 +1,9 @@
-from shared import app,  bot, bot_running, discord_oauth, db
+from shared import app,  bot, bot_running, discord_oauth, db, game_blueprint
 from flask import jsonify, request, redirect, url_for
 from os import listdir
 import json
 
-@app.route('/api/getavailablegames', methods=['GET'])
+@game_blueprint.route('/getavailablegames', methods=['GET'])
 def get_available_games():
     try:
         games = db.get_all_games()
@@ -21,7 +21,7 @@ def get_available_games():
         return jsonify({'error': str(e)}), 400
     
 
-@app.route('/api/gamedata', methods=['GET'])
+@game_blueprint.route('/gamedata', methods=['GET'])
 def get_game_data():
     file_name = request.args.get("file_name")
     with open(f'./data/{file_name}.json') as f:
@@ -29,7 +29,7 @@ def get_game_data():
     return jsonify(game_data)
 
 
-@app.route('/api/startgame', methods=['POST'])
+@game_blueprint.route('/startgame', methods=['POST'])
 def start_game():
     game_name = request.form['name']
     # files = listdir("./data")
@@ -40,24 +40,24 @@ def start_game():
     game_data = db.get_game(game_name)
             
 
-@app.route('/api/stopgame', methods=['POST'])
+@game_blueprint.route('/stopgame', methods=['POST'])
 def stop_game():
     pass
 
 
-@app.route('/api/botstatus', methods=['GET'])
+@game_blueprint.route('/botstatus', methods=['GET'])
 def bot_status():
     return jsonify({"status": bot_running})
 
 
-@app.route('/api/startbot', methods=['POST'])
+@game_blueprint.route('/startbot', methods=['POST'])
 async def start_bot():
     global bot_running 
     bot_running = True
     await bot.run()
     return jsonify({"message": "Bot started successfully", "status": "success"}), 200
 
-@app.route('/api/stopbot', methods=['POST'])
+@game_blueprint.route('/stopbot', methods=['POST'])
 async def stop_bot():
     global bot_running 
     bot_running = False
@@ -86,7 +86,7 @@ def is_valid_game_json(data):
 
     return True
 
-@app.route('/api/uploadgame', methods=['POST'])
+@game_blueprint.route('/uploadgame', methods=['POST'])
 def upload_game():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -105,7 +105,7 @@ def upload_game():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     
-@app.route('/api/getgame', methods=['GET'])
+@game_blueprint.route('/getgame', methods=['GET'])
 def get_game():
     name = request.args.get("name")
     games = db.get_all_games()
@@ -118,7 +118,7 @@ def get_game():
     return jsonify({'error': 'Game not found'}), 404
 
 
-@app.route('/api/setactivegame', methods=['POST'])
+@game_blueprint.route('/setactivegame', methods=['POST'])
 async def set_active_game():
     name = request.args.get("name")
     date = request.args.get("date")
@@ -137,7 +137,7 @@ async def set_active_game():
         return jsonify({'error': 'Bot not running!!'}), 400
 
 
-@app.route('/api/getactivegame', methods=['GET'])
+@game_blueprint.route('/getactivegame', methods=['GET'])
 async def get_active_game():
     if bot.execute("GameCog", "get_game") not in [None, ""]:
         # return jsonify(bot.execute("GameCog", "get_game")), 200
@@ -147,19 +147,19 @@ async def get_active_game():
         return jsonify({'error': 'No active game set'}), 404
 
 
-@app.route('/api/cleanactivegame', methods=['POST'])
+@game_blueprint.route('/cleanactivegame', methods=['POST'])
 async def clean_active_game():
     await bot.clean_game()
     return jsonify({'message': 'Active game cleaned successfully'}), 200
 
-@app.route('/api/getactivegamestate', methods=['GET'])
+@game_blueprint.route('/getactivegamestate', methods=['GET'])
 def get_active_game_state():
     if bot.active_game not in [None, ""]:
         return jsonify(bot.active_game.get_state()), 200
     else:
         return jsonify({'error': 'No active game set'}), 404
     
-@app.route('/api/startactivegame', methods=['POST'])
+@game_blueprint.route('/startactivegame', methods=['POST'])
 async def start_active_game():
     # bot.execute("GameCog", "start_game")
     cog = bot.get_cog("GameCog")
@@ -167,13 +167,13 @@ async def start_active_game():
 
     return jsonify({'message': 'Active game started successfully'}), 200
 
-@app.route('/api/endactivegame', methods=['POST'])
+@game_blueprint.route('/endactivegame', methods=['POST'])
 def end_active_game():
     bot.end_game()
     return jsonify({'message': 'Active game ended successfully'}), 200
 
 
-@app.route('/api/revealquestion', methods=['POST'])
+@game_blueprint.route('/revealquestion', methods=['POST'])
 def reveal_question():
     uuid = request.args.get("uuid")
     # bot.execute("GameCog", "show_question", uuid)
@@ -182,7 +182,7 @@ def reveal_question():
     return jsonify({'message': 'Question revealed successfully'}), 200
 
 
-@app.route('/api/revealanswer', methods=['POST'])
+@game_blueprint.route('/revealanswer', methods=['POST'])
 async def reveal_answer():
     uuid = request.args.get("uuid")
     cog = bot.get_cog("GameCog")
@@ -190,7 +190,7 @@ async def reveal_answer():
     return jsonify({'message': 'Answer revealed successfully'}), 200
 
 
-@app.route('/api/awardpoints', methods=['POST'])
+@game_blueprint.route('/awardpoints', methods=['POST'])
 async def award_points():
     team = request.args.get("team")
     points = request.args.get("points")

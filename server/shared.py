@@ -2,7 +2,7 @@ from utils.config import Config
 from discord_modules.bot import BotFork
 from utils.db import DBManager
 from utils.TokenManager import TokenManager
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Blueprint
 from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
 
 import os
@@ -14,7 +14,6 @@ config = Config()
 db = DBManager(config)
 # token_manager = TokenManager()
 app = Flask("SODA Discord Bot", static_folder="static", template_folder="templates")
-
 app.secret_key = config.get_secret_key()
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"
 app.config["DISCORD_CLIENT_ID"] = config.get_client_id()
@@ -22,6 +21,7 @@ app.config["DISCORD_CLIENT_SECRET"] = config.get_client_secret()
 app.config["DISCORD_REDIRECT_URI"] = config.get_redirect_uri()
 app.config["DISCORD_BOT_TOKEN"] = config.get_bot_token()
 
+game_blueprint = Blueprint("jeopardy", __name__, url_prefix="/jeopardy")
 
 AUTHORIZED_USERS = ['689510313971810437']
 bot_running = False

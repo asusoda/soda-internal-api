@@ -234,7 +234,7 @@ class JeopardyGame:
                     winners.append(member)
 
 
-    def attach_roles(self, roles: list[discord.Role]) -> None:
+    def attach_roles(self, roles: List[discord.Role]) -> None:
         """
         Attaches roles to teams
         """
