@@ -1,15 +1,7 @@
-from shared import bot, app, db
-from routes.views import *
-from routes.api import *
-from routes.game_api import *
-import os 
-import random
-import discord
+from shared import app
+from server.modules.bot.api import game_blueprint
 
-
-
-
-
+app.register_blueprint(game_blueprint, url_prefix="/game")
 if __name__ == "__main__":
-    app.run(debug=True)
 
+    app.run(debug=True)
