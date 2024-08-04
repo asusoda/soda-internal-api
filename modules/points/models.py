@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 
@@ -18,7 +18,6 @@ class User(Base):
     def __repr__(self):
         return f'<User(name={self.name}, email={self.email}, academic_standing={self.academic_standing})>'
 
-
 class Points(Base):
     __tablename__ = 'points'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -29,6 +28,4 @@ class Points(Base):
     user_id = Column(String, ForeignKey('users.uuid'), nullable=False)
     
     def __repr__(self):
-        return f'<Points(points={self.points}, event = {self.event}, timestamp = {self.timestamp}, awarded_by_officer = {self.awarded_by_officer}>'
-    
-    
+        return f'<Points(points={self.points}, event={self.event}, timestamp={self.timestamp}, awarded_by_officer={self.awarded_by_officer})>'

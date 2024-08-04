@@ -4,21 +4,21 @@ class Config():
 
     def __init__(self) -> None:
         load_dotenv()
-        try:
-            self.secret_key = os.environ['SECRET_KEY']
-            self.client_id = os.environ['CLIENT_ID']
-            self.client_secret = os.environ['CLIENT_SECRET']
-            self.redirect_uri = os.environ['REDIRECT_URI']
-            self.bot_token = os.environ['BOT_TOKEN']
-            self.db_type = os.environ['DB_TYPE']
-            self.db_uri = os.environ['DB_URI']
-            self.db_name = os.environ['DB_NAME']
-            self.db_user = os.environ['DB_USER']
-            self.db_password = os.environ['DB_PASSWORD']
-            self.is_prod = os.environ['PROD']
-        except KeyError as e:
-            print(f"Missing environment variable: {e}")
-            exit(1)
+        # try:
+        #     self.secret_key = os.environ['SECRET_KEY']
+        #     self.client_id = os.environ['CLIENT_ID']
+        #     self.client_secret = os.environ['CLIENT_SECRET']
+        #     self.redirect_uri = os.environ['REDIRECT_URI']
+        #     self.bot_token = os.environ['BOT_TOKEN']
+        #     self.db_type = os.environ['DB_TYPE']
+        #     self.db_uri = os.environ['DB_URI']
+        #     self.db_name = os.environ['DB_NAME']
+        #     self.db_user = os.environ['DB_USER']
+        #     self.db_password = os.environ['DB_PASSWORD']
+        #     self.is_prod = os.environ['PROD']
+        # except KeyError as e:
+        #     print(f"Missing environment variable: {e}")
+        #     exit(1)
         self.SECRET_KEY='Gju8sO9y4F8WtU1O'
         self.CLIENT_ID=1153940272867180594
         self.CLIENT_SECRET="_2DJ787FBtThsR9oaPI3Qx3MsB4rNwdN"
