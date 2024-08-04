@@ -2,7 +2,7 @@ import jwt
 import datetime
 
 class TokenManager:
-    def __init__(self):
+    def __init__(self, private_key, public_key, algorithm='HS256'):
         self.private_key = self._load_private_key(private_key)
         self.public_key = self._load_public_key(public_key)
         self.algorithm = algorithm
@@ -29,5 +29,7 @@ class TokenManager:
             return False
         except jwt.ExpiredSignatureError:
             return True
+
+
 
     # Additional methods can be added as needed, such as token refresh logic

@@ -1,5 +1,7 @@
 
 from flask import Flask, Blueprint
+from flask_discord import DiscordOAuth2Session
+
 import discord
 import os
 
@@ -17,7 +19,11 @@ app.config['CLIENT_SECRET'] = config.get_client_secret()
 app.config['REDIRECT_URI'] = config.get_redirect_uri()
 app.config['BOT_TOKEN'] = config.get_bot_token()
 
-# tokenManger = TokenManager()
+
+discord = DiscordOAuth2Session(client_id=app.config['CLIENT_ID'], redirect_uri=app.config['REDIRECT_URI'])
+tokenManger = TokenManager()
+
+
 
 bot_running = False
 intents = discord.Intents.all()

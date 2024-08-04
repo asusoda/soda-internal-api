@@ -1,0 +1,56 @@
+#https://www.notion.so/asusoda/d390c0dee9e24588afc8da24169ab2cf?v=24eabcf09a784d129221f9c032bf2f84&pvs=4
+
+import requests
+import json
+
+# Replace with your Notion API integration token
+NOTION_TOKEN = 'secret_gKiNu2Am31Nh5k1iR1VpnZgKwFBcZuRqJ7ffVSIuvZ0'
+# Replace with your Notion database (calendar) ID
+DATABASE_ID = 'd390c0dee9e24588afc8da24169ab2cf'
+
+def read_notion_calendar(token, database_id):
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+
+    response = requests.post(url, headers=headers)
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        print(f"Failed to fetch data: {response.status_code} - {response.text}")
+        return None
+
+def print_calendar_entries(calendar_data):
+    for entry in calendar_data.get("results", []):
+        properties = entry.get("properties", {})
+        name = properties.get("Name", {}).get("title", [])
+        date = properties.get("Date", {}).get("date", {})
+        published = properties.get("Published", {}).get("checkbox", False)
+        image = properties.get("Image", {})['files'][0]['file']['url']
+        if name:
+            name = name[0].get("text", {}).get("content", "No Title")
+        else:
+            name = "No Title"
+        
+        start_date = date.get("start", "No Start Date")
+        end_date = date.get("end", "No End Date")
+        
+        if published:
+            print("-" * 20)
+            print(f"Event: {name}")
+            print(f"Image: {image}")
+            print(f"Start Date: {start_date}")
+            print(f"End Date: {end_date}")
+            print(f"Published: {published}")
+            print("-" * 20)
+
+if __name__ == "__main__":
+    calendar_data = read_notion_calendar(NOTION_TOKEN, DATABASE_ID)
+    #print(calendar_data)
+    if calendar_data:
+        print_calendar_entries(calendar_data)
