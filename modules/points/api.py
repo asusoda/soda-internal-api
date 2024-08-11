@@ -2,11 +2,9 @@ from flask import Flask, jsonify, request, Blueprint
 from sqlalchemy.orm import Session
 from modules.utils.db import DBConnect
 from modules.points.models import User, Points
+from shared import db_connect
 
-# Initialize database connection
-db_connect = DBConnect('sqlite:///./test.db')  # Adjust the URL to your database
 
-app = Flask(__name__)
 points_blueprint = Blueprint('points', __name__, template_folder=None, static_folder=None)
 
 @points_blueprint.route('/', methods=['GET'])
@@ -104,8 +102,5 @@ def get_points():
         "user_id": point.user_id
     } for point in points]), 200
 
-# Register blueprint
-app.register_blueprint(points_blueprint, url_prefix='/points')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+

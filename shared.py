@@ -2,6 +2,8 @@
 from flask import Flask, Blueprint
 import discord
 import os
+from modules.utils.db import DBConnect
+
 
 from modules.utils.config import Config
 # from modules.utils.db import DBManager
@@ -16,6 +18,9 @@ app.config['CLIENT_ID'] = config.get_client_id()
 app.config['CLIENT_SECRET'] = config.get_client_secret()
 app.config['REDIRECT_URI'] = config.get_redirect_uri()
 app.config['BOT_TOKEN'] = config.get_bot_token()
+
+# Initialize database connection
+db_connect = DBConnect('sqlite:///./user.db')  # Adjust the URL to your database
 
 # tokenManger = TokenManager()
 

@@ -1,7 +1,8 @@
 import unittest
 import json
-from modules.points.api import app, db_connect
+from modules.points.api import db_connect
 from modules.points.models import User, Points
+from main import app
 
 class PointsSystemTestCase(unittest.TestCase):
 
@@ -30,7 +31,7 @@ class PointsSystemTestCase(unittest.TestCase):
             'email': 'john.doe@example.com',
             'academic_standing': 'Senior'
         }
-        response = self.client.post('/points/users', data=json.dumps(user_data), content_type='application/json')
+        response = self.client.post('/points-system/users', data=json.dumps(user_data), content_type='application/json')
         self.assertEqual(response.status_code, 201)
         response_data = json.loads(response.data)
         self.assertIn('uuid', response_data)
@@ -44,7 +45,7 @@ class PointsSystemTestCase(unittest.TestCase):
             'email': 'john.doe@example.com',
             'academic_standing': 'Senior'
         }
-        user_response = self.client.post('/points/users', data=json.dumps(user_data), content_type='application/json')
+        user_response = self.client.post('/points-system/users', data=json.dumps(user_data), content_type='application/json')
         user_uuid = json.loads(user_response.data)['uuid']
 
         point_data = {
@@ -53,7 +54,7 @@ class PointsSystemTestCase(unittest.TestCase):
             'awarded_by_officer': 'Jane Smith',
             'user_id': user_uuid
         }
-        response = self.client.post('/points/points', data=json.dumps(point_data), content_type='application/json')
+        response = self.client.post('/points-system/points', data=json.dumps(point_data), content_type='application/json')
         self.assertEqual(response.status_code, 201)
         response_data = json.loads(response.data)
         self.assertIn('id', response_data)
@@ -71,7 +72,7 @@ class PointsSystemTestCase(unittest.TestCase):
             'user_email': 'john.doe@example.com',
             'user_academic_standing': 'Senior'
         }
-        response = self.client.post('/points/points', data=json.dumps(point_data), content_type='application/json')
+        response = self.client.post('/points-system/points', data=json.dumps(point_data), content_type='application/json')
         self.assertEqual(response.status_code, 201)
         response_data = json.loads(response.data)
         self.assertIn('id', response_data)
@@ -86,8 +87,8 @@ class PointsSystemTestCase(unittest.TestCase):
             'email': 'john.doe@example.com',
             'academic_standing': 'Senior'
         }
-        self.client.post('/points/users', data=json.dumps(user_data), content_type='application/json')
-        response = self.client.get('/points/users')
+        self.client.post('/points-system/users', data=json.dumps(user_data), content_type='application/json')
+        response = self.client.get('/points-system/users')
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.data)
         self.assertEqual(len(response_data), 1)
@@ -101,7 +102,7 @@ class PointsSystemTestCase(unittest.TestCase):
             'email': 'john.doe@example.com',
             'academic_standing': 'Senior'
         }
-        user_response = self.client.post('/points/users', data=json.dumps(user_data), content_type='application/json')
+        user_response = self.client.post('/points-system/users', data=json.dumps(user_data), content_type='application/json')
         user_uuid = json.loads(user_response.data)['uuid']
 
         point_data = {
@@ -110,9 +111,9 @@ class PointsSystemTestCase(unittest.TestCase):
             'awarded_by_officer': 'Jane Smith',
             'user_id': user_uuid
         }
-        self.client.post('/points/points', data=json.dumps(point_data), content_type='application/json')
+        self.client.post('/points-system/points', data=json.dumps(point_data), content_type='application/json')
 
-        response = self.client.get('/points/points')
+        response = self.client.get('/points-system/points')
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.data)
         self.assertEqual(len(response_data), 1)

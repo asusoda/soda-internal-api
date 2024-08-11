@@ -211,3 +211,10 @@ dist
 # Linters and Jest
 .eslintcache
 /jest.config.js
+
+#credentials.json and token.json for google sheets api
+credentials.json
+token.json
+
+#database file
+.db
