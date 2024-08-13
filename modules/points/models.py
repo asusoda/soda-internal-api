@@ -10,6 +10,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     uuid = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    asu_id = Column(String, nullable=False, unique=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
     academic_standing = Column(String, nullable=False)

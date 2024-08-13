@@ -9,7 +9,7 @@ from modules.points.models import User
 def check_gForm_for_distinguished_members():
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     SAMPLE_SPREADSHEET_ID = "1gfrify0x3EUf-acZc1b-Ib0dRkMWUGd_rbUqTRF-dFM"
-    SAMPLE_RANGE_NAME = "Form Responses 1!A:H"  # Adjust according to your sheet
+    SAMPLE_RANGE_NAME = "Form Responses 1!A:I"  # Adjust according to your sheet, now includes the new asu_id field
 
     creds = None
     if os.path.exists("token.json"):
@@ -43,29 +43,29 @@ def check_gForm_for_distinguished_members():
 
         for i, row in enumerate(values[1:], start=2):  # Skip header row and enumerate for easier debugging
             print(f"Processing row {i}: {row}")
-            timestamp, name, email, year, major, distinguished_member, *_ = row
+            timestamp, asu_id, name, email, year, major, distinguished_member, *_ = row
             if distinguished_member.lower() == "yes":
-                print(f"Adding user {name} ({email}) to the database")
-                add_user_to_db(db_connect, name, email, year, major)
+                print(f"Adding user {name} ({email}) with ASU ID {asu_id} to the database")
+                add_user_to_db(db_connect, asu_id, name, email, year, major)
             else:
                 print(f"Skipping user {name} ({email}) - Not a distinguished member")
 
     except HttpError as err:
         print(f"HTTP error occurred: {err}")
 
-def add_user_to_db(db_connect, name, email, year, major):
+def add_user_to_db(db_connect, asu_id, name, email, year, major):
     db = next(db_connect.get_db())
     try:
         user = User(
+            asu_id=asu_id,
             name=name,
             email=email,
             academic_standing=year
         )
         db_user = db_connect.create_user(db, user)
-        print(f"Successfully added user: {db_user.name} ({db_user.email})")
+        print(f"Successfully added user: {db_user.name} ({db_user.email}) with ASU ID {db_user.asu_id}")
     except Exception as e:
         print(f"Error adding user: {e}")
     finally:
         db.close()
         print("Database connection closed")
-

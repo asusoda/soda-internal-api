@@ -17,6 +17,7 @@ class DBConnect:
         # Check if the database file exists
         if not os.path.exists("./user.db"):
             Base.metadata.create_all(bind=self.engine)
+            
 
     def get_db(self):
         db = self.SessionLocal()
