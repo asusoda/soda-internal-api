@@ -71,11 +71,80 @@ def callback():
         return jsonify({"error": "Failed to retrieve access token"}), 400
 
 
+@auth_blueprint.route("/validToken", methods=["GET"])
+def valid_token():
+    token = request.headers.get("Authorization").split(" ")[
+        1
+    ]  # Extract the token from the Authorization header
+    if tokenManger.is_token_valid(token):
+        if tokenManger.is_token_expired(token):
+            return jsonify(
+                {
+                    "status": "success",
+                    "valid": True,
+                    "expired": True,
+                }
+            ), 200
+        else:
+            return jsonify(
+                {
+                    "status": "success",
+                    "valid": True,
+                    "expired": False,
+                }
+            ), 200
+    else:
+        return jsonify(
+            {
+                "status": "error",
+                "valid": False,
+            }
+        ), 401
+
+
+@auth_blueprint.route("/refresh", methods=["GET"])
+def refresh_token():
+    token = request.headers.get("Authorization").split(" ")[
+        1
+    ]  # Extract the token from the Authorization header
+    if tokenManger.is_token_valid(token):
+        if tokenManger.is_token_expired(token):
+            new_token = tokenManger.refresh_token(token)
+            return jsonify(
+                {
+                    "status": "success",
+                    "valid": True,
+                    "expired": True,
+                    "token": new_token,
+                }
+            ), 200
+        else:
+            return jsonify(
+                {
+                    "status": "success",
+                    "valid": True,
+                    "expired": False,
+                    "token": token,
+                    "error": "Token is not expired",
+                }
+            ), 400
+    else:
+        return jsonify(
+            {
+                    "status": "error", 
+                    "valid": False, 
+                    "error": "Invalid token"
+            }
+        ), 401
+
+
 @auth_blueprint.route("/name", methods=["GET"])
 @auth_required
 def get_name():
-    autorisation = request.headers.get("Authorization")
-    return jsonify({"name": tokenManger.retrieve_username(autorisation)})
+    autorisation = request.headers.get("Authorization").split(" ")[
+        1
+    ]  # Extract the token from the Authorization header
+    return jsonify({"name": tokenManger.retrieve_username(autorisation)}), 200
 
 
 @auth_blueprint.route("/success")
