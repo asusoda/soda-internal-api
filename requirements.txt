@@ -258,6 +258,7 @@ rich @ file:///croot/rich_1684282154404/work
 rope @ file:///croot/rope_1708963153974/work
 rpds-py @ file:///croot/rpds-py_1698945930462/work
 Rtree @ file:///croot/rtree_1675157851263/work
+ruff @ file:///croot/ruff_1713370963143/work
 s3fs @ file:///croot/s3fs_1714466037529/work
 scikit-image @ file:///croot/scikit-image_1682528309703/work
 scikit-learn @ file:///croot/scikit-learn_1694788527225/work
