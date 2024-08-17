@@ -1,6 +1,6 @@
 from flask import request, jsonify, Blueprint, redirect, current_app
 from shared import config, bot, db, tokenManger
-from modules.auth.decoraters import auth_required
+from modules.auth.decoraters import auth_required, error_handler
 import requests
 
 auth_blueprint = Blueprint("auth", __name__, template_folder=None, static_folder=None)
@@ -138,6 +138,15 @@ def refresh_token():
         ), 401
 
 
+@auth_blueprint.route("/appToken", methods=["GET"])
+@auth_required
+@error_handler
+def generate_app_token():
+    token = request.headers.get("Authorization").split(" ")[1]
+    appname = request.args.get("appname")
+    app_token = tokenManger.generate_app_token(tokenManger.retrieve_username(token), appname)
+    return jsonify({"app_token": app_token}), 200
+
 @auth_blueprint.route("/name", methods=["GET"])
 @auth_required
 def get_name():
@@ -145,6 +154,16 @@ def get_name():
         1
     ]  # Extract the token from the Authorization header
     return jsonify({"name": tokenManger.retrieve_username(autorisation)}), 200
+
+@auth_blueprint.route("/logout", methods=["GET"])
+@auth_required
+def logout():
+    token = request.headers.get("Authorization").split(" ")[
+        1
+    ]  # Extract the token from the Authorization header
+    tokenManger.delete_token(token)
+    return jsonify({"message": "Logged out"}), 200
+
 
 
 @auth_blueprint.route("/success")

@@ -8,6 +8,7 @@ class TokenManager:
     def __init__(self, algorithm="RS256") -> None:
         self.algorithm = algorithm
         self.private_key, self.public_key = self.generate_keys()
+        self.blacklist = set()
 
     def generate_keys(self):
         # Generate a private RSA key
@@ -65,6 +66,8 @@ class TokenManager:
             return None
 
     def is_token_valid(self, token):
+        if token in self.blacklist:
+            return False
         try:
             self.decode_token(token)
             return True
@@ -77,3 +80,19 @@ class TokenManager:
             return False
         except jwt.ExpiredSignatureError:
             return True
+
+    def refresh_token(self, token):
+        username = self.retrieve_username(token)
+        return self.generate_token(username)
+    
+    def genreate_app_token(self, name, app_name):
+        payload = {
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=120),
+            "name": name,
+            "app_name": app_name,
+        }
+        return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+    
+    def delete_token(self, token):
+        self.blacklist.add(token)
+    
