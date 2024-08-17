@@ -1,11 +1,12 @@
 from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
-from  modules.bot.discord_modules.cogs.jeopardy.Team import Team
+from modules.bot.discord_modules.cogs.jeopardy.Team import Team
 from modules.bot.discord_modules.cogs.jeopardy.JeopardyQuestion import JeopardyQuestion
 import uuid
 import discord
 
 import uuid
 import discord
+
 
 class JeopardyGame:
     """
@@ -32,19 +33,18 @@ class JeopardyGame:
         Args:
             game_data (dict): Data required to set up the game.
         """
-        self.name = game_data['game']['name']
-        self.description = game_data['game']['description']
-        self.teams = self._create_teams(game_data['game']['teams'])
+        self.name = game_data["game"]["name"]
+        self.description = game_data["game"]["description"]
+        self.teams = self._create_teams(game_data["game"]["teams"])
         self.players = []
-        self.categories = game_data['game']['categories']
+        self.categories = game_data["game"]["categories"]
         self.category_name = ()
-        self.per_category = game_data['game']['per_category']
-        self.questions = self._create_questions(game_data['questions'])
+        self.per_category = game_data["game"]["per_category"]
+        self.questions = self._create_questions(game_data["questions"])
         self.uuid = uuid.uuid4()
         self.is_announced = False
         self.is_started = False
         self.messages = []
-
 
     def to_json(self):
         """
@@ -68,9 +68,9 @@ class JeopardyGame:
                 "per_category": self.per_category,
                 "uuid": str(self.uuid),
                 "announced": self.is_announced,
-                "started": self.is_started
+                "started": self.is_started,
             },
-            "questions": quest
+            "questions": quest,
         }
 
     def _create_questions(self, questions_data):
@@ -87,7 +87,14 @@ class JeopardyGame:
         queations = []
         for categoory in questions_data.keys():
             for question in questions_data[categoory]:
-                queations.append(JeopardyQuestion(categoory, question['question'], question['answer'], question['value']))
+                queations.append(
+                    JeopardyQuestion(
+                        categoory,
+                        question["question"],
+                        question["answer"],
+                        question["value"],
+                    )
+                )
                 self.category_name = categoory
         return queations
 
@@ -119,6 +126,7 @@ class JeopardyGame:
                 if question.id == uuid:
                     return question
         return None
+
     def mark_question_as_answered(self, category, value):
         """
         Marks a question as answered in a specific category and value.
@@ -202,7 +210,7 @@ class JeopardyGame:
             if question.id == uuid:
                 return question
         return None
-    
+
     def answer_question(self, uuid: str) -> bool:
         """
         Marks a question as answered in a specific category and value.
@@ -218,7 +226,7 @@ class JeopardyGame:
             question.answered = True
             return True, question
         return False
-    
+
     def get_winners(self) -> List[str]:
         """
         Retrieves the winning team(s).
@@ -233,22 +241,21 @@ class JeopardyGame:
                 for member in team.members:
                     winners.append(member)
 
-
     def attach_roles(self, roles: List[discord.Role]) -> None:
         """
         Attaches roles to teams
         """
         for team in self.teams:
             for role in roles:
-                if team.name == role.name: 
+                if team.name == role.name:
                     team.attach_role(role)
-                    
+
     def get_members(self):
         """
         Retrieves the members of the game
         """
         return self.players
-    
+
     def get_board(self):
         """
         Retrieves the board
@@ -263,7 +270,7 @@ class JeopardyGame:
                 data[question.category].append("XXXX")
 
         return data
-    
+
     def get_questions_in_sorted_categories_and_by_points(self):
         """
         Retrieves the questions in sorted categories and by points

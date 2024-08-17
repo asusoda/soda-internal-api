@@ -1,6 +1,7 @@
 import uuid
 import json
 
+
 class JeopardyQuestion:
     """
     Represents a single Jeopardy question.
@@ -36,7 +37,5 @@ class JeopardyQuestion:
             "answer": self.answer,
             "value": self.value,
             "answered": self.answered,
-            "id": self.id
+            "id": self.id,
         }
-        
-    
