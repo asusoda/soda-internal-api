@@ -3,7 +3,7 @@ from flask_cors import CORS
 import discord
 import os
 from modules.utils.db import DBConnect
-
+from modules.users.invite import InvitationSender
 
 import asyncio
 from modules.utils.config import Config
@@ -14,8 +14,12 @@ from modules.utils.TokenManager import TokenManager
 from modules.bot.discord_modules.bot import BotFork
 
 
-username = ''
-password = ''
+# Prompt for credentials before initializing InvitationSender
+username = os.getenv("USERNAME")
+password = os.getenv("PASSWORD")
+
+# Instantiate the InvitationSender class with credentials
+invitation_sender = InvitationSender(username, password)
 
 config = Config()
 app = Flask ("SoDA internal API", static_folder=None, template_folder=None)
