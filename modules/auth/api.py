@@ -71,7 +71,7 @@ def callback():
         return jsonify({"error": "Failed to retrieve access token"}), 400
 
 
-@auth_blueprint.route("/validToken", methods=["GET"])
+@auth_blueprint.route("/validateToken", methods=["GET"])
 def valid_token():
     token = request.headers.get("Authorization").split(" ")[
         1
@@ -84,7 +84,7 @@ def valid_token():
                     "valid": True,
                     "expired": True,
                 }
-            ), 200
+            ), 403
         else:
             return jsonify(
                 {

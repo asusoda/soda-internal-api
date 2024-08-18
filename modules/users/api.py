@@ -27,7 +27,7 @@ def users_index():
 @users_blueprint.route("/invite", methods=["POST", "GET" ])
 @auth_required
 @error_handler
-def invite_users(instructions):
+def invite_users():
     if request.args.get("instructions")!= "refresh" and request.method == "GET":
         add_emails_and_send_invitations()
         return jsonify({"message": "Invitations sent successfully"}), 200
