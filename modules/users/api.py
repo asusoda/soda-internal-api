@@ -10,6 +10,7 @@ import re
 import os
 from flask import Blueprint, jsonify, request
 from shared import invitation_sender
+from modules.auth.decoraters import auth_required
 
 # Flask Blueprint for users
 users_blueprint = Blueprint("users", __name__, template_folder=None, static_folder=None)
@@ -19,6 +20,7 @@ def users_index():
     return jsonify({"message": "users api"}), 200
 
 @users_blueprint.route("/invite", methods=["POST"])
+@auth_required
 def invite_users():
     email = request.args.get("email")
     if email:
