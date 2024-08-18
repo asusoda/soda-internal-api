@@ -46,3 +46,5 @@ python_dotenv
 google-auth
 google-api-python-client
 google_auth_oauthlib
+selenium
+cryptography

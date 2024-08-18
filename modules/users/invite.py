@@ -120,6 +120,7 @@ class InvitationSender:
             logging.info('Clicked "Send Invitations" button.')
 
             logging.info('Invitations sent successfully.')
+            print('Invitations sent successfully.')
             time.sleep(5)
             self.emails.clear()
             

@@ -20,7 +20,6 @@ def users_index():
     return jsonify({"message": "users api"}), 200
 
 @users_blueprint.route("/invite", methods=["POST"])
-@auth_required
 def invite_users():
     email = request.args.get("email")
     if email:
