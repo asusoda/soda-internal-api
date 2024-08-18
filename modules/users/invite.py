@@ -22,6 +22,9 @@ class InvitationSender:
     def init_webdriver(self):
         """Initialize the Chrome WebDriver."""
         options = ChromeOptions()
+        options.add_argument('--headless')  # Headless mode
+        options.add_argument('--no-sandbox')  # Bypass OS security model
+        options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
         options.add_argument('--user-data-dir={}/userdata'.format(os.getcwd()))  # Use user data if needed
         try:
             self.driver = webdriver.Chrome(options=options)  # Ensure ChromeDriver is in your PATH
