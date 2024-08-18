@@ -218,3 +218,6 @@ token.json
 
 #database file
 .db
+
+#userdata folder
+userdata/
