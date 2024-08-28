@@ -20,15 +20,22 @@ class InvitationSender:
         self.emails = set()
 
     def init_webdriver(self):
-        """Initialize the Chrome WebDriver."""
+        
+        """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
         options = ChromeOptions()
-        options.add_argument('--headless')  # Headless mode
+        options.add_argument('--headless')  # Run in headless mode
         options.add_argument('--no-sandbox')  # Bypass OS security model
         options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
         options.add_argument('--user-data-dir={}/userdata'.format(os.getcwd()))  # Use user data if needed
+
+        # Custom paths for ChromeDriver and Chrome binaries updating path to chrom driver in the root directory of the project
+        chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'  
+        chrome_binary_path = os.getcwd() + '/chrome-linux64/chromelinux64/chrome'
+        options.binary_location = chrome_binary_path
+
         try:
-            self.driver = webdriver.Chrome(options=options)  # Ensure ChromeDriver is in your PATH
-            logging.info("ChromeDriver initialized successfully.")
+            self.driver = webdriver.Chrome(executable_path=chrome_driver_path, options=options)
+            logging.info("ChromeDriver initialized successfully with custom paths.")
         except Exception as e:
             logging.error(f"Failed to initialize ChromeDriver: {e}")
             sys.exit(1)
