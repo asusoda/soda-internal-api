@@ -47,4 +47,5 @@ google-auth
 google-api-python-client
 google_auth_oauthlib
 selenium
+webdriver-manager==4.0.2
 cryptography
