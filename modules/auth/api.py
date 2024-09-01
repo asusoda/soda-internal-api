@@ -130,11 +130,7 @@ def refresh_token():
             ), 400
     else:
         return jsonify(
-            {
-                    "status": "error", 
-                    "valid": False, 
-                    "error": "Invalid token"
-            }
+            {"status": "error", "valid": False, "error": "Invalid token"}
         ), 401
 
 
@@ -144,8 +140,11 @@ def refresh_token():
 def generate_app_token():
     token = request.headers.get("Authorization").split(" ")[1]
     appname = request.args.get("appname")
-    app_token = tokenManger.generate_app_token(tokenManger.retrieve_username(token), appname)
+    app_token = tokenManger.generate_app_token(
+        tokenManger.retrieve_username(token), appname
+    )
     return jsonify({"app_token": app_token}), 200
+
 
 @auth_blueprint.route("/name", methods=["GET"])
 @auth_required
@@ -155,6 +154,7 @@ def get_name():
     ]  # Extract the token from the Authorization header
     return jsonify({"name": tokenManger.retrieve_username(autorisation)}), 200
 
+
 @auth_blueprint.route("/logout", methods=["GET"])
 @auth_required
 def logout():
@@ -163,7 +163,6 @@ def logout():
     ]  # Extract the token from the Authorization header
     tokenManger.delete_token(token)
     return jsonify({"message": "Logged out"}), 200
-
 
 
 @auth_blueprint.route("/success")

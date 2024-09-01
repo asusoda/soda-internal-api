@@ -22,7 +22,7 @@ class Config:
             self.DB_NAME = os.environ["DB_NAME"]
             self.DB_USER = os.environ["DB_USER"]
             self.DB_PASSWORD = os.environ["DB_PASSWORD"]
-            
+
             # App Config
             self.PROD = os.environ["PROD"]
 

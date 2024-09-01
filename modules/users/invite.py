@@ -12,26 +12,39 @@ import re
 import os
 from flask import Blueprint, jsonify, request
 
+
 class InvitationSender:
     def __init__(self, username, password):
         # Initialize WebDriver and Logger
         self.driver = None
         self.username = username
         self.password = password
+        print(username, password)
         self.init_webdriver()
         self.emails = set()
+        print("Chrome Initialization Successful")  # debugging
 
     def init_webdriver(self):
-        
         """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
         options = ChromeOptions()
-        options.add_argument('--headless')  # Run in headless mode
-        options.add_argument('--no-sandbox')  # Bypass OS security model
-        #options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
-        options.add_argument('--user-data-dir={}/userdata'.format(os.getcwd()))  # Use user data if needed
+        # options.add_argument('--headless')  # Run in headless mode
+        options.add_argument("--no-sandbox")  # Bypass OS security model
+        options.add_argument(
+            "--disable-dev-shm-usage"
+        )  # Overcome limited resource problems
+        options.add_argument(
+            "--window-size=1920,1080"
+        )  # Set a large enough window size
+        options.add_argument("--disable-gpu")  # Applicable to older versions of Chrome
+        options.add_argument(
+            "--disable-extensions"
+        )  # Disable any extensions that might cause conflicts
+        options.add_argument(
+            "--disable-software-rasterizer"
+        )  # Helps if you have rendering issues
 
         # Custom paths for ChromeDriver and Chrome binaries updating path to chrom driver in the root directory of the project
-        # chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'  
+        # chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'
         # chrome_binary_path = os.getcwd() + '/chrome-linux64/chromelinux64/chrome'
         # options.binary_location = chrome_binary_path
 
@@ -40,84 +53,81 @@ class InvitationSender:
 
         try:
             print("Installing ChromeDriver")
-            self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
-            print(self.driver) #debugging
-            #self.driver = webdriver.Chrome(executable_path=chrome_driver_path, options=options)
-            logging.info("ChromeDriver initialized successfully with custom paths.")
+            self.driver = webdriver.Chrome(
+                service=ChromeService(ChromeDriverManager().install()), options=options
+            )
+            print(self.driver)  # debugging
+            # self.driver = webdriver.Chrome(executable_path=chrome_driver_path, options=options)
+            print("ChromeDriver initialized successfully with custom paths.")
         except Exception as e:
             logging.error(f"Failed to initialize ChromeDriver: {e}")
             sys.exit(1)
 
-    def login(self, retries=3):
+    def login(self, retries=30):
         """Log in to the site, handling Duo 2FA if necessary, with retries on failure."""
-        print("logging in") #debugging
+        print("logging in")  # debugging
 
         for attempt in range(retries):
             print(attempt)
             try:
-                print("opening url")
-                invitation_url = 'https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite'
-                print("adding url to driver")
+                invitation_url = "https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite"
                 self.driver.get(invitation_url)
-                logging.info(f"Opened URL: {invitation_url}")
-                print(f"Opened URL: {invitation_url}")
 
                 # Attempt to find the email text box to check if already logged in
                 email_textarea = WebDriverWait(self.driver, 10).until(
-                    EC.visibility_of_element_located((By.XPATH, '//*[@id="GroupInviteByEmail"]'))
+                    EC.visibility_of_element_located(
+                        (By.XPATH, '//*[@id="GroupInviteByEmail"]')
+                    )
                 )
-                print("Already logged in. Email text box is visible.") #debugging
-                logging.info("Already logged in. Email text box is visible.")
                 return True
 
             except:
-                print("Proceeding with login.") #debugging
-                logging.info("Proceeding with login.")
+                pass
 
             try:
-                print("trying to submit credentials") #debugging
-                WebDriverWait(self.driver, 20).until(EC.visibility_of_element_located((By.ID, 'username')))
-                self.driver.find_element(By.ID, 'username').send_keys(self.username)
-                self.driver.find_element(By.ID, 'password').send_keys(self.password)
-                self.driver.find_element(By.NAME, 'submit').click()
-                logging.info("Login credentials submitted.")
-                print("Login credentials submitted.") #debugging
-                
+                WebDriverWait(self.driver, 20).until(
+                    EC.visibility_of_element_located((By.ID, "username"))
+                )
+                self.driver.find_element(By.ID, "username").send_keys(self.username)
+                self.driver.find_element(By.ID, "password").send_keys(self.password)
+                self.driver.find_element(By.NAME, "submit").click()
 
                 # # Handle Duo 2FA
-                print("sending Duo")
-                WebDriverWait(self.driver, 20).until(
-                    EC.frame_to_be_available_and_switch_to_it((By.XPATH, '//iframe[@id="duo_iframe"]')))
-                WebDriverWait(self.driver, 20).until(
-                    EC.element_to_be_clickable((By.XPATH, '//*[@id="login-form"]/div[2]/div/label/input'))).click()
-                WebDriverWait(self.driver, 20).until(
-                    EC.element_to_be_clickable((By.XPATH, '//button[normalize-space()="Send Me a Push"]'))).click()
-                logging.info(f'Duo 2FA push sent.')
-                print(f'Duo 2FA push sent.') #debugging
+                # WebDriverWait(self.driver, 20).until(
+                #     EC.frame_to_be_available_and_switch_to_it((By.XPATH, '//iframe[@id="duo_iframe"]')))
+                # WebDriverWait(self.driver, 20).until(
+                #     EC.element_to_be_clickable((By.XPATH, '//*[@id="login-form"]/div[2]/div/label/input'))).click()
+                # WebDriverWait(self.driver, 20).until(
+                #     EC.element_to_be_clickable((By.XPATH, '//button[normalize-space()="Send Me a Push"]'))).click()
 
-                # Confirm Duo 2FA push
-                print("clicking button")
+                time.sleep(10)
+
                 self.driver.switch_to.default_content()
                 yes_button = WebDriverWait(self.driver, 60).until(
-                    EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "Yes, this is my device")]')))
-                #debugging
-                print("yes_button")
+                    EC.element_to_be_clickable(
+                        (
+                            By.XPATH,
+                            '//button[contains(text(), "Yes, this is my device")]',
+                        )
+                    )
+                )
+
                 yes_button.click()
-                logging.info('Clicked "Yes, this is my device" button.')
+                print('Clicked "Yes, this is my device" button.')
 
                 # Wait for email text box visibility
                 WebDriverWait(self.driver, 60).until(
-                    EC.visibility_of_element_located((By.XPATH, '//*[@id="GroupInviteByEmail"]')))
-                logging.info("Email text box is visible, login successful.")
+                    EC.visibility_of_element_located(
+                        (By.XPATH, '//*[@id="GroupInviteByEmail"]')
+                    )
+                )
                 return True
 
             except Exception as e:
-                print(self.username)
-                logging.error(f'Failed to log in: {e}')
-                
+                logging.error(f"Failed to log in: {e}")
 
             if attempt < retries - 1:
-                logging.info(f"Retrying login ({attempt + 1}/{retries})...")
+                print(f"Retrying login ({attempt + 1}/{retries})...")
                 time.sleep(15)  # Wait a moment before retrying
             else:
                 logging.error("Max retries reached. Login failed.")
@@ -127,33 +137,38 @@ class InvitationSender:
         """Add emails to the form and send invitations."""
 
         try:
-
-            self.driver.get('https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite')
+            self.driver.get(
+                "https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite"
+            )
 
             email_textarea = WebDriverWait(self.driver, 20).until(
-                EC.visibility_of_element_located((By.XPATH, '//*[@id="GroupInviteByEmail"]'))
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//*[@id="GroupInviteByEmail"]')
+                )
             )
             email_textarea.send_keys("\n".join(self.emails))
-            logging.info(f'Entered emails: {", ".join(self.emails)}')
+            print(f'Entered emails: {", ".join(self.emails)}')
 
             add_email_button = WebDriverWait(self.driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="GroupInviteByEmailSubmit"]'))
+                EC.element_to_be_clickable(
+                    (By.XPATH, '//*[@id="GroupInviteByEmailSubmit"]')
+                )
             )
             add_email_button.click()
-            logging.info('Clicked "Add Email" button.')
+            print('Clicked "Add Email" button.')
 
             time.sleep(2)
 
             send_invitation_button = WebDriverWait(self.driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="invitationActions_sendButton"]'))
+                EC.element_to_be_clickable(
+                    (By.XPATH, '//*[@id="invitationActions_sendButton"]')
+                )
             )
             send_invitation_button.click()
-            logging.info('Clicked "Send Invitations" button.')
+            print('Clicked "Send Invitations" button.')
 
-            logging.info('Invitations sent successfully.')
-            print('Invitations sent successfully.')
             time.sleep(5)
             self.emails.clear()
-            
+
         except Exception as e:
-            logging.error(f'Error during the invitation process: {e}')
+            logging.error(f"Error during the invitation process: {e}")

@@ -15,15 +15,17 @@ from modules.auth.decoraters import auth_required
 # Flask Blueprint for users
 users_blueprint = Blueprint("users", __name__, template_folder=None, static_folder=None)
 
+
 @users_blueprint.route("/", methods=["GET"])
 def users_index():
     return jsonify({"message": "users api"}), 200
+
 
 @users_blueprint.route("/invite", methods=["POST"])
 def invite_users():
     email = request.args.get("email")
     if email:
-        pattern = r'^[a-zA-Z0-9._%+-]+@asu\.edu$'
+        pattern = r"^[a-zA-Z0-9._%+-]+@asu\.edu$"
         if re.match(pattern, email):
             invitation_sender.emails.add(email)
             invitation_sender.add_emails_and_send_invitations()

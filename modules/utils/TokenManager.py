@@ -84,7 +84,7 @@ class TokenManager:
     def refresh_token(self, token):
         username = self.retrieve_username(token)
         return self.generate_token(username)
-    
+
     def genreate_app_token(self, name, app_name):
         payload = {
             "exp": datetime.datetime.utcnow() + datetime.timedelta(days=120),
@@ -92,7 +92,6 @@ class TokenManager:
             "app_name": app_name,
         }
         return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
-    
+
     def delete_token(self, token):
         self.blacklist.add(token)
-    
