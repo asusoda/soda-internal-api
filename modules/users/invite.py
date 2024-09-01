@@ -36,14 +36,16 @@ class InvitationSender:
         options.add_argument("--disable-gpu")  # Applicable to older versions of Chrome
         options.add_argument("--disable-extensions")  # Disable any extensions that might cause conflicts
         options.add_argument("--disable-software-rasterizer")  # Helps if you have rendering issues
-
-        # Add user data directory for persistent data storage
         user_data_dir = os.path.join(os.getcwd(), 'user_data')  # Path to user data directory
+        if not os.path.exists(user_data_dir):
+            os.makedirs(user_data_dir)
+        
+        # Add user data directory for persistent data storage
+        
         options.add_argument(f"--user-data-dir={user_data_dir}")  # Set user data directory
 
         # Ensure user data directory exists
-        if not os.path.exists(user_data_dir):
-            os.makedirs(user_data_dir)
+        
         
         # Custom paths for ChromeDriver and Chrome binaries (update path to ChromeDriver in the root directory of the project)
         # chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'
