@@ -49,3 +49,4 @@ google_auth_oauthlib
 selenium
 webdriver-manager==4.0.2
 cryptography
+gunicorn==23.0.0

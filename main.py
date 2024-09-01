@@ -25,9 +25,9 @@ if __name__ == "__main__":
     if invitation_sender.login():
         print("Logged in successfully. Ready to send invitations.")
 
-    if config.PROD:
-        app.run(debug=False, host="0.0.0.0", port=8080)
-    else:
+    # if config.PROD:
+    #     app.run(debug=False, host="0.0.0.0", port=8080)
+    # else:
         app.run(debug=True)
 
     # The invitation_sender will remain active as long as the application runs

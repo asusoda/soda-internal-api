@@ -27,7 +27,7 @@ class InvitationSender:
         options = ChromeOptions()
         #options.add_argument('--headless')  # Run in headless mode
         options.add_argument('--no-sandbox')  # Bypass OS security model
-        options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
+        #options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
         options.add_argument('--user-data-dir={}/userdata'.format(os.getcwd()))  # Use user data if needed
 
         # Custom paths for ChromeDriver and Chrome binaries updating path to chrom driver in the root directory of the project
@@ -39,6 +39,7 @@ class InvitationSender:
         # print(f"Chrome Binary Path: {chrome_binary_path}" + '\n')
 
         try:
+            print("Installing ChromeDriver")
             self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
             print(self.driver) #debugging
             #self.driver = webdriver.Chrome(executable_path=chrome_driver_path, options=options)

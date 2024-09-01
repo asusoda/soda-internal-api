@@ -217,7 +217,8 @@ credentials.json
 token.json
 
 #database file
-.db
+*.db
 
 #userdata folder
 userdata/
+
