@@ -25,7 +25,7 @@ class InvitationSender:
         
         """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
         options = ChromeOptions()
-        #options.add_argument('--headless')  # Run in headless mode
+        options.add_argument('--headless')  # Run in headless mode
         options.add_argument('--no-sandbox')  # Bypass OS security model
         #options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
         options.add_argument('--user-data-dir={}/userdata'.format(os.getcwd()))  # Use user data if needed
