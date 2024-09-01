@@ -7,7 +7,7 @@ source /root/miniconda3/etc/profile.d/conda.sh
 # Check if the environment exists and delete it if it does
 if conda env list | grep -q "\bsoda\b"; then
     echo "Conda environment 'soda' already exists. Deleting it."
-    conda env remove -n soda
+    conda env remove -n soda --yes  # Automatically agree to delete
 else
     echo "Conda environment 'soda' does not exist. Proceeding to create it."
 fi
@@ -22,8 +22,6 @@ sudo apt install -y chromium-chromedriver
 echo "Activating conda environment"
 conda activate soda
 
-echo "Using environement"
-echo $CONDA_PREFiX
 # Check if the environment was activated successfully
 if [[ "$CONDA_DEFAULT_ENV" != "soda" ]]; then
     echo "Failed to activate the Conda environment 'soda'. Exiting."
