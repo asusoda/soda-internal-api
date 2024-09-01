@@ -220,5 +220,5 @@ token.json
 *.db
 
 #userdata folder
-userdata/
+user_data
 

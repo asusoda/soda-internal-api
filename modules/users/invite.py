@@ -27,124 +27,39 @@ class InvitationSender:
     def init_webdriver(self):
         """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
         options = ChromeOptions()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-software-rasterizer")
 
-        # Uncomment to run in headless mode
-        # options.add_argument('--headless')  
-        options.add_argument("--no-sandbox")  # Bypass OS security model
-        options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
-        options.add_argument("--window-size=1920,1080")  # Set a large enough window size
-        options.add_argument("--disable-gpu")  # Applicable to older versions of Chrome
-        options.add_argument("--disable-extensions")  # Disable any extensions that might cause conflicts
-        options.add_argument("--disable-software-rasterizer")  # Helps if you have rendering issues
-        user_data_dir = os.path.join(os.getcwd(), 'user_data')  # Path to user data directory
+        user_data_dir = os.path.join(os.getcwd(), "user_data")
         if not os.path.exists(user_data_dir):
             os.makedirs(user_data_dir)
-        
-        # Add user data directory for persistent data storage
-        
-        options.add_argument(f"--user-data-dir={user_data_dir}")  # Set user data directory
-
-        # Ensure user data directory exists
-        
-        
-        # Custom paths for ChromeDriver and Chrome binaries (update path to ChromeDriver in the root directory of the project)
-        # chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'
-        # chrome_binary_path = os.getcwd() + '/chrome-linux64/chromelinux64/chrome'
-        # options.binary_location = chrome_binary_path
-
-        # print(f"ChromeDriver Path: {chrome_driver_path}")
-        # print(f"Chrome Binary Path: {chrome_binary_path}" + '\n')
-
+        options.add_argument(f"--user-data-dir={user_data_dir}")
         try:
             print("Installing ChromeDriver")
             self.driver = webdriver.Chrome(
                 service=ChromeService(ChromeDriverManager().install()), options=options
             )
-            print(self.driver)  # debugging
-            # self.driver = webdriver.Chrome(executable_path=chrome_driver_path, options=options)
             print("ChromeDriver initialized successfully with custom paths.")
         except Exception as e:
             logging.error(f"Failed to initialize ChromeDriver: {e}")
             sys.exit(1)
 
-    def login(self, retries=30):
-        """Log in to the site, handling Duo 2FA if necessary, with retries on failure."""
-        print("logging in")  # debugging
-
-        for attempt in range(retries):
-            print(attempt)
-            try:
-                invitation_url = "https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite"
-                self.driver.get(invitation_url)
-
-                # Attempt to find the email text box to check if already logged in
-                email_textarea = WebDriverWait(self.driver, 10).until(
-                    EC.visibility_of_element_located(
-                        (By.XPATH, '//*[@id="GroupInviteByEmail"]')
-                    )
-                )
-                return True
-
-            except:
-                pass
-
-            try:
-                WebDriverWait(self.driver, 20).until(
-                    EC.visibility_of_element_located((By.ID, "username"))
-                )
-                self.driver.find_element(By.ID, "username").send_keys(self.username)
-                self.driver.find_element(By.ID, "password").send_keys(self.password)
-                self.driver.find_element(By.NAME, "submit").click()
-
-                # # Handle Duo 2FA
-                # WebDriverWait(self.driver, 20).until(
-                #     EC.frame_to_be_available_and_switch_to_it((By.XPATH, '//iframe[@id="duo_iframe"]')))
-                # WebDriverWait(self.driver, 20).until(
-                #     EC.element_to_be_clickable((By.XPATH, '//*[@id="login-form"]/div[2]/div/label/input'))).click()
-                # WebDriverWait(self.driver, 20).until(
-                #     EC.element_to_be_clickable((By.XPATH, '//button[normalize-space()="Send Me a Push"]'))).click()
-
-                time.sleep(10)
-
-                self.driver.switch_to.default_content()
-                yes_button = WebDriverWait(self.driver, 60).until(
-                    EC.element_to_be_clickable(
-                        (
-                            By.XPATH,
-                            '//button[contains(text(), "Yes, this is my device")]',
-                        )
-                    )
-                )
-
-                yes_button.click()
-                print('Clicked "Yes, this is my device" button.')
-
-                # Wait for email text box visibility
-                WebDriverWait(self.driver, 60).until(
-                    EC.visibility_of_element_located(
-                        (By.XPATH, '//*[@id="GroupInviteByEmail"]')
-                    )
-                )
-                return True
-
-            except Exception as e:
-                logging.error(f"Failed to log in: {e}")
-
-            if attempt < retries - 1:
-                print(f"Retrying login ({attempt + 1}/{retries})...")
-                time.sleep(15)  # Wait a moment before retrying
-            else:
-                logging.error("Max retries reached. Login failed.")
-                return False
+    def close(self):
+        """Properly close and quit the WebDriver to free resources."""
+        if self.driver:
+            self.driver.quit()
+            print("ChromeDriver closed.")
 
     def add_emails_and_send_invitations(self):
         """Add emails to the form and send invitations."""
-
         try:
             self.driver.get(
                 "https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite"
             )
-
             email_textarea = WebDriverWait(self.driver, 20).until(
                 EC.visibility_of_element_located(
                     (By.XPATH, '//*[@id="GroupInviteByEmail"]')
@@ -176,3 +91,6 @@ class InvitationSender:
 
         except Exception as e:
             logging.error(f"Error during the invitation process: {e}")
+
+        finally:
+            self.close()  # Ensure the WebDriver is properly closed
