@@ -27,23 +27,25 @@ class InvitationSender:
     def init_webdriver(self):
         """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
         options = ChromeOptions()
-        # options.add_argument('--headless')  # Run in headless mode
-        options.add_argument("--no-sandbox")  # Bypass OS security model
-        options.add_argument(
-            "--disable-dev-shm-usage"
-        )  # Overcome limited resource problems
-        options.add_argument(
-            "--window-size=1920,1080"
-        )  # Set a large enough window size
-        options.add_argument("--disable-gpu")  # Applicable to older versions of Chrome
-        options.add_argument(
-            "--disable-extensions"
-        )  # Disable any extensions that might cause conflicts
-        options.add_argument(
-            "--disable-software-rasterizer"
-        )  # Helps if you have rendering issues
 
-        # Custom paths for ChromeDriver and Chrome binaries updating path to chrom driver in the root directory of the project
+        # Uncomment to run in headless mode
+        # options.add_argument('--headless')  
+        options.add_argument("--no-sandbox")  # Bypass OS security model
+        options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+        options.add_argument("--window-size=1920,1080")  # Set a large enough window size
+        options.add_argument("--disable-gpu")  # Applicable to older versions of Chrome
+        options.add_argument("--disable-extensions")  # Disable any extensions that might cause conflicts
+        options.add_argument("--disable-software-rasterizer")  # Helps if you have rendering issues
+
+        # Add user data directory for persistent data storage
+        user_data_dir = os.path.join(os.getcwd(), 'user_data')  # Path to user data directory
+        options.add_argument(f"--user-data-dir={user_data_dir}")  # Set user data directory
+
+        # Ensure user data directory exists
+        if not os.path.exists(user_data_dir):
+            os.makedirs(user_data_dir)
+        
+        # Custom paths for ChromeDriver and Chrome binaries (update path to ChromeDriver in the root directory of the project)
         # chrome_driver_path = os.getcwd() + '/chromedriver-linux64/chromedriver'
         # chrome_binary_path = os.getcwd() + '/chrome-linux64/chromelinux64/chrome'
         # options.binary_location = chrome_binary_path
