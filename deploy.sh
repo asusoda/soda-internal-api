@@ -22,6 +22,8 @@ sudo apt install -y chromium-chromedriver
 echo "Activating conda environment"
 conda activate soda
 
+echo "Using environement"
+echo $CONDA_PREFiX
 # Check if the environment was activated successfully
 if [[ "$CONDA_DEFAULT_ENV" != "soda" ]]; then
     echo "Failed to activate the Conda environment 'soda'. Exiting."
