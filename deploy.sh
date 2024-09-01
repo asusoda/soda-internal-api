@@ -1,19 +1,23 @@
 #!/bin/bash
 
-# Check if the environment exists
+# Ensure Conda is available in the shell
+echo "Ensuring Conda is available in the shell"
+source /root/miniconda3/etc/profile.d/conda.sh
+
+# Check if the environment exists and delete it if it does
 if conda env list | grep -q "\bsoda\b"; then
-    echo "Conda environment 'soda' already exists."
+    echo "Conda environment 'soda' already exists. Deleting it."
+    conda env remove -n soda
 else
-    echo "Creating the Conda environment from environment.yml"
-    conda env create -f environment.yml
+    echo "Conda environment 'soda' does not exist. Proceeding to create it."
 fi
+
+echo "Creating the Conda environment from environment.yml"
+conda env create -f environment.yml
 
 echo "Updating system packages and installing chromium-chromedriver"
 sudo apt update
 sudo apt install -y chromium-chromedriver
-
-echo "Ensuring Conda is available in the shell"
-source ~/anaconda3/etc/profile.d/conda.sh
 
 echo "Activating conda environment"
 conda activate soda
