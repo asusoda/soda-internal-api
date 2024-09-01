@@ -15,8 +15,8 @@ from modules.bot.discord_modules.bot import BotFork
 
 
 # Prompt for credentials before initializing InvitationSender
-username = os.environ.get("USERNAME")
-password = os.environ.get("PASSWORD")
+username = os.environ["USERNAME"]
+password = os.environ["PASSWORD"]
 # Instantiate the InvitationSender class with credentials
 invitation_sender = InvitationSender(username, password)
 
