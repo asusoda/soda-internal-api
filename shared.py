@@ -15,12 +15,13 @@ from modules.bot.discord_modules.bot import BotFork
 
 
 # Prompt for credentials before initializing InvitationSender
-username = os.environ["USERNAME"]
-password = os.environ["PASSWORD"]
+
 # Instantiate the InvitationSender class with credentials
-invitation_sender = InvitationSender(username, password)
+
 
 config = Config()
+
+invitation_sender = InvitationSender(config.USERNAME, config.PASSWORD)
 app = Flask("SoDA internal API", static_folder=None, template_folder=None)
 
 # Initialize database connection

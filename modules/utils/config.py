@@ -25,6 +25,8 @@ class Config:
 
             # App Config
             self.PROD = os.environ["PROD"]
+            self.USERNAME = os.environ["USERNAME"]
+            self.PASSWORD = os.environ["PASSWORD"]
 
         except KeyError as e:
             print(f"Missing environment variable: {e}")
