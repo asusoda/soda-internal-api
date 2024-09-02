@@ -12,51 +12,63 @@ import re
 import os
 from flask import Blueprint, jsonify, request
 
-
 class InvitationSender:
+    _instance = None  # Singleton instance
+
     def __init__(self, username, password):
-        # Initialize WebDriver and Logger
-        self.driver = None
-        self.username = username
-        self.password = password
-        print(username, password)
-        self.init_webdriver()
-        self.emails = set()
-        print("Chrome Initialization Successful")  # debugging
+        if InvitationSender._instance is not None:
+            raise Exception("This class is a singleton!")
+        else:
+            InvitationSender._instance = self
+            self.driver = None
+            self.username = username
+            self.password = password
+            self.emails = set()
+
+    @classmethod
+    def get_instance(cls, username, password):
+        """Static access method to get the singleton instance."""
+        if cls._instance is None:
+            cls._instance = InvitationSender(username, password)
+        return cls._instance
 
     def init_webdriver(self):
         """Initialize the Chrome WebDriver with custom paths for ChromeDriver and Chrome binaries."""
-        options = ChromeOptions()
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--disable-software-rasterizer")
+        if self.driver is None:  # Initialize only if it hasn't been initialized yet
+            options = ChromeOptions()
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--window-size=1920,1080")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-software-rasterizer")
 
-        user_data_dir = os.path.join(os.getcwd(), "user_data")
-        if not os.path.exists(user_data_dir):
-            os.makedirs(user_data_dir)
-        options.add_argument(f"--user-data-dir={user_data_dir}")
-        try:
-            print("Installing ChromeDriver")
-            self.driver = webdriver.Chrome(
-                service=ChromeService(ChromeDriverManager().install()), options=options
-            )
-            print("ChromeDriver initialized successfully with custom paths.")
-        except Exception as e:
-            logging.error(f"Failed to initialize ChromeDriver: {e}")
-            sys.exit(1)
+            user_data_dir = os.path.join(os.getcwd(), "user_data")
+            if not os.path.exists(user_data_dir):
+                os.makedirs(user_data_dir)
+            options.add_argument(f"--user-data-dir={user_data_dir}")
+
+            try:
+                print("Installing ChromeDriver")
+                self.driver = webdriver.Chrome(
+                    service=ChromeService(ChromeDriverManager().install()), options=options
+                )
+                print("ChromeDriver initialized successfully with custom paths.")
+            except Exception as e:
+                logging.error(f"Failed to initialize ChromeDriver: {e}")
+                sys.exit(1)
 
     def close(self):
         """Properly close and quit the WebDriver to free resources."""
         if self.driver:
             self.driver.quit()
+            self.driver = None  # Set to None so it can be reinitialized if needed
             print("ChromeDriver closed.")
 
     def add_emails_and_send_invitations(self):
         """Add emails to the form and send invitations."""
         try:
+            self.init_webdriver()  # Ensure the WebDriver is initialized
             self.driver.get(
                 "https://asu.campuslabs.com/engage/actioncenter/organization/soda/roster/Roster/invite"
             )
