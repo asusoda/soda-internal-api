@@ -5,6 +5,8 @@ from modules.points.models import User, Points
 from main import app
 
 
+
+
 class PointsSystemTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
