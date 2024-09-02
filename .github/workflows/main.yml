@@ -20,7 +20,6 @@ jobs:
           echo " Executing CD.sh"
           sudo /root/soda-internal-api/update.sh
           sudo chmod +x /root/asu-soda-newsite/deploy.sh
-          ls -l /root/soda-intenal-api
           pwd
           
 
