@@ -16,3 +16,9 @@ echo "Restarting the daemon process for soda-api.service"
 sudo systemctl restart soda-api.service
 
 echo "Daemon process restarted successfully."
+
+
+echo "Restarting Nginx"
+sudo systemctl restart nginx
+
+echo "Nginx restarted successfully."
