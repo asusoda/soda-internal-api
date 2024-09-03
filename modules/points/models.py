@@ -15,6 +15,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
     academic_standing = Column(String, nullable=False)
+    major = Column(String, nullable=False)
     points = relationship("Points", backref="user", cascade="all, delete-orphan")
 
     def __repr__(self):
