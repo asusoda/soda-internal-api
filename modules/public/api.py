@@ -12,7 +12,8 @@ public_blueprint = Blueprint(
 
 @public_blueprint.route("/", methods=["GET"])
 def index():
-    return jsonify({"message": "Welcome to SoDA's very random internal API"}), 200
+    return jsonify({"message": "Welcome to SoDA's very random internal API",
+                    "status": "Hi, Mom"}), 200
 
 
 @public_blueprint.route("/getnextevent", methods=["GET"])
