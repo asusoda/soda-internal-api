@@ -1,6 +1,8 @@
 from shared import tokenManger
 from flask import request, jsonify
+from dotenv import load_dotenv
 import functools
+import os
 
 
 def auth_required(f):
@@ -30,6 +32,24 @@ def auth_required(f):
         except Exception as e:
             return jsonify({"message": str(e)}), 401
 
+    return wrapper
+
+
+def low_level_authentication(f):
+    """
+    A decorator for Flask endpoints to ensure the user is authorized through a low-level authentication mechanism.
+
+    This is a very badly designed and implemented auth mechanism. It is intended to be used only while the authentication mechanism is being developed.
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+       load_dotenv()
+       token = request.headers.get("Authorization")
+       if token == os.environ["SUPER_SECRET_PASSWORD"]:
+            return f(*args, **kwargs)
+       else:
+            return jsonify({"message": "Unauthorized"}), 401
+       
     return wrapper
 
 
