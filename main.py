@@ -4,7 +4,6 @@ from shared import app
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint
 from modules.users.api import users_blueprint
-from modules.users.invite import InvitationSender
 from modules.utils.db import DBConnect
 
 # from modules.auth.api import auth_blueprint
