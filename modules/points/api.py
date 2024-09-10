@@ -23,8 +23,7 @@ def add_user():
         # Check if user already exists
         existing_user = db.query(User).filter_by(email=data["email"]).first()
         if existing_user:
-            return jsonify({"error": "User already exists"}), 400
-
+            return jsonify({"error": "User already exists"}), 301
         # Create a new user
         user = User(
             asu_id=data["asu_id"],
