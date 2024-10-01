@@ -1,8 +1,9 @@
 from flask import Flask, jsonify, request, Blueprint
 from sqlalchemy.orm import Session
+from modules.auth.decoraters import auth_required
 from modules.utils.db import DBConnect
 from modules.points.models import User, Points
-from shared import db_connect
+from shared import db_connect, tokenManger
 from sqlalchemy import func
 
 points_blueprint = Blueprint(
@@ -143,6 +144,18 @@ def get_points():
     ), 200
 
 
+@app.route("/uploadCSV", methods=["POST"])
+@auth_required
+def upload_csv():
+    token = request.headers["Authorization"].split(" ")[1]
+    officer_name = tokenManger.retrieve_username(token=token)
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 301
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 300
+    
+
 @points_blueprint.route("/leaderboard", methods=["GET"])
 def get_leaderboard():
     db = next(db_connect.get_db())
@@ -167,3 +180,5 @@ def get_leaderboard():
     return jsonify(
         [{"name": name, "points": total_points} for name, total_points in leaderboard]
     ), 200
+
+

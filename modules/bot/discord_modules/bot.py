@@ -51,17 +51,10 @@ class BotFork(commands.Bot):
         """
         self.token = token
 
-    async def on_ready(self):
-        """
-        Asynchronous event handler for when the bot is ready.
-        """
-        for guild in self.guilds:
-            print(
-                f"{self.user} is connected to the following guild:\n"
-                f"{guild.name}(id: {guild.id})"
-            )
+    
 
-    async def run(self):
+    
+    def run(self):
         """
         Starts the bot. If the bot is already set up, changes the bot's presence to online.
         """
@@ -70,7 +63,7 @@ class BotFork(commands.Bot):
             self.setup = True
             threading.Thread(target=super().run, args=(self.token,)).start()
         else:
-            await self.change_presence(status=discord.Status.online)
+            asyncio.run_coroutine_threadsafe(self.change_presence(status=discord.Status.online))
 
     async def stop(self):
         """
@@ -114,7 +107,13 @@ class BotFork(commands.Bot):
         Checks if a user has the 'Officer' role.
         """
         guild = super().get_guild(762811961238618122)
+        print ("########################")
+        print(guild)
+        print ("########################")
         officer_role = guild.get_role(762811961238618123)
+        print ("************************")
+        print(officer_role)
+        print ("")
         officers = [
             member.id for member in guild.members if officer_role in member.roles
         ]

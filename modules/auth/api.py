@@ -1,5 +1,5 @@
 from flask import request, jsonify, Blueprint, redirect, current_app
-from shared import config, bot, db, tokenManger
+from shared import config, bot, tokenManger
 from modules.auth.decoraters import auth_required, error_handler
 import requests
 
@@ -16,6 +16,16 @@ def login():
         f"https://discord.com/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
     )
 
+@auth_blueprint.route("/validToken", methods=["GET"])
+@auth_required
+def validToken():
+    token = request.headers.get("Authorization").split(" ")[
+        1
+    ]  # Extract the token from the Authorization header
+    if tokenManger.is_token_valid(token):
+        return jsonify({"status": "success", "valid": True, "expired": False}), 200
+    else:
+        return jsonify({"status": "error", "valid": False}), 401
 
 @auth_blueprint.route("/callback", methods=["GET"])
 def callback():
@@ -56,11 +66,12 @@ def callback():
         )
         user_info = user_response.json()
         user_id = user_info["id"]
-
         print("User Info: ", user_info)
+        print("bot.check_officer()", bot.check_officer(user_id))
         if bot.check_officer(user_id):
             name = bot.get_name(user_id)
             code = tokenManger.generate_token(username=name)
+            print(name, code, user_id)
             full_url = f"{config.CLIENT_URL}/auth/?code={code}"
             print(full_url)
             return redirect(full_url)

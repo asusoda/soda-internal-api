@@ -18,9 +18,13 @@ from modules.bot.discord_modules.bot import BotFork
 # Instantiate the InvitationSender class with credentials
 
 
+
 config = Config()
+intents = discord.Intents.all()
+bot = BotFork(command_prefix="!", intents=intents)
 
-
+bot.set_token(config.BOT_TOKEN)
+bot.run()
 app = Flask("SoDA internal API", static_folder=None, template_folder=None)
 
 # Initialize database connection
