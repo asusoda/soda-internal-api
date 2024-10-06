@@ -1,10 +1,13 @@
+import csv
 from flask import Flask, jsonify, request, Blueprint
 from sqlalchemy.orm import Session
 from modules.auth.decoraters import auth_required
 from modules.utils.db import DBConnect
 from modules.points.models import User, Points
 from shared import db_connect, tokenManger
+from io import StringIO
 from sqlalchemy import func
+import threading
 
 points_blueprint = Blueprint(
     "points", __name__, template_folder=None, static_folder=None
@@ -17,6 +20,7 @@ def index():
 
 
 @points_blueprint.route("/add_user", methods=["POST"])
+@auth_required
 def add_user():
     data = request.json
     db = next(db_connect.get_db())
@@ -51,6 +55,7 @@ def add_user():
 
 
 @points_blueprint.route("/add_points", methods=["POST"])
+@auth_required
 def add_points():
     data = request.json
     db = next(db_connect.get_db())
@@ -97,6 +102,7 @@ def add_points():
 
 
 @points_blueprint.route("/get_users", methods=["GET"])
+@auth_required
 def get_users():
     db = next(db_connect.get_db())
     try:
@@ -120,7 +126,9 @@ def get_users():
     ), 200
 
 
+
 @points_blueprint.route("/get_points", methods=["GET"])
+@auth_required
 def get_points():
     db = next(db_connect.get_db())
     try:
@@ -144,29 +152,38 @@ def get_points():
     ), 200
 
 
-@app.route("/uploadCSV", methods=["POST"])
-@auth_required
-def upload_csv():
-    token = request.headers["Authorization"].split(" ")[1]
-    officer_name = tokenManger.retrieve_username(token=token)
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 301
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 300
-    
 
 @points_blueprint.route("/leaderboard", methods=["GET"])
 def get_leaderboard():
+    token = None
+    show_email = False  # Default to showing UUID unless authentication succeeds
+
+    # Extract token from Authorization header
+    if "Authorization" in request.headers:
+        token = request.headers["Authorization"].split(" ")[1]  # Get the token part
+
+    # If the token is present, validate it
+    if token:
+        try:
+            # Check if the token is valid and not expired
+            if tokenManger.is_token_valid(token) and not tokenManger.is_token_expired(token):
+                show_email = True  # If valid, set to show email
+            elif tokenManger.is_token_expired(token):
+                return jsonify({"message": "Token is expired!"}), 403  # Expired token
+        except Exception as e:
+            return jsonify({"message": str(e)}), 401  # Token is invalid or some error occurred
+
     db = next(db_connect.get_db())
     try:
         leaderboard = (
             db.query(
                 User.name,
+                User.email,  # Include both email and UUID in the query
+                User.uuid,
                 func.coalesce(func.sum(Points.points), 0).label("total_points"),
             )
             .outerjoin(Points)
-            .group_by(User.uuid)
+            .group_by(User.email, User.uuid, User.name)  # Group by email and UUID for uniqueness
             .order_by(
                 func.sum(Points.points).desc(), User.name.asc()
             )
@@ -177,8 +194,210 @@ def get_leaderboard():
     finally:
         db.close()
 
+    # Return the result based on whether the token is valid or not
     return jsonify(
-        [{"name": name, "points": total_points} for name, total_points in leaderboard]
+        [
+            {
+                "name": name,
+                "identifier": email if show_email else uuid,  # Show email if token is valid, else UUID
+                "points": total_points
+            }
+            for name, email, uuid, total_points in leaderboard
+        ]
     ), 200
 
 
+@points_blueprint.route("/uploadEventCSV", methods=["POST"])
+@auth_required
+def upload_event_csv():
+    if 'file' not in request.files or 'event_name' not in request.form or 'event_points' not in request.form:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    file = request.files['file']
+    event_name = request.form['event_name']
+    event_points = int(request.form['event_points'])
+
+    # Check file extension
+    if not file.filename.endswith('.csv'):
+        return jsonify({"error": "File must be a CSV"}), 400
+
+    # Read the file content
+    file_content = file.stream.read().decode('utf-8')
+
+    # Start a new thread to process the CSV in the background
+    background_thread = threading.Thread(target=process_csv_in_background, args=(file_content, event_name, event_points))
+    background_thread.start()
+
+    # Return an immediate response while the CSV is being processed
+    return jsonify({"message": "File is being processed in the background."}), 202
+
+
+@points_blueprint.route("/getUserPoints", methods=["GET"])
+@auth_required
+def get_user_points():
+    email = request.args.get('email')
+    
+    if not email:
+        return jsonify({"error": "Email parameter is missing"}), 400
+
+    db = next(db_connect.get_db())
+    try:
+        # Check if the user exists
+        user = db.query(User).filter_by(email=email).first()
+        if not user:
+            return jsonify({"error": "User does not exist"}), 404  # Not Found status code
+
+        # Query all points earned by the user
+        points_records = db.query(Points).filter_by(user_email=user.email).all()
+        
+        if not points_records:
+            return jsonify({"message": "No points earned by this user"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db.close()
+
+    return jsonify(
+        [
+            {
+                "points": record.points,
+                "event": record.event,
+                "timestamp": record.timestamp.strftime("%Y-%m-%d %H:%M:%S"),  # Format the timestamp
+                "awarded_by_officer": record.awarded_by_officer
+            }
+            for record in points_records
+        ]
+    ), 200
+
+    
+@points_blueprint.route("/assignPoints", methods=["POST"])
+@auth_required
+def assign_points():
+    data = request.json
+
+    # Validate the required fields are present
+    required_fields = ["user_identifier", "points", "event", "awarded_by_officer"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    user_identifier = data["user_identifier"]  # This can be either email or UUID
+    points = data["points"]
+    event = data["event"]
+    awarded_by_officer = data["awarded_by_officer"]
+
+    db = next(db_connect.get_db())
+    
+    try:
+        # Check if the user exists using either email or UUID
+        user = db.query(User).filter((User.email == user_identifier) | (User.uuid == user_identifier)).first()
+
+        if not user:
+            # If user doesn't exist, validate that required fields for user creation are present
+            user_creation_fields = ["name", "asu_id", "academic_standing", "major"]
+            for field in user_creation_fields:
+                if field not in data:
+                    return jsonify({"error": f"Missing required field for user creation: {field}"}), 400
+
+            # Create a new user since they don't exist
+            user = User(
+                email=user_identifier,
+                name=data["name"],
+                asu_id=data["asu_id"],
+                academic_standing=data["academic_standing"],
+                major=data["major"]
+            )
+            db.add(user)
+            db.commit()  # Commit so the user gets assigned an ID
+
+        # Access user data before committing and closing session
+        user_name = user.name
+        user_email = user.email
+
+        # Create a new Points entry
+        point = Points(
+            points=points,
+            event=event,
+            awarded_by_officer=awarded_by_officer,
+            user_email=user.email  # Store user email as foreign key reference in the Points table
+        )
+        db.add(point)
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+    return jsonify({
+        "message": "Points successfully assigned",
+        "user": user_name,
+        "email": user_email,
+        "points": points,
+        "event": event,
+        "awarded_by_officer": awarded_by_officer
+    }), 201
+
+
+
+def process_csv_in_background(file_content, event_name, event_points):
+    csv_file = StringIO(file_content)
+
+    # Skip the first 5 lines and read the content from the 6th line
+    for _ in range(5):
+        next(csv_file)
+
+    # Now read the CSV starting from the 6th row which contains the headers
+    csv_reader = csv.DictReader(csv_file)
+
+    db = next(db_connect.get_db())
+    success_count = 0
+    errors = []
+
+    try:
+        for row in csv_reader:
+            email = row.get('Campus Email')
+            name = row.get('First Name') + ' ' + row.get('Last Name')
+            asu_id = 'N/A'
+            marked_by = row.get('Marked By')
+
+            if not email or not name or not marked_by:
+                errors.append(f"Missing required fields in row: {row}")
+                continue  # Skip this row if any field is missing
+
+            # Check if user exists
+            user = db.query(User).filter_by(email=email).first()
+
+            if not user:
+                # Create user if doesn't exist
+                user = User(
+                    email=email,
+                    name=name,
+                    asu_id=asu_id,
+                    academic_standing="N/A",
+                    major="N/A"
+                )
+                db_user = db_connect.create_user(db, user)
+                user_email = db_user.email
+            else:
+                user_email = user.email
+
+            # Add points for the event
+            point = Points(
+                points=event_points,
+                event=event_name,
+                awarded_by_officer=marked_by,
+                user_email=user_email
+            )
+            db_connect.create_point(db, point)
+            success_count += 1
+
+    except Exception as e:
+        errors.append(str(e))
+    finally:
+        db.close()
+
+    # Log the result of the processing (optional: you can store this to a DB or file)
+    print(f"Processed {success_count} users. Errors: {errors}")

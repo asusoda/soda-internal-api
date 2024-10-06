@@ -30,5 +30,7 @@ app = Flask("SoDA internal API", static_folder=None, template_folder=None)
 # Initialize database connection
 db_connect = DBConnect("sqlite:///./user.db")  # Adjust the URL to your database
 app = Flask("SoDA internal API", static_folder=None, template_folder=None)
-CORS(app)
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},
+)
 tokenManger = TokenManager()
