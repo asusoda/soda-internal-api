@@ -32,15 +32,6 @@ def callback():
     code = request.args.get("code")
     if not code:
         return jsonify({"error": "No authorization code provided"}), 400
-    print(
-        {
-            "client_id": CLIENT_ID,
-            "client_secret": SECRET_KEY,
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI,
-        }
-    )
     token_response = requests.post(
         "https://discord.com/api/v10/oauth2/token",
         data={
@@ -53,7 +44,6 @@ def callback():
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     token_response_data = token_response.json()
-    print("Token Response: ", token_response_data)
     if "access_token" in token_response_data:
         access_token = token_response_data["access_token"]
 
@@ -66,14 +56,11 @@ def callback():
         )
         user_info = user_response.json()
         user_id = user_info["id"]
-        print("User Info: ", user_info)
-        print("bot.check_officer()", bot.check_officer(user_id))
+        user_id = user_info["id"]
         if bot.check_officer(user_id):
             name = bot.get_name(user_id)
             code = tokenManger.generate_token(username=name)
-            print(name, code, user_id)
             full_url = f"{config.CLIENT_URL}/auth/?code={code}"
-            print(full_url)
             return redirect(full_url)
         else:
             full_url = f"{config.CLIENT_URL}/auth/?error=Unauthorized Access"
