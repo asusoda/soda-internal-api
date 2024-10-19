@@ -116,3 +116,18 @@ def user():
         return jsonify({"error": str(e)}), 500
     finally:
         db.close()
+
+@users_blueprint.route("/submit-form", methods=["POST"])
+def handle_form_submission():
+    try:
+        # Get the JSON data from the POST request
+        data = request.get_json()
+
+        # Extract full name and role from the form submission
+        discordID = data.get('discordID')
+        role = data.get('role')
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+    return jsonify({"message": "recieved id: " + discordID + " and role: " + role}), 200
