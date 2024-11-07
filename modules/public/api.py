@@ -25,11 +25,12 @@ def get_next_event():
 def get_leaderboard():
     db = next(db_connect.get_db())
     try:
-        # Aggregate points for each user, use left join to include users without points
+        # First, get the total points and names of all users
         leaderboard = (
             db.query(
                 User.name,
                 func.coalesce(func.sum(Points.points), 0).label("total_points"),
+                User.uuid
             )
             .outerjoin(Points)  # Ensure users with no points are included
             .group_by(User.uuid)
@@ -38,12 +39,42 @@ def get_leaderboard():
             )  # Sort by points then by name
             .all()
         )
+
+        # Then, get the detailed points information for each user
+        user_details = {}
+        for user in db.query(User).all():
+            points_details = (
+                db.query(
+                    Points.event,
+                    Points.points,
+                    Points.timestamp,
+                    Points.awarded_by_officer
+                )
+                .filter(Points.user_email == user.email)
+                .all()
+            )
+            # Format points details as a list of dictionaries
+            user_details[user.uuid] = [
+                {
+                    "event": detail.event,
+                    "points": detail.points,
+                    "timestamp": detail.timestamp,
+                    "awarded_by": detail.awarded_by_officer
+                }
+                for detail in points_details
+            ]
+            
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     finally:
         db.close()
 
-    # Return the sorted leaderboard without the user.uuid
-    return jsonify(
-        [{"name": name, "points": total_points} for name, total_points in leaderboard]
-    ), 200
+    # Combine the leaderboard and detailed points information
+    return jsonify([
+        {
+            "name": name,
+            "total_points": total_points,
+            "points_details": user_details.get(uuid, [])  # Get details or empty list if none
+        }
+        for name, total_points, uuid in leaderboard
+    ]), 200
