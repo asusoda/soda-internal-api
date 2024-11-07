@@ -47,6 +47,8 @@ google-auth
 google-api-python-client
 google_auth_oauthlib
 selenium
+gspread
+oauth2client
 webdriver-manager==4.0.2
 cryptography
 gunicorn==23.0.0

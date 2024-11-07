@@ -20,7 +20,7 @@ jobs:
           echo $username
           sudo chmod +x /root/soda-internal-api/update.sh
           echo " Executing CD.sh"
-          sudo chmod +x /root/asu-soda-newsite/deploy.sh
+          sudo chmod +x /root/soda-internal-api/deploy.sh
           sudo /root/soda-internal-api/update.sh
           pwd
           
