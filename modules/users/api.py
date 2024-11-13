@@ -65,7 +65,7 @@ def view_user():
         db.close()
 
 
-@users_blueprint.route("/user", methods=["GET", "POST"])\
+@users_blueprint.route("/user", methods=["GET", "POST"])
 @auth_required
 @error_handler
 def user():
