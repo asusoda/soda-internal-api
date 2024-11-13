@@ -16,6 +16,8 @@ def users_index():
     return jsonify({"message": "users api"}), 200
 
 @users_blueprint.route("/viewUser", methods=["GET"])
+@auth_required
+@error_handler
 def view_user():
     # Get the user identifier from the query parameters (can be email or UUID)
     user_identifier = request.args.get('user_identifier')
@@ -63,7 +65,9 @@ def view_user():
         db.close()
 
 
-@users_blueprint.route("/user", methods=["GET", "POST"])
+@users_blueprint.route("/user", methods=["GET", "POST"])\
+@auth_required
+@error_handler
 def user():
     # Get the user email from query parameters for GET request or from POST data
     user_email = request.args.get('email') if request.method == "GET" else request.json.get('email')
@@ -77,11 +81,11 @@ def user():
         # Query the user by email
         user = db.query(User).filter_by(email=user_email).first()
 
-        if not user:
-            return jsonify({"error": "User not found."}), 404
-
-        # Handle GET request - return user info
+        # Handle GET request - return user info if found
         if request.method == "GET":
+            if not user:
+                return jsonify({"error": "User not found."}), 404
+
             user_data = {
                 "name": user.name,
                 "email": user.email,
@@ -92,24 +96,41 @@ def user():
             }
             return jsonify(user_data), 200
 
-        # Handle POST request - update user info
+        # Handle POST request - update user info or create a new user if not found
         elif request.method == "POST":
             data = request.json
 
-            # Update user fields only if they are provided
-            if 'name' in data:
-                user.name = data['name']
-            if 'asu_id' in data:
-                user.asu_id = data['asu_id']
-            if 'academic_standing' in data:
-                user.academic_standing = data['academic_standing']
-            if 'major' in data:
-                user.major = data['major']
+            if user:
+                # Update user fields only if they are provided
+                if 'name' in data:
+                    user.name = data['name']
+                if 'asu_id' in data:
+                    user.asu_id = data['asu_id']
+                if 'academic_standing' in data:
+                    user.academic_standing = data['academic_standing']
+                if 'major' in data:
+                    user.major = data['major']
 
-            # Commit the updates to the database
-            db.commit()
+                db.commit()
+                return jsonify({"message": "User information updated successfully."}), 200
 
-            return jsonify({"message": "User information updated successfully."}), 200
+            else:
+                # Create a new user if not found
+                new_user = User(
+                    name=data.get('name'),
+                    email=user_email,
+                    asu_id=data.get('asu_id'),
+                    academic_standing=data.get('academic_standing'),
+                    major=data.get('major')
+                )
+
+                db.add(new_user)
+                db.commit()
+                return jsonify({"message": "User created successfully."}), 201
+
+    except Exception as e:
+        db.rollback()  # Rollback in case of any error
+        return jsonify({"error": str(e)}), 500
 
     except Exception as e:
         db.rollback()
