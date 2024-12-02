@@ -65,6 +65,33 @@ def view_user():
         db.close()
 
 
+@users_blueprint.route("/createUser", methods=["POST"])
+@auth_required
+@error_handler
+def create_user():
+    user_email = request.args.get('email')
+    user_name = request.args.get('name')
+    user_asu_id = request.args.get('asu_id')
+    user_academic_standing = request.args.get('academic_standing')
+    try:
+        db = next(db_connect.get_db())
+        user = User(
+            email=user_email,
+            name=user_name,
+            asu_id=user_asu_id,
+            academic_standing=user_academic_standing
+        )
+        db.add(user)
+        db.commit()
+        db.close()
+        return jsonify({"message": "User created successfully."}), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
 @users_blueprint.route("/user", methods=["GET", "POST"])
 @auth_required
 @error_handler
