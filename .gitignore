@@ -222,3 +222,6 @@ token.json
 #userdata folder
 user_data
 
+
+.codegpt
+.vscode
