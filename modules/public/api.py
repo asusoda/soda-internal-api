@@ -15,7 +15,6 @@ def index():
     return jsonify({"message": "Welcome to SoDA's very random internal API",
                     "status": "Hi, Mom"}), 200
 
-
 @public_blueprint.route("/getnextevent", methods=["GET"])
 def get_next_event():
     pass
