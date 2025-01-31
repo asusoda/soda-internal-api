@@ -1,36 +1,192 @@
-from flask import Flask, jsonify, request
-import requests
-from datetime import datetime, timedelta
-import os
-import json
 import logging
-from datetime import datetime, timezone, timedelta
+from flask import Flask, jsonify, request
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 from notion_client import Client
+from datetime import datetime, timezone
+import json
+import os
+import uuid
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def load_config():
+    """
+    Load configuration from appConfig.json
+    
+    Returns:
+        dict: Configuration dictionary
+    """
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), 'appConfig.json')
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load configuration: {str(e)}")
+        raise RuntimeError("Configuration file not found or invalid")
+def validate_config(config):
+    """
+    Validate required configuration parameters
+    """
+    required_fields = {
+        'notion': ['api_key', 'database_id'],
+        'google': ['service_account_file', 'calendar_id', 'user_email'],
+        'server': ['port', 'debug', 'timezone']
+    }
+    
+    try:
+        for section, fields in required_fields.items():
+            if section not in config:
+                raise ValueError(f"Missing section: {section}")
+            for field in fields:
+                if field not in config[section]:
+                    raise ValueError(f"Missing field: {section}.{field}")
+        return True
+    except Exception as e:
+        logger.error(f"Configuration validation failed: {str(e)}")
+        raise
+
+# Load configuration at startup
+CONFIG = load_config()
+# Add validation call after loading config
+validate_config(CONFIG)
+
+
+# Update the configuration variables
 app = Flask(__name__)
 
 # Configuration
-NOTION_API_KEY = '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'
-# 189e4acf846e80b4871bee29a06f0666
-# 189e4acf846e802bbf35000c459e9a91
-# 189e4acf846e80b4871bee29a06f0666
-APYHUB_API_KEY =  'APY00sHaoPUmXU3goNgzt0C5fVadU6wjnmphgSKHiHfYwFt989HFeNM5uRoFYpslp'
-APYHUB_ICAL_URL = 'https://api.apyhub.com/generate/ical/url?output=invite.ics'
-ICAL_FILE = 'calendar.ics'
-JSON_FILE = 'events.json'
+NOTION_API_KEY = CONFIG['notion']['api_key']
+NOTION_DATABASE_ID = CONFIG['notion']['database_id']
+SERVICE_ACCOUNT_FILE = CONFIG['google']['service_account_file']
+CALENDAR_ID = CONFIG['google']['calendar_id']
+YOUR_EMAIL = CONFIG['google']['user_email']
+TIMEZONE = CONFIG['server']['timezone']
 
 notion = Client(auth=NOTION_API_KEY)
 
-def fetch_notion_events(database_id: str) -> list:
-    """Fetch filtered events from Notion database"""
+
+def track_event_changes(events, filename='event_state.json'):
+    """
+    Track changes in events by comparing with previously stored state.
+    
+    Args:
+        events (list): List of current events.
+        filename (str): Name of the file to store event state.
+    
+    Returns:
+        tuple: New events, updated events, and removed events.
+    """
     try:
-        now = datetime.now(timezone.utc).isoformat()
-        next_month = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        current_events = {event.get('id', str(uuid.uuid4())): event for event in events}
+        
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                previous_events = json.load(f)
+        else:
+            previous_events = {}
+        
+        new_events = {k: v for k, v in current_events.items() if k not in previous_events}
+        updated_events = {k: v for k, v in current_events.items() if k in previous_events and v != previous_events[k]}
+        removed_events = {k: v for k, v in previous_events.items() if k not in current_events}
+        
+        with open(filename, 'w') as f:
+            json.dump(current_events, f)
+        
+        return new_events, updated_events, removed_events
+    except Exception as e:
+        logger.error(f"Error tracking event changes: {str(e)}")
+        return {}, {}, {}
+
+def get_google_calendar_service():
+    """
+    Create and return a Google Calendar service object.
+    
+    Returns:
+        googleapiclient.discovery.Resource: Google Calendar service object.
+    """
+    try:
+        SCOPES = [
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events'
+        ]
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, 
+            scopes=SCOPES
+        )
+        return build('calendar', 'v3', credentials=credentials)
+    except Exception as e:
+        logger.error(f"Error creating Google Calendar service: {str(e)}")
+        return None
+
+def share_calendar_with_user(service, calendar_id):
+    """
+    Share the calendar with the specified user.
+    
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar service object.
+        calendar_id (str): ID of the calendar to share.
+    """
+    try:
+        rule = {
+            'scope': {
+                'type': 'user',
+                'value': YOUR_EMAIL
+            },
+            'role': 'writer'
+        }
+        service.acl().insert(calendarId=calendar_id, body=rule).execute()
+        logger.info(f"Calendar shared with {YOUR_EMAIL}")
+    except Exception as e:
+        logger.error(f"Error sharing calendar: {str(e)}")
+
+def ensure_calendar_access():
+    """
+    Ensure the calendar exists and is accessible.
+    
+    Returns:
+        str: Calendar ID if successful, None otherwise.
+    """
+    service = get_google_calendar_service()
+    if not service:
+        return None
+
+    try:
+        calendar = {
+            'summary': 'Notion Events',
+            'timeZone': CONFIG['server']['timezone']
+
+        }
+        created_calendar = service.calendars().insert(body=calendar).execute()
+        calendar_id = created_calendar['id']
+        logger.info(f"Created new calendar: {calendar_id}")
+        
+        share_calendar_with_user(service, calendar_id)
+        return calendar_id
+    except Exception as e:
+        logger.error(f"Error creating calendar: {str(e)}")
+        return None
+
+def fetch_notion_events(database_id: str) -> list:
+    """
+    Fetch events from Notion database.
+    
+    Args:
+        database_id (str): ID of the Notion database.
+    
+    Returns:
+        list: List of Notion events.
+    """
+    try:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        logger.info(f"Fetching Notion events from {now}")
         
         response = notion.databases.query(
             database_id=database_id,
             filter={
-                "or": [
+                "and": [
                     {
                         "property": "availability",
                         "checkbox": {
@@ -42,168 +198,285 @@ def fetch_notion_events(database_id: str) -> list:
                         "date": {
                             "on_or_after": now
                         }
-                    },
-                    {
-                        "property": "Date",
-                        "date": {
-                            "on_or_before": next_month
-                        }
                     }
                 ]
             }
         )
-        return response.get('results', [])
+        events = response.get('results', [])
+        logger.info(f"Fetched {len(events)} Notion events")
+        return events
     except Exception as e:
-        print(f"Notion API error: {str(e)}")
+        logger.error(f"Notion API error: {str(e)}")
         return []
+
+def get_all_calendar_events(service, calendar_id):
+    """
+    Get all future events from Google Calendar.
+    
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar service object.
+        calendar_id (str): ID of the calendar.
+    
+    Returns:
+        list: List of calendar events.
+    """
+    try:
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=datetime.now(timezone.utc).isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        return events_result.get('items', [])
+    except Exception as e:
+        logger.error(f"Error fetching calendar events: {str(e)}")
+        return []
+
+def find_matching_event(existing_events, notion_event):
+    """
+    Find a matching event in existing calendar events.
+    
+    Args:
+        existing_events (list): List of existing calendar events.
+        notion_event (dict): Notion event to match.
+    
+    Returns:
+        dict: Matching event if found, None otherwise.
+    """
+    for event in existing_events:
+        if (event['summary'] == notion_event['summary'] and
+            event['start']['dateTime'] == notion_event['start']['dateTime']):
+            return event
+    return None
+
+def update_event(service, calendar_id, event_id, event_data):
+    """
+    Update an existing event in Google Calendar.
+    
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar service object.
+        calendar_id (str): ID of the calendar.
+        event_id (str): ID of the event to update.
+        event_data (dict): Updated event data.
+    
+    Returns:
+        str: Jump URL of the updated event.
+    """
+    try:
+        updated_event = service.events().update(
+            calendarId=calendar_id,
+            eventId=event_id,
+            body=event_data
+        ).execute()
+        jump_url = updated_event.get('htmlLink')
+        logger.info(f"Event updated: {updated_event['id']}, Jump URL: {jump_url}")
+        return jump_url
+    except Exception as e:
+        logger.error(f"Error updating event: {str(e)}")
+        return None
+
+def create_event(service, calendar_id, event_data):
+    """
+    Create a new event in Google Calendar.
+    
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar service object.
+        calendar_id (str): ID of the calendar.
+        event_data (dict): Event data to create.
+    
+    Returns:
+        str: Jump URL of the created event.
+    """
+    try:
+        event = service.events().insert(calendarId=calendar_id, body=event_data).execute()
+        jump_url = event.get('htmlLink')
+        logger.info(f"Event created: {event['id']}, Jump URL: {jump_url}")
+        return jump_url
+    except Exception as e:
+        logger.error(f"Error creating event: {str(e)}")
+        return None
+
+def update_google_calendar(notion_events):
+    """
+    Update Google Calendar with Notion events.
+    
+    Args:
+        notion_events (list): List of Notion events.
+    
+    Returns:
+        list: List of updated/created events with their jump URLs.
+    """
+    service = get_google_calendar_service()
+    if not service:
+        return []
+
+    results = []
+    
+    try:
+        existing_events = get_all_calendar_events(service, CALENDAR_ID)
+        
+        for notion_event in notion_events:
+            try:
+                existing_event = find_matching_event(existing_events, notion_event)
+                
+                if existing_event:
+                    jump_url = update_event(service, CALENDAR_ID, existing_event['id'], notion_event)
+                    existing_events.remove(existing_event)
+                else:
+                    jump_url = create_event(service, CALENDAR_ID, notion_event)
+                
+                if jump_url:
+                    results.append({
+                        "summary": notion_event.get('summary'),
+                        "jump_url": jump_url
+                    })
+            except Exception as e:
+                logger.error(f"Error processing event {notion_event.get('summary')}: {str(e)}")
+        
+        # Remove events that no longer exist in Notion
+        for outdated_event in existing_events:
+            try:
+                service.events().delete(calendarId=CALENDAR_ID, eventId=outdated_event['id']).execute()
+                logger.info(f"Removed event: {outdated_event.get('summary')}")
+            except Exception as e:
+                logger.error(f"Error removing event {outdated_event.get('summary')}: {str(e)}")
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error updating Google Calendar: {str(e)}")
+        return []
+
+@app.route('/notion-webhook', methods=['POST', 'GET'])
+def notion_webhook():
+    """
+    Handle Notion webhook requests.
+    """
+    if request.method == 'GET':
+        return jsonify({"status": "success"}), 200
+
+    try:
+        data = request.json
+        database_id = data.get('database_id', NOTION_DATABASE_ID)
+        
+        notion_events = fetch_notion_events(database_id)
+        
+        if notion_events:
+            parsed_events = parse_event_data(notion_events)
+            logger.info(f"Parsed {len(parsed_events)} events")
+            results = update_google_calendar(parsed_events)
+            return jsonify({
+                "status": "success", 
+                "message": "Calendar updated",
+                "events": results
+            }), 200
+        else:
+            logger.warning("No events found in Notion database")
+            clear_future_events()
+            return jsonify({
+                "status": "success", 
+                "message": "No events found in Notion. All future events cleared from Google Calendar."
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Error processing webhook: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def clear_future_events():
+    """
+    Clear all future events from Google Calendar starting from the current date.
+    """
+    service = get_google_calendar_service()
+    if not service:
+        logger.error("Failed to get Google Calendar service")
+        return
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        events_result = service.events().list(
+            calendarId=CALENDAR_ID,
+            timeMin=now,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+
+        for event in events:
+            service.events().delete(calendarId=CALENDAR_ID, eventId=event['id']).execute()
+            logger.info(f"Deleted event: {event.get('summary')}")
+
+        logger.info("All future events cleared from Google Calendar")
+    except Exception as e:
+        logger.error(f"Error clearing future events: {str(e)}")
+
 def parse_event_data(notion_events: list) -> list:
-    """Parse Notion event data into standardized format"""
+    """
+    Parse Notion events into a format suitable for Google Calendar.
+    
+    Args:
+        notion_events (list): List of Notion events.
+    
+    Returns:
+        list: List of parsed events ready for Google Calendar.
+    """
+    logger.info(f"Parsing {len(notion_events)} Notion events")
     parsed_events = []
     for event in notion_events:
-        properties = event.get('properties', {})
-        
-        # Extract and validate description
-        description = ''
-        rich_text = properties.get('description', {}).get('rich_text', [])
-        if rich_text and isinstance(rich_text, list):
-            description = rich_text[0].get('text', {}).get('content', '')
-        description = description or "No description provided"
+        try:
+            properties = event.get('properties', {})
+            event_data = {}
+            
+            # Extract event details
+            title = next((item.get('text', {}).get('content') for item in properties.get('Name', {}).get('title', []) if item.get('text', {}).get('content')), None)
+            if title:
+                event_data['summary'] = title
+            
+            # Extract location and add it to event data
+            location = next((item.get('text', {}).get('content') for item in properties.get('Location', {}).get('rich_text', []) if item.get('text', {}).get('content')), None)
+            if location:
+                event_data['location'] = location
+            
+            description = next((item.get('text', {}).get('content') for item in properties.get('description', {}).get('rich_text', []) if item.get('text', {}).get('content')), None)
+            if description:
+                event_data['description'] = description
+            
+            # Handle date and time
+            date_obj = properties.get('Date', {}).get('date', {})
+            start_date = date_obj.get('start')
+            if start_date:
+                event_data['start'] = {
+                    "dateTime": start_date,
+                    "timeZone": CONFIG['server']['timezone']
 
-        # Extract date range and format properly
-        date_obj = properties.get('Date', {}).get('date', {})
-        start_date = date_obj.get('start', '').split('T')[0] if date_obj.get('start') else ''
-        end_date = date_obj.get('end', '').split('T')[0] if date_obj.get('end') else ''
-        
-        # Convert date format from YYYY-MM-DD to DD-MM-YYYY
-        if start_date:
-            year, month, day = start_date.split('-')
-            start_date = f"{day}-{month}-{year}"
-        if end_date:
-            year, month, day = end_date.split('-')
-            end_date = f"{day}-{month}-{year}"
+                }
+                end_date = date_obj.get('end') or start_date
+                event_data['end'] = {
+                    "dateTime": end_date,
+                    "timeZone": CONFIG['server']['timezone']
 
-        # Extract and validate emails
-        guests = properties.get('guests', {}).get('rich_text', [{}])[0].get('text', {}).get('content', '')
-        attendees_emails = [email.strip() for email in guests.split(',') if '@' in email]
-        
-        parsed_events.append({
-            "summary": properties.get('Name', {}).get('title', [{}])[0].get('text', {}).get('content', ''),
-            "description": description,
-            "organizer_email": "somwrks@gmail.com",  # Using email from screenshot
-            "attendees_emails": attendees_emails,
-            "location": properties.get('Location', {}).get('rich_text', [{}])[0].get('text', {}).get('content', ''),
-            "time_zone": "America/Phoenix",  # Correct timezone for Arizona
-            "start_time": "12:00",  # From screenshot
-            "end_time": "23:59",    # End of day
-            "meeting_date": start_date,
-            "end_date": end_date
-        })
+                }
+            
+            # Handle attendees
+            guests = next((item.get('text', {}).get('content') for item in properties.get('guests', {}).get('rich_text', []) if item.get('text', {}).get('content')), None)
+            if guests:
+                attendees = [{"email": email.strip()} for email in guests.split(',') if '@' in email]
+                if attendees:
+                    event_data['attendees'] = attendees
+            
+            # Add reminders if there's at least a summary and date
+            if 'summary' in event_data and 'start' in event_data:
+                event_data['reminders'] = {"useDefault": True}
+            
+            if event_data:
+                parsed_events.append(event_data)
+        except Exception as e:
+            logger.error(f"Error parsing event: {str(e)}")
+    
+    logger.info(f"Parsed {len(parsed_events)} events successfully")
     return parsed_events
 
-@app.route('/ical/update', methods=['POST'])
-def update_ical():
-    events = request.json.get('events', [])
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'apy-token': APYHUB_API_KEY
-    }
-    
-    ical_events = []
-    for event in events:
-        ical_event = {
-            "summary": event['summary'],
-            "description": event['description'],
-            "organizer_email": "organizer@example.com",
-            "attendees_emails": event['attendees_emails'],
-            "location": event['location'],
-            "time_zone": "MST",
-            "meeting_date": event['meeting_date'],
-            "end_date": event['end_date']
-        }
-        ical_events.append(ical_event)
-    
-    response = requests.post(APYHUB_ICAL_URL, headers=headers, json=ical_events)
-    
-    if response.status_code == 200:
-        with open(ICAL_FILE, 'w') as f:
-            f.write(response.text)
-        with open(JSON_FILE, 'w') as f:
-            json.dump(events, f)
-        return jsonify({
-            "status": "success",
-            "message": "iCAL updated",
-            "ical_link": "/ical/feed"
-        })
-    else:
-        return jsonify({"error": "Failed to update iCAL"}), 500
-
-
-
-@app.route('/events/json', methods=['GET'])
-def get_events_json():
-    try:
-        with open(JSON_FILE, 'r') as f:
-            events = json.load(f)
-        return jsonify(events)
-    except FileNotFoundError:
-        return jsonify([])
-    
-@app.route('/sync', methods=['GET'])
-def sync_events():
-    database_id = request.args.get('database_id')
-    if not database_id:
-        return jsonify({"error": "Missing database_id parameter"}), 400
-    
-    notion_events = fetch_notion_events(database_id)
-    if not notion_events:
-        return jsonify({"error": "Failed to fetch events from Notion"}), 500
-    print("notion api successfully fetched")
-    parsed_events = parse_event_data(notion_events)
-    print("successfully parsed\n", parsed_events)
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'apy-token': APYHUB_API_KEY
-    }
-    
-    # Format events for ApyHub API
-    ical_events = []
-    for event in parsed_events:
-        ical_event = {
-            "summary": event['summary'],
-            "description": event['description'],
-            "organizer_email": event['organizer_email'],
-            "attendees_emails": event['attendees_emails'],
-            "location": event['location'],
-            "time_zone": event['time_zone'],
-            "start_time": event['start_time'],
-            "end_time": event['end_time'],
-            "meeting_date": event['meeting_date']
-        }
-        ical_events.append(ical_event)
-        
-    print(f"Formatted events for ApyHub API:\n {ical_events}")
-    print("Sending request to ApyHub API...")
-    print(f"Headers:\n {headers}", )
-    
-    response = requests.post(APYHUB_ICAL_URL, headers=headers, json=ical_events[0])
-    
-    if response.status_code == 200:
-        with open(ICAL_FILE, 'w') as f:
-            f.write(response.text)
-        with open(JSON_FILE, 'w') as f:
-            json.dump(parsed_events, f)
-        return jsonify({
-            "status": "success",
-            "message": "Calendar synced successfully",
-            "events_count": len(parsed_events),
-            "ical_link": "/ical/feed"
-        })
-    else:
-        print(f"API Error {response.status_code}: {response.text}")
-        return jsonify({"error": "Failed to update iCal calendar"}), 500
-
-    
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        debug=CONFIG['server']['debug'],
+        port=CONFIG['server']['port']
+    )
+
