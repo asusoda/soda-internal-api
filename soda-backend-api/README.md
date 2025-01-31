@@ -37,8 +37,19 @@ A Flask-based service that automatically synchronizes events between a Notion da
 
 - Python 3.8+
 - Google Cloud Platform account with Calendar API enabled
+  ![image](https://github.com/user-attachments/assets/1021026e-e720-4f5b-9848-c70810913fb5)
+
 - Notion API access
+  ![image](https://github.com/user-attachments/assets/e2a6d53e-5fc8-42df-a53e-eba79cae3d14)
+
 - Service account credentials from Google Cloud Platform
+  ![image](https://github.com/user-attachments/assets/7d649e1a-e0a5-43fb-8165-b41aa22a1d2d)
+
+- Calender permissions
+  ![image](https://github.com/user-attachments/assets/2d8076ce-76e9-4856-928b-0e25fe0139d9)
+
+  ![image](https://github.com/user-attachments/assets/c7847205-5e9c-434f-ad65-31f2d9b93ccd)
+
 
 ## Configuration
 
