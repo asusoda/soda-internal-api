@@ -128,8 +128,5 @@ The service includes comprehensive error handling:
 
 ## Future Improvements
 
-- Add webhook authentication
-- Implement rate limiting
-- Add support for recurring events
-- Add unit tests
-- Add CI/CD pipeline
+- Add Soda's organization google account to enable guests
+- Always write guests emails seperated by comma
