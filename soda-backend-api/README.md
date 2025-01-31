@@ -2,6 +2,28 @@
 
 A Flask-based service that automatically synchronizes events between a Notion database and Google Calendar.
 
+![image](https://github.com/user-attachments/assets/eca21b10-f1a8-49aa-ad1e-cbc5e0555cd5)
+
+![image](https://github.com/user-attachments/assets/8187e0a7-1bd3-4905-9f09-d2865d8dd42d)
+
+![image](https://github.com/user-attachments/assets/47fb0d11-81c1-42cf-b4d8-48df8ad2caeb)
+
+![image](https://github.com/user-attachments/assets/15b96b1d-6f92-4555-9b40-ce5d9f6fabc5)
+
+![image](https://github.com/user-attachments/assets/cc6119e9-4644-4da5-a68a-3262e0d96a47)
+
+![image](https://github.com/user-attachments/assets/03c41cdf-8a45-4973-89ec-c31f0a22debe)
+
+![image](https://github.com/user-attachments/assets/0e0b9a6b-8639-4b9a-857e-0fc3f6a99df6)
+
+### Mentioning a guest won't work since this is not an organizational account and Domain wide permission is required to add guests to events, which can be only done with a google organizational account as super admin
+
+#### Always seperate guest's emails with comma
+![image](https://github.com/user-attachments/assets/b7915db8-4137-4fce-8fd3-277985238788)
+
+![image](https://github.com/user-attachments/assets/bd200bf3-dba2-4757-9e38-438a0aa723ef)
+
+
 ## Features
 
 - Real-time synchronization of events from Notion to Google Calendar
