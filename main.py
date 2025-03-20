@@ -5,6 +5,7 @@ from modules.points.api import points_blueprint
 from modules.users.api import users_blueprint
 from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
+from modules.calendar.api import calendar_blueprint
 
 
 
@@ -17,6 +18,7 @@ app.register_blueprint(public_blueprint, url_prefix="/")
 app.register_blueprint(points_blueprint, url_prefix="/points")
 app.register_blueprint(users_blueprint, url_prefix="/users")
 app.register_blueprint(auth_blueprint, url_prefix="/auth")
+app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
 
 if __name__ == "__main__":
     app.run(debug=True)
