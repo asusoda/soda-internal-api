@@ -18,7 +18,6 @@ class Config:
 
             # Service Tokens
             self.BOT_TOKEN = os.environ["BOT_TOKEN"]
-            self.NOTION_TOKEN = os.environ["NOTION_TOKEN"]
             
             # Database Configuration
             self.DB_TYPE = os.environ["DB_TYPE"]
@@ -28,9 +27,11 @@ class Config:
             self.DB_PASSWORD = os.environ["DB_PASSWORD"]
 
             # Calendar Integration
+            with open("../../google-secret.json", "r") as file:
+                self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
+                
             self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
             self.NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
-            self.GOOGLE_SERVICE_ACCOUNT = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
             self.GOOGLE_CALENDAR_ID = os.environ["GOOGLE_CALENDAR_ID"]
             self.GOOGLE_USER_EMAIL = os.environ["GOOGLE_USER_EMAIL"]
             self.SERVER_PORT = int(os.environ.get("SERVER_PORT", "5000"))

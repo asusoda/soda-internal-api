@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from shared import config, notion,logger
 
@@ -289,7 +289,6 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                 'description': extract_property(properties, 'Description', 'rich_text'),
                 'start': parse_date(properties.get('Date', {}).get('date', {}), 'start'),
                 'end': parse_date(properties.get('Date', {}).get('date', {}), 'end'),
-                'attendees': parse_attendees(properties.get('Guests', {}).get('rich_text', []))
             }
             
             event_data = {k: v for k, v in event_data.items() if v}
@@ -307,23 +306,37 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
 # Helper functions
 def extract_property(properties: Dict, name: str, prop_type: str) -> Optional[str]:
     """Extract text content from Notion property."""
-    prop = properties.get(name, {}).get(prop_type, [])
-    return next((item.get('text', {}).get('content') for item in prop if item.get('text')), None)
+    if prop_type == 'select':
+        return properties.get(name, {}).get('select', {}).get('name')
+    else:
+        prop = properties.get(name, {}).get(prop_type, [])
+        return next((item.get('text', {}).get('content') for item in prop if item.get('text')), None)
+
 
 def parse_date(date_obj: Dict, key: str) -> Optional[Dict]:
     """Parse datetime value from Notion date property."""
     date_str = date_obj.get(key)
     if not date_str:
         return None
-    return {
-        "dateTime": date_str,
-        "timeZone": config.TIMEZONE
-    }
 
-def parse_attendees(guest_properties: List[Dict]) -> List[Dict]:
-    """Parse comma-separated emails from Guests property."""
-    guests = next((item.get('text', {}).get('content') 
-                 for item in guest_properties if item.get('text')), None)
-    if not guests:
-        return []
-    return [{"email": email.strip()} for email in guests.split(',') if '@' in email]
+    date_time_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
+    if key == 'start':
+        return {
+            "dateTime": date_str,
+            "timeZone": config.TIMEZONE
+        }
+    elif key == 'end':
+        # If end time is missing, set it to one hour after the start time
+        start_date_str = date_obj.get('start')
+        if not start_date_str:
+            return None
+
+        start_date_time_obj = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+        end_date_time_obj = start_date_time_obj + timedelta(hours=1)
+        end_date_str = end_date_time_obj.isoformat()
+
+        return {
+            "dateTime": end_date_str,
+            "timeZone": config.TIMEZONE
+        }
