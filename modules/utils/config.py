@@ -27,7 +27,7 @@ class Config:
             self.DB_PASSWORD = os.environ["DB_PASSWORD"]
 
             # Calendar Integration
-            with open("../../google-secret.json", "r") as file:
+            with open("google-secret.json", "r") as file:
                 self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
                 
             self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
