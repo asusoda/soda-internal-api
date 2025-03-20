@@ -285,7 +285,7 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
             properties = event.get('properties', {})
             event_data = {
                 'summary': extract_property(properties, 'Name', 'title'),
-                'location': extract_property(properties, 'Location', 'rich_text'),
+                'location': extract_property(properties, 'Location', 'select'),
                 'description': extract_property(properties, 'Description', 'rich_text'),
                 'start': parse_date(properties.get('Date', {}).get('date', {}), 'start'),
                 'end': parse_date(properties.get('Date', {}).get('date', {}), 'end'),
