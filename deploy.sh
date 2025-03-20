@@ -17,7 +17,6 @@ conda env create -f environment.yml
 
 echo "Updating system packages and installing chromium-chromedriver"
 sudo apt update
-sudo apt install -y chromium-chromedriver
 
 echo "Activating conda environment"
 conda activate soda
