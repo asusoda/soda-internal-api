@@ -1,35 +1,22 @@
 #!/bin/bash
 
-# Ensure Conda is available in the shell
-echo "Ensuring Conda is available in the shell"
-source /root/miniconda3/etc/profile.d/conda.sh
+echo "Opening the API directory"
+cd /root/soda-internal-api || { echo "Failed to change directory. Exiting."; exit 1; }
 
-# Check if the environment exists and delete it if it does
-if conda env list | grep -q "\bsoda\b"; then
-    echo "Conda environment 'soda' already exists. Deleting it."
-    conda env remove -n soda --yes  # Automatically agree to delete
-else
-    echo "Conda environment 'soda' does not exist. Proceeding to create it."
-fi
+echo "Pulling the latest changes from the repository"
+git pull
 
-echo "Creating the Conda environment from environment.yml"
-conda env create -f environment.yml
+echo "Checking out the main branch"
+git checkout main
 
-echo "Updating system packages and installing chromium-chromedriver"
-sudo apt update
+echo "Building the Docker image for soda-internal-api"
+docker build -t soda-internal-api .
 
-echo "Activating conda environment"
-conda activate soda
+echo "Stopping any existing container with the same name if it exists"
+docker stop soda-internal-api || true
+docker rm soda-internal-api || true
 
-# Check if the environment was activated successfully
-if [[ "$CONDA_DEFAULT_ENV" != "soda" ]]; then
-    echo "Failed to activate the Conda environment 'soda'. Exiting."
-    exit 1
-fi
+echo "Running the Docker container"
+docker run -d --name soda-internal-api -p 8000:8000 soda-internal-api
 
-echo "Updating pip and installing dependencies"
-pip install --upgrade pip  # Conda environment will use the correct version of pip
-pip install -r requirements.txt  # Install dependencies listed in requirements.txt
-
-echo "Deploying using gunicorn"
-gunicorn --bind 0.0.0.0:8000 main:app  # Update "main:app" to match your entry point
+echo "Deployment completed using Docker."
