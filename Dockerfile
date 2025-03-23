@@ -6,6 +6,15 @@ WORKDIR /app
 # Create a non-root user
 RUN useradd -m appuser
 
+# Create data directory and set permissions
+RUN mkdir -p /app/data && \
+    chown -R appuser:appuser /app/data
+
+# Copy sensitive files first and set permissions
+COPY .env .env
+COPY google-secret.json google-secret.json
+RUN chown appuser:appuser .env google-secret.json
+
 # Switch to non-root user
 USER appuser
 
@@ -21,6 +30,9 @@ RUN pip3 install --upgrade pip && \
 
 # Copy the rest of the application code to the working directory
 COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8000
 
 # Run the application
 CMD ["python3", "main.py"]
