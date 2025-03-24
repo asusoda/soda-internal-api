@@ -29,4 +29,10 @@ docker run -d \
   -v /root/soda-internal-api/data:/app/data \
   soda-internal-api
 
+echo "Setting permissions on /app directory"
+docker exec soda-internal-api chmod -R 755 /app
+
+echo "Restarting container to apply changes"
+docker restart soda-internal-api
+
 echo "Deployment completed using Docker."
