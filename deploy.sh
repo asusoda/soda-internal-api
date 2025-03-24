@@ -17,6 +17,10 @@ docker stop soda-internal-api || true
 docker rm soda-internal-api || true
 
 echo "Running the Docker container"
-docker run -d --name soda-internal-api -p 8000:8000 soda-internal-api
+docker run -d \
+  --name soda-internal-api \
+  -p 8000:8000 \
+  -v /root/soda-internal-api/data:/app/data \
+  soda-internal-api
 
 echo "Deployment completed using Docker."
