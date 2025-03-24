@@ -9,6 +9,12 @@ git pull
 echo "Checking out the main branch"
 git checkout main
 
+# Ensure data directory exists and has correct permissions
+echo "Setting up data directory permissions"
+mkdir -p data
+chmod 755 data
+chown -R 1000:1000 data  # 1000 is typically the UID/GID of appuser
+
 echo "Building the Docker image for soda-internal-api"
 docker build -t soda-internal-api .
 
