@@ -30,21 +30,8 @@ RUN pip3 install --upgrade pip && \
 # Copy the rest of the application code to the working directory
 COPY . .
 
-# Create an entrypoint script to set permissions
-RUN echo '#!/bin/bash\n\
-chown -R appuser:appuser /app/data\n\
-chmod -R 755 /app/data\n\
-exec "$@"' > /entrypoint.sh && \
-    chmod +x /entrypoint.sh
-
-# Switch back to root for entrypoint
-USER root
-
 # Expose the port the app runs on
 EXPOSE 8000
-
-# Set the entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
 
 # Run the application
 CMD ["python3", "main.py"]
