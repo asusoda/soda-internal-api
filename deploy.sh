@@ -12,7 +12,7 @@ git checkout main
 # Ensure data directory exists and has correct permissions
 echo "Setting up data directory permissions"
 mkdir -p data
-chmod 755 data
+chmod -R 777 data
 chown -R 1000:1000 data  # 1000 is typically the UID/GID of appuser
 
 echo "Building the Docker image for soda-internal-api"
@@ -24,13 +24,12 @@ docker rm soda-internal-api || true
 
 echo "Running the Docker container"
 docker run -d \
+  --user 1000:1000 \
   --name soda-internal-api \
   -p 8000:8000 \
   -v /root/soda-internal-api/data:/app/data \
   soda-internal-api
 
-echo "Setting permissions on /app directory"
-docker exec soda-internal-api chmod -R 755 /app
 
 echo "Restarting container to apply changes"
 docker restart soda-internal-api
