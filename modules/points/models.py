@@ -34,3 +34,16 @@ class Points(Base):
 
     def __repr__(self):
         return f"<Points(points={self.points}, event={self.event}, timestamp={self.timestamp}, awarded_by_officer={self.awarded_by_officer})>"
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    token = Column(String, nullable=False, unique=True)
+    username = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    is_app_token = Column(String, nullable=True)  # For app-specific tokens
+    
+    def __repr__(self):
+        return f"<Session(username={self.username}, expires_at={self.expires_at})>"

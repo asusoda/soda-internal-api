@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from modules.points.models import Base
+from modules.points.models import Base, Session
 
 
 class DBConnect:

@@ -2,13 +2,14 @@ import jwt
 import datetime
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from modules.points.models import Session
+from shared import db_connect
 
 
 class TokenManager:
     def __init__(self, algorithm="RS256") -> None:
         self.algorithm = algorithm
         self.private_key, self.public_key = self.generate_keys()
-        self.blacklist = set()
 
     def generate_keys(self):
         # Generate a private RSA key
@@ -37,12 +38,33 @@ class TokenManager:
             "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=exp_minutes),
             "username": username,
         }
-        return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+        token = jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+        
+        # Store session in database
+        db = next(db_connect.get_db())
+        try:
+            session = Session(
+                token=token,
+                username=username,
+                expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=exp_minutes)
+            )
+            db.add(session)
+            db.commit()
+        finally:
+            db.close()
+            
+        return token
 
     def retrieve_username(self, token):
         try:
-            payload = jwt.decode(token, self.public_key, algorithms=[self.algorithm])
-            return payload.get("username")
+            db = next(db_connect.get_db())
+            try:
+                session = db.query(Session).filter_by(token=token).first()
+                if session:
+                    return session.username
+                return None
+            finally:
+                db.close()
         except jwt.ExpiredSignatureError:
             try:
                 payload = jwt.decode(
@@ -66,32 +88,85 @@ class TokenManager:
             return None
 
     def is_token_valid(self, token):
-        if token in self.blacklist:
-            return False
         try:
-            self.decode_token(token)
-            return True
+            # Check if token exists in database
+            db = next(db_connect.get_db())
+            try:
+                session = db.query(Session).filter_by(token=token).first()
+                if not session:
+                    return False
+                    
+                # Check if token is expired
+                if session.expires_at < datetime.datetime.utcnow():
+                    return False
+                    
+                return True
+            finally:
+                db.close()
         except jwt.InvalidSignatureError:
             return False
 
     def is_token_expired(self, token):
         try:
-            self.decode_token(token)
-            return False
+            db = next(db_connect.get_db())
+            try:
+                session = db.query(Session).filter_by(token=token).first()
+                if not session:
+                    return True
+                return session.expires_at < datetime.datetime.utcnow()
+            finally:
+                db.close()
         except jwt.ExpiredSignatureError:
             return True
 
     def refresh_token(self, token):
-        username = self.retrieve_username(token)
-        return self.generate_token(username)
+        db = next(db_connect.get_db())
+        try:
+            session = db.query(Session).filter_by(token=token).first()
+            if not session:
+                return None
+                
+            # Generate new token
+            new_token = self.generate_token(session.username)
+            
+            # Delete old session
+            db.delete(session)
+            db.commit()
+            
+            return new_token
+        finally:
+            db.close()
 
-    def genreate_app_token(self, name, app_name):
+    def generate_app_token(self, name, app_name):
         payload = {
             "exp": datetime.datetime.utcnow() + datetime.timedelta(days=120),
             "name": name,
             "app_name": app_name,
         }
-        return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+        token = jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+        
+        # Store app token in database
+        db = next(db_connect.get_db())
+        try:
+            session = Session(
+                token=token,
+                username=name,
+                expires_at=datetime.datetime.utcnow() + datetime.timedelta(days=120),
+                is_app_token=app_name
+            )
+            db.add(session)
+            db.commit()
+        finally:
+            db.close()
+            
+        return token
 
     def delete_token(self, token):
-        self.blacklist.add(token)
+        db = next(db_connect.get_db())
+        try:
+            session = db.query(Session).filter_by(token=token).first()
+            if session:
+                db.delete(session)
+                db.commit()
+        finally:
+            db.close()

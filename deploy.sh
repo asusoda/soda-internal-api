@@ -27,10 +27,11 @@ docker run -d \
   --name soda-internal-api \
   -p 8000:8000 \
   -v /root/soda-internal-api/data:/app/data \
+  --user "$(id -u):$(id -g)" \
   soda-internal-api
 
-echo "Setting permissions on /app directory"
-docker exec soda-internal-api chmod -R 755 /app
+echo "Setting permissions on data directory"
+docker exec soda-internal-api chmod -R 755 /app/data
 
 echo "Restarting container to apply changes"
 docker restart soda-internal-api
