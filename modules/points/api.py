@@ -318,6 +318,47 @@ def assign_points():
 
 
 
+
+@points_blueprint.route("/delete_points", methods=["DELETE"])
+@auth_required
+def delete_points_by_event():
+    data = request.json
+    if not data or "user_email" not in data or "event" not in data:
+        return jsonify({"error": "user_email and event are required"}), 400
+
+    db = next(db_connect.get_db())
+    try:
+        # Find the points entry by user email and event name
+        points_entry = db.query(Points).filter_by(
+            user_email=data["user_email"],
+            event=data["event"]
+        ).first()
+        
+        if not points_entry:
+            return jsonify({"error": "Points entry not found"}), 404
+            
+        # Delete the points entry
+        db.delete(points_entry)
+        db.commit()
+        
+        return jsonify({
+            "message": "Points deleted successfully",
+            "deleted_points": {
+                "points": points_entry.points,
+                "event": points_entry.event,
+                "timestamp": points_entry.timestamp,
+                "awarded_by_officer": points_entry.awarded_by_officer,
+                "user_email": points_entry.user_email
+            }
+        }), 200
+        
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
 def process_csv_in_background(file_content, event_name, event_points):
     csv_file = StringIO(file_content)
 
