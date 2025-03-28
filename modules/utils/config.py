@@ -27,8 +27,14 @@ class Config:
             self.DB_PASSWORD = os.environ["DB_PASSWORD"]
 
             # Calendar Integration
-            with open("google-secret.json", "r") as file:
-                self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
+            try:
+                with open("google-secret.json", "r") as file:
+                    print("Loading Google service account credentials")
+                    self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
+                    print("Google service account credentials loaded successfully")
+                    print("Google service account credentials:", self.GOOGLE_SERVICE_ACCOUNT)
+            except Exception as e:
+                raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
                 
             self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
             self.NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
