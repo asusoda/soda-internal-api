@@ -17,9 +17,9 @@ class DBConnect:
         self.check_and_create_tables()
 
     def check_and_create_tables(self):
-        # Check if the database file exists
-        if not os.path.exists("./user.db"):
-            Base.metadata.create_all(bind=self.engine)
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(self.SQLALCHEMY_DATABASE_URL.split("///")[1]), exist_ok=True)
+        Base.metadata.create_all(bind=self.engine)
 
     def get_db(self):
         db = self.SessionLocal()

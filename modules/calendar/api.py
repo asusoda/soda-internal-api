@@ -19,6 +19,16 @@ def get_google_calendar_service():
         logger.info("Google Calendar credentials obtained.")
         service = build('calendar', 'v3', credentials=credentials)
         logger.info("Google Calendar service built successfully.")
+
+        # Log all calendars the service can access
+        try:
+            calendar_list = service.calendarList().list().execute()
+            calendars = calendar_list.get('items', [])
+            calendar_names = [calendar['summary'] for calendar in calendars]
+            logger.info(f"Calendars the service can access: {calendar_names}")
+        except Exception as e:
+            logger.error(f"Error listing calendars: {str(e)}")
+
         return service
     except Exception as e:
         logger.error(f"Google API initialization failed: {str(e)}")
@@ -230,28 +240,48 @@ def update_event(service: Any, calendar_id: str, event_id: str,
         logger.error(f"Error updating event: {str(e)}")
         return None
 
-def create_event(service: Any, calendar_id: str, 
+def create_event(service: Any, calendar_id: str,
                 event_data: Dict) -> Optional[str]:
     """Create new Google Calendar event.
-    
+
     Args:
         service: Authenticated Google Calendar service
         calendar_id: Target calendar ID
         event_data: Event data to create
-    
+
     Returns:
         Event HTML link if successful, None otherwise
     """
     try:
+        logger.info(f"Creating event with data: {event_data}")  # Log event data
+
+        # Validate event data
+        if not event_data.get('start'):
+            logger.error("Event start or end time is missing.")
+            return None
+
+        # If end time is missing, set it to one hour after the start time
+        if not event_data.get('end'):
+            logger.error("End date missing. Defaulting to one hour after start. @265")
+            start_date_time_str = event_data['start']['dateTime']
+            start_date_time_obj = datetime.fromisoformat(start_date_time_str.replace('Z', '+00:00'))
+            end_date_time_obj = start_date_time_obj + timedelta(hours=1)
+            end_date_time_str = end_date_time_obj.isoformat()
+            event_data['end'] = {
+                "dateTime": end_date_time_str,
+                "timeZone": config.TIMEZONE
+            }
+
         event = service.events().insert(
-            calendarId=calendar_id, 
+            calendarId=calendar_id,
             body=event_data
         ).execute()
+        
         jump_url = event.get('htmlLink')
         logger.info(f"Created event: {event['id']}")
         return jump_url
     except Exception as e:
-        logger.error(f"Error creating event: {str(e)}")
+        logger.error(f"Error creating event: {str(e)}, Event Data: {event_data}")
         return None
 
 def clear_future_events() -> None:
@@ -330,9 +360,11 @@ def parse_date(date_obj: Dict, key: str) -> Optional[Dict]:
     if not date_str:
         return None
 
-    date_time_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    datetime.fromisoformat(date_str.replace('Z', '+00:00'))
 
     if key == 'start':
+        if 'T' not in date_str:
+            date_str += 'T00:00:00'  # Add default time if missing
         return {
             "dateTime": date_str,
             "timeZone": config.TIMEZONE
