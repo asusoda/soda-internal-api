@@ -11,11 +11,15 @@ def get_google_calendar_service():
     """Initialize and return authenticated Google Calendar service"""
     SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events']
     try:
+        logger.info("Initializing Google Calendar service...")
         credentials = service_account.Credentials.from_service_account_info(
             config.GOOGLE_SERVICE_ACCOUNT,
             scopes=SCOPES
         )
-        return build('calendar', 'v3', credentials=credentials)
+        logger.info("Google Calendar credentials obtained.")
+        service = build('calendar', 'v3', credentials=credentials)
+        logger.info("Google Calendar service built successfully.")
+        return service
     except Exception as e:
         logger.error(f"Google API initialization failed: {str(e)}")
         return None
