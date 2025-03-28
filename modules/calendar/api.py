@@ -26,6 +26,13 @@ def notion_webhook():
         return jsonify({"status": "success"}), 200
     
     try:
+        verification_token = request.args.get("verification_token")
+        if verification_token:
+            logger.info(f"Verification token: {verification_token}")
+    except Exception as e:
+        logger.error(f"Error retrieving verification token: {str(e)}")
+    
+    try:
         data = request.json
         database_id = data.get('database_id', config.NOTION_DATABASE_ID)
         
