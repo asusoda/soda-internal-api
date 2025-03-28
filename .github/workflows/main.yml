@@ -18,10 +18,9 @@ jobs:
         script: |
           echo $host
           echo $username
-          sudo chmod +x /root/soda-internal-api/update.sh
-          echo " Executing CD.sh"
           sudo chmod +x /root/soda-internal-api/deploy.sh
-          sudo /root/soda-internal-api/update.sh
+          echo " Executing deploy.sh"
+          sudo /root/soda-internal-api/deploy.sh
           pwd
           
 

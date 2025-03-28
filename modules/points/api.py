@@ -275,71 +275,88 @@ def get_user_points():
 @auth_required
 def assign_points():
     data = request.json
-
-    # Validate the required fields are present
-    required_fields = ["user_identifier", "points", "event", "awarded_by_officer"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Missing required field: {field}"}), 400
-
-    user_identifier = data["user_identifier"]  # This can be either email or UUID
-    points = data["points"]
-    event = data["event"]
-    awarded_by_officer = data["awarded_by_officer"]
-
     db = next(db_connect.get_db())
-    
     try:
-        # Check if the user exists using either email or UUID
-        user = db.query(User).filter((User.email == user_identifier) | (User.uuid == user_identifier)).first()
+        # Validate required fields
+        if not data.get("user_identifier"):
+            return jsonify({"error": "user_identifier is required"}), 400
+
+        user_identifier = data["user_identifier"]
+        
+        # Try to find user by email first (since it's more common)
+        user = db.query(User).filter_by(email=user_identifier).first()
+        
+        # If not found by email, try UUID
+        if not user:
+            user = db.query(User).filter_by(uuid=user_identifier).first()
 
         if not user:
-            # If user doesn't exist, validate that required fields for user creation are present
-            user_creation_fields = ["name", "asu_id", "academic_standing", "major"]
-            for field in user_creation_fields:
-                if field not in data:
-                    return jsonify({"error": f"Missing required field for user creation: {field}"}), 400
+            return jsonify({"error": "User not found"}), 404
 
-            # Create a new user since they don't exist
-            user = User(
-                email=user_identifier,
-                name=data["name"],
-                asu_id=data["asu_id"],
-                academic_standing=data["academic_standing"],
-                major=data["major"]
-            )
-            db.add(user)
-            db.commit()  # Commit so the user gets assigned an ID
-
-        # Access user data before committing and closing session
-        user_name = user.name
-        user_email = user.email
-
-        # Create a new Points entry
+        # Add points to the user
         point = Points(
-            points=points,
-            event=event,
-            awarded_by_officer=awarded_by_officer,
-            user_email=user.email  # Store user email as foreign key reference in the Points table
+            points=data["points"],
+            event=data["event"],
+            awarded_by_officer=data["awarded_by_officer"],
+            user_email=user.email  # Use the found user's email
         )
-        db.add(point)
-        db.commit()
+        db_point = db_connect.create_point(db, point)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db.close()
+    return jsonify(
+        {
+            "id": db_point.id,
+            "points": db_point.points,
+            "event": db_point.event,
+            "timestamp": db_point.timestamp,
+            "awarded_by_officer": db_point.awarded_by_officer,
+            "user_email": db_point.user_email,
+        }
+    ), 201
 
+
+
+
+@points_blueprint.route("/delete_points", methods=["DELETE"])
+@auth_required
+def delete_points_by_event():
+    data = request.json
+    if not data or "user_email" not in data or "event" not in data:
+        return jsonify({"error": "user_email and event are required"}), 400
+
+    db = next(db_connect.get_db())
+    try:
+        # Find the points entry by user email and event name
+        points_entry = db.query(Points).filter_by(
+            user_email=data["user_email"],
+            event=data["event"]
+        ).first()
+        
+        if not points_entry:
+            return jsonify({"error": "Points entry not found"}), 404
+            
+        # Delete the points entry
+        db.delete(points_entry)
+        db.commit()
+        
+        return jsonify({
+            "message": "Points deleted successfully",
+            "deleted_points": {
+                "points": points_entry.points,
+                "event": points_entry.event,
+                "timestamp": points_entry.timestamp,
+                "awarded_by_officer": points_entry.awarded_by_officer,
+                "user_email": points_entry.user_email
+            }
+        }), 200
+        
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         db.close()
-
-    return jsonify({
-        "message": "Points successfully assigned",
-        "user": user_name,
-        "email": user_email,
-        "points": points,
-        "event": event,
-        "awarded_by_officer": awarded_by_officer
-    }), 201
-
 
 
 def process_csv_in_background(file_content, event_name, event_points):

@@ -12,31 +12,29 @@ from modules.utils.db import DBConnect, Base
 from modules.utils.TokenManager import TokenManager
 from modules.bot.discord_modules.bot import BotFork
 
-
-# Prompt for credentials before initializing InvitationSender
-
-# Instantiate the InvitationSender class with credentials
-
-
-
-config = Config()
-intents = discord.Intents.all()
-bot = BotFork(command_prefix="!", intents=intents)
-notion = Client(auth=config.NOTION_API_KEY)
-bot.set_token(config.BOT_TOKEN)
-bot.run()
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-
-app = Flask("SoDA internal API", static_folder=None, template_folder=None)
-
-# Initialize database connection
-db_connect = DBConnect("sqlite:///./user.db")  # Adjust the URL to your database
+# Initialize Flask app
 app = Flask("SoDA internal API", static_folder=None, template_folder=None)
 CORS(app, 
      resources={r"/*": {"origins": "*"}},
 )
+
+# Initialize configuration
+config = Config()
+
+# Initialize database connection
+db_connect = DBConnect("sqlite:///./data/user.db")
 tokenManger = TokenManager()
+
+def init_discord_bot():
+    intents = discord.Intents.all()
+    bot = BotFork(command_prefix="!", intents=intents)
+    notion = Client(auth=config.NOTION_API_KEY)
+    bot.set_token(config.BOT_TOKEN)
+    return bot, notion
+
+# Initialize Discord bot and Notion client
+bot, notion = init_discord_bot()
