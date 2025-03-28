@@ -40,14 +40,16 @@ def notion_webhook():
         return jsonify({"status": "success"}), 200
     
     try:
-        verification_token = request.args.get("verification_token")
-        if verification_token:
-            logger.info(f"Verification token: {verification_token}")
-    except Exception as e:
-        logger.error(f"Error retrieving verification token: {str(e)}")
-    
-    try:
         data = request.json
+        # Handle initial verification request from Notion
+        if "verification_token" in data:
+            verification_token = data["verification_token"]
+            logger.info(f"Received initial Notion webhook verification request with token: {verification_token}")
+            # Store the verification token securely for future use
+            # TODO: Implement secure storage of verification token
+            return jsonify({"status": "success"}), 200
+            
+        # Handle regular webhook events
         database_id = data.get('database_id', config.NOTION_DATABASE_ID)
         
         notion_events = fetch_notion_events(database_id)
