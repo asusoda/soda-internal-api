@@ -30,6 +30,7 @@ oauthlib==3.2.2
 py-cord==2.4.1
 PyJWT==2.8.0
 pymongo==4.6.0
+psycopg2-binary
 python-engineio==4.9.0
 python-socketio==5.11.2
 requests==2.31.0

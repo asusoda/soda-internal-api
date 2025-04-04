@@ -6,6 +6,7 @@ from modules.users.api import users_blueprint
 from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
+from migrations import run_all_migrations
 import threading
 
 # Register Blueprints
@@ -15,7 +16,11 @@ app.register_blueprint(users_blueprint, url_prefix="/users")
 app.register_blueprint(auth_blueprint, url_prefix="/auth")
 app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
 
-if __name__ == "__main__":
+def initialize_app():
+    """Initialize the application with necessary setup"""
+    # Run all database migrations
+    run_all_migrations()
+    
     # Start Discord bot in a separate thread
     bot_thread = threading.Thread(target=bot.run)
     bot_thread.daemon = True
@@ -23,3 +28,6 @@ if __name__ == "__main__":
     
     # Start Flask app
     app.run(host='0.0.0.0', port=8000, debug=True)
+
+if __name__ == "__main__":
+    initialize_app()
