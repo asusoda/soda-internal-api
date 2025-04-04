@@ -34,10 +34,12 @@ MANIFEST
 
 # Installer logs
 pip-log.txt
+venv
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+google-secret1.json
 .tox/
 .nox/
 .coverage
