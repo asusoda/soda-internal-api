@@ -1,10 +1,12 @@
 from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import BatchHttpRequest # Added for batch operations
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Any
 from notion_client.helpers import collect_paginated_api
-from notion_client import APIErrorCode, APIResponseError # Added for pagination example error handling
+from notion_client import APIErrorCode, APIResponseError
 from shared import config, notion, logger
 
 calendar_blueprint = Blueprint("calendar", __name__)
@@ -34,10 +36,23 @@ def notion_webhook():
         
         notion_events = fetch_notion_events(database_id)
         
-        if notion_events is None: # Check if fetch failed
-             return jsonify({"status": "error", "message": "Failed to fetch events from Notion."}), 500
+        # Check the result of fetching Notion events
+        if notion_events is None:
+            # Fetch failed (error logged in fetch_notion_events)
+            logger.error("Notion fetch failed. Skipping Google Calendar update and clearing.")
+            return jsonify({"status": "error", "message": "Failed to fetch events from Notion. Calendar not updated."}), 500
 
-        if notion_events:
+        elif not notion_events:
+            # Fetch succeeded, but returned zero events
+            logger.warning("Successfully fetched 0 published future events from Notion. Clearing future Google Calendar events.")
+            clear_future_events()
+            return jsonify({
+                "status": "success",
+                "message": "Successfully fetched 0 events from Notion. Future Google Calendar events cleared."
+            }), 200
+            
+        else:
+            # Fetch succeeded and returned events
             parsed_events = parse_event_data(notion_events)
             logger.info(f"Parsed {len(parsed_events)} events from Notion.")
             results = update_google_calendar(parsed_events)
@@ -46,13 +61,6 @@ def notion_webhook():
                 "status": "success",
                 "message": f"Calendar sync complete. Processed {len(results)} events.",
                 "events_processed": results # Renamed for clarity
-            }), 200
-        else:
-            logger.warning("No published future events found in Notion database. Clearing future Google Calendar events.")
-            clear_future_events()
-            return jsonify({
-                "status": "success",
-                "message": "No published future events found in Notion. All future events cleared from Google Calendar."
             }), 200
 
     except Exception as e:
@@ -71,28 +79,53 @@ def share_calendar_with_user(service, calendar_id: str):
         }
         service.acl().insert(calendarId=calendar_id, body=rule).execute()
         logger.info(f"Calendar shared with {config.GOOGLE_USER_EMAIL}")
-    except Exception as e:
-        logger.error(f"Error sharing calendar: {str(e)}")
+    except HttpError as e:
+        logger.error(f"HTTP error sharing calendar: {e.resp.status} - {e.error_details}")
+    except Exception as e: # Catch other potential errors
+        logger.error(f"Unexpected error sharing calendar: {str(e)}")
 
 def ensure_calendar_access() -> Optional[str]:
-    """Ensure the calendar exists and is accessible"""
+    """
+    Ensure the calendar specified in config exists and is accessible.
+    Returns the calendar ID if found and accessible, otherwise None.
+    Does NOT create the calendar if it's missing.
+    """
     service = get_google_calendar_service()
     if not service:
         return None
 
+    calendar_id_to_check = config.GOOGLE_CALENDAR_ID
+    if not calendar_id_to_check:
+        logger.error("Required configuration GOOGLE_CALENDAR_ID is missing in .env")
+        return None
+
     try:
-        calendar = {
-            'summary': 'Notion Events',
-            'timeZone': config.TIMEZONE
-        }
-        created_calendar = service.calendars().insert(body=calendar).execute()
-        calendar_id = created_calendar['id']
-        logger.info(f"Created new calendar: {calendar_id}")
-        
-        share_calendar_with_user(service, calendar_id)
-        return calendar_id
-    except Exception as e:
-        logger.error(f"Error creating calendar: {str(e)}")
+        # Attempt to get the calendar by ID
+        logger.info(f"Verifying access to Google Calendar with ID: {calendar_id_to_check}")
+        calendar = service.calendars().get(calendarId=calendar_id_to_check).execute()
+        logger.info(f"Successfully verified access to calendar: {calendar['summary']} ({calendar_id_to_check})")
+        # Optional: Re-assert sharing permissions if needed, though get() implies read access.
+        # share_calendar_with_user(service, calendar_id_to_check)
+        return calendar_id_to_check
+
+    except HttpError as e:
+        if e.resp.status == 404:
+            # Calendar not found - Log error and return None (as requested)
+            logger.error(f"Google Calendar with ID '{calendar_id_to_check}' configured in .env was not found.")
+            logger.error("Please ensure the ID is correct and the service account has access.")
+            return None
+        elif e.resp.status == 403:
+             # Forbidden - Likely permissions issue
+             logger.error(f"Access denied (403 Forbidden) for Google Calendar ID '{calendar_id_to_check}'.")
+             logger.error("Please ensure the service account has been granted 'Make changes to events' permission for this calendar.")
+             return None
+        else:
+            # Other HTTP error during get()
+            logger.error(f"HTTP error checking for calendar '{calendar_id_to_check}': {e.resp.status} - {e.error_details}")
+            return None
+    except Exception as e_generic:
+        # Other unexpected error during get()
+        logger.error(f"Unexpected error checking for calendar '{calendar_id_to_check}': {str(e_generic)}")
         return None
 
 def fetch_notion_events(database_id: str) -> Optional[List[Dict]]:
@@ -196,13 +229,22 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
         final_ids_to_delete = {id_ for id_ in ids_to_delete if id_ not in gcal_ids_in_notion}
 
 
-        for event_id_to_delete in final_ids_to_delete:
+        # Batch delete events from Google Calendar that are no longer in the fetched Notion list
+        if final_ids_to_delete:
+            logger.info(f"Preparing to batch delete {len(final_ids_to_delete)} events from Google Calendar.")
+            batch = service.new_batch_http_request(callback=handle_batch_delete_response)
+            for event_id_to_delete in final_ids_to_delete:
+                event_summary = existing_gcal_events.get(event_id_to_delete, {}).get('summary', 'Unknown Event')
+                logger.debug(f"Adding delete request for event '{event_summary}' (GCAL ID: {event_id_to_delete}) to batch.")
+                batch.add(service.events().delete(calendarId=config.GOOGLE_CALENDAR_ID, eventId=event_id_to_delete))
+            
             try:
-                event_summary = existing_gcal_events[event_id_to_delete].get('summary', 'Unknown Event')
-                logger.info(f"Deleting event '{event_summary}' (GCAL ID: {event_id_to_delete}) as it's no longer in Notion or was removed.")
-                service.events().delete(calendarId=config.GOOGLE_CALENDAR_ID, eventId=event_id_to_delete).execute()
+                batch.execute()
+                logger.info(f"Batch delete request executed for {len(final_ids_to_delete)} events.")
+            except HttpError as e:
+                 logger.error(f"HTTP error executing batch delete request: {e.resp.status} - {e.error_details}")
             except Exception as e:
-                logger.error(f"Error deleting event with GCAL ID {event_id_to_delete}: {str(e)}")
+                logger.error(f"Unexpected error executing batch delete request: {str(e)}")
 
         return results
     except Exception as e:
@@ -227,8 +269,11 @@ def get_all_calendar_events(service: Any, calendar_id: str) -> List[Dict]:
             orderBy='startTime'
         ).execute()
         return events_result.get('items', [])
-    except Exception as e:
-        logger.error(f"Error fetching calendar events: {str(e)}")
+    except HttpError as e:
+        logger.error(f"HTTP error fetching calendar events: {e.resp.status} - {e.error_details}")
+        return []
+    except Exception as e: # Catch other potential errors
+        logger.error(f"Unexpected error fetching calendar events: {str(e)}")
         return []
 
 # Removed find_matching_event as matching is now based on gcal_id stored in Notion
@@ -255,8 +300,11 @@ def update_event(service: Any, calendar_id: str, event_id: str,
         jump_url = updated_event.get('htmlLink')
         logger.info(f"Updated event: {updated_event['id']}")
         return jump_url
-    except Exception as e:
-        logger.error(f"Error updating event: {str(e)}")
+    except HttpError as e:
+        logger.error(f"HTTP error updating event {event_id}: {e.resp.status} - {e.error_details}")
+        return None
+    except Exception as e: # Catch other potential errors
+        logger.error(f"Unexpected error updating event {event_id}: {str(e)}")
         return None
 
 def create_event(service: Any, calendar_id: str,
@@ -300,43 +348,82 @@ def create_event(service: Any, calendar_id: str,
                 }
             )
             logger.info(f"Successfully updated Notion page {notion_page_id} with GCAL ID {gcal_event_id}")
-        except Exception as notion_e:
-            logger.error(f"Failed to update Notion page {notion_page_id} with GCAL ID {gcal_event_id}: {str(notion_e)}")
+        except APIResponseError as notion_e:
+             logger.error(f"Notion API error updating page {notion_page_id} with GCAL ID {gcal_event_id}: {notion_e.code} - {notion_e.message}")
+        except Exception as notion_e: # Catch other potential errors during Notion update
+            logger.error(f"Unexpected error updating Notion page {notion_page_id} with GCAL ID {gcal_event_id}: {str(notion_e)}")
             # Decide if we should still return the jump_url or None if Notion update fails
             # For now, let's still return the jump_url as the GCal event was created.
             
         return jump_url
         
-    except Exception as e:
-        logger.error(f"Error creating Google Calendar event for Notion page {notion_page_id}: {str(e)}")
+    except HttpError as e:
+        logger.error(f"HTTP error creating Google Calendar event for Notion page {notion_page_id}: {e.resp.status} - {e.error_details}")
+        return None
+    except Exception as e: # Catch other potential errors during GCal creation
+        logger.error(f"Unexpected error creating Google Calendar event for Notion page {notion_page_id}: {str(e)}")
         return None
 
+def handle_batch_delete_response(request_id, response, exception):
+    """Callback function for batch delete requests."""
+    if exception:
+        # Handle error
+        logger.error(f"Batch delete request {request_id} failed: {exception}")
+    else:
+        # Process successful response if needed, often delete returns 204 No Content
+        logger.debug(f"Batch delete request {request_id} successful.")
+
 def clear_future_events() -> None:
-    """Clear all future events from Google Calendar."""
+    """Clear all future events from Google Calendar using batch delete."""
     service = get_google_calendar_service()
     if not service:
-        logger.error("Failed to get Google Calendar service")
+        logger.error("Failed to get Google Calendar service for clearing events.")
         return
 
     try:
         now = datetime.now(timezone.utc).isoformat()
-        events_result = service.events().list(
-            calendarId=config.GOOGLE_CALENDAR_ID,
-            timeMin=now,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
+        logger.info(f"Fetching future events from calendar {config.GOOGLE_CALENDAR_ID} for clearing.")
         
-        for event in events_result.get('items', []):
-            service.events().delete(
+        events_to_delete = []
+        page_token = None
+        while True:
+            events_result = service.events().list(
                 calendarId=config.GOOGLE_CALENDAR_ID,
-                eventId=event['id']
+                timeMin=now,
+                singleEvents=True,
+                pageToken=page_token
+                # No orderBy needed if just deleting all
             ).execute()
-            logger.info(f"Deleted event: {event.get('summary')}")
             
-        logger.info("All future events cleared")
+            items = events_result.get('items', [])
+            if not items:
+                break # No more events
+                
+            events_to_delete.extend(items)
+            page_token = events_result.get('nextPageToken')
+            if not page_token:
+                break # Last page
+
+        if not events_to_delete:
+            logger.info("No future events found to clear.")
+            return
+
+        logger.info(f"Found {len(events_to_delete)} future events to clear. Preparing batch delete.")
+        
+        batch = service.new_batch_http_request(callback=handle_batch_delete_response)
+        for event in events_to_delete:
+            event_id = event['id']
+            event_summary = event.get('summary', 'Unknown Event')
+            logger.debug(f"Adding delete request for event '{event_summary}' (ID: {event_id}) to batch.")
+            batch.add(service.events().delete(calendarId=config.GOOGLE_CALENDAR_ID, eventId=event_id))
+
+        batch.execute()
+        logger.info(f"Batch delete request executed for clearing {len(events_to_delete)} future events.")
+
+    except HttpError as e:
+         logger.error(f"HTTP error clearing events: {e.resp.status} - {e.error_details}")
     except Exception as e:
-        logger.error(f"Error clearing events: {str(e)}")
+        logger.error(f"Unexpected error clearing events: {str(e)}")
 
 def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
     """Parse Notion events into Google Calendar format, including Notion Page ID and GCAL ID.
@@ -401,9 +488,9 @@ def extract_property(properties: Dict, name: str, prop_type: str) -> Optional[st
         # Handle rich_text and title which are arrays
         prop_array = prop_data.get(prop_type, [])
         # Concatenate content from all text objects in the array
-        # Using next for simplicity now, but could concatenate if needed:
-        # return "".join(item.get('text', {}).get('content', '') for item in prop_array if item.get('type') == 'text')
-        return next((item.get('text', {}).get('content') for item in prop_array if item.get('type') == 'text' and item.get('text')), None)
+        content_list = [item.get('text', {}).get('content', '') for item in prop_array if item.get('type') == 'text' and item.get('text')]
+        full_content = "".join(content_list)
+        return full_content if full_content else None
     # Add other type handlers if necessary
     else:
         # Fallback for potentially simple types or unhandled ones
