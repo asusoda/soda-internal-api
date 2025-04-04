@@ -25,7 +25,8 @@ class Config:
             self.DB_NAME = os.environ["DB_NAME"]
             self.DB_USER = os.environ["DB_USER"]
             self.DB_PASSWORD = os.environ["DB_PASSWORD"]
-
+            self.DB_HOST = os.environ["DB_HOST"]
+            self.DB_PORT = os.environ["DB_PORT"]
             # Calendar Integration
             try:
                 with open("google-secret.json", "r") as file:
