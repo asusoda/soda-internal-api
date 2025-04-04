@@ -44,6 +44,9 @@ class Config:
             self.SERVER_DEBUG = os.environ.get("SERVER_DEBUG", "false").lower() == "true"
             self.TIMEZONE = os.environ.get("TIMEZONE", "America/Phoenix")
 
+            # Monitoring Configuration (Optional)
+            self.SENTRY_DSN = os.environ.get("SENTRY_DSN") # Optional: Used for Sentry error/performance monitoring
+
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e
 
