@@ -58,3 +58,4 @@ google-auth-oauthlib>=1.0.0
 google-api-core>=2.11.0
 sentry-sdk[flask]>=1.0.0 # Added for Sentry monitoring
 pytz # Added for timezone handling in calendar module
+python-dateutil # Added for timezone handling in calendar module
