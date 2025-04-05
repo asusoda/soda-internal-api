@@ -19,6 +19,9 @@ from googleapiclient.errors import HttpError # Import HttpError for specific han
 # If logger is not in shared, initialize it here:
 # logger = logging.getLogger(__name__)
 
+# Create a global cache for the frontend events with a 5-minute TTL
+_FRONTEND_CACHE = TTLCache(maxsize=1, ttl=300)
+
 class CalendarService:
     """Service layer for calendar operations involving Notion and Google Calendar."""
 
@@ -28,8 +31,6 @@ class CalendarService:
         self.notion_client = NotionCalendarClient(self.logger)
         # Optional: Initialize error handler for service-level errors if needed
         # self.error_handler = APIErrorHandler(self.logger, "CalendarService")
-        # Cache for get_events_for_frontend with a 5-minute TTL
-        self.frontend_cache = TTLCache(maxsize=1, ttl=300)
 
     def parse_notion_events(self, notion_events_raw: List[Dict]) -> List[CalendarEventDTO]:
         """Parse raw Notion events into CalendarEventDTO objects."""
@@ -379,7 +380,8 @@ class CalendarService:
         }
 
         try:
-            with transaction: # Ensure transaction is managed correctly
+            # Don't use with transaction: if passed from API route
+            # This avoids the AttributeError: 'Transaction' object has no attribute '_context_manager_state'
                 # 1. Fetch Notion events
                 with operation_span(transaction, op="fetch_notion", description="fetch_published_notion_events", logger=self.logger) as span:
                     notion_events_raw = self.notion_client.fetch_events(config.NOTION_DATABASE_ID, parent_transaction=transaction) # Pass transaction
@@ -440,6 +442,9 @@ class CalendarService:
 
                 self.logger.info(f"{op_name} completed successfully.")
                 set_tag("sync_status", "success")
+                # Only finish the transaction if we created it
+                if own_transaction and transaction:
+                    transaction.finish()
                 return result
 
         except Exception as e:
@@ -450,17 +455,15 @@ class CalendarService:
             set_tag("sync_status", "critical_error")
             if transaction:
                  transaction.set_status("internal_error")
-            # Ensure transaction is finished if we started it and an error occurred
-            # The 'with transaction:' block should handle this, but explicit finish can be added if needed.
-            # if own_transaction and transaction:
-            #     transaction.finish(exception=e)
+                 # Only finish the transaction if we created it
+                 if own_transaction:
+                     transaction.finish(exception=e)
             return result
-        # No finally block needed if using 'with transaction:'
 
-    # Cache results for 5 minutes. Key ignores the 'transaction' argument.
-    @cached(cache=lambda self: self.frontend_cache, key=lambda self, transaction=None: keys.hashkey(id(self)))
+    # Cache results for 5 minutes using class-level cache
+    @cached(cache=_FRONTEND_CACHE, key=lambda self, transaction=None: keys.hashkey(id(self)))
     def get_events_for_frontend(self, transaction=None) -> Dict[str, Any]:
-        """Fetches and formats Notion events for frontend display. Results are cached for 5 minutes."""
+        """Fetches and formats Notion events for frontend display. Results are cached for 5 minutes in class-level cache."""
         op_name = "get_events_for_frontend"
         # This log message will only appear on cache misses
         self.logger.info("Cache miss for get_events_for_frontend. Fetching fresh data.")
@@ -471,30 +474,34 @@ class CalendarService:
         result = {"status": "success", "events": []}
 
         try:
-            with transaction:
-                # 1. Fetch Notion events
-                with operation_span(transaction, op="fetch_notion", description="fetch_published_notion_events", logger=self.logger) as span:
-                    notion_events_raw = self.notion_client.fetch_events(config.NOTION_DATABASE_ID, parent_transaction=transaction) # Pass transaction
-                    if notion_events_raw is None:
-                        span.set_status("internal_error")
-                        result["status"] = "error"
-                        result["message"] = "Failed to fetch events from Notion."
-                        self.logger.error(f"{op_name}: Notion fetch failed.")
-                        return result
-                    span.set_data("fetched_notion_event_count", len(notion_events_raw))
+            # Don't use with transaction: if passed from API route
+            # This avoids the AttributeError: 'Transaction' object has no attribute '_context_manager_state'
+            # 1. Fetch Notion events
+            with operation_span(transaction, op="fetch_notion", description="fetch_published_notion_events", logger=self.logger) as span:
+                notion_events_raw = self.notion_client.fetch_events(config.NOTION_DATABASE_ID, parent_transaction=transaction) # Pass transaction
+                if notion_events_raw is None:
+                    span.set_status("internal_error")
+                    result["status"] = "error"
+                    result["message"] = "Failed to fetch events from Notion."
+                    self.logger.error(f"{op_name}: Notion fetch failed.")
+                    return result
+                span.set_data("fetched_notion_event_count", len(notion_events_raw))
 
-                # 2. Parse Notion events
-                # parse_notion_events handles its own logging/context
-                parsed_dtos = self.parse_notion_events(notion_events_raw)
+            # 2. Parse Notion events
+            # parse_notion_events handles its own logging/context
+            parsed_dtos = self.parse_notion_events(notion_events_raw)
 
-                # 3. Format for Frontend
-                with operation_span(transaction, op="format", description="format_dtos_for_frontend", logger=self.logger) as span:
-                    frontend_events = [dto.to_frontend_format() for dto in parsed_dtos]
-                    result["events"] = frontend_events
-                    span.set_data("formatted_event_count", len(frontend_events))
+            # 3. Format for Frontend
+            with operation_span(transaction, op="format", description="format_dtos_for_frontend", logger=self.logger) as span:
+                frontend_events = [dto.to_frontend_format() for dto in parsed_dtos]
+                result["events"] = frontend_events
+                span.set_data("formatted_event_count", len(frontend_events))
 
-                self.logger.info(f"{op_name}: Successfully fetched and formatted {len(frontend_events)} events.")
-                return result
+            self.logger.info(f"{op_name}: Successfully fetched and formatted {len(frontend_events)} events.")
+            # Only finish the transaction if we created it
+            if own_transaction and transaction:
+                transaction.finish()
+            return result
 
         except Exception as e:
             capture_exception(e)
@@ -503,6 +510,9 @@ class CalendarService:
             result["message"] = f"An unexpected error occurred: {str(e)}"
             if transaction:
                 transaction.set_status("internal_error")
+                # Only finish the transaction if we created it
+                if own_transaction:
+                    transaction.finish(exception=e)
             return result
 
 
@@ -525,7 +535,8 @@ class CalendarService:
         self.logger.warning(f"Received request for {op_name}. THIS IS A DESTRUCTIVE OPERATION.")
 
         try:
-            with transaction:
+            # Don't use with transaction: if passed from API route
+            # This avoids the AttributeError: 'Transaction' object has no attribute '_context_manager_state'
                 # --- SAFETY CHECK ---
                 if not getattr(config, 'ALLOW_DELETE_ALL', False):
                     self.logger.error(f"{op_name} prevented by configuration (ALLOW_DELETE_ALL is not True).")
@@ -607,6 +618,9 @@ class CalendarService:
                     result["message"] = f"Successfully deleted {successful_deletions} events."
                     set_tag("delete_all_status", "success")
 
+                # Only finish the transaction if we created it
+                if own_transaction and transaction:
+                    transaction.finish()
                 return result
 
         except Exception as e:
@@ -617,4 +631,7 @@ class CalendarService:
             set_tag("delete_all_status", "critical_error")
             if transaction:
                 transaction.set_status("internal_error")
+                # Only finish the transaction if we created it
+                if own_transaction:
+                    transaction.finish(exception=e)
             return result

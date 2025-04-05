@@ -31,10 +31,12 @@ def operation_span(transaction, op, description, logger=None):
             current_logger.error(f"Failed to set error data on span {description}: {data_err}")
         raise # Re-raise the original exception
     finally:
-        # The parent transaction's context manager (`with start_transaction(...)`)
-        # will handle finishing the child span. Explicitly calling finish() here
-        # can lead to the '_context_manager_state' AttributeError.
-        pass
+        # Since we're no longer relying on parent transaction context managers,
+        # we should explicitly finish the span here.
+        try:
+            span.finish()
+        except Exception as finish_err:
+            current_logger.error(f"Failed to finish span {description}: {finish_err}")
 def batch_operation(service: Any, operation_fn: Any, items: List[Any], calendar_id: str, batch_size: int = 900, description: str = "batch_operation", parent_transaction=None) -> Tuple[int, int]: # Added parent_transaction
     """Generic batch operation handler for Google API calls.
 
