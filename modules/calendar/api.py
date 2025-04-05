@@ -208,12 +208,14 @@ def fetch_notion_events(database_id: str) -> Optional[List[Dict]]:
                 "date_from": now
             })
             
-            # Define the filter
+            # Define the filter - Fetch ALL published events, regardless of date
             query_filter = {
-                "and": [
-                    {"property": "Published", "checkbox": {"equals": True}},
-                    {"property": "Date", "date": {"on_or_after": now}}
-                ]
+                "filter": {
+                    "property": "Published",
+                    "checkbox": {
+                        "equals": True
+                    }
+                }
             }
 
             # Use collect_paginated_api to handle pagination automatically
@@ -660,26 +662,34 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                         'location': extract_property(properties, 'Location', 'select'),
                         'description': extract_property(properties, 'Description', 'rich_text'),
                         'start': parse_date(properties.get('Date', {}).get('date', {}), 'start'),
-                        'end': parse_date(properties.get('Date', {}).get('date', {}), 'end'),
-                    }
-                    
+                        'end': None, # Initialize end as None, will be populated below
+                    } # End of event_data dictionary definition
+
+                    # --- End date handling (now primarily within parse_date) ---
+                    date_prop = properties.get('Date', {}).get('date', {})
+                    # parse_date will attempt to parse 'end', and calculate default if needed
+                    event_data['end'] = parse_date(date_prop, 'end')
+                    # --- End of end date handling logic ---
+
                     # Remove keys with None values before sending to Google API, but keep internal ones
+                    # Ensure 'end' is handled correctly if it ended up being None
                     google_api_payload = {k: v for k, v in event_data.items() if v is not None and k not in ['notion_page_id', 'gcal_id']}
-                    
+
                     if google_api_payload.get('summary') and google_api_payload.get('start'):
+                        # Only add reminders if we have the essential info
                         google_api_payload['reminders'] = {"useDefault": True}
-                        
+
                         # Add back the internal IDs to the dict we store in the list
                         parsed_event_entry = google_api_payload.copy()
                         parsed_event_entry['notion_page_id'] = notion_page_id
-                        parsed_event_entry['gcal_id'] = gcal_id_text
-                        
+                        parsed_event_entry['gcal_id'] = gcal_id_text # gcal_id was extracted earlier
+
                         parsed_events.append(parsed_event_entry)
                         span.set_data("parse_status", "success")
                     else:
                         failed_events += 1
                         span.set_data("parse_status", "missing_required_fields")
-                        logger.warning(f"Skipping event {notion_page_id}: Missing required fields (summary or start date)")
+                        logger.warning(f"Skipping event {notion_page_id}: Missing required fields (summary or start date) after parsing.")
                     
             except Exception as e:
                 capture_exception(e)
@@ -733,37 +743,55 @@ def extract_property(properties: Dict, name: str, prop_type: str) -> Optional[st
 
 
 def parse_date(date_obj: Dict, key: str) -> Optional[Dict]:
-    """Parse datetime value from Notion date property."""
+    """Parse datetime value from Notion date property.
+    For 'end' key, calculates a 1-hour default if missing/invalid.
+    """
     try:
         date_str = date_obj.get(key)
-        if not date_str:
-            return None
+        parsed_date = None
 
-        date_time_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        if date_str:
+            try:
+                # Attempt to parse the provided date string - primarily for validation
+                datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                parsed_date = {
+                    "dateTime": date_str,
+                    "timeZone": config.TIMEZONE
+                }
+            except ValueError as e_parse:
+                logger.warning(f"Could not parse provided date string for key '{key}': {date_str}. Error: {e_parse}")
+                # Proceed to default calculation only if it's the 'end' key
 
-        if key == 'start':
-            return {
-                "dateTime": date_str,
-                "timeZone": config.TIMEZONE
-            }
-        elif key == 'end':
-            # If end time is missing, set it to one hour after the start time
+        # If it's the 'end' key AND (parsing failed OR date_str was initially None), calculate default
+        if key == 'end' and not parsed_date:
             start_date_str = date_obj.get('start')
-            if not start_date_str:
-                return None
+            if start_date_str:
+                try:
+                    start_date_time_obj = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                    end_date_time_obj = start_date_time_obj + timedelta(hours=1)
+                    end_date_str = end_date_time_obj.isoformat()
+                    parsed_date = {
+                        "dateTime": end_date_str,
+                        "timeZone": config.TIMEZONE
+                    }
+                    logger.debug(f"Calculated default end time (1hr after start): {end_date_str}")
+                except Exception as e_calc:
+                    logger.error(f"Error calculating default end time based on start '{start_date_str}': {e_calc}")
+                    capture_exception(e_calc)
+                    # parsed_date remains None
+            else:
+                 logger.warning(f"Cannot calculate default end time for key '{key}' because start time is missing.")
 
-            start_date_time_obj = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
-            end_date_time_obj = start_date_time_obj + timedelta(hours=1)
-            end_date_str = end_date_time_obj.isoformat()
+        # For 'start' key, if parsing failed or date_str was None, return None explicitly
+        if key == 'start' and not parsed_date:
+             logger.warning(f"Start date string is missing or invalid: {date_str}")
+             return None # Crucial: Don't return a potentially calculated end time if key was 'start'
 
-            return {
-                "dateTime": end_date_str,
-                "timeZone": config.TIMEZONE
-            }
-            
+        return parsed_date # Return the parsed date (either from input or calculated default for end) or None
+
     except Exception as e:
         capture_exception(e)
-        logger.error(f"Error parsing date for key '{key}': {str(e)}")
+        logger.error(f"General error parsing date for key '{key}': {str(e)}")
         set_context("date_parse_error", {
             "key": key,
             "date_str": date_obj.get(key),
