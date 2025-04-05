@@ -773,27 +773,46 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                             # Specific time event: Calculate a default 1-hour duration
                             logger.debug(f"End dateTime missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default 1-hour duration.")
                             try:
-                                tz_str = parsed_start.get('timeZone', config.TIMEZONE) # Use start's timezone or default
-                                tz = pytz.timezone(tz_str)
-
-                                # Parse the start dateTime string, handling potential 'Z'
+                                # Parse the start dateTime string directly. fromisoformat handles 'Z' and offsets.
                                 start_dt_iso = parsed_start['dateTime']
-                                start_dt_obj = datetime.fromisoformat(start_dt_iso.replace('Z', '+00:00'))
+                                start_dt_aware = datetime.fromisoformat(start_dt_iso.replace('Z', '+00:00'))
 
-                                # Make it timezone-aware using the determined timezone if it's naive
-                                if start_dt_obj.tzinfo is None:
-                                    start_dt_aware = tz.localize(start_dt_obj)
-                                else:
-                                    # If it has timezone info, convert it to the target timezone for consistency
-                                    start_dt_aware = start_dt_obj.astimezone(tz)
+                                # Ensure it's timezone-aware (it should be after fromisoformat with offset/Z)
+                                # If somehow it's still naive, use the default timezone. This is a fallback.
+                                if start_dt_aware.tzinfo is None or start_dt_aware.tzinfo.utcoffset(start_dt_aware) is None:
+                                    logger.warning(f"Parsed start datetime '{start_dt_iso}' resulted in a naive object for {notion_page_id}. Applying default timezone '{config.TIMEZONE}'.")
+                                    # Ensure config.TIMEZONE is a valid pytz timezone name before using it
+                                    try:
+                                        default_tz = pytz.timezone(config.TIMEZONE)
+                                        start_dt_aware = default_tz.localize(start_dt_aware)
+                                    except pytz.UnknownTimeZoneError:
+                                        logger.error(f"Default timezone '{config.TIMEZONE}' is invalid. Cannot localize naive datetime for {notion_page_id}.")
+                                        # If default TZ is bad, we can't proceed reliably. Skip end calculation or use UTC?
+                                        # For now, let's re-raise or handle as appropriate for the application logic.
+                                        # Re-raising might be safer to signal a config issue.
+                                        raise ValueError(f"Invalid default timezone configured: {config.TIMEZONE}")
+
 
                                 # Default duration is 1 hour
                                 end_dt_aware = start_dt_aware + timedelta(hours=1)
+
+                                # Use the timezone information derived from the start datetime object for the end timeZone field.
+                                # Google Calendar API expects an IANA timeZone ID.
+                                # If start_dt_aware.tzinfo doesn't provide a standard name (e.g., fixed offset),
+                                # fall back to the original tz_str from parsed_start or the default config.TIMEZONE.
+                                # This preserves the original behavior regarding the timeZone field value,
+                                # while fixing the crash caused by pytz.timezone('UTC-07:00').
+                                end_tz_str = getattr(start_dt_aware.tzinfo, 'zone', None) # Try to get IANA name if available (e.g., from pytz)
+                                if not end_tz_str:
+                                     # Fallback to original logic's source for tz string
+                                     end_tz_str = parsed_start.get('timeZone', config.TIMEZONE)
+
                                 parsed_end = {
+                                    # Format end time in ISO 8601, preserving timezone offset
                                     "dateTime": end_dt_aware.isoformat(),
-                                    "timeZone": tz_str # Use the same timezone as start
+                                    "timeZone": end_tz_str # Use derived/fallback timezone string
                                 }
-                                logger.debug(f"Calculated default end dateTime: {parsed_end['dateTime']}")
+                                logger.debug(f"Calculated default end dateTime: {parsed_end['dateTime']} with timeZone: {parsed_end['timeZone']}")
 
                             except Exception as e_calc:
                                 logger.error(f"Error calculating default 1-hour end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
