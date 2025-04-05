@@ -265,7 +265,7 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
                 # Fetch events starting from today to limit scope
                 now_utc = datetime.now(timezone.utc).isoformat()
                 all_gcal_events_raw = get_all_gcal_events_for_sync(service, config.GOOGLE_CALENDAR_ID, time_min=now_utc)
-                span.set_data("synced_event_count", len(synced_gcal_events_raw))
+                span.set_data("synced_event_count", len(all_gcal_events_raw))
 
             # 2. Build lookup dictionaries for GCal events
             gcal_events_by_id = {} # GCal ID -> GCal Event
@@ -421,7 +421,6 @@ def get_all_gcal_events_for_sync(service: Any, calendar_id: str, time_min: Optio
             while True:
                 with transaction.start_child(op="list_page", description="list_events_page") as span:
                     events_result = service.events().list(
-                        calendarId=calendar_id,
                         calendarId=calendar_id,
                         singleEvents=True, # Expand recurring events
                         showDeleted=False, # Don't include deleted events
@@ -821,7 +820,7 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                         'end': parsed_end, # Now guaranteed to have a value
                         # Keep internal IDs separate until the end
                         '_internal_notion_page_id': notion_page_id,
-                        '_internal_gcal_id': gcal_id_text,
+                        '_internal_gcal_id': None,  # No longer using gcal_id from Notion
                     }
 
                     # Remove keys with None values before sending to Google API, but keep internal ones
