@@ -1060,69 +1060,77 @@ def delete_duplicate_synced_gcal_events(service: Any, calendar_id: str) -> None:
 
 @calendar_blueprint.route("/events", methods=["GET"])
 def get_calendar_events_for_frontend():
-    """API endpoint to fetch upcoming Google Calendar events for frontend display."""
-    with start_transaction(op="api", name="get_frontend_events") as transaction:
-        service = get_google_calendar_service()
-        if not service:
-            logger.error("Failed to get Google Calendar service for /events endpoint")
-            set_tag("api_status", "service_init_failed")
-            return jsonify({"status": "error", "message": "Could not connect to Google Calendar"}), 500
-
+    """API endpoint to fetch published Notion events for frontend display."""
+    with start_transaction(op="api", name="get_frontend_events_notion") as transaction:
         try:
-            now = datetime.now(timezone.utc).isoformat()
-            logger.info(f"Fetching upcoming events from Google Calendar ID: {config.GOOGLE_CALENDAR_ID}")
-            set_context("calendar_fetch", {
-                "calendar_id": config.GOOGLE_CALENDAR_ID,
-                "time_min": now,
-                "max_results": 50
-            })
-            
-            with transaction.start_child(op="fetch", description="list_events") as span:
-                events_result = service.events().list(
-                    calendarId=config.GOOGLE_CALENDAR_ID,
-                    timeMin=now,
-                    maxResults=50,  # Limit the number of results, adjust as needed
-                    singleEvents=True,
-                    orderBy='startTime'
-                ).execute()
-                
-                items = events_result.get('items', [])
-                span.set_data("raw_event_count", len(items))
-            
-            # Format events for frontend consumption
-            with transaction.start_child(op="format", description="format_events") as span:
+            database_id = config.NOTION_DATABASE_ID
+            if not database_id:
+                 logger.error("Required configuration NOTION_DATABASE_ID is missing in .env")
+                 set_tag("config_error", "missing_database_id")
+                 return jsonify({"status": "error", "message": "Notion database ID not configured."}), 500
+
+            set_context("notion_fetch", {"database_id": database_id})
+            logger.info(f"Fetching published events from Notion database ID: {database_id}")
+
+            # 1. Fetch events from Notion
+            with transaction.start_child(op="fetch", description="fetch_notion_events") as span:
+                notion_events_raw = fetch_notion_events(database_id)
+                if notion_events_raw is None: # Check if fetch failed
+                    logger.error("Failed to fetch events from Notion for /events endpoint.")
+                    set_tag("api_status", "notion_fetch_failed")
+                    return jsonify({"status": "error", "message": "Could not fetch events from Notion."}), 500
+                span.set_data("raw_event_count", len(notion_events_raw))
+
+            # 2. Parse Notion events
+            with transaction.start_child(op="parse", description="parse_notion_events") as span:
+                # parse_event_data returns events formatted for Google Calendar API,
+                # including internal 'notion_page_id' and 'gcal_id'.
+                # We need to adapt this format for the frontend.
+                parsed_events = parse_event_data(notion_events_raw)
+                span.set_data("parsed_event_count", len(parsed_events))
+
+            # 3. Format for Frontend
+            with transaction.start_child(op="format", description="format_events_for_frontend") as span:
                 frontend_events = []
-                for item in items:
-                    start = item.get('start', {}).get('dateTime', item.get('start', {}).get('date'))
-                    end = item.get('end', {}).get('dateTime', item.get('end', {}).get('date'))
-                    
-                    frontend_events.append({
-                        'id': item.get('id'),
-                        'title': item.get('summary'),
+                for event_data in parsed_events:
+                    # Extract start/end times (handle both date and dateTime)
+                    start_obj = event_data.get('start', {})
+                    end_obj = event_data.get('end', {})
+                    start = start_obj.get('dateTime', start_obj.get('date'))
+                    end = end_obj.get('dateTime', end_obj.get('date'))
+
+                    # Construct frontend event object
+                    frontend_event = {
+                        'id': event_data.get('notion_page_id'), # Use Notion page ID as the unique ID
+                        'title': event_data.get('summary'),
                         'start': start,
                         'end': end,
-                        'location': item.get('location'),
-                        'description': item.get('description'),
-                        'url': item.get('htmlLink') # Link to the event in Google Calendar
-                    })
-                
+                        'location': event_data.get('location'),
+                        'description': event_data.get('description'),
+                        'url': None # Notion events don't have a direct Google Calendar URL
+                        # Add other relevant fields if needed, e.g., event type?
+                    }
+                    # Remove keys with None values
+                    frontend_events.append({k: v for k, v in frontend_event.items() if v is not None})
+
                 span.set_data("formatted_event_count", len(frontend_events))
-            
-            logger.info(f"Successfully fetched {len(frontend_events)} events for frontend")
+
+            logger.info(f"Successfully fetched and formatted {len(frontend_events)} events from Notion for frontend")
             set_tag("api_status", "success")
             return jsonify({"status": "success", "events": frontend_events}), 200
 
-        except HttpError as e:
+        except APIResponseError as e: # Catch Notion specific errors
             capture_exception(e)
-            logger.error(f"HTTP error fetching calendar events: {e.resp.status} - {e.error_details}")
-            set_context("http_error", {"status": e.resp.status, "details": e.error_details})
-            return jsonify({"status": "error", "message": f"Error fetching calendar events: {str(e)}"}), 500
-            
+            logger.error(f"Notion API error fetching events: {e.code} - {str(e)}")
+            set_context("notion_error", {"code": e.code, "message": str(e)})
+            set_tag("api_status", "notion_api_error")
+            return jsonify({"status": "error", "message": f"Error fetching events from Notion: {str(e)}"}), 500
         except Exception as e:
             capture_exception(e)
-            logger.error(f"Error fetching calendar events for frontend: {str(e)}")
+            logger.error(f"Error fetching calendar events for frontend from Notion: {str(e)}")
+            set_tag("api_status", "unexpected_error")
             set_tag("error_type", "unexpected")
-            return jsonify({"status": "error", "message": f"Error fetching calendar events: {str(e)}"}), 500
+            return jsonify({"status": "error", "message": f"An unexpected error occurred: {str(e)}"}), 500
 
 
 @calendar_blueprint.route("/delete-all-events", methods=["POST"])
