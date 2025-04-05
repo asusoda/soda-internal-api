@@ -269,17 +269,48 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
             # 2. Build lookup dictionaries for GCal events
             gcal_events_by_id = {} # GCal ID -> GCal Event
-            gcal_events_by_notion_id = {} # Notion Page ID -> GCal Event
+            gcal_events_by_notion_id = {} # Notion Page ID -> List of GCal Events
+            duplicates_to_delete = set() # Set of GCal IDs to delete due to being duplicates
+            
+            # First pass: Group events by Notion ID and build gcal_events_by_id
             for event in all_gcal_events_raw:
                 gcal_id = event.get('id')
                 notion_page_id_from_gcal = event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
+                
                 if gcal_id:
                     gcal_events_by_id[gcal_id] = event
+                    
                 if notion_page_id_from_gcal:
-                    # Handle potential duplicates (shouldn't happen with unique Notion IDs)
-                    if notion_page_id_from_gcal in gcal_events_by_notion_id:
-                         logger.warning(f"Duplicate Notion Page ID '{notion_page_id_from_gcal}' found in Google Calendar events {gcal_events_by_notion_id[notion_page_id_from_gcal]['id']} and {gcal_id}. Using the latter.")
-                    gcal_events_by_notion_id[notion_page_id_from_gcal] = event
+                    if notion_page_id_from_gcal not in gcal_events_by_notion_id:
+                        gcal_events_by_notion_id[notion_page_id_from_gcal] = []
+                    gcal_events_by_notion_id[notion_page_id_from_gcal].append(event)
+            
+            # Second pass: Handle duplicates by keeping only the most recently updated event
+            for notion_id, events in gcal_events_by_notion_id.items():
+                if len(events) > 1:
+                    # Sort events by updated timestamp, most recent first
+                    sorted_events = sorted(events,
+                        key=lambda e: e.get('updated', ''),
+                        reverse=True
+                    )
+                    
+                    # Keep the most recently updated event
+                    kept_event = sorted_events[0]
+                    kept_event_id = kept_event['id']
+                    
+                    # Mark all other events for deletion
+                    for duplicate in sorted_events[1:]:
+                        duplicate_id = duplicate['id']
+                        duplicates_to_delete.add(duplicate_id)
+                        logger.warning(
+                            f"Marking duplicate event '{duplicate.get('summary', 'Unknown Event')}' "
+                            f"(ID: {duplicate_id}) for deletion. Keeping more recent event "
+                            f"'{kept_event.get('summary', 'Unknown Event')}' (ID: {kept_event_id}) "
+                            f"for Notion ID: {notion_id}"
+                        )
+                    
+                    # Update gcal_events_by_notion_id to only contain the kept event
+                    gcal_events_by_notion_id[notion_id] = kept_event
 
             # 3. Build lookup for parsed Notion events (passed into the function)
             notion_events_by_id = {
@@ -339,14 +370,23 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
                         set_context("failed_event", event_context)
 
 
-            # 5. Handle Deletions
-            # 5. Handle Deletions: Delete GCal events whose Notion counterpart is gone or if link is missing
-            ids_to_delete = set()
+            # 5. Handle Deletions: Delete GCal events that are duplicates, lack Notion IDs, or reference non-existent Notion events
             current_notion_ids = set(notion_events_by_id.keys()) # Set of Notion IDs from the current fetch
+            ids_to_delete = set()
 
             with transaction.start_child(op="deletion_check", description="check_for_deleted_events"):
                 logger.info(f"Checking {len(gcal_events_by_id)} fetched GCal events against {len(current_notion_ids)} current Notion events for potential deletion.")
+                
+                # First add all duplicate events to deletion set
+                ids_to_delete.update(duplicates_to_delete)
+                logger.info(f"Marked {len(duplicates_to_delete)} duplicate events for deletion")
+                
+                # Then check for events without Notion IDs or with invalid Notion IDs
                 for gcal_id, gcal_event in gcal_events_by_id.items():
+                    # Skip if already marked for deletion as a duplicate
+                    if gcal_id in duplicates_to_delete:
+                        continue
+                        
                     private_props = gcal_event.get('extendedProperties', {}).get('private', {})
                     notion_page_id_from_gcal = private_props.get('notionPageId')
                     summary = gcal_event.get('summary', 'Unknown Event')
@@ -363,6 +403,13 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
             # Use the calculated ids_to_delete set directly
             final_ids_to_delete = ids_to_delete
+            
+            # Log summary of what will be deleted
+            duplicate_count = len(duplicates_to_delete)
+            no_notion_id_count = sum(1 for id in final_ids_to_delete if id not in duplicates_to_delete)
+            logger.info(f"Total events marked for deletion: {len(final_ids_to_delete)} "
+                       f"({duplicate_count} duplicates, "
+                       f"{no_notion_id_count} without valid Notion IDs)")
 
             if final_ids_to_delete:
                 with transaction.start_child(op="delete", description="batch_delete") as delete_span:
