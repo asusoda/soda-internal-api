@@ -260,15 +260,17 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
         results = []
         
         try:
-            # 1. Fetch only events previously synced from Notion using the new function
-            with transaction.start_child(op="fetch", description="get_synced_gcal_events") as span:
-                synced_gcal_events_raw = get_synced_gcal_events(service, config.GOOGLE_CALENDAR_ID)
+            # 1. Fetch all potentially relevant events from Google Calendar
+            with transaction.start_child(op="fetch", description="get_all_gcal_events_for_sync") as span:
+                # Fetch events starting from today to limit scope
+                now_utc = datetime.now(timezone.utc).isoformat()
+                all_gcal_events_raw = get_all_gcal_events_for_sync(service, config.GOOGLE_CALENDAR_ID, time_min=now_utc)
                 span.set_data("synced_event_count", len(synced_gcal_events_raw))
 
             # 2. Build lookup dictionaries for GCal events
             gcal_events_by_id = {} # GCal ID -> GCal Event
             gcal_events_by_notion_id = {} # Notion Page ID -> GCal Event
-            for event in synced_gcal_events_raw:
+            for event in all_gcal_events_raw:
                 gcal_id = event.get('id')
                 notion_page_id_from_gcal = event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
                 if gcal_id:
@@ -288,22 +290,21 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
             processed_gcal_ids = set() # Keep track of GCal events we've processed (updated or confirmed exist)
             set_context("sync_stats", {
                 "total_notion_events": len(parsed_notion_events),
-                "fetched_synced_gcal_events": len(gcal_events_by_id),
+                "fetched_gcal_events": len(gcal_events_by_id),
                 "gcal_events_by_notion_id_count": len(gcal_events_by_notion_id),
                 "notion_events_by_id_count": len(notion_events_by_id)
             })
 
-            # 4. Process Notion events for Creates/Updates
+            # 4. Process Notion events for Creates/Updates (One-Way Sync: Notion -> GCal)
             with transaction.start_child(op="process", description="process_notion_events") as process_span:
                 for notion_page_id, notion_event_data in notion_events_by_id.items():
                     # Pop internal fields before passing to GCal API functions
-                    gcal_id_from_notion = notion_event_data.pop('gcal_id', None)
+                    _ = notion_event_data.pop('gcal_id', None) # gcal_id from Notion is not used for matching anymore
                     _ = notion_event_data.pop('notion_page_id', None) # Already have it as key
                     summary = notion_event_data.get('summary', 'Unknown Event')
 
                     event_context = {
                         "notion_page_id": notion_page_id,
-                        "gcal_id_from_notion": gcal_id_from_notion,
                         "summary": summary
                     }
 
@@ -311,40 +312,23 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
                         with process_span.start_child(op="event", description=f"process_{summary}") as event_span:
                             event_span.set_data("event_context", event_context)
                             jump_url = None
-                            existing_gcal_event = None
 
-                            # --- Matching Logic ---
-                            # Priority 1: Match by GCal ID from Notion if present and valid
-                            if gcal_id_from_notion and gcal_id_from_notion in gcal_events_by_id:
-                                set_tag("event_match", "gcal_id_match")
-                                existing_gcal_event = gcal_events_by_id[gcal_id_from_notion]
-                                logger.info(f"Matched '{summary}' by GCAL ID: {gcal_id_from_notion}. Updating.")
-                                jump_url = update_event(service, config.GOOGLE_CALENDAR_ID, gcal_id_from_notion, notion_event_data)
-                                processed_gcal_ids.add(gcal_id_from_notion)
+                            # --- Simplified Matching Logic (Based on Notion ID in GCal) ---
+                            existing_gcal_event = gcal_events_by_notion_id.get(notion_page_id)
 
-                            # Priority 2: Match by Notion Page ID if GCal ID failed or wasn't present
-                            elif notion_page_id in gcal_events_by_notion_id:
-                                set_tag("event_match", "notion_id_match")
-                                existing_gcal_event = gcal_events_by_notion_id[notion_page_id]
+                            if existing_gcal_event:
+                                # Match found based on Notion Page ID stored in GCal. Update it.
                                 existing_gcal_id = existing_gcal_event['id']
-                                logger.warning(f"Matched '{summary}' by Notion ID {notion_page_id} (GCal ID: {existing_gcal_id}). Notion GCal ID was missing or invalid ('{gcal_id_from_notion}'). Updating event and Notion.")
-                                jump_url = update_event(service, config.GOOGLE_CALENDAR_ID, existing_gcal_id, notion_event_data)
-                                # Attempt to fix the GCal ID in Notion (best effort)
-                                try:
-                                    notion.pages.update(page_id=notion_page_id, properties={"gcal_id": {"rich_text": [{"type": "text", "text": {"content": existing_gcal_id}}]}})
-                                    logger.info(f"Updated Notion page {notion_page_id} with correct GCAL ID {existing_gcal_id}")
-                                except Exception as notion_fix_e:
-                                    logger.error(f"Failed to update Notion page {notion_page_id} with correct GCAL ID {existing_gcal_id}: {notion_fix_e}")
-                                    capture_exception(notion_fix_e)
-                                processed_gcal_ids.add(existing_gcal_id)
-
-                            # No Match: Create new event
+                                set_tag("event_match", "notion_id_match_update")
+                                logger.info(f"Matched '{summary}' by Notion ID {notion_page_id} stored in GCal event {existing_gcal_id}. Updating.")
+                                jump_url = update_event(service, config.GOOGLE_CALENDAR_ID, existing_gcal_id, notion_event_data, notion_page_id)
+                                processed_gcal_ids.add(existing_gcal_id) # Mark GCal event as processed
                             else:
+                                # No match found based on Notion Page ID in GCal. Create a new event.
                                 set_tag("event_match", "no_match_create")
-                                logger.info(f"No match found for '{summary}' (Notion ID: {notion_page_id}). Creating new event.")
-                                # Pass the original notion_page_id to create_event for extended properties
+                                logger.info(f"No existing GCal event found for Notion ID {notion_page_id} ('{summary}'). Creating new event.")
                                 jump_url = create_event(service, config.GOOGLE_CALENDAR_ID, notion_event_data, notion_page_id)
-                                # Don't add to processed_gcal_ids here, as we don't know the ID yet, and it's not needed for deletion logic
+                                # Note: The created event's ID isn't added to processed_gcal_ids because it wasn't in the initial fetch.
 
                             if jump_url:
                                 results.append({"summary": summary, "jump_url": jump_url})
@@ -356,14 +340,15 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
 
             # 5. Handle Deletions
-            # 5. Handle Deletions: Delete synced GCal events whose Notion counterpart is gone or if link is missing
+            # 5. Handle Deletions: Delete GCal events whose Notion counterpart is gone or if link is missing
             ids_to_delete = set()
             current_notion_ids = set(notion_events_by_id.keys()) # Set of Notion IDs from the current fetch
 
             with transaction.start_child(op="deletion_check", description="check_for_deleted_events"):
-                logger.info(f"Checking {len(gcal_events_by_id)} synced GCal events against {len(current_notion_ids)} current Notion events.")
+                logger.info(f"Checking {len(gcal_events_by_id)} fetched GCal events against {len(current_notion_ids)} current Notion events for potential deletion.")
                 for gcal_id, gcal_event in gcal_events_by_id.items():
-                    notion_page_id_from_gcal = gcal_event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
+                    private_props = gcal_event.get('extendedProperties', {}).get('private', {})
+                    notion_page_id_from_gcal = private_props.get('notionPageId')
                     summary = gcal_event.get('summary', 'Unknown Event')
 
                     # Delete if the GCal event doesn't have a Notion ID stored,
@@ -372,8 +357,9 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
                         logger.warning(f"Marking GCal event '{summary}' (ID: {gcal_id}) for deletion because it lacks a notionPageId property.")
                         ids_to_delete.add(gcal_id)
                     elif notion_page_id_from_gcal not in current_notion_ids:
-                        logger.info(f"Marking GCal event '{summary}' (ID: {gcal_id}, linked Notion ID: {notion_page_id_from_gcal}) for deletion because the Notion event was not found in the current fetch.")
+                        logger.info(f"Marking GCal event '{summary}' (ID: {gcal_id}, linked Notion ID: {notion_page_id_from_gcal}) for deletion because the corresponding Notion event was not found in the current fetch.")
                         ids_to_delete.add(gcal_id)
+                    # No 'else' needed - if it has a valid notionPageId that exists in Notion, we keep it.
 
             # Use the calculated ids_to_delete set directly
             final_ids_to_delete = ids_to_delete
@@ -407,37 +393,40 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
             logger.error(f"Error updating Google Calendar: {str(e)}")
             return []
 
-def get_synced_gcal_events(service: Any, calendar_id: str) -> List[Dict]:
-    """Get all Google Calendar events previously synced from Notion.
+def get_all_gcal_events_for_sync(service: Any, calendar_id: str, time_min: Optional[str] = None) -> List[Dict]:
+    """Get all Google Calendar events for sync comparison.
 
-    Fetches events that have the 'syncedFromNotion=true' private extended property.
+    Fetches events from the specified calendar, optionally filtering by a minimum start time.
     Handles pagination to retrieve all matching events.
 
     Args:
         service: Authenticated Google Calendar service instance
         calendar_id: ID of the target calendar
+        time_min: Optional ISO 8601 timestamp to fetch events starting from this time.
 
     Returns:
-        List of synced calendar events in Google API format, or empty list on error.
+        List of calendar events in Google API format, or empty list on error.
     """
-    with start_transaction(op="google", name="get_synced_gcal_events") as transaction:
+    with start_transaction(op="google", name="get_all_gcal_events_for_sync") as transaction:
         all_synced_events = []
         page_token = None
         try:
-            set_context("synced_calendar_fetch", {
+            fetch_params = {
                 "calendar_id": calendar_id,
-                "privateExtendedProperty": "syncedFromNotion=true"
-            })
-            logger.info(f"Fetching synced events from calendar {calendar_id} using privateExtendedProperty.")
+                "time_min": time_min
+            }
+            set_context("gcal_event_fetch", fetch_params)
+            logger.info(f"Fetching events from calendar {calendar_id}" + (f" starting from {time_min}" if time_min else "") + ".")
 
             while True:
                 with transaction.start_child(op="list_page", description="list_events_page") as span:
                     events_result = service.events().list(
                         calendarId=calendar_id,
-                        privateExtendedProperty="syncedFromNotion=true",
-                        singleEvents=True, # Keep singleEvents=True if handling recurring events is not needed/complex
+                        calendarId=calendar_id,
+                        singleEvents=True, # Expand recurring events
                         showDeleted=False, # Don't include deleted events
                         pageToken=page_token,
+                        timeMin=time_min, # Add timeMin filter
                         maxResults=250 # Fetch in batches
                     ).execute()
 
@@ -451,48 +440,46 @@ def get_synced_gcal_events(service: Any, calendar_id: str) -> List[Dict]:
                     if not page_token:
                         break # Exit loop if no more pages
 
-            logger.info(f"Fetched a total of {len(all_synced_events)} synced events from Google Calendar.")
-            transaction.set_data("total_synced_events", len(all_synced_events))
+            logger.info(f"Fetched a total of {len(all_synced_events)} events from Google Calendar.")
+            transaction.set_data("total_fetched_events", len(all_synced_events))
             return all_synced_events
                 
         except HttpError as e:
             capture_exception(e)
-            logger.error(f"HTTP error fetching synced calendar events: {e.resp.status} - {e.error_details}")
+            logger.error(f"HTTP error fetching calendar events: {e.resp.status} - {e.error_details}")
             set_context("http_error", {"status": e.resp.status, "details": e.error_details})
             return [] # Return empty list on error
         except Exception as e:
             capture_exception(e)
-            logger.error(f"Unexpected error fetching synced calendar events: {str(e)}")
+            logger.error(f"Unexpected error fetching calendar events: {str(e)}")
             set_tag("error_type", "unexpected")
             return [] # Return empty list on error
 
 # Removed find_matching_event as matching is now based on gcal_id stored in Notion
 
 def update_event(service: Any, calendar_id: str, event_id: str,
-                event_data: Dict) -> Optional[str]:
-    """Update existing Google Calendar event.
-    
+                 event_data: Dict, notion_page_id: str) -> Optional[str]:
+    """Update existing Google Calendar event and ensure sync properties are set.
+
     Args:
         service: Authenticated Google Calendar service
         calendar_id: Target calendar ID
         event_id: ID of event to update
-        event_data: New event data
-    
+        event_data: New event data from Notion (parsed)
+        notion_page_id: The Notion Page ID corresponding to this event.
+
     Returns:
         Event HTML link if successful, None otherwise
     """
     with start_transaction(op="google", name="update_event") as transaction:
-        # Ensure extended properties are preserved/added
+        # Ensure extended properties structure exists and set Notion ID
         if 'extendedProperties' not in event_data:
-            event_data['extendedProperties'] = {'private': {}}
-        elif 'private' not in event_data['extendedProperties']:
+            event_data['extendedProperties'] = {}
+        if 'private' not in event_data['extendedProperties']:
              event_data['extendedProperties']['private'] = {}
-        # We assume notionPageId might not be readily available here,
-        # but ensure the sync marker is present if possible.
-        # The main addition happens in create_event.
-        # If we fetched the event before updating, we could preserve notionPageId.
-        # For now, just ensure the structure exists.
-        # event_data['extendedProperties']['private']['syncedFromNotion'] = 'true' # Add if missing?
+
+        # Store the Notion Page ID
+        event_data['extendedProperties']['private']['notionPageId'] = notion_page_id
 
         try:
             set_context("event_update", {
@@ -544,10 +531,9 @@ def create_event(service: Any, calendar_id: str,
         Event HTML link if successful, None otherwise
     """
     with start_transaction(op="google", name="create_event") as transaction:
-        # Add extended properties to mark the event and store Notion ID
+        # Add extended properties to store Notion ID
         event_data['extendedProperties'] = {
             'private': {
-                'syncedFromNotion': 'true',
                 'notionPageId': notion_page_id
             }
         }
@@ -698,11 +684,11 @@ def clear_synced_events() -> None: # Renamed function
 
         except HttpError as e:
             capture_exception(e)
-            logger.error(f"HTTP error clearing synced events: {e.resp.status} - {e.error_details}")
+            logger.error(f"HTTP error clearing managed events: {e.resp.status} - {e.error_details}")
             set_context("http_error", {"status": e.resp.status, "details": e.error_details})
         except Exception as e:
             capture_exception(e)
-            logger.error(f"Unexpected error clearing synced events: {str(e)}")
+            logger.error(f"Unexpected error clearing managed events: {str(e)}")
             set_tag("error_type", "unexpected")
 
 def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
@@ -735,8 +721,8 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                     }
                     span.set_data("event_context", event_context)
                     
-                    # Extract the gcal_id using the helper function
-                    gcal_id_text = extract_property(properties, 'gcal_id', 'rich_text')
+                    # gcal_id from Notion is no longer used
+                    # gcal_id_text = extract_property(properties, 'gcal_id', 'rich_text')
 
                     # --- Date/Time Parsing ---
                     date_prop = properties.get('Date', {}).get('date', {})
@@ -963,101 +949,9 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
 # in the calling function (parse_event_data). This helper only parses a single provided string.
 
 # Removed placeholder function and orphaned code block
-
-
-def delete_duplicate_synced_gcal_events(service: Any, calendar_id: str) -> None:
-    """
-    Finds and deletes duplicate Google Calendar events (based on summary)
-    that were previously synced from Notion. Keeps the oldest event for each summary.
-    """
-    with start_transaction(op="google", name="delete_duplicate_synced_events") as transaction:
-        logger.info(f"Starting duplicate check for synced events in calendar: {calendar_id}")
-        set_context("duplicate_check", {"calendar_id": calendar_id})
-
-        try:
-            # 1. Fetch all synced events
-            with transaction.start_child(op="fetch", description="get_synced_gcal_events") as fetch_span:
-                synced_events = get_synced_gcal_events(service, calendar_id)
-                fetch_span.set_data("synced_events_found", len(synced_events))
-
-            if not synced_events:
-                logger.info("No synced events found, skipping duplicate check.")
-                return
-
-            # 2. Group events by summary
-            events_by_summary: Dict[str, List[Dict]] = {}
-            for event in synced_events:
-                summary = event.get('summary')
-                if summary: # Only consider events with summaries
-                    if summary not in events_by_summary:
-                        events_by_summary[summary] = []
-                    events_by_summary[summary].append(event)
-
-            # 3. Identify duplicates (keep the oldest)
-            ids_to_delete = set()
-            duplicate_count = 0
-            with transaction.start_child(op="identify", description="identify_duplicates") as identify_span:
-                for summary, events in events_by_summary.items():
-                    if len(events) > 1:
-                        # Sort by creation time (oldest first)
-                        # Google API 'created' time format: '2024-05-10T15:30:00.000Z'
-                        try:
-                            events.sort(key=lambda x: datetime.fromisoformat(x['created'].replace('Z', '+00:00')))
-                            # Mark all except the first one (oldest) for deletion
-                            for i in range(1, len(events)):
-                                event_to_delete = events[i]
-                                event_id = event_to_delete.get('id')
-                                if event_id:
-                                    ids_to_delete.add(event_id)
-                                    duplicate_count += 1
-                                    logger.warning(f"Marking duplicate event for deletion: '{summary}' (ID: {event_id}, Created: {event_to_delete.get('created')})")
-                        except KeyError as e:
-                             logger.error(f"Could not sort events for summary '{summary}' due to missing key: {e}. Skipping this group.")
-                             capture_exception(e)
-                        except Exception as e_sort:
-                             logger.error(f"Error sorting events for summary '{summary}': {e_sort}. Skipping this group.")
-                             capture_exception(e_sort)
-
-
-                identify_span.set_data("duplicates_found", duplicate_count)
-                identify_span.set_data("summaries_with_duplicates", len([s for s, ev in events_by_summary.items() if len(ev) > 1]))
-
-
-            # 4. Batch delete identified duplicates
-            if ids_to_delete:
-                logger.info(f"Found {len(ids_to_delete)} duplicate synced events to delete.")
-                with transaction.start_child(op="delete", description="batch_delete_duplicates") as delete_span:
-                    delete_span.set_data("delete_count", len(ids_to_delete))
-                    batch = service.new_batch_http_request(callback=handle_batch_delete_response)
-                    for event_id_to_delete in ids_to_delete:
-                         # Add delete request to the batch
-                         logger.debug(f"Adding delete request for duplicate event ID: {event_id_to_delete} to batch.")
-                         batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id_to_delete))
-
-                    try:
-                        batch.execute()
-                        logger.info(f"Batch delete request executed for {len(ids_to_delete)} duplicate events.")
-                    except HttpError as e:
-                        capture_exception(e)
-                        logger.error(f"HTTP error executing batch delete for duplicates: {e.resp.status} - {e.error_details}")
-                        set_context("batch_delete_error", {"status": e.resp.status, "details": e.error_details})
-                    except Exception as e:
-                        capture_exception(e)
-                        logger.error(f"Unexpected error executing batch delete for duplicates: {str(e)}")
-            else:
-                logger.info("No duplicate synced events found to delete.")
-
-        except HttpError as e:
-            capture_exception(e)
-            logger.error(f"HTTP error during duplicate check: {e.resp.status} - {e.error_details}")
-            set_context("http_error", {"status": e.resp.status, "details": e.error_details})
-        except Exception as e:
-            capture_exception(e)
-            logger.error(f"Unexpected error during duplicate check: {str(e)}")
-            set_tag("error_type", "unexpected_duplicate_check")
-
-
-
+# Removed delete_duplicate_synced_gcal_events function as requested.
+# The logic in update_google_calendar already handles deleting "straggler" events
+# (GCal events whose Notion counterpart is missing or unlinked).
 @calendar_blueprint.route("/events", methods=["GET"])
 def get_calendar_events_for_frontend():
     """API endpoint to fetch published Notion events for frontend display."""
