@@ -2,7 +2,6 @@ from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import BatchHttpRequest # Added for batch operations
 from datetime import datetime, timedelta, timezone
 import json
 from typing import List, Dict, Optional, Any
@@ -11,7 +10,6 @@ from notion_client import APIErrorCode, APIResponseError
 from shared import config, notion, logger, sentry_sdk
 from sentry_sdk import capture_exception, set_tag, set_context, start_transaction
 import pytz
-from dateutil import tz # Added for timezone handling
 calendar_blueprint = Blueprint("calendar", __name__)
 
 def get_google_calendar_service():
@@ -42,12 +40,12 @@ def get_google_calendar_service():
             set_tag("google_service_init", "failed")
             return None
 
-@calendar_blueprint.route("/notion-webhook", methods=["POST", "GET"])
+@calendar_blueprint.route("/notion-webhook", methods=["POST"]) # Only allow POST
 def notion_webhook():
     with start_transaction(op="webhook", name="notion_webhook") as transaction:
-        # Any request (GET or POST) triggers a full sync
-        set_tag("request_type", request.method)
-        logger.info(f"Received {request.method} request, triggering full Notion sync.")
+        # POST request triggers a full sync
+        set_tag("request_type", "POST")
+        logger.info("Received POST request, triggering full Notion sync.")
         
         try:
             database_id = config.NOTION_DATABASE_ID
@@ -68,8 +66,8 @@ def notion_webhook():
                 # Fetch succeeded, but returned zero events
                 logger.warning("Successfully fetched 0 published future events from Notion. Clearing future Google Calendar events.")
                 set_tag("sync_status", "no_events")
-                with transaction.start_child(op="clear", description="clear_future_events"):
-                    clear_future_events()
+                with transaction.start_child(op="clear", description="clear_synced_events"):
+                    clear_synced_events() # Renamed function
                 return jsonify({
                     "status": "success",
                     "message": "Successfully fetched 0 events from Notion. Future Google Calendar events cleared."
@@ -204,11 +202,11 @@ def fetch_notion_events(database_id: str) -> Optional[List[Dict]]:
     """Fetch all relevant (published, future) events from Notion database using pagination."""
     with start_transaction(op="notion", name="fetch_notion_events") as transaction:
         try:
-            now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            logger.info(f"Fetching all published Notion events on or after {now} using pagination.")
+            # now = datetime.now(timezone.utc).strftime("%Y-%m-%d") # Date filter removed, fetching all published
+            logger.info("Fetching all published Notion events using pagination.")
             set_context("notion_query", {
-                "database_id": database_id,
-                "date_from": now
+                "database_id": database_id
+                # "date_from": now # Removed date filter context
             })
             
             # Define the filter - Fetch ALL published events, regardless of date
@@ -563,8 +561,8 @@ def create_event(service: Any, calendar_id: str,
             
             with transaction.start_child(op="create", description="create_gcal_event") as span:
                 # Log the event data being sent to Google API for debugging 400 errors
-                import json # Make sure json is imported if not already at top level
-                logger.debug(f"Attempting to create Google Calendar event with data: {json.dumps(event_data, indent=2)}")
+                # import json # Redundant local import removed
+                logger.debug(f"Attempting to create Google Calendar event with data: {json.dumps(event_data, indent=2, default=str)}") # Added default=str for serialization
                 
                 created_event = service.events().insert(
                     calendarId=calendar_id,
@@ -626,7 +624,7 @@ def create_event(service: Any, calendar_id: str,
             # Add the problematic payload to Sentry context for easier debugging
             try:
                 # Use json.dumps for better readability in Sentry if event_data is complex
-                import json
+                # import json # Redundant local import removed
                 set_context("google_api_request_body", json.loads(json.dumps(event_data, default=str))) # Use default=str for non-serializable types
             except Exception as context_err:
                 logger.error(f"Failed to add event_data to Sentry context: {context_err}")
@@ -655,9 +653,9 @@ def handle_batch_delete_response(request_id, response, exception):
         logger.debug(f"Batch delete request {request_id} successful.")
         set_tag("batch_delete_status", "success")
 
-def clear_future_events() -> None:
+def clear_synced_events() -> None: # Renamed function
     """Clear all Google Calendar events previously synced from Notion using batch delete."""
-    with start_transaction(op="google", name="clear_future_events") as transaction:
+    with start_transaction(op="google", name="clear_synced_events") as transaction: # Renamed transaction name
         service = get_google_calendar_service()
         if not service:
             logger.error("Failed to get Google Calendar service for clearing events.")
@@ -755,59 +753,59 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                         logger.warning(f"Skipping event {notion_page_id}: Missing or invalid start date string: {start_str}")
                         continue # Skip to the next event in the loop
 
-                    # If end is missing or invalid, calculate a default 1-hour duration
+                    # If end is missing or invalid, handle based on start type
                     if not parsed_end:
-                        logger.debug(f"End date missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default 1-hour duration.")
-                        try:
-                            tz_str = config.TIMEZONE
-                            tz = pytz.timezone(tz_str)
-
-                            if 'date' in parsed_start:
+                        if 'date' in parsed_start:
+                            # All-day event: End date should be the day after the start date for Google Calendar
+                            try:
                                 start_date_obj = datetime.strptime(parsed_start['date'], '%Y-%m-%d')
-                                # Combine date with 7:30 PM time (19:30)
-                                start_dt_naive_with_time = datetime.combine(start_date_obj.date(), datetime.min.time()) + timedelta(hours=19, minutes=30)
-                                # Localize to the configured timezone
-                                start_dt_aware = tz.localize(start_dt_naive_with_time)
-                                end_dt_aware = start_dt_aware + timedelta(hours=1) # Default 1 hour duration
+                                end_date_obj = start_date_obj + timedelta(days=1)
+                                parsed_end = {"date": end_date_obj.strftime('%Y-%m-%d')}
+                                logger.debug(f"End date missing for all-day event {notion_page_id}. Setting end date to {parsed_end['date']}.")
+                            except ValueError as e_date:
+                                logger.error(f"Error calculating end date for all-day event {notion_page_id}: {e_date}")
+                                capture_exception(e_date)
+                                # Fallback: If calculation fails, skip event? Or use start date? Using start date for now.
+                                parsed_end = parsed_start.copy()
+                                logger.warning(f"Falling back to using start date as end date for all-day event {notion_page_id}.")
 
-                                # Update parsed_start to be a dateTime event
-                                parsed_start = {
-                                    "dateTime": start_dt_aware.isoformat(),
-                                    "timeZone": tz_str
-                                }
-                                parsed_end = {
-                                    "dateTime": end_dt_aware.isoformat(),
-                                    "timeZone": tz_str
-                                }
-                                logger.debug(f"Calculated default start/end for all-day: {parsed_start['dateTime']} / {parsed_end['dateTime']}")
+                        elif 'dateTime' in parsed_start:
+                            # Specific time event: Calculate a default 1-hour duration
+                            logger.debug(f"End dateTime missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default 1-hour duration.")
+                            try:
+                                tz_str = parsed_start.get('timeZone', config.TIMEZONE) # Use start's timezone or default
+                                tz = pytz.timezone(tz_str)
 
-                            elif 'dateTime' in parsed_start: # Specific time event
-                                # Parse the start dateTime string
-                                start_dt_naive = datetime.fromisoformat(parsed_start['dateTime'].replace('Z', '+00:00'))
-                                # Assume it's in the configured timezone if not specified otherwise (Google API might handle this)
-                                # For calculation, let's make it timezone-aware if possible
-                                if start_dt_naive.tzinfo is None:
-                                     start_dt_aware = tz.localize(start_dt_naive)
+                                # Parse the start dateTime string, handling potential 'Z'
+                                start_dt_iso = parsed_start['dateTime']
+                                start_dt_obj = datetime.fromisoformat(start_dt_iso.replace('Z', '+00:00'))
+
+                                # Make it timezone-aware using the determined timezone if it's naive
+                                if start_dt_obj.tzinfo is None:
+                                    start_dt_aware = tz.localize(start_dt_obj)
                                 else:
-                                     start_dt_aware = start_dt_naive # Already has timezone
+                                    # If it has timezone info, convert it to the target timezone for consistency
+                                    start_dt_aware = start_dt_obj.astimezone(tz)
 
                                 # Default duration is 1 hour
                                 end_dt_aware = start_dt_aware + timedelta(hours=1)
                                 parsed_end = {
                                     "dateTime": end_dt_aware.isoformat(),
-                                    "timeZone": parsed_start.get('timeZone', tz_str) # Use original timezone or default
+                                    "timeZone": tz_str # Use the same timezone as start
                                 }
                                 logger.debug(f"Calculated default end dateTime: {parsed_end['dateTime']}")
-                            else:
-                                # Should not happen if parsed_start is valid
-                                raise ValueError("Parsed start date object is in an unexpected format.")
 
-                        except Exception as e_calc:
-                            logger.error(f"Error calculating default 1-hour end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
-                            capture_exception(e_calc)
-                            # Fallback: Use start time as end time to satisfy API requirement (less ideal now)
-                            parsed_end = parsed_start.copy() # Use a copy to avoid modifying original start
-                            logger.warning(f"Falling back to using start time as end time for event {notion_page_id}.")
+                            except Exception as e_calc:
+                                logger.error(f"Error calculating default 1-hour end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
+                                capture_exception(e_calc)
+                                # Fallback: Use start time as end time to satisfy API requirement
+                                parsed_end = parsed_start.copy() # Use a copy
+                                logger.warning(f"Falling back to using start time as end time for event {notion_page_id}.")
+                        else:
+                             # Should not happen if parsed_start is valid
+                             logger.error(f"Parsed start date object for {notion_page_id} is in an unexpected format: {parsed_start}. Skipping end date calculation.")
+                             # Fallback: Use start time as end time
+                             parsed_end = parsed_start.copy()
 
                     # --- Assemble Final Payload ---
                     event_data = {
@@ -923,11 +921,14 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
     except ValueError:
         # If date parse fails, attempt to parse as a full ISO 8601 dateTime string
         try:
-            datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
-            # If successful, it's a dateTime
+            # Parse as ISO 8601 dateTime string
+            dt_obj = datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
+            # Determine timezone: Use original if present, otherwise default
+            tz_info = dt_obj.tzinfo
+            time_zone_str = tz_info.tzname(None) if tz_info else config.TIMEZONE
             return {
-                "dateTime": cleaned_date_str, # Use the cleaned string
-                "timeZone": config.TIMEZONE # Assumes config.TIMEZONE is defined and valid
+                "dateTime": cleaned_date_str, # Use the original cleaned string
+                "timeZone": time_zone_str
             }
         except ValueError:
             # If both parsing attempts fail, log warning and return None
@@ -939,9 +940,8 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
         capture_exception(e)
         return None
 
-# Note: The logic for calculating default end times needs to be handled
-# in the calling function (parse_event_data) where both start and end
-# strings are available. This helper only parses a single provided string.
+# Note: The logic for calculating default end times is handled
+# in the calling function (parse_event_data). This helper only parses a single provided string.
 
 # Removed placeholder function and orphaned code block
 
@@ -1113,7 +1113,7 @@ def delete_all_calendar_events():
     USE WITH CAUTION. This is intended for hard resets.
     """
     with start_transaction(op="admin", name="delete_all_events") as transaction:
-        logger.warning("Received request to DELETE ALL Google Calendar events.")
+        logger.warning("Received request to DELETE ALL Google Calendar events. THIS IS A DESTRUCTIVE OPERATION.")
         service = get_google_calendar_service()
         if not service:
             set_tag("google_service", "failed")
@@ -1125,8 +1125,15 @@ def delete_all_calendar_events():
             logger.error("GOOGLE_CALENDAR_ID not configured. Aborting delete.")
             return jsonify({"status": "error", "message": "Google Calendar ID not configured."}), 500
 
-        set_context("delete_all", {"calendar_id": calendar_id})
-        logger.info(f"Starting deletion process for calendar: {calendar_id}")
+        # --- SAFETY CHECK ---
+        # Add a configuration flag or environment check to prevent accidental execution in production
+        if not getattr(config, 'ALLOW_DELETE_ALL', False): # Check for a config flag (defaults to False)
+            logger.error("Execution of delete_all_calendar_events prevented by configuration (ALLOW_DELETE_ALL is not True).")
+            set_tag("delete_status", "prevented_by_config")
+            return jsonify({"status": "error", "message": "Operation prevented by server configuration."}), 403 # Forbidden
+
+        logger.warning(f"ALLOW_DELETE_ALL is True. Proceeding with deletion for calendar: {calendar_id}")
+        set_context("delete_all", {"calendar_id": calendar_id, "safety_check_passed": True})
 
         all_event_ids = []
         page_token = None
@@ -1213,7 +1220,7 @@ def delete_all_calendar_events():
                         capture_exception(batch_exec_e)
                         logger.error(f"HTTP error executing batch chunk {i // BATCH_SIZE + 1}: {batch_exec_e.resp.status} - {batch_exec_e.error_details}")
                         # Increment delete_errors for all items in this failed batch chunk
-                        delete_errors += len(chunk)
+                        # Corrected: Don't increment delete_errors here, callback handles individual errors
                         set_context("batch_execution_error", {
                             "chunk_index": i // BATCH_SIZE + 1,
                             "status": batch_exec_e.resp.status,
@@ -1223,23 +1230,28 @@ def delete_all_calendar_events():
                         # Catch other unexpected errors during batch execution
                         capture_exception(batch_exec_e)
                         logger.error(f"Unexpected error executing batch chunk {i // BATCH_SIZE + 1}: {str(batch_exec_e)}")
-                        delete_errors += len(chunk)
+                        # Corrected: Don't increment delete_errors here, callback handles individual errors
                         set_context("batch_execution_error", {
                             "chunk_index": i // BATCH_SIZE + 1,
                             "error": str(batch_exec_e)
                         })
 
                 delete_span.set_data("intended_deletions", total_intended_deletions)
-                delete_span.set_data("successful_deletions", deleted_count)
-                delete_span.set_data("delete_errors", delete_errors)
+                delete_span.set_data("successful_deletions", deleted_count) # Based on callback increments
+                delete_span.set_data("delete_errors", delete_errors) # Based on callback increments
 
-            logger.info(f"Delete process finished. Total intended: {total_intended_deletions}, Successfully deleted: {deleted_count}, Errors: {delete_errors}")
+            logger.info(f"Delete process finished. Total intended: {total_intended_deletions}, Successfully deleted (via callback): {deleted_count}, Errors (via callback): {delete_errors}")
+
+            # Check if the number of successful deletions + errors matches the intended count
+            if deleted_count + delete_errors != total_intended_deletions:
+                 logger.warning(f"Mismatch in deletion count: intended={total_intended_deletions}, success={deleted_count}, errors={delete_errors}. Some operations might be unaccounted for.")
+                 set_tag("delete_status", "count_mismatch")
 
             if delete_errors > 0:
                 set_tag("delete_status", "partial_error")
                 return jsonify({
                     "status": "partial_error",
-                    "message": f"Deleted {deleted_count} events, but encountered {delete_errors} errors during deletion.",
+                    "message": f"Attempted to delete {total_intended_deletions} events. Successfully deleted {deleted_count}, encountered {delete_errors} errors during deletion.",
                     "deleted_count": deleted_count,
                     "errors": delete_errors
                 }), 207 # Multi-Status
@@ -1258,12 +1270,6 @@ def delete_all_calendar_events():
             return jsonify({"status": "error", "message": f"HTTP Error during event fetching: {e.resp.status} - {e.error_details}"}), 500
         except Exception as e: # Catch other unexpected errors (e.g., during service init or fetching)
             capture_exception(e)
-            # Check if it's the BatchError we might have missed (shouldn't happen with chunking)
-            if isinstance(e, BatchError):
-                 logger.error(f"BatchError encountered unexpectedly: {str(e)}")
-                 set_tag("delete_status", "critical_batch_error")
-                 return jsonify({"status": "error", "message": f"Batch Error: {str(e)}"}), 500
-            else:
-                 logger.error(f"Unexpected critical error during delete process: {str(e)}")
-                 set_tag("delete_status", "critical_unexpected_error")
-                 return jsonify({"status": "error", "message": f"Unexpected Error: {str(e)}"}), 500
+            logger.error(f"Unexpected critical error during delete process: {str(e)}")
+            set_tag("delete_status", "critical_unexpected_error")
+            return jsonify({"status": "error", "message": f"Unexpected Error: {str(e)}"}), 500
