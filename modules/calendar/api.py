@@ -357,18 +357,24 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
 
             # 5. Handle Deletions
+            # 5. Handle Deletions: Delete synced GCal events whose Notion counterpart is gone or if link is missing
             ids_to_delete = set()
+            current_notion_ids = set(notion_events_by_id.keys()) # Set of Notion IDs from the current fetch
+
             with transaction.start_child(op="deletion_check", description="check_for_deleted_events"):
+                logger.info(f"Checking {len(gcal_events_by_id)} synced GCal events against {len(current_notion_ids)} current Notion events.")
                 for gcal_id, gcal_event in gcal_events_by_id.items():
                     notion_page_id_from_gcal = gcal_event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
-                    # If the Notion Page ID stored in GCal is NOT in our current list of Notion events, delete the GCal event
-                    if notion_page_id_from_gcal and notion_page_id_from_gcal not in notion_events_by_id:
-                        summary = gcal_event.get('summary', 'Unknown Event')
-                        logger.info(f"Detected deletion for '{summary}' (GCal ID: {gcal_id}, Notion ID: {notion_page_id_from_gcal}). Notion event not found.")
+                    summary = gcal_event.get('summary', 'Unknown Event')
+
+                    # Delete if the GCal event doesn't have a Notion ID stored,
+                    # or if the stored Notion ID is not in the current set of Notion events.
+                    if not notion_page_id_from_gcal:
+                        logger.warning(f"Marking GCal event '{summary}' (ID: {gcal_id}) for deletion because it lacks a notionPageId property.")
                         ids_to_delete.add(gcal_id)
-                    # Also consider deleting if the GCal event somehow doesn't have the Notion ID property (maybe created before the change?)
-                    # Or if it was processed (updated) but the Notion ID didn't match (less likely with current logic)
-                    # Let's stick to the primary deletion case for now.
+                    elif notion_page_id_from_gcal not in current_notion_ids:
+                        logger.info(f"Marking GCal event '{summary}' (ID: {gcal_id}, linked Notion ID: {notion_page_id_from_gcal}) for deletion because the Notion event was not found in the current fetch.")
+                        ids_to_delete.add(gcal_id)
 
             # Use the calculated ids_to_delete set directly
             final_ids_to_delete = ids_to_delete
