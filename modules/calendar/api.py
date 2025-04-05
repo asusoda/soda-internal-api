@@ -1173,7 +1173,8 @@ def delete_all_calendar_events():
 
             # 2. Batch delete events
             with transaction.start_child(op="delete", description="batch_delete_all") as delete_span:
-                batch = service.new_batch_http_request()
+                BATCH_SIZE = 900 # Stay under the 1000 limit
+                total_intended_deletions = len(all_event_ids)
                 
                 def batch_delete_callback(request_id, response, exception):
                     nonlocal deleted_count, delete_errors
@@ -1188,17 +1189,49 @@ def delete_all_calendar_events():
                         # Response is None for successful delete
                         deleted_count += 1
                         logger.debug(f"Successfully deleted event via batch (request {request_id}).")
-                
-                for event_id in all_event_ids:
-                    batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id), callback=batch_delete_callback)
 
-                logger.info(f"Executing batch delete for {len(all_event_ids)} events.")
-                batch.execute()
-                delete_span.set_data("intended_deletions", len(all_event_ids))
+                # Process in chunks
+                for i in range(0, total_intended_deletions, BATCH_SIZE):
+                    chunk = all_event_ids[i:i + BATCH_SIZE]
+                    if not chunk:
+                        continue
+                        
+                    batch = service.new_batch_http_request()
+                    logger.info(f"Preparing batch delete for {len(chunk)} events (chunk {i // BATCH_SIZE + 1})...")
+                    
+                    for event_id in chunk:
+                        batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id), callback=batch_delete_callback)
+
+                    try:
+                        logger.info(f"Executing batch delete for chunk {i // BATCH_SIZE + 1} ({len(chunk)} events).")
+                        batch.execute()
+                        logger.info(f"Batch chunk {i // BATCH_SIZE + 1} executed.")
+                    except HttpError as batch_exec_e:
+                        # This catches errors during the execution of the whole batch
+                        capture_exception(batch_exec_e)
+                        logger.error(f"HTTP error executing batch chunk {i // BATCH_SIZE + 1}: {batch_exec_e.resp.status} - {batch_exec_e.error_details}")
+                        # Increment delete_errors for all items in this failed batch chunk
+                        delete_errors += len(chunk)
+                        set_context("batch_execution_error", {
+                            "chunk_index": i // BATCH_SIZE + 1,
+                            "status": batch_exec_e.resp.status,
+                            "details": batch_exec_e.error_details
+                        })
+                    except Exception as batch_exec_e:
+                        # Catch other unexpected errors during batch execution
+                        capture_exception(batch_exec_e)
+                        logger.error(f"Unexpected error executing batch chunk {i // BATCH_SIZE + 1}: {str(batch_exec_e)}")
+                        delete_errors += len(chunk)
+                        set_context("batch_execution_error", {
+                            "chunk_index": i // BATCH_SIZE + 1,
+                            "error": str(batch_exec_e)
+                        })
+
+                delete_span.set_data("intended_deletions", total_intended_deletions)
                 delete_span.set_data("successful_deletions", deleted_count)
                 delete_span.set_data("delete_errors", delete_errors)
 
-            logger.info(f"Batch delete executed. Successfully deleted: {deleted_count}, Errors: {delete_errors}")
+            logger.info(f"Delete process finished. Total intended: {total_intended_deletions}, Successfully deleted: {deleted_count}, Errors: {delete_errors}")
 
             if delete_errors > 0:
                 set_tag("delete_status", "partial_error")
@@ -1216,13 +1249,19 @@ def delete_all_calendar_events():
                     "deleted_count": deleted_count
                 }), 200
 
-        except HttpError as e:
+        except HttpError as e: # Catch errors during event ID fetching primarily
             capture_exception(e)
-            logger.error(f"Critical HTTP error during delete process: {e.resp.status} - {e.error_details}")
-            set_tag("delete_status", "critical_http_error")
-            return jsonify({"status": "error", "message": f"HTTP Error: {e.resp.status} - {e.error_details}"}), 500
-        except Exception as e:
+            logger.error(f"Critical HTTP error during event ID fetching: {e.resp.status} - {e.error_details}")
+            set_tag("delete_status", "critical_http_error_fetching")
+            return jsonify({"status": "error", "message": f"HTTP Error during event fetching: {e.resp.status} - {e.error_details}"}), 500
+        except Exception as e: # Catch other unexpected errors (e.g., during service init or fetching)
             capture_exception(e)
-            logger.error(f"Unexpected critical error during delete process: {str(e)}")
-            set_tag("delete_status", "critical_unexpected_error")
-            return jsonify({"status": "error", "message": f"Unexpected Error: {str(e)}"}), 500
+            # Check if it's the BatchError we might have missed (shouldn't happen with chunking)
+            if isinstance(e, BatchError):
+                 logger.error(f"BatchError encountered unexpectedly: {str(e)}")
+                 set_tag("delete_status", "critical_batch_error")
+                 return jsonify({"status": "error", "message": f"Batch Error: {str(e)}"}), 500
+            else:
+                 logger.error(f"Unexpected critical error during delete process: {str(e)}")
+                 set_tag("delete_status", "critical_unexpected_error")
+                 return jsonify({"status": "error", "message": f"Unexpected Error: {str(e)}"}), 500
