@@ -1,34 +1,42 @@
-FROM python:3.8-slim-buster
+# Use a Python version compatible with pyproject.toml
+FROM python:3.12-slim
 
 # Set the working directory
 WORKDIR /app
 
+# Install build tools needed for some Python packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Poetry system-wide using pip
+RUN pip install --no-cache-dir poetry
+
+# Disable virtualenv creation using environment variable
+ENV POETRY_VIRTUALENVS_CREATE=false
+
+# Copy Poetry project files first
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies using Poetry as root
+# --no-root: Don't install the project itself (since package-mode=false)
+# --only main: Install only main dependencies (not dev)
+RUN poetry install --no-root --only main
+
 # Create a non-root user
 RUN useradd -m appuser
 
-# Create data directory
+# Create data directory (owned by root initially, ownership changed later)
 RUN mkdir -p /app/data
 
-# Copy sensitive files first and set permissions
-COPY .env .env
-COPY google-secret.json google-secret.json
-RUN chown appuser:appuser .env google-secret.json
+# Copy the rest of the application code and sensitive files
+COPY . .
+
+# Set ownership for the app directory to the non-root user
+RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
-
-# Add local bin to PATH for the non-root user
-ENV PATH="/home/appuser/.local/bin:${PATH}"
-
-# Copy requirements file to the working directory
-COPY requirements.txt .
-
-# Upgrade pip and install dependencies as non-root user
-RUN pip3 install --upgrade pip && \
-    pip3 install -r requirements.txt
-
-# Copy the rest of the application code to the working directory
-COPY . .
 
 # Expose the port the app runs on
 EXPOSE 8000

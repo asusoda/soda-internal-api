@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import Interaction # Explicitly import Interaction
 from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
 import random
 import asyncio
@@ -238,9 +239,9 @@ class HelperCog(commands.Cog):
         message (discord.Message): The message to remove.
         emoji (str): The emoji to stop listening for.
         """
-        for message in self.message_listen_for:
-            if message["message"] == message and message["emoji"] == emoji:
-                self.message_listen_for.remove(message)
+        for msg_info in self.message_listen_for: # Renamed loop variable
+            if msg_info["message"] == message and msg_info["emoji"] == emoji:
+                self.message_listen_for.remove(msg_info)
                 return True
         return False
 
@@ -279,11 +280,12 @@ class HelperCog(commands.Cog):
         description="Clears the game environment from the Discord server.",
         guild_ids=[1011586463219060807],
     )
-    async def clear(self, ctx: commands.Context):
+    async def clear(self, interaction, dummy: Optional[str] = None): # Removed Interaction type hint
         """
         Clears the game environment from the Discord server.
         """
-        await ctx.defer()
+        # dummy parameter is not used
+        await interaction.response.defer()
         guild = self.bot.guilds[0]
         for category in guild.categories:
             if category.name == "Jeopardy":
@@ -295,4 +297,4 @@ class HelperCog(commands.Cog):
             if role.name.startswith("Team"):
                 await role.delete()
 
-        await ctx.respond("Cleared the game environment.")
+        await interaction.followup.send("Cleared the game environment.")
