@@ -4,7 +4,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta, timezone
 import json
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from notion_client.helpers import collect_paginated_api
 from notion_client import APIErrorCode, APIResponseError
 from shared import config, notion, logger, sentry_sdk
