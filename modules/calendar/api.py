@@ -10,7 +10,8 @@ from notion_client.helpers import collect_paginated_api
 from notion_client import APIErrorCode, APIResponseError
 from shared import config, notion, logger, sentry_sdk
 from sentry_sdk import capture_exception, set_tag, set_context, start_transaction
-import pytz # Added for timezone handling
+import pytz
+from dateutil import tz # Added for timezone handling
 calendar_blueprint = Blueprint("calendar", __name__)
 
 def get_google_calendar_service():
@@ -1101,3 +1102,127 @@ def get_calendar_events_for_frontend():
             logger.error(f"Error fetching calendar events for frontend: {str(e)}")
             set_tag("error_type", "unexpected")
             return jsonify({"status": "error", "message": f"Error fetching calendar events: {str(e)}"}), 500
+
+
+@calendar_blueprint.route("/delete-all-events", methods=["POST"])
+def delete_all_calendar_events():
+    """
+    Endpoint to delete ALL events from the configured Google Calendar.
+    USE WITH CAUTION. This is intended for hard resets.
+    """
+    with start_transaction(op="admin", name="delete_all_events") as transaction:
+        logger.warning("Received request to DELETE ALL Google Calendar events.")
+        service = get_google_calendar_service()
+        if not service:
+            set_tag("google_service", "failed")
+            logger.error("Failed to get Google Calendar service. Aborting delete.")
+            return jsonify({"status": "error", "message": "Failed to connect to Google Calendar."}), 500
+
+        calendar_id = config.GOOGLE_CALENDAR_ID
+        if not calendar_id:
+            logger.error("GOOGLE_CALENDAR_ID not configured. Aborting delete.")
+            return jsonify({"status": "error", "message": "Google Calendar ID not configured."}), 500
+
+        set_context("delete_all", {"calendar_id": calendar_id})
+        logger.info(f"Starting deletion process for calendar: {calendar_id}")
+
+        all_event_ids = []
+        page_token = None
+        deleted_count = 0
+        fetch_errors = 0
+        delete_errors = 0
+
+        try:
+            # 1. Fetch all event IDs
+            with transaction.start_child(op="fetch", description="fetch_all_event_ids") as fetch_span:
+                while True:
+                    try:
+                        events_result = service.events().list(
+                            calendarId=calendar_id,
+                            pageToken=page_token,
+                            fields="nextPageToken,items(id)" # Only fetch IDs
+                        ).execute()
+                        items = events_result.get('items', [])
+                        all_event_ids.extend([item['id'] for item in items])
+                        page_token = events_result.get('nextPageToken')
+                        if not page_token:
+                            break
+                    except HttpError as e:
+                        fetch_errors += 1
+                        logger.error(f"HTTP error fetching event page: {e.resp.status} - {e.error_details}")
+                        # Decide whether to continue or abort based on error (e.g., break on 403/404)
+                        if e.resp.status in [403, 404]:
+                            raise e # Re-raise critical errors
+                        # Continue for transient errors? Maybe add retry logic later.
+                        break # Stop fetching on error for now
+                    except Exception as e:
+                        fetch_errors += 1
+                        logger.error(f"Unexpected error fetching event page: {str(e)}")
+                        break # Stop fetching on error
+
+                fetch_span.set_data("fetched_ids", len(all_event_ids))
+                fetch_span.set_data("fetch_errors", fetch_errors)
+                logger.info(f"Fetched {len(all_event_ids)} event IDs to delete.")
+
+            if fetch_errors > 0:
+                 logger.warning(f"Encountered {fetch_errors} errors while fetching event IDs.")
+
+            if not all_event_ids:
+                logger.info("No events found in the calendar to delete.")
+                return jsonify({"status": "success", "message": "No events found to delete."}), 200
+
+            # 2. Batch delete events
+            with transaction.start_child(op="delete", description="batch_delete_all") as delete_span:
+                batch = service.new_batch_http_request()
+                
+                def batch_delete_callback(request_id, response, exception):
+                    nonlocal deleted_count, delete_errors
+                    if exception:
+                        delete_errors += 1
+                        # Log specific error details if possible
+                        if isinstance(exception, HttpError):
+                            logger.error(f"Batch delete error for request {request_id}: {exception.resp.status} - {exception.error_details}")
+                        else:
+                            logger.error(f"Batch delete error for request {request_id}: {str(exception)}")
+                    else:
+                        # Response is None for successful delete
+                        deleted_count += 1
+                        logger.debug(f"Successfully deleted event via batch (request {request_id}).")
+                
+                for event_id in all_event_ids:
+                    batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id), callback=batch_delete_callback)
+
+                logger.info(f"Executing batch delete for {len(all_event_ids)} events.")
+                batch.execute()
+                delete_span.set_data("intended_deletions", len(all_event_ids))
+                delete_span.set_data("successful_deletions", deleted_count)
+                delete_span.set_data("delete_errors", delete_errors)
+
+            logger.info(f"Batch delete executed. Successfully deleted: {deleted_count}, Errors: {delete_errors}")
+
+            if delete_errors > 0:
+                set_tag("delete_status", "partial_error")
+                return jsonify({
+                    "status": "partial_error",
+                    "message": f"Deleted {deleted_count} events, but encountered {delete_errors} errors during deletion.",
+                    "deleted_count": deleted_count,
+                    "errors": delete_errors
+                }), 207 # Multi-Status
+            else:
+                set_tag("delete_status", "success")
+                return jsonify({
+                    "status": "success",
+                    "message": f"Successfully deleted {deleted_count} events.",
+                    "deleted_count": deleted_count
+                }), 200
+
+        except HttpError as e:
+            capture_exception(e)
+            logger.error(f"Critical HTTP error during delete process: {e.resp.status} - {e.error_details}")
+            set_tag("delete_status", "critical_http_error")
+            return jsonify({"status": "error", "message": f"HTTP Error: {e.resp.status} - {e.error_details}"}), 500
+        except Exception as e:
+            capture_exception(e)
+            logger.error(f"Unexpected critical error during delete process: {str(e)}")
+            set_tag("delete_status", "critical_unexpected_error")
+            return jsonify({"status": "error", "message": f"Unexpected Error: {str(e)}"}), 500
