@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime, timezone
 
 from sentry_sdk import capture_exception, set_tag, set_context, start_transaction
+from cachetools import TTLCache, cached, keys
 
 # Assuming shared resources are correctly set up
 from shared import config, logger
@@ -27,6 +28,8 @@ class CalendarService:
         self.notion_client = NotionCalendarClient(self.logger)
         # Optional: Initialize error handler for service-level errors if needed
         # self.error_handler = APIErrorHandler(self.logger, "CalendarService")
+        # Cache for get_events_for_frontend with a 5-minute TTL
+        self.frontend_cache = TTLCache(maxsize=1, ttl=300)
 
     def parse_notion_events(self, notion_events_raw: List[Dict]) -> List[CalendarEventDTO]:
         """Parse raw Notion events into CalendarEventDTO objects."""
@@ -454,10 +457,13 @@ class CalendarService:
             return result
         # No finally block needed if using 'with transaction:'
 
-
+    # Cache results for 5 minutes. Key ignores the 'transaction' argument.
+    @cached(cache=lambda self: self.frontend_cache, key=lambda self, transaction=None: keys.hashkey(id(self)))
     def get_events_for_frontend(self, transaction=None) -> Dict[str, Any]:
-        """Fetches and formats Notion events for frontend display."""
+        """Fetches and formats Notion events for frontend display. Results are cached for 5 minutes."""
         op_name = "get_events_for_frontend"
+        # This log message will only appear on cache misses
+        self.logger.info("Cache miss for get_events_for_frontend. Fetching fresh data.")
         own_transaction = transaction is None
         if own_transaction:
             transaction = start_transaction(op="api", name=op_name)
