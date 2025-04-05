@@ -68,6 +68,7 @@ google-api-core = ">=2.11.0"
 sentry-sdk = {version = ">=1.0.0", extras = ["flask"]}
 pytz = "^2025.2"
 python-dateutil = "^2.9.0.post0"
+apscheduler = "^3.11.0"
 
 
 [build-system]

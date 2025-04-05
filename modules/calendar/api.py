@@ -1,16 +1,15 @@
 # modules/calendar/api.py
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app # Add current_app
 
 # Assuming shared resources are correctly set up
-from shared import logger, config # Import logger and config if needed for routes
+from shared import logger, config # Remove calendar_service import
 from sentry_sdk import start_transaction, capture_exception, set_tag
 
 # Import the new service and error handler
-from .service import CalendarService
 from .errors import APIErrorHandler
 
 # Initialize the service and a top-level error handler for routes
-calendar_service = CalendarService(logger)
+# calendar_service is now imported from shared.py
 route_error_handler = APIErrorHandler(logger, "CalendarAPI_Route")
 
 # Create Flask Blueprint
@@ -32,7 +31,7 @@ def notion_webhook():
     try:
         # Delegate the entire sync process to the CalendarService
         # The service method handles its own detailed spans and logging
-        sync_result = calendar_service.sync_notion_to_google(transaction)
+        sync_result = current_app.calendar_service.sync_notion_to_google(transaction)
 
         # Return response based on the service result
         if sync_result.get("status") == "error":
@@ -82,7 +81,7 @@ def get_calendar_events_for_frontend():
 
     try:
         # Delegate fetching and formatting to the service
-        frontend_result = calendar_service.get_events_for_frontend(transaction)
+        frontend_result = current_app.calendar_service.get_events_for_frontend(transaction)
 
         if frontend_result.get("status") == "error":
             logger.error(f"Failed to get frontend events: {frontend_result.get('message')}")
@@ -124,7 +123,7 @@ def delete_all_calendar_events():
 
     # The service method contains the ALLOW_DELETE_ALL check
     try:
-        delete_result = calendar_service.delete_all_events(transaction)
+        delete_result = current_app.calendar_service.delete_all_events(transaction)
 
         status_code = 500 # Default to error
         if delete_result.get("status") == "success":
