@@ -762,11 +762,13 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                             tz_str = config.TIMEZONE
                             tz = pytz.timezone(tz_str)
 
-                            if 'date' in parsed_start: # All-day event (treat as starting at midnight)
+                            if 'date' in parsed_start:
                                 start_date_obj = datetime.strptime(parsed_start['date'], '%Y-%m-%d')
-                                # Localize to the configured timezone at midnight
-                                start_dt_aware = tz.localize(start_date_obj)
-                                end_dt_aware = start_dt_aware + timedelta(hours=1)
+                                # Combine date with 7:30 PM time (19:30)
+                                start_dt_naive_with_time = datetime.combine(start_date_obj.date(), datetime.min.time()) + timedelta(hours=19, minutes=30)
+                                # Localize to the configured timezone
+                                start_dt_aware = tz.localize(start_dt_naive_with_time)
+                                end_dt_aware = start_dt_aware + timedelta(hours=1) # Default 1 hour duration
 
                                 # Update parsed_start to be a dateTime event
                                 parsed_start = {
