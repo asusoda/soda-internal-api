@@ -357,6 +357,7 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
                         )
                     
                     # Update gcal_events_by_notion_id to only contain the kept event
+                    # Store as a single event instead of a list for consistency
                     gcal_events_by_notion_id[notion_id] = kept_event
 
             # 3. Build lookup for parsed Notion events (passed into the function)
@@ -396,7 +397,18 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
                             if existing_gcal_event:
                                 # Match found based on Notion Page ID stored in GCal. Update it.
-                                existing_gcal_id = existing_gcal_event['id']
+                                # Handle case where existing_gcal_event could be a list or a single event
+                                if isinstance(existing_gcal_event, list):
+                                    # If it's a list, use the first event (should only be one after duplicate handling)
+                                    if existing_gcal_event:  # Check if list is not empty
+                                        existing_gcal_id = existing_gcal_event[0]['id']
+                                    else:
+                                        # Skip if list is empty (shouldn't happen, but just in case)
+                                        logger.warning(f"Empty event list found for Notion ID {notion_page_id}. Skipping update.")
+                                        continue
+                                else:
+                                    # If it's a single event (dictionary), use it directly
+                                    existing_gcal_id = existing_gcal_event['id']
                                 set_tag("event_match", "notion_id_match_update")
                                 logger.info(f"Matched '{summary}' by Notion ID {notion_page_id} stored in GCal event {existing_gcal_id}. Updating.")
                                 jump_url = update_event(service, config.GOOGLE_CALENDAR_ID, existing_gcal_id, notion_event_data, notion_page_id)
@@ -460,26 +472,24 @@ def update_google_calendar(parsed_notion_events: List[Dict]) -> List[Dict]:
 
             if final_ids_to_delete:
                 with transaction.start_child(op="delete", description="batch_delete") as delete_span:
-                    delete_span.set_data("delete_count", len(final_ids_to_delete))
-                    logger.info(f"Preparing to batch delete {len(final_ids_to_delete)} events from Google Calendar.")
-                    batch = service.new_batch_http_request(callback=handle_batch_delete_response)
-                    
+                    # Log event summaries for debugging before deletion
                     for event_id_to_delete in final_ids_to_delete:
-                        # Get summary from the fetched event data for logging
                         event_summary = gcal_events_by_id.get(event_id_to_delete, {}).get('summary', 'Unknown Event')
-                        logger.debug(f"Adding delete request for event '{event_summary}' (GCAL ID: {event_id_to_delete}) to batch.")
-                        batch.add(service.events().delete(calendarId=config.GOOGLE_CALENDAR_ID, eventId=event_id_to_delete))
+                        logger.debug(f"Marking event '{event_summary}' (GCAL ID: {event_id_to_delete}) for deletion.")
                     
-                    try:
-                        batch.execute()
-                        logger.info(f"Batch delete request executed for {len(final_ids_to_delete)} events.")
-                    except HttpError as e:
-                        capture_exception(e)
-                        logger.error(f"HTTP error executing batch delete request: {e.resp.status} - {e.error_details}")
-                        set_context("batch_delete_error", {"status": e.resp.status, "details": e.error_details})
-                    except Exception as e:
-                        capture_exception(e)
-                        logger.error(f"Unexpected error executing batch delete request: {str(e)}")
+                    # Use our helper function to perform the batch delete
+                    successful, failed = batch_delete_events(
+                        service,
+                        config.GOOGLE_CALENDAR_ID,
+                        list(final_ids_to_delete),
+                        description="sync_cleanup"
+                    )
+                    
+                    delete_span.set_data("successful_deletions", successful)
+                    delete_span.set_data("failed_deletions", failed)
+                    
+                    if failed > 0:
+                        logger.warning(f"Failed to delete {failed} events during sync cleanup")
 
             return results
         except Exception as e:
@@ -640,8 +650,7 @@ def create_event(service: Any, calendar_id: str,
             
             with transaction.start_child(op="create", description="create_gcal_event") as span:
                 # Log the event data being sent to Google API for debugging 400 errors
-                # import json # Redundant local import removed
-                logger.debug(f"Attempting to create Google Calendar event with data: {json.dumps(event_data, indent=2, default=str)}") # Added default=str for serialization
+                logger.debug(f"Attempting to create Google Calendar event with data: {json.dumps(event_data, indent=2, default=str)}")
                 
                 created_event = service.events().insert(
                     calendarId=calendar_id,
@@ -703,8 +712,7 @@ def create_event(service: Any, calendar_id: str,
             # Add the problematic payload to Sentry context for easier debugging
             try:
                 # Use json.dumps for better readability in Sentry if event_data is complex
-                # import json # Redundant local import removed
-                set_context("google_api_request_body", json.loads(json.dumps(event_data, default=str))) # Use default=str for non-serializable types
+                set_context("google_api_request_body", json.loads(json.dumps(event_data, default=str)))
             except Exception as context_err:
                 logger.error(f"Failed to add event_data to Sentry context: {context_err}")
                 set_context("google_api_request_body", {"error": "Could not serialize event_data"})
@@ -715,6 +723,70 @@ def create_event(service: Any, calendar_id: str,
             logger.error(f"Unexpected error creating Google Calendar event for Notion page {notion_page_id}: {str(e)}")
             set_tag("error_type", "unexpected")
             return None
+
+def batch_delete_events(service: Any, calendar_id: str, event_ids: List[str],
+                       description: str = "batch_delete") -> Tuple[int, int]:
+    """Helper function to batch delete events from Google Calendar.
+    
+    Args:
+        service: Authenticated Google Calendar service
+        calendar_id: ID of the calendar to delete events from
+        event_ids: List of event IDs to delete
+        description: Description for the transaction span
+        
+    Returns:
+        Tuple of (successful_deletions, failed_deletions)
+    """
+    if not event_ids:
+        logger.info("No events to delete.")
+        return 0, 0
+        
+    with start_transaction(op="google", name=f"batch_delete_{description}") as transaction:
+        successful_deletions = 0
+        failed_deletions = 0
+        
+        def callback(request_id, response, exception):
+            nonlocal successful_deletions, failed_deletions
+            if exception:
+                failed_deletions += 1
+                capture_exception(exception)
+                logger.error(f"Batch delete request {request_id} failed: {exception}")
+                set_context("batch_delete_error", {
+                    "request_id": request_id,
+                    "error": str(exception)
+                })
+            else:
+                successful_deletions += 1
+                logger.debug(f"Batch delete request {request_id} successful.")
+                
+        # Process in chunks to stay under API limits
+        BATCH_SIZE = 900  # Stay under the 1000 limit
+        
+        for i in range(0, len(event_ids), BATCH_SIZE):
+            chunk = event_ids[i:i + BATCH_SIZE]
+            if not chunk:
+                continue
+                
+            batch = service.new_batch_http_request(callback=callback)
+            logger.info(f"Preparing batch delete for {len(chunk)} events (chunk {i // BATCH_SIZE + 1})...")
+            
+            for event_id in chunk:
+                batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id))
+                
+            try:
+                logger.info(f"Executing batch delete for chunk {i // BATCH_SIZE + 1} ({len(chunk)} events).")
+                batch.execute()
+                logger.info(f"Batch chunk {i // BATCH_SIZE + 1} executed.")
+            except Exception as e:
+                capture_exception(e)
+                logger.error(f"Error executing batch delete chunk {i // BATCH_SIZE + 1}: {str(e)}")
+                failed_deletions += len(chunk)  # Mark all as failed if batch execution fails
+                
+        transaction.set_data("successful_deletions", successful_deletions)
+        transaction.set_data("failed_deletions", failed_deletions)
+        
+        logger.info(f"Batch delete complete: {successful_deletions} successful, {failed_deletions} failed")
+        return successful_deletions, failed_deletions
 
 def handle_batch_delete_response(request_id, response, exception):
     """Callback function for batch delete requests."""
@@ -731,6 +803,42 @@ def handle_batch_delete_response(request_id, response, exception):
         # Process successful response if needed, often delete returns 204 No Content
         logger.debug(f"Batch delete request {request_id} successful.")
         set_tag("batch_delete_status", "success")
+
+def get_synced_gcal_events(service: Any, calendar_id: str) -> List[Dict]:
+    """Get all events from Google Calendar that were synced from Notion.
+    
+    This function fetches all events from the specified calendar that have
+    the notionPageId property set in their extendedProperties.
+    
+    Args:
+        service: Authenticated Google Calendar service
+        calendar_id: ID of the calendar to fetch events from
+        
+    Returns:
+        List of Google Calendar events that have a Notion Page ID
+    """
+    with start_transaction(op="google", name="get_synced_gcal_events") as transaction:
+        try:
+            # Fetch all events from the calendar
+            now_utc = datetime.now(timezone.utc).isoformat()
+            all_events = get_all_gcal_events_for_sync(service, calendar_id, time_min=now_utc)
+            
+            # Filter to only include events with a notionPageId
+            synced_events = [
+                event for event in all_events
+                if event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
+            ]
+            
+            transaction.set_data("total_events", len(all_events))
+            transaction.set_data("synced_events", len(synced_events))
+            
+            logger.info(f"Found {len(synced_events)} synced events out of {len(all_events)} total events")
+            return synced_events
+            
+        except Exception as e:
+            capture_exception(e)
+            logger.error(f"Error fetching synced events: {str(e)}")
+            return []
 
 def clear_synced_events() -> None: # Renamed function
     """Clear all Google Calendar events previously synced from Notion using batch delete."""
@@ -756,24 +864,25 @@ def clear_synced_events() -> None: # Renamed function
                 logger.info("No synced events found to clear.")
                 return
 
-            logger.info(f"Found {len(events_to_delete)} synced events to clear. Preparing batch delete.")
-
+            logger.info(f"Found {len(events_to_delete)} synced events to clear.")
+            
+            # Extract event IDs
+            event_ids = [event['id'] for event in events_to_delete]
+            
+            # Use the helper function to perform the batch delete
             with transaction.start_child(op="delete", description="batch_delete") as delete_span:
-                batch = service.new_batch_http_request(callback=handle_batch_delete_response)
-                for event in events_to_delete:
-                    event_id = event['id']
-                    event_summary = event.get('summary', 'Unknown Event')
-                    logger.debug(f"Adding delete request for event '{event_summary}' (ID: {event_id}) to batch.")
-                    batch.add(service.events().delete(calendarId=config.GOOGLE_CALENDAR_ID, eventId=event_id))
-
-                try:
-                    batch.execute()
-                    delete_span.set_data("deleted_count", len(events_to_delete))
-                    logger.info(f"Batch delete request executed for clearing {len(events_to_delete)} synced events.")
-                except Exception as batch_e:
-                    capture_exception(batch_e)
-                    delete_span.set_data("batch_failed", True)
-                    raise batch_e
+                successful, failed = batch_delete_events(
+                    service,
+                    config.GOOGLE_CALENDAR_ID,
+                    event_ids,
+                    description="clear_synced"
+                )
+                
+                delete_span.set_data("successful_deletions", successful)
+                delete_span.set_data("failed_deletions", failed)
+                
+                if failed > 0:
+                    logger.warning(f"Failed to delete {failed} events during clear operation")
 
         except HttpError as e:
             capture_exception(e)
@@ -1196,63 +1305,22 @@ def delete_all_calendar_events():
 
             # 2. Batch delete events
             with transaction.start_child(op="delete", description="batch_delete_all") as delete_span:
-                BATCH_SIZE = 900 # Stay under the 1000 limit
                 total_intended_deletions = len(all_event_ids)
                 
-                def batch_delete_callback(request_id, response, exception):
-                    nonlocal deleted_count, delete_errors
-                    if exception:
-                        delete_errors += 1
-                        # Log specific error details if possible
-                        if isinstance(exception, HttpError):
-                            logger.error(f"Batch delete error for request {request_id}: {exception.resp.status} - {exception.error_details}")
-                        else:
-                            logger.error(f"Batch delete error for request {request_id}: {str(exception)}")
-                    else:
-                        # Response is None for successful delete
-                        deleted_count += 1
-                        logger.debug(f"Successfully deleted event via batch (request {request_id}).")
-
-                # Process in chunks
-                for i in range(0, total_intended_deletions, BATCH_SIZE):
-                    chunk = all_event_ids[i:i + BATCH_SIZE]
-                    if not chunk:
-                        continue
-                        
-                    batch = service.new_batch_http_request()
-                    logger.info(f"Preparing batch delete for {len(chunk)} events (chunk {i // BATCH_SIZE + 1})...")
-                    
-                    for event_id in chunk:
-                        batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id), callback=batch_delete_callback)
-
-                    try:
-                        logger.info(f"Executing batch delete for chunk {i // BATCH_SIZE + 1} ({len(chunk)} events).")
-                        batch.execute()
-                        logger.info(f"Batch chunk {i // BATCH_SIZE + 1} executed.")
-                    except HttpError as batch_exec_e:
-                        # This catches errors during the execution of the whole batch
-                        capture_exception(batch_exec_e)
-                        logger.error(f"HTTP error executing batch chunk {i // BATCH_SIZE + 1}: {batch_exec_e.resp.status} - {batch_exec_e.error_details}")
-                        # Increment delete_errors for all items in this failed batch chunk
-                        # Corrected: Don't increment delete_errors here, callback handles individual errors
-                        set_context("batch_execution_error", {
-                            "chunk_index": i // BATCH_SIZE + 1,
-                            "status": batch_exec_e.resp.status,
-                            "details": batch_exec_e.error_details
-                        })
-                    except Exception as batch_exec_e:
-                        # Catch other unexpected errors during batch execution
-                        capture_exception(batch_exec_e)
-                        logger.error(f"Unexpected error executing batch chunk {i // BATCH_SIZE + 1}: {str(batch_exec_e)}")
-                        # Corrected: Don't increment delete_errors here, callback handles individual errors
-                        set_context("batch_execution_error", {
-                            "chunk_index": i // BATCH_SIZE + 1,
-                            "error": str(batch_exec_e)
-                        })
-
+                # Use our helper function to perform the batch delete
+                successful, failed = batch_delete_events(
+                    service,
+                    calendar_id,
+                    all_event_ids,
+                    description="delete_all"
+                )
+                
+                deleted_count = successful
+                delete_errors = failed
+                
                 delete_span.set_data("intended_deletions", total_intended_deletions)
-                delete_span.set_data("successful_deletions", deleted_count) # Based on callback increments
-                delete_span.set_data("delete_errors", delete_errors) # Based on callback increments
+                delete_span.set_data("successful_deletions", successful)
+                delete_span.set_data("delete_errors", failed)
 
             logger.info(f"Delete process finished. Total intended: {total_intended_deletions}, Successfully deleted (via callback): {deleted_count}, Errors (via callback): {delete_errors}")
 
