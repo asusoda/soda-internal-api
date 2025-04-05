@@ -10,6 +10,7 @@ from notion_client.helpers import collect_paginated_api
 from notion_client import APIErrorCode, APIResponseError
 from shared import config, notion, logger, sentry_sdk
 from sentry_sdk import capture_exception, set_tag, set_context, start_transaction
+import pytz # Added for timezone handling
 calendar_blueprint = Blueprint("calendar", __name__)
 
 def get_google_calendar_service():
@@ -747,23 +748,45 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                         logger.warning(f"Skipping event {notion_page_id}: Missing or invalid start date string: {start_str}")
                         continue # Skip to the next event in the loop
 
-                    # If end is missing or invalid, calculate a default
+                    # If end is missing or invalid, calculate a default 1-hour duration
                     if not parsed_end:
-                        logger.debug(f"End date missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default.")
+                        logger.debug(f"End date missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default 1-hour duration.")
                         try:
-                            if 'date' in parsed_start: # All-day event
+                            tz_str = config.TIMEZONE
+                            tz = pytz.timezone(tz_str)
+
+                            if 'date' in parsed_start: # All-day event (treat as starting at midnight)
                                 start_date_obj = datetime.strptime(parsed_start['date'], '%Y-%m-%d')
-                                # For all-day, end date is exclusive, so add 1 day
-                                end_date_obj = start_date_obj + timedelta(days=1)
-                                parsed_end = {"date": end_date_obj.strftime('%Y-%m-%d')}
-                                logger.debug(f"Calculated default all-day end date: {parsed_end['date']}")
-                            elif 'dateTime' in parsed_start: # Specific time event
-                                start_dt_obj = datetime.fromisoformat(parsed_start['dateTime'].replace('Z', '+00:00'))
-                                # Default duration is 1 hour
-                                end_dt_obj = start_dt_obj + timedelta(hours=1)
+                                # Localize to the configured timezone at midnight
+                                start_dt_aware = tz.localize(start_date_obj)
+                                end_dt_aware = start_dt_aware + timedelta(hours=1)
+
+                                # Update parsed_start to be a dateTime event
+                                parsed_start = {
+                                    "dateTime": start_dt_aware.isoformat(),
+                                    "timeZone": tz_str
+                                }
                                 parsed_end = {
-                                    "dateTime": end_dt_obj.isoformat(),
-                                    "timeZone": parsed_start['timeZone'] # Use same timezone as start
+                                    "dateTime": end_dt_aware.isoformat(),
+                                    "timeZone": tz_str
+                                }
+                                logger.debug(f"Calculated default start/end for all-day: {parsed_start['dateTime']} / {parsed_end['dateTime']}")
+
+                            elif 'dateTime' in parsed_start: # Specific time event
+                                # Parse the start dateTime string
+                                start_dt_naive = datetime.fromisoformat(parsed_start['dateTime'].replace('Z', '+00:00'))
+                                # Assume it's in the configured timezone if not specified otherwise (Google API might handle this)
+                                # For calculation, let's make it timezone-aware if possible
+                                if start_dt_naive.tzinfo is None:
+                                     start_dt_aware = tz.localize(start_dt_naive)
+                                else:
+                                     start_dt_aware = start_dt_naive # Already has timezone
+
+                                # Default duration is 1 hour
+                                end_dt_aware = start_dt_aware + timedelta(hours=1)
+                                parsed_end = {
+                                    "dateTime": end_dt_aware.isoformat(),
+                                    "timeZone": parsed_start.get('timeZone', tz_str) # Use original timezone or default
                                 }
                                 logger.debug(f"Calculated default end dateTime: {parsed_end['dateTime']}")
                             else:
@@ -771,10 +794,10 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                                 raise ValueError("Parsed start date object is in an unexpected format.")
 
                         except Exception as e_calc:
-                            logger.error(f"Error calculating default end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
+                            logger.error(f"Error calculating default 1-hour end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
                             capture_exception(e_calc)
-                            # Fallback: Use start time as end time to satisfy API requirement
-                            parsed_end = parsed_start
+                            # Fallback: Use start time as end time to satisfy API requirement (less ideal now)
+                            parsed_end = parsed_start.copy() # Use a copy to avoid modifying original start
                             logger.warning(f"Falling back to using start time as end time for event {notion_page_id}.")
 
                     # --- Assemble Final Payload ---
@@ -884,20 +907,19 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
     cleaned_date_str = date_str.strip().rstrip(',')
 
     try:
-        # Attempt to parse as a full ISO 8601 dateTime string
-        # This will raise ValueError if it's only a date or invalid format
-        datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
-        # If successful, it's a dateTime
-        return {
-            "dateTime": cleaned_date_str, # Use the cleaned string
-            "timeZone": config.TIMEZONE # Assumes config.TIMEZONE is defined and valid
-        }
+        # Attempt to parse as just a date ('YYYY-MM-DD') first
+        datetime.strptime(cleaned_date_str, '%Y-%m-%d')
+        # If successful, it's an all-day date
+        return {"date": cleaned_date_str} # Use the cleaned string
     except ValueError:
-        # If ISO parse fails, attempt to parse as just a date ('YYYY-MM-DD')
+        # If date parse fails, attempt to parse as a full ISO 8601 dateTime string
         try:
-            datetime.strptime(cleaned_date_str, '%Y-%m-%d')
-            # If successful, it's an all-day date
-            return {"date": cleaned_date_str} # Use the cleaned string
+            datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
+            # If successful, it's a dateTime
+            return {
+                "dateTime": cleaned_date_str, # Use the cleaned string
+                "timeZone": config.TIMEZONE # Assumes config.TIMEZONE is defined and valid
+            }
         except ValueError:
             # If both parsing attempts fail, log warning and return None
             logger.warning(f"Invalid or unsupported date format encountered after cleaning: '{cleaned_date_str}' (original: '{date_str}')")
