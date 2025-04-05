@@ -879,24 +879,28 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
     """
     if not date_str:
         return None
+
+    # Clean the input string: remove leading/trailing whitespace and potential trailing commas
+    cleaned_date_str = date_str.strip().rstrip(',')
+
     try:
-        # Check if it has time info by trying full ISO parse
+        # Attempt to parse as a full ISO 8601 dateTime string
         # This will raise ValueError if it's only a date or invalid format
-        datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
         # If successful, it's a dateTime
         return {
-            "dateTime": date_str,
+            "dateTime": cleaned_date_str, # Use the cleaned string
             "timeZone": config.TIMEZONE # Assumes config.TIMEZONE is defined and valid
         }
     except ValueError:
-        # If ISO parse fails, try parsing as just a date ('YYYY-MM-DD')
+        # If ISO parse fails, attempt to parse as just a date ('YYYY-MM-DD')
         try:
-            datetime.strptime(date_str, '%Y-%m-%d')
+            datetime.strptime(cleaned_date_str, '%Y-%m-%d')
             # If successful, it's an all-day date
-            return {"date": date_str}
+            return {"date": cleaned_date_str} # Use the cleaned string
         except ValueError:
             # If both parsing attempts fail, log warning and return None
-            logger.warning(f"Invalid or unsupported date format encountered: {date_str}")
+            logger.warning(f"Invalid or unsupported date format encountered after cleaning: '{cleaned_date_str}' (original: '{date_str}')")
             return None
     except Exception as e:
         # Catch any other unexpected errors during parsing
