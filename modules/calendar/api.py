@@ -209,12 +209,11 @@ def fetch_notion_events(database_id: str) -> Optional[List[Dict]]:
             })
             
             # Define the filter - Fetch ALL published events, regardless of date
+            # Define the filter - Fetch ALL published events
             query_filter = {
-                "filter": {
-                    "property": "Published",
-                    "checkbox": {
-                        "equals": True
-                    }
+                "property": "Published",
+                "checkbox": {
+                    "equals": True
                 }
             }
 
