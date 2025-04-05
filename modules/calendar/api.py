@@ -915,6 +915,99 @@ def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
 # Removed placeholder function and orphaned code block
 
 
+def delete_duplicate_synced_gcal_events(service: Any, calendar_id: str) -> None:
+    """
+    Finds and deletes duplicate Google Calendar events (based on summary)
+    that were previously synced from Notion. Keeps the oldest event for each summary.
+    """
+    with start_transaction(op="google", name="delete_duplicate_synced_events") as transaction:
+        logger.info(f"Starting duplicate check for synced events in calendar: {calendar_id}")
+        set_context("duplicate_check", {"calendar_id": calendar_id})
+
+        try:
+            # 1. Fetch all synced events
+            with transaction.start_child(op="fetch", description="get_synced_gcal_events") as fetch_span:
+                synced_events = get_synced_gcal_events(service, calendar_id)
+                fetch_span.set_data("synced_events_found", len(synced_events))
+
+            if not synced_events:
+                logger.info("No synced events found, skipping duplicate check.")
+                return
+
+            # 2. Group events by summary
+            events_by_summary: Dict[str, List[Dict]] = {}
+            for event in synced_events:
+                summary = event.get('summary')
+                if summary: # Only consider events with summaries
+                    if summary not in events_by_summary:
+                        events_by_summary[summary] = []
+                    events_by_summary[summary].append(event)
+
+            # 3. Identify duplicates (keep the oldest)
+            ids_to_delete = set()
+            duplicate_count = 0
+            with transaction.start_child(op="identify", description="identify_duplicates") as identify_span:
+                for summary, events in events_by_summary.items():
+                    if len(events) > 1:
+                        # Sort by creation time (oldest first)
+                        # Google API 'created' time format: '2024-05-10T15:30:00.000Z'
+                        try:
+                            events.sort(key=lambda x: datetime.fromisoformat(x['created'].replace('Z', '+00:00')))
+                            # Mark all except the first one (oldest) for deletion
+                            for i in range(1, len(events)):
+                                event_to_delete = events[i]
+                                event_id = event_to_delete.get('id')
+                                if event_id:
+                                    ids_to_delete.add(event_id)
+                                    duplicate_count += 1
+                                    logger.warning(f"Marking duplicate event for deletion: '{summary}' (ID: {event_id}, Created: {event_to_delete.get('created')})")
+                        except KeyError as e:
+                             logger.error(f"Could not sort events for summary '{summary}' due to missing key: {e}. Skipping this group.")
+                             capture_exception(e)
+                        except Exception as e_sort:
+                             logger.error(f"Error sorting events for summary '{summary}': {e_sort}. Skipping this group.")
+                             capture_exception(e_sort)
+
+
+                identify_span.set_data("duplicates_found", duplicate_count)
+                identify_span.set_data("summaries_with_duplicates", len([s for s, ev in events_by_summary.items() if len(ev) > 1]))
+
+
+            # 4. Batch delete identified duplicates
+            if ids_to_delete:
+                logger.info(f"Found {len(ids_to_delete)} duplicate synced events to delete.")
+                with transaction.start_child(op="delete", description="batch_delete_duplicates") as delete_span:
+                    delete_span.set_data("delete_count", len(ids_to_delete))
+                    batch = service.new_batch_http_request(callback=handle_batch_delete_response)
+                    for event_id_to_delete in ids_to_delete:
+                         # Add delete request to the batch
+                         logger.debug(f"Adding delete request for duplicate event ID: {event_id_to_delete} to batch.")
+                         batch.add(service.events().delete(calendarId=calendar_id, eventId=event_id_to_delete))
+
+                    try:
+                        batch.execute()
+                        logger.info(f"Batch delete request executed for {len(ids_to_delete)} duplicate events.")
+                    except HttpError as e:
+                        capture_exception(e)
+                        logger.error(f"HTTP error executing batch delete for duplicates: {e.resp.status} - {e.error_details}")
+                        set_context("batch_delete_error", {"status": e.resp.status, "details": e.error_details})
+                    except Exception as e:
+                        capture_exception(e)
+                        logger.error(f"Unexpected error executing batch delete for duplicates: {str(e)}")
+            else:
+                logger.info("No duplicate synced events found to delete.")
+
+        except HttpError as e:
+            capture_exception(e)
+            logger.error(f"HTTP error during duplicate check: {e.resp.status} - {e.error_details}")
+            set_context("http_error", {"status": e.resp.status, "details": e.error_details})
+        except Exception as e:
+            capture_exception(e)
+            logger.error(f"Unexpected error during duplicate check: {str(e)}")
+            set_tag("error_type", "unexpected_duplicate_check")
+
+
+
 @calendar_blueprint.route("/events", methods=["GET"])
 def get_calendar_events_for_frontend():
     """API endpoint to fetch upcoming Google Calendar events for frontend display."""
