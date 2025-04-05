@@ -232,10 +232,10 @@ def fetch_notion_events(database_id: str) -> Optional[List[Dict]]:
             
         except APIResponseError as error:
             capture_exception(error)
-            logger.error(f"Notion API Error during fetch: {error.code} - {error.message}")
+            logger.error(f"Notion API Error during fetch: {error.code} - {str(error)}")
             set_context("notion_error", {
                 "code": error.code,
-                "message": error.message
+                "message": str(error) # Use str(error) for details
             })
             # Handle specific errors if needed, e.g., ObjectNotFound
             if error.code == APIErrorCode.ObjectNotFound:
@@ -506,10 +506,10 @@ def create_event(service: Any, calendar_id: str,
                     
                 except APIResponseError as notion_e:
                     capture_exception(notion_e)
-                    logger.error(f"Notion API error updating page {notion_page_id} with GCAL ID {gcal_event_id}: {notion_e.code} - {notion_e.message}")
+                    logger.error(f"Notion API error updating page {notion_page_id} with GCAL ID {gcal_event_id}: {notion_e.code} - {str(notion_e)}")
                     set_context("notion_error", {
                         "code": notion_e.code,
-                        "message": notion_e.message,
+                        "message": str(notion_e), # Use str(error) for details
                         "gcal_id": gcal_event_id
                     })
                     span.set_data("notion_update", "failed")
