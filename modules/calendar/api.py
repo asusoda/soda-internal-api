@@ -88,14 +88,21 @@ def notion_webhook():
                         
                         # Find events to delete (duplicates or without valid Notion IDs)
                         ids_to_delete = set()
+                        orphaned_count = 0
+                        duplicate_count = 0
                         notion_id_to_gcal_event = {}  # Track the most recent event for each Notion ID
                         
                         for event in all_gcal_events:
                             gcal_id = event.get('id')
                             notion_id = event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
                             
-                            if not notion_id or notion_id not in valid_notion_ids:
-                                # Delete events without Notion ID or with invalid Notion ID
+                            if not notion_id:
+                                # Delete events without Notion ID
+                                orphaned_count += 1
+                                ids_to_delete.add(gcal_id)
+                            elif notion_id not in valid_notion_ids:
+                                # Delete events with invalid Notion ID (not in current fetch)
+                                orphaned_count += 1
                                 ids_to_delete.add(gcal_id)
                             else:
                                 # Check for duplicates
@@ -106,22 +113,45 @@ def notion_webhook():
                                         # Current event is newer, delete the old one
                                         ids_to_delete.add(existing_event['id'])
                                         notion_id_to_gcal_event[notion_id] = event
+                                        duplicate_count += 1
                                     else:
                                         # Existing event is newer, delete the current one
                                         ids_to_delete.add(gcal_id)
                                 else:
                                     notion_id_to_gcal_event[notion_id] = event
-                        
                         # Delete invalid events
                         if ids_to_delete:
-                            logger.info(f"Found {len(ids_to_delete)} events to delete (duplicates or invalid)")
-                            batch = service.new_batch_http_request(callback=handle_batch_delete_response)
-                            for event_id in ids_to_delete:
-                                batch.add(service.events().delete(
-                                    calendarId=config.GOOGLE_CALENDAR_ID,
-                                    eventId=event_id
-                                ))
-                            batch.execute()
+                            logger.info(f"Found {len(ids_to_delete)} events to delete ({duplicate_count} duplicates, {orphaned_count} orphaned/invalid)")
+                            # Use the batch_delete_events function for better error handling and tracking
+                            with transaction.start_child(op="delete", description="batch_delete_webhook") as delete_span:
+                                delete_span.set_data("delete_stats", {
+                                    "total_to_delete": len(ids_to_delete),
+                                    "duplicate_count": duplicate_count,
+                                    "orphaned_count": orphaned_count
+                                })
+                                
+                                successful, failed = batch_delete_events(
+                                    service,
+                                    config.GOOGLE_CALENDAR_ID,
+                                    list(ids_to_delete),
+                                    description="webhook_cleanup"
+                                )
+                                
+                                delete_span.set_data("deletion_results", {
+                                    "successful": successful,
+                                    "failed": failed
+                                })
+                            
+                            if failed > 0:
+                                logger.warning(f"Failed to delete {failed} events during webhook cleanup")
+                            
+                            # Add to Sentry context for monitoring
+                            set_context("webhook_cleanup", {
+                                "duplicates_found": duplicate_count,
+                                "orphaned_found": orphaned_count,
+                                "successful_deletions": successful,
+                                "failed_deletions": failed
+                            })
                 set_tag("sync_status", "success")
                 with transaction.start_child(op="parse", description="parse_event_data") as span:
                     parsed_events = parse_event_data(notion_events)
