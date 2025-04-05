@@ -4,6 +4,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import BatchHttpRequest # Added for batch operations
 from datetime import datetime, timedelta, timezone
+import json
 from typing import List, Dict, Optional, Any
 from notion_client.helpers import collect_paginated_api
 from notion_client import APIErrorCode, APIResponseError
@@ -553,6 +554,10 @@ def create_event(service: Any, calendar_id: str,
             })
             
             with transaction.start_child(op="create", description="create_gcal_event") as span:
+                # Log the event data being sent to Google API for debugging 400 errors
+                import json # Make sure json is imported if not already at top level
+                logger.debug(f"Attempting to create Google Calendar event with data: {json.dumps(event_data, indent=2)}")
+                
                 created_event = service.events().insert(
                     calendarId=calendar_id,
                     body=event_data
@@ -719,34 +724,80 @@ def parse_event_data(notion_events: List[Dict]) -> List[Dict]:
                     # Extract the gcal_id using the helper function
                     gcal_id_text = extract_property(properties, 'gcal_id', 'rich_text')
 
+                    # --- Date/Time Parsing ---
+                    date_prop = properties.get('Date', {}).get('date', {})
+                    start_str = date_prop.get('start')
+                    end_str = date_prop.get('end') # Might be None
+
+                    parsed_start = parse_single_date_string(start_str)
+                    parsed_end = parse_single_date_string(end_str) # Try parsing end string first
+
+                    # If start is invalid/missing, we cannot proceed with this event
+                    if not parsed_start:
+                        failed_events += 1
+                        span.set_data("parse_status", "missing_start_date")
+                        logger.warning(f"Skipping event {notion_page_id}: Missing or invalid start date string: {start_str}")
+                        continue # Skip to the next event in the loop
+
+                    # If end is missing or invalid, calculate a default
+                    if not parsed_end:
+                        logger.debug(f"End date missing or invalid ('{end_str}') for event {notion_page_id}. Calculating default.")
+                        try:
+                            if 'date' in parsed_start: # All-day event
+                                start_date_obj = datetime.strptime(parsed_start['date'], '%Y-%m-%d')
+                                # For all-day, end date is exclusive, so add 1 day
+                                end_date_obj = start_date_obj + timedelta(days=1)
+                                parsed_end = {"date": end_date_obj.strftime('%Y-%m-%d')}
+                                logger.debug(f"Calculated default all-day end date: {parsed_end['date']}")
+                            elif 'dateTime' in parsed_start: # Specific time event
+                                start_dt_obj = datetime.fromisoformat(parsed_start['dateTime'].replace('Z', '+00:00'))
+                                # Default duration is 1 hour
+                                end_dt_obj = start_dt_obj + timedelta(hours=1)
+                                parsed_end = {
+                                    "dateTime": end_dt_obj.isoformat(),
+                                    "timeZone": parsed_start['timeZone'] # Use same timezone as start
+                                }
+                                logger.debug(f"Calculated default end dateTime: {parsed_end['dateTime']}")
+                            else:
+                                # Should not happen if parsed_start is valid
+                                raise ValueError("Parsed start date object is in an unexpected format.")
+
+                        except Exception as e_calc:
+                            logger.error(f"Error calculating default end time for event {notion_page_id} based on start '{parsed_start}': {e_calc}")
+                            capture_exception(e_calc)
+                            # Fallback: Use start time as end time to satisfy API requirement
+                            parsed_end = parsed_start
+                            logger.warning(f"Falling back to using start time as end time for event {notion_page_id}.")
+
+                    # --- Assemble Final Payload ---
                     event_data = {
-                        'notion_page_id': notion_page_id,
-                        'gcal_id': gcal_id_text,
                         'summary': extract_property(properties, 'Name', 'title'),
                         'location': extract_property(properties, 'Location', 'select'),
                         'description': extract_property(properties, 'Description', 'rich_text'),
-                        'start': parse_date(properties.get('Date', {}).get('date', {}), 'start'),
-                        'end': None, # Initialize end as None, will be populated below
-                    } # End of event_data dictionary definition
-
-                    # --- End date handling (now primarily within parse_date) ---
-                    date_prop = properties.get('Date', {}).get('date', {})
-                    # parse_date will attempt to parse 'end', and calculate default if needed
-                    event_data['end'] = parse_date(date_prop, 'end')
-                    # --- End of end date handling logic ---
+                        'start': parsed_start,
+                        'end': parsed_end, # Now guaranteed to have a value
+                        # Keep internal IDs separate until the end
+                        '_internal_notion_page_id': notion_page_id,
+                        '_internal_gcal_id': gcal_id_text,
+                    }
 
                     # Remove keys with None values before sending to Google API, but keep internal ones
                     # Ensure 'end' is handled correctly if it ended up being None
-                    google_api_payload = {k: v for k, v in event_data.items() if v is not None and k not in ['notion_page_id', 'gcal_id']}
+                    # Remove keys with None values AND internal keys before sending to Google API
+                    google_api_payload = {
+                        k: v for k, v in event_data.items()
+                        if v is not None and not k.startswith('_internal_')
+                    }
 
-                    if google_api_payload.get('summary') and google_api_payload.get('start'):
-                        # Only add reminders if we have the essential info
+                    # Check required fields (summary, start, end) before proceeding
+                    if google_api_payload.get('summary') and google_api_payload.get('start') and google_api_payload.get('end'):
+                        # Add default reminders
                         google_api_payload['reminders'] = {"useDefault": True}
 
-                        # Add back the internal IDs to the dict we store in the list
-                        parsed_event_entry = google_api_payload.copy()
-                        parsed_event_entry['notion_page_id'] = notion_page_id
-                        parsed_event_entry['gcal_id'] = gcal_id_text # gcal_id was extracted earlier
+                        # Create the entry for our internal list, including internal IDs
+                        parsed_event_entry = google_api_payload.copy() # Start with the API payload
+                        parsed_event_entry['notion_page_id'] = event_data['_internal_notion_page_id']
+                        parsed_event_entry['gcal_id'] = event_data['_internal_gcal_id']
 
                         parsed_events.append(parsed_event_entry)
                         span.set_data("parse_status", "success")
@@ -806,62 +857,50 @@ def extract_property(properties: Dict, name: str, prop_type: str) -> Optional[st
         return None
 
 
-def parse_date(date_obj: Dict, key: str) -> Optional[Dict]:
-    """Parse datetime value from Notion date property.
-    For 'end' key, calculates a 1-hour default if missing/invalid.
+def parse_single_date_string(date_str: Optional[str]) -> Optional[Dict]:
+    """Parse a single Notion date string into Google Calendar format.
+
+    Handles both all-day ('YYYY-MM-DD') and specific time (ISO 8601) formats.
+
+    Args:
+        date_str: The date string from Notion (e.g., '2024-05-10' or '2024-05-10T10:00:00Z').
+
+    Returns:
+        A dictionary formatted for Google API ({"date": ...} or {"dateTime": ..., "timeZone": ...})
+        or None if the input string is invalid or None.
     """
-    try:
-        date_str = date_obj.get(key)
-        parsed_date = None
-
-        if date_str:
-            try:
-                # Attempt to parse the provided date string - primarily for validation
-                datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                parsed_date = {
-                    "dateTime": date_str,
-                    "timeZone": config.TIMEZONE
-                }
-            except ValueError as e_parse:
-                logger.warning(f"Could not parse provided date string for key '{key}': {date_str}. Error: {e_parse}")
-                # Proceed to default calculation only if it's the 'end' key
-
-        # If it's the 'end' key AND (parsing failed OR date_str was initially None), calculate default
-        if key == 'end' and not parsed_date:
-            start_date_str = date_obj.get('start')
-            if start_date_str:
-                try:
-                    start_date_time_obj = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
-                    end_date_time_obj = start_date_time_obj + timedelta(hours=1)
-                    end_date_str = end_date_time_obj.isoformat()
-                    parsed_date = {
-                        "dateTime": end_date_str,
-                        "timeZone": config.TIMEZONE
-                    }
-                    logger.debug(f"Calculated default end time (1hr after start): {end_date_str}")
-                except Exception as e_calc:
-                    logger.error(f"Error calculating default end time based on start '{start_date_str}': {e_calc}")
-                    capture_exception(e_calc)
-                    # parsed_date remains None
-            else:
-                 logger.warning(f"Cannot calculate default end time for key '{key}' because start time is missing.")
-
-        # For 'start' key, if parsing failed or date_str was None, return None explicitly
-        if key == 'start' and not parsed_date:
-             logger.warning(f"Start date string is missing or invalid: {date_str}")
-             return None # Crucial: Don't return a potentially calculated end time if key was 'start'
-
-        return parsed_date # Return the parsed date (either from input or calculated default for end) or None
-
-    except Exception as e:
-        capture_exception(e)
-        logger.error(f"General error parsing date for key '{key}': {str(e)}")
-        set_context("date_parse_error", {
-            "key": key,
-            "date_str": date_obj.get(key),
-            "error": str(e)
-        })
+    if not date_str:
         return None
+    try:
+        # Check if it has time info by trying full ISO parse
+        # This will raise ValueError if it's only a date or invalid format
+        datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        # If successful, it's a dateTime
+        return {
+            "dateTime": date_str,
+            "timeZone": config.TIMEZONE # Assumes config.TIMEZONE is defined and valid
+        }
+    except ValueError:
+        # If ISO parse fails, try parsing as just a date ('YYYY-MM-DD')
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+            # If successful, it's an all-day date
+            return {"date": date_str}
+        except ValueError:
+            # If both parsing attempts fail, log warning and return None
+            logger.warning(f"Invalid or unsupported date format encountered: {date_str}")
+            return None
+    except Exception as e:
+        # Catch any other unexpected errors during parsing
+        logger.error(f"Unexpected error parsing date string '{date_str}': {str(e)}")
+        capture_exception(e)
+        return None
+
+# Note: The logic for calculating default end times needs to be handled
+# in the calling function (parse_event_data) where both start and end
+# strings are available. This helper only parses a single provided string.
+
+# Removed placeholder function and orphaned code block
 
 
 @calendar_blueprint.route("/events", methods=["GET"])
