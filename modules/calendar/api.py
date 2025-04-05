@@ -42,15 +42,12 @@ def get_google_calendar_service():
 @calendar_blueprint.route("/notion-webhook", methods=["POST", "GET"])
 def notion_webhook():
     with start_transaction(op="webhook", name="notion_webhook") as transaction:
-        if request.method == "GET":
-            set_tag("request_type", "GET")
-            return jsonify({"status": "success"}), 200
+        # Any request (GET or POST) triggers a full sync
+        set_tag("request_type", request.method)
+        logger.info(f"Received {request.method} request, triggering full Notion sync.")
         
-        set_tag("request_type", "POST")
-        # POST request now triggers a full sync, ignoring any payload
         try:
-            logger.info("Received POST request trigger for full Notion sync.")
-            database_id = config.NOTION_DATABASE_ID # Use configured DB ID
+            database_id = config.NOTION_DATABASE_ID
             set_context("notion", {"database_id": database_id})
             
             with transaction.start_child(op="fetch", description="fetch_notion_events") as span:
@@ -92,7 +89,7 @@ def notion_webhook():
                 return jsonify({
                     "status": "success",
                     "message": f"Calendar sync complete. Processed {len(results)} events.",
-                    "events_processed": results # Renamed for clarity
+                    "events_processed": results
                 }), 200
 
         except Exception as e:
@@ -539,10 +536,17 @@ def handle_batch_delete_response(request_id, response, exception):
     """Callback function for batch delete requests."""
     if exception:
         # Handle error
+        capture_exception(exception)
         logger.error(f"Batch delete request {request_id} failed: {exception}")
+        set_context("batch_delete_error", {
+            "request_id": request_id,
+            "error": str(exception)
+        })
+        set_tag("batch_delete_status", "failed")
     else:
         # Process successful response if needed, often delete returns 204 No Content
         logger.debug(f"Batch delete request {request_id} successful.")
+        set_tag("batch_delete_status", "success")
 
 def clear_future_events() -> None:
     """Clear all future events from Google Calendar using batch delete."""
