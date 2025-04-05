@@ -615,6 +615,14 @@ def create_event(service: Any, calendar_id: str,
             capture_exception(e)
             logger.error(f"HTTP error creating Google Calendar event for Notion page {notion_page_id}: {e.resp.status} - {e.error_details}")
             set_context("http_error", {"status": e.resp.status, "details": e.error_details})
+            # Add the problematic payload to Sentry context for easier debugging
+            try:
+                # Use json.dumps for better readability in Sentry if event_data is complex
+                import json
+                set_context("google_api_request_body", json.loads(json.dumps(event_data, default=str))) # Use default=str for non-serializable types
+            except Exception as context_err:
+                logger.error(f"Failed to add event_data to Sentry context: {context_err}")
+                set_context("google_api_request_body", {"error": "Could not serialize event_data"})
             return None
             
         except Exception as e:
