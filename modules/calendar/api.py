@@ -67,7 +67,7 @@ def notion_webhook():
                 logger.warning("Successfully fetched 0 published future events from Notion. Clearing future Google Calendar events.")
                 set_tag("sync_status", "no_events")
                 with transaction.start_child(op="clear", description="clear_synced_events"):
-                    clear_synced_events() # Renamed function
+                    clear_synced_events() # Clear all synced events since there are no valid Notion events
                 return jsonify({
                     "status": "success",
                     "message": "Successfully fetched 0 events from Notion. Future Google Calendar events cleared."
@@ -75,6 +75,53 @@ def notion_webhook():
                 
             else:
                 # Fetch succeeded and returned events
+                # First clear any orphaned or duplicate events
+                with transaction.start_child(op="clear", description="clear_invalid_events"):
+                    service = get_google_calendar_service()
+                    if service:
+                        # Get all current GCal events
+                        now_utc = datetime.now(timezone.utc).isoformat()
+                        all_gcal_events = get_all_gcal_events_for_sync(service, config.GOOGLE_CALENDAR_ID, time_min=now_utc)
+                        
+                        # Build set of valid Notion IDs
+                        valid_notion_ids = {event.get('id') for event in notion_events}
+                        
+                        # Find events to delete (duplicates or without valid Notion IDs)
+                        ids_to_delete = set()
+                        notion_id_to_gcal_event = {}  # Track the most recent event for each Notion ID
+                        
+                        for event in all_gcal_events:
+                            gcal_id = event.get('id')
+                            notion_id = event.get('extendedProperties', {}).get('private', {}).get('notionPageId')
+                            
+                            if not notion_id or notion_id not in valid_notion_ids:
+                                # Delete events without Notion ID or with invalid Notion ID
+                                ids_to_delete.add(gcal_id)
+                            else:
+                                # Check for duplicates
+                                if notion_id in notion_id_to_gcal_event:
+                                    # Compare update times to keep the most recent
+                                    existing_event = notion_id_to_gcal_event[notion_id]
+                                    if event.get('updated', '') > existing_event.get('updated', ''):
+                                        # Current event is newer, delete the old one
+                                        ids_to_delete.add(existing_event['id'])
+                                        notion_id_to_gcal_event[notion_id] = event
+                                    else:
+                                        # Existing event is newer, delete the current one
+                                        ids_to_delete.add(gcal_id)
+                                else:
+                                    notion_id_to_gcal_event[notion_id] = event
+                        
+                        # Delete invalid events
+                        if ids_to_delete:
+                            logger.info(f"Found {len(ids_to_delete)} events to delete (duplicates or invalid)")
+                            batch = service.new_batch_http_request(callback=handle_batch_delete_response)
+                            for event_id in ids_to_delete:
+                                batch.add(service.events().delete(
+                                    calendarId=config.GOOGLE_CALENDAR_ID,
+                                    eventId=event_id
+                                ))
+                            batch.execute()
                 set_tag("sync_status", "success")
                 with transaction.start_child(op="parse", description="parse_event_data") as span:
                     parsed_events = parse_event_data(notion_events)
