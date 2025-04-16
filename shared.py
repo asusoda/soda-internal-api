@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint, send_from_directory
 from flask_cors import CORS
 import discord
 import os
@@ -19,7 +19,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
-app = Flask("SoDA internal API", static_folder=None, template_folder=None)
+app = Flask("SoDA internal API", 
+    static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "web/build"),  # Path to built frontend files
+    template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "web/build"),  # Path to built frontend files
+)
 CORS(app, 
      resources={r"/*": {"origins": "*"}},
 )

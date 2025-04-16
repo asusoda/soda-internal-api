@@ -1,5 +1,6 @@
-from flask import jsonify, request, Blueprint
+from flask import jsonify, request, Blueprint, send_from_directory
 import json
+import os
 from modules.points.models import User, Points
 from shared import db_connect
 from sqlalchemy import func
@@ -10,15 +11,11 @@ public_blueprint = Blueprint(
 )
 
 
-@public_blueprint.route("/", methods=["GET"])
-def index():
-    return jsonify({"message": "Welcome to SoDA's very random internal API",
-                    "status": "Hi, Mom"}), 200
+
 
 @public_blueprint.route("/getnextevent", methods=["GET"])
 def get_next_event():
     pass
-
 
 @public_blueprint.route("/leaderboard", methods=["GET"])
 def get_leaderboard():
@@ -77,3 +74,14 @@ def get_leaderboard():
         }
         for name, total_points, uuid in leaderboard
     ]), 200
+
+# Catch-all route for static files - must be last to not interfere with API routes
+@public_blueprint.route('/', defaults={'path': ''})
+@public_blueprint.route('/<path:path>')
+def serve_static(path):
+    if path == "":
+        return send_from_directory('web/build', 'index.html')
+    elif os.path.exists(os.path.join('web/build', path)):
+        return send_from_directory('web/build', path)
+    else:
+        return send_from_directory('web/build', 'index.html')

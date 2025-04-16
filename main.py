@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from shared import app, bot, logger # Ensure logger is imported here or below
 from modules.calendar.service import CalendarService # Import CalendarService
 
@@ -13,6 +13,7 @@ from migrations import run_all_migrations
 from shared import config # logger is imported above, calendar_service removed
 import threading
 from apscheduler.schedulers.background import BackgroundScheduler # Import APScheduler
+import os
 
 # Instantiate and attach CalendarService after app is defined
 calendar_service = CalendarService(logger)
@@ -24,6 +25,15 @@ app.register_blueprint(points_blueprint, url_prefix="/points")
 app.register_blueprint(users_blueprint, url_prefix="/users")
 app.register_blueprint(auth_blueprint, url_prefix="/auth")
 app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
+
+# # Configure static file serving
+# @app.route('/', defaults={'path': ''})
+# @app.route('/<path:path>')
+# def serve(path):
+#     if path == "":
+#         return send_from_directory('web/dist', 'index.html')
+#     else:
+#         return send_from_directory('web/dist', path)
 
 # --- Scheduler Setup ---
 scheduler = BackgroundScheduler(daemon=True)
