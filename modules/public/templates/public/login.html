@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - SoDA at ASU{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+    <div class="max-w-md w-full p-6 bg-gray-800 rounded-lg shadow-lg">
+        <h1 class="text-3xl font-bold mb-6 text-center">SoDA at ASU</h1>
+        <p class="mb-6 text-center">Log in with your Discord account to continue</p>
+        <div class="flex justify-center">
+            <a href="{{ url_for('auth.login') }}"
+               class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md text-center text-white font-semibold transition-colors duration-300">
+                Login with Discord
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

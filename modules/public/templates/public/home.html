@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - SoDA at ASU{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-gray-800 shadow-lg rounded-lg overflow-hidden">
+        <div class="p-6">
+            <h1 class="text-3xl font-bold mb-4">Welcome, {{ user.name }}</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                <!-- User Profile Card -->
+                <div class="bg-gray-700 rounded-lg p-6 shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Your Profile</h2>
+                    <div class="space-y-2">
+                        <p><span class="font-medium">Email:</span> {{ user.email }}</p>
+                        <p><span class="font-medium">Academic Standing:</span> {{ user.academic_standing|default('Not specified') }}</p>
+                        <p><span class="font-medium">Major:</span> {{ user.major|default('Not specified') }}</p>
+                    </div>
+                    <a href="{{ url_for('users_views.view_user', user_identifier=user.email) }}" 
+                       class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        View Full Profile
+                    </a>
+                </div>
+                
+                <!-- Points Card -->
+                <div class="bg-gray-700 rounded-lg p-6 shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Points Overview</h2>
+                    <div class="text-4xl font-bold mb-2">{{ user.total_points|default(0) }}</div>
+                    <p class="text-gray-300 mb-4">Total Points</p>
+                    <a href="{{ url_for('points_views.leaderboard') }}" 
+                       class="mt-4 inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        View Leaderboard
+                    </a>
+                </div>
+                
+                <!-- Quick Links Card -->
+                <div class="bg-gray-700 rounded-lg p-6 shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Quick Links</h2>
+                    <div class="space-y-2">
+                        <a href="{{ url_for('public_views.home') }}" 
+                           class="block px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">
+                            Home
+                        </a>
+                        <a href="{{ url_for('users_views.user_page') }}" 
+                           class="block px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">
+                            Users
+                        </a>
+                        <a href="{{ url_for('points_views.leaderboard') }}" 
+                           class="block px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">
+                            Leaderboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

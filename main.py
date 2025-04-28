@@ -8,32 +8,59 @@ from modules.users.api import users_blueprint
 from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
-# from modules.calendar.service import CalendarService # Removed local import
+
+# Import our new views blueprints
+from modules.public.views import public_views
+from modules.users.views import users_views
+from modules.auth.views import auth_views
+from modules.points.views import points_views
+
 from migrations import run_all_migrations
 from shared import config # logger is imported above, calendar_service removed
 import threading
 from apscheduler.schedulers.background import BackgroundScheduler # Import APScheduler
 import os
+from datetime import datetime
+
+# Enable Flask's debug mode and template auto-reload for development
+app.config['DEBUG'] = True
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+# Set a secret key for session management
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
+
+# Configure Jinja2 to output template path during rendering (helps debug template issues)
+app.config['EXPLAIN_TEMPLATE_LOADING'] = True
 
 # Instantiate and attach CalendarService after app is defined
 calendar_service = CalendarService(logger)
 app.calendar_service = calendar_service
 
-# Register Blueprints
-app.register_blueprint(public_blueprint, url_prefix="/")
-app.register_blueprint(points_blueprint, url_prefix="/points")
-app.register_blueprint(users_blueprint, url_prefix="/users")
-app.register_blueprint(auth_blueprint, url_prefix="/auth")
-app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
+# Register API Blueprints (used for API calls)
+app.register_blueprint(public_blueprint, url_prefix="/api")
+app.register_blueprint(points_blueprint, url_prefix="/api/points")
+app.register_blueprint(users_blueprint, url_prefix="/api/users")
+app.register_blueprint(auth_blueprint, url_prefix="/api/auth")
+app.register_blueprint(calendar_blueprint, url_prefix="/api/calendar")
 
-# # Configure static file serving
-# @app.route('/', defaults={'path': ''})
-# @app.route('/<path:path>')
-# def serve(path):
-#     if path == "":
-#         return send_from_directory('web/dist', 'index.html')
-#     else:
-#         return send_from_directory('web/dist', path)
+# Register Views Blueprints (used for template rendering)
+app.register_blueprint(public_views, url_prefix="/")
+app.register_blueprint(users_views, url_prefix="/users")
+app.register_blueprint(auth_views, url_prefix="/auth")
+app.register_blueprint(points_views, url_prefix="/points")
+
+# Template context processor to inject current year into all templates
+@app.context_processor
+def inject_current_year():
+    return {'current_year': datetime.now().year}
+
+# Configure static file serving
+@app.route('/<path:path>')
+def serve_static(path):
+    if path.startswith('api/'):
+        # Skip API routes
+        return "", 404
+    return send_from_directory(app.static_folder, path)
 
 # --- Scheduler Setup ---
 scheduler = BackgroundScheduler(daemon=True)
@@ -67,8 +94,8 @@ def initialize_app():
     logger.info("APScheduler started for Notion-Google Calendar sync.")
     
     # Start Flask app
-    # Ensure use_reloader=False if debug is False, as reloader can cause scheduler issues
-    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+    # Use debug=True in development to help with template errors
+    app.run(host='0.0.0.0', port=8000, debug=True, use_reloader=False)
 
 if __name__ == "__main__":
     initialize_app()

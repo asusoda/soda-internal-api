@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Leaderboard - SoDA at ASU{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Points Leaderboard</h1>
+        <a href="{{ url_for('points_views.add_points') }}" 
+           class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+            Add Points
+        </a>
+    </div>
+    
+    <!-- Leaderboard Table -->
+    <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-gray-800">
+                <thead>
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Rank
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Name
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Academic Standing
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Points
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for user in users %}
+                    <tr class="{% if current_user.email == user.email %}bg-blue-900 bg-opacity-30{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-lg font-medium text-white">{{ loop.index }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-white">{{ user.name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-300">{{ user.academic_standing }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-lg font-bold text-white">{{ user.total_points }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <a href="{{ url_for('users_views.view_user', user_identifier=user.email) }}" 
+                               class="text-blue-400 hover:text-blue-300">
+                                View Profile
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% if not users %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-300">
+                            No users with points yet.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 
