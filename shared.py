@@ -13,6 +13,7 @@ from modules.utils.TokenManager import TokenManager
 from modules.bot.discord_modules.bot import BotFork
 import sentry_sdk # Added for Sentry
 from sentry_sdk.integrations.flask import FlaskIntegration # Added for Sentry
+from modules.organizations.models import Organization, OrganizationConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,6 +53,9 @@ else:
 # Initialize database connection
 db_connect = DBConnect("sqlite:///./data/user.db")
 tokenManger = TokenManager()
+
+# Ensure all tables are created after all models are imported
+Base.metadata.create_all(bind=db_connect.engine)
 
 def init_discord_bot():
     intents = discord.Intents.all()

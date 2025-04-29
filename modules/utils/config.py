@@ -47,7 +47,7 @@ class Config:
 
             # Monitoring Configuration (Optional)
             self.SENTRY_DSN = os.environ.get("SENTRY_DSN") # Optional: Used for Sentry error/performance monitoring
-
+            self.SYS_ADMIN = os.environ.get("ADMIN_USER_ID")
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e
 

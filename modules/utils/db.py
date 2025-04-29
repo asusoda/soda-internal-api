@@ -1,9 +1,7 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from modules.points.models import Base
-
+from .base import Base
 
 class DBConnect:
     def __init__(self, db_url="sqlite:///./user.db") -> None:
@@ -38,18 +36,10 @@ class DBConnect:
                 print(f"Created database directory: {db_dir}")
 
     def check_and_create_tables(self):
-        if self.SQLALCHEMY_DATABASE_URL.startswith('sqlite:///'):
-            # Get the database file path
-            db_path = self.SQLALCHEMY_DATABASE_URL[10:]
-            db_path = os.path.normpath(db_path)
-            
-            # Create tables if the database doesn't exist or is empty
-            if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
-                print(f"Creating database tables in {db_path}")
-                Base.metadata.create_all(bind=self.engine)
-        else:
-            # For non-SQLite databases, always try to create tables
-            Base.metadata.create_all(bind=self.engine)
+        """Create all tables if they don't exist"""
+        print("Creating database tables...")
+        Base.metadata.create_all(bind=self.engine)
+        print("Database tables created successfully")
 
     def get_db(self):
         db = self.SessionLocal()

@@ -8,6 +8,7 @@ from modules.users.api import users_blueprint
 from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
+from modules.superadmin.views import superadmin_views  # Add SuperAdmin views import
 
 # Import our new views blueprints
 from modules.public.views import public_views
@@ -48,6 +49,7 @@ app.register_blueprint(public_views, url_prefix="/")
 app.register_blueprint(users_views, url_prefix="/users")
 app.register_blueprint(auth_views, url_prefix="/auth")
 app.register_blueprint(points_views, url_prefix="/points")
+app.register_blueprint(superadmin_views, url_prefix="/superadmin")  # Register SuperAdmin views
 
 # Template context processor to inject current year into all templates
 @app.context_processor

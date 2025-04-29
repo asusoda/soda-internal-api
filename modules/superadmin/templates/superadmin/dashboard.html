@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}SuperAdmin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">SuperAdmin Dashboard</h1>
+
+    <!-- Officer's Organizations Section -->
+    {% if officer_orgs %}
+    <div class="mb-12">
+        <h2 class="text-2xl font-semibold mb-4">Your Organizations</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for org in officer_orgs %}
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center mb-4">
+                    {% if org.icon_url %}
+                    <img src="{{ org.icon_url }}" alt="{{ org.name }} icon" class="w-12 h-12 rounded-full mr-4">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                        <span class="text-gray-500 text-xl">{{ org.name[0] }}</span>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <h3 class="text-lg font-semibold">{{ org.name }}</h3>
+                        <p class="text-gray-500">ID: {{ org.guild_id }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Available Servers Section -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-semibold mb-4">Available Servers</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for guild in available_guilds %}
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center mb-4">
+                    {% if guild.icon %}
+                    <img src="{{ guild.icon.url }}" alt="{{ guild.name }} icon" class="w-12 h-12 rounded-full mr-4">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                        <span class="text-gray-500 text-xl">{{ guild.name[0] }}</span>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <h3 class="text-lg font-semibold">{{ guild.name }}</h3>
+                        <p class="text-gray-500">ID: {{ guild.id }}</p>
+                    </div>
+                </div>
+                <form action="{{ url_for('superadmin_views.add_organization', guild_id=guild.id) }}" method="POST" class="mt-4">
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                        Add Organization
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-500">No available servers found.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Existing Organizations Section -->
+    <div>
+        <h2 class="text-2xl font-semibold mb-4">Existing Organizations</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for org in existing_orgs %}
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center mb-4">
+                    {% if org.icon_url %}
+                    <img src="{{ org.icon_url }}" alt="{{ org.name }} icon" class="w-12 h-12 rounded-full mr-4">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                        <span class="text-gray-500 text-xl">{{ org.name[0] }}</span>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <h3 class="text-lg font-semibold">{{ org.name }}</h3>
+                        <p class="text-gray-500">ID: {{ org.guild_id }}</p>
+                    </div>
+                </div>
+                <form action="{{ url_for('superadmin_views.remove_organization', org_id=org.id) }}" method="POST" class="mt-4">
+                    <button type="submit" class="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition-colors">
+                        Remove Organization
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-500">No organizations have been added yet.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

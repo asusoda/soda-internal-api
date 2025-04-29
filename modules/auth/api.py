@@ -1,4 +1,4 @@
-from flask import request, jsonify, Blueprint, redirect, current_app
+from flask import request, jsonify, Blueprint, redirect, current_app, session, url_for, make_response
 from shared import config, bot, tokenManger
 from modules.auth.decoraters import auth_required, error_handler
 import requests
@@ -56,15 +56,23 @@ def callback():
         )
         user_info = user_response.json()
         user_id = user_info["id"]
-        user_id = user_info["id"]
         if bot.check_officer(user_id):
             name = bot.get_name(user_id)
             code = tokenManger.generate_token(username=name)
-            full_url = f"{config.CLIENT_URL}/auth/?code={code}"
-            return redirect(full_url)
+            # Store user info in session
+            session['user'] = {
+                'username': name,
+                'discord_id': user_id,
+                'role': 'admin'  # Set role as admin for officers
+            }
+            session['token'] = code
+            # Redirect to SuperAdmin dashboard and set token as cookie
+            resp = make_response(redirect(url_for('superadmin_views.dashboard')))
+            resp.set_cookie('soda_session_token', code, httponly=True, samesite='Lax')
+            return resp
         else:
             full_url = f"{config.CLIENT_URL}/auth/?error=Unauthorized Access"
-
+            return redirect(full_url)
     else:
         return jsonify({"error": "Failed to retrieve access token"}), 400
 
