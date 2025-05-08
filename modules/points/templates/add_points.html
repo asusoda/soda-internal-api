@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Add Points - SoDA at ASU{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6">Add Points</h1>
+    
+    <div class="bg-gray-800 rounded-lg p-6">
+        <form method="POST" action="{{ url_for('points_views.add_points') }}" class="space-y-4">
+            <div>
+                <label for="user_id" class="block text-sm font-medium text-gray-300">User</label>
+                <select name="user_id" id="user_id" required
+                        class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white">
+                    <option value="">Select a user</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label for="points" class="block text-sm font-medium text-gray-300">Points</label>
+                <input type="number" name="points" id="points" required min="1"
+                       class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white">
+            </div>
+            
+            <div>
+                <label for="event" class="block text-sm font-medium text-gray-300">Event</label>
+                <input type="text" name="event" id="event" required
+                       class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white">
+            </div>
+            
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Add Points
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

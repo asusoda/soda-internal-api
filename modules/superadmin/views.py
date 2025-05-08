@@ -26,31 +26,42 @@ def dashboard():
     """SuperAdmin dashboard showing all available servers"""
     # Get all guilds where the bot is a member
     guilds = bot.guilds
+    print(f"Bot is connected to {len(guilds)} guilds")
+    for guild in guilds:
+        print(f"Guild: {guild.name} (ID: {guild.id})")
     
     # Get existing organizations from the database
     db = next(db_connect.get_db())
     try:
         existing_orgs = db.query(Organization).all()
+        print(f"Found {len(existing_orgs)} existing organizations in database")
+        for org in existing_orgs:
+            print(f"Organization: {org.name} (ID: {org.id}, Guild ID: {org.guild_id})")
+        
         existing_guild_ids = {org.guild_id for org in existing_orgs}
         
         # Filter guilds to show only those not already added
         available_guilds = [guild for guild in guilds if str(guild.id) not in existing_guild_ids]
+        print(f"Found {len(available_guilds)} available guilds to add")
         
         # Get officer's organizations
         officer_id = session.get('user', {}).get('discord_id')
         officer_orgs = []
         if officer_id:
+            print(f"Looking for organizations for officer {officer_id}")
             for org in existing_orgs:
                 guild = bot.get_guild(int(org.guild_id))
                 if guild and guild.get_member(int(officer_id)):
                     officer_orgs.append(org)
+            print(f"Officer is a member of {len(officer_orgs)} organizations")
         
         return render_template(
             "superadmin/dashboard.html",
             available_guilds=available_guilds,
             existing_orgs=existing_orgs,
             officer_orgs=officer_orgs,
-            current_year=datetime.now().year
+            current_year=datetime.now().year,
+            current_user=session.get('token')
         )
     finally:
         db.close()
@@ -66,11 +77,15 @@ def add_organization(guild_id):
             flash("Guild not found", "error")
             return redirect(url_for('superadmin_views.dashboard'))
         
+        # Create prefix from guild name
+        prefix = guild.name.lower().replace(' ', '_').replace('-', '_')
+        
         # Create new organization with default settings
         settings = OrganizationSettings()
         new_org = Organization(
             name=guild.name,
             guild_id=str(guild.id),
+            prefix=prefix,
             description=f"Discord server: {guild.name}",
             icon_url=str(guild.icon.url) if guild.icon else None,
             config=settings.to_dict()

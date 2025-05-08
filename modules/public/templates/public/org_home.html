@@ -1,0 +1,105 @@
+{% extends "public/base.html" %}
+
+{% block title %}{{ organization.name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">{{ organization.name }}</h1>
+        <a href="{{ url_for('public_views.organizations') }}" 
+           class="px-4 py-2 border border-blue-500 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition-colors">
+            ← Back to Organizations
+        </a>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Organization Info -->
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Organization Details</h2>
+            <div class="mb-4">
+                <p class="text-gray-400 mb-1">Discord Server ID</p>
+                <p>{{ organization.guild_id }}</p>
+            </div>
+            <div class="mb-4">
+                <p class="text-gray-400 mb-1">Prefix</p>
+                <p>/{{ organization.prefix }}</p>
+            </div>
+            {% if organization.description %}
+            <div class="mb-4">
+                <p class="text-gray-400 mb-1">Description</p>
+                <p>{{ organization.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Quick Stats</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <p class="text-gray-400 mb-1">Total Points</p>
+                    <h3 class="text-2xl font-bold">{{ total_points }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <a href="{{ url_for('public_views.org_dashboard', prefix=organization.prefix) }}/leaderboard" class="block">
+            <div class="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition-colors">
+                <i class="fas fa-trophy text-4xl mb-3 text-yellow-500"></i>
+                <h5 class="text-lg font-semibold mb-2">Leaderboard</h5>
+                <p class="text-gray-400">View organization rankings</p>
+            </div>
+        </a>
+        <a href="{{ url_for('public_views.org_dashboard', prefix=organization.prefix) }}/config" class="block">
+            <div class="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition-colors">
+                <i class="fas fa-cog text-4xl mb-3 text-blue-500"></i>
+                <h5 class="text-lg font-semibold mb-2">Configuration</h5>
+                <p class="text-gray-400">Manage organization settings</p>
+            </div>
+        </a>
+        <a href="{{ url_for('public_views.org_dashboard', prefix=organization.prefix) }}/calendar" class="block">
+            <div class="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition-colors">
+                <i class="fas fa-calendar text-4xl mb-3 text-green-500"></i>
+                <h5 class="text-lg font-semibold mb-2">Calendar</h5>
+                <p class="text-gray-400">View upcoming events</p>
+            </div>
+        </a>
+        <a href="{{ url_for('public_views.org_dashboard', prefix=organization.prefix) }}/config" class="block">
+            <div class="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition-colors">
+                <i class="fas fa-users text-4xl mb-3 text-blue-400"></i>
+                <h5 class="text-lg font-semibold mb-2">Members</h5>
+                <p class="text-gray-400">Manage organization members</p>
+            </div>
+        </a>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Recent Activity</h2>
+        {% if recent_points %}
+            <div class="space-y-4">
+                {% for point in recent_points %}
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h6 class="font-semibold">{{ point.user.username }}</h6>
+                        </div>
+                        <div class="text-right">
+                            <span class="bg-green-500 text-white px-2 py-1 rounded text-sm">+{{ point.points }}</span>
+                            <p class="text-gray-400 text-sm mt-1">
+                                {{ point.timestamp.strftime('%B %d, %Y') }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-gray-400">No recent activity</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

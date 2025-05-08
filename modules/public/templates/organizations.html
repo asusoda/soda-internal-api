@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Organizations - SoDA at ASU{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6">Organizations</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for org in organizations %}
+        <a href="{{ url_for('public_views.org_home', org_id=org.id) }}" 
+           class="block bg-gray-800 rounded-lg p-6 hover:bg-gray-700 transition-colors">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">{{ org.name }}</h2>
+                    <p class="text-gray-400">Discord ID: {{ org.discord_id }}</p>
+                </div>
+                <span class="text-blue-400">→</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

@@ -1,4 +1,4 @@
-from flask import Blueprint, session, redirect, url_for, request, flash, render_template
+from flask import Blueprint, session, redirect, url_for, request, flash, render_template, jsonify
 from shared import logger, tokenManger
 import os
 from datetime import datetime
@@ -71,4 +71,18 @@ def logout():
     """Log out the user by clearing the session"""
     session.clear()
     flash("You have been logged out", "success")
-    return redirect(url_for('public_views.index')) 
+    return redirect(url_for('public_views.index'))
+
+@auth_views.route('/api/auth/check', methods=['GET'])
+def check_auth():
+    """Check if user is authenticated"""
+    if session.get('token'):
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': session['token'].get('id'),
+                'email': session['token'].get('email'),
+                'name': session['token'].get('name')
+            }
+        })
+    return jsonify({'authenticated': False}), 401 

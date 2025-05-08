@@ -22,7 +22,7 @@
                     </div>
                     {% endif %}
                     <div>
-                        <h3 class="text-lg font-semibold">{{ org.name }}</h3>
+                        <h3 class="text-lg font-semibold text-black">{{ org.name }}</h3>
                         <p class="text-gray-500">ID: {{ org.guild_id }}</p>
                     </div>
                 </div>
@@ -31,6 +31,66 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Feature Cards Section -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-semibold mb-4">Features</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Config Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
+                <div class="flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Config</h3>
+                    <p class="text-gray-600 text-sm">Manage organization settings and preferences</p>
+                </div>
+            </div>
+
+            <!-- Leaderboard Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
+                <div class="flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Leaderboard</h3>
+                    <p class="text-gray-600 text-sm">View and manage member rankings and achievements</p>
+                </div>
+            </div>
+
+            <!-- Marketing Module Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
+                <div class="flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Marketing</h3>
+                    <p class="text-gray-600 text-sm">Upcoming marketing tools and campaigns</p>
+                </div>
+            </div>
+
+            <!-- Calendar Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
+                <div class="flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Calendar</h3>
+                    <p class="text-gray-600 text-sm">Schedule and manage events and activities</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Available Servers Section -->
     <div class="mb-12">
@@ -47,7 +107,7 @@
                     </div>
                     {% endif %}
                     <div>
-                        <h3 class="text-lg font-semibold">{{ guild.name }}</h3>
+                        <h3 class="text-lg font-semibold text-black">{{ guild.name }}</h3>
                         <p class="text-gray-500">ID: {{ guild.id }}</p>
                     </div>
                 </div>
@@ -80,7 +140,7 @@
                     </div>
                     {% endif %}
                     <div>
-                        <h3 class="text-lg font-semibold">{{ org.name }}</h3>
+                        <h3 class="text-lg font-semibold text-black">{{ org.name }}</h3>
                         <p class="text-gray-500">ID: {{ org.guild_id }}</p>
                     </div>
                 </div>

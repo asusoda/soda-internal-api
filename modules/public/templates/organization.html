@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}SoDA at ASU - {{ organization.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">{{ organization.name }}</h1>
+        <a href="{{ url_for('public_views.organizations') }}" 
+           class="text-blue-400 hover:text-blue-300">
+            ← Back to Organizations
+        </a>
+    </div>
+    
+    <div class="bg-gray-800 rounded-lg p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h2 class="text-xl font-semibold mb-4">Organization Details</h2>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-gray-400">Discord ID</p>
+                        <p class="text-lg">{{ organization.discord_id }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Created At</p>
+                        <p class="text-lg">{{ organization.created_at.strftime('%B %d, %Y') }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <h2 class="text-xl font-semibold mb-4">Members</h2>
+                {% if organization.users %}
+                <div class="space-y-2">
+                    {% for user in organization.users %}
+                    <div class="bg-gray-700 p-3 rounded-lg">
+                        <p class="font-medium">{{ user.username }}</p>
+                        <p class="text-gray-400 text-sm">Discord ID: {{ user.discord_id }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-400">No members found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

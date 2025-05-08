@@ -4,41 +4,43 @@ from modules.points.models import User, Points
 from shared import db_connect, logger
 from datetime import datetime
 import os
+from sqlalchemy import func
 
 # Create an absolute path to the templates directory
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
 
 users_views = Blueprint("users_views", __name__, template_folder=template_dir)
 
-@users_views.route("/", methods=["GET"])
+@users_views.route("/users", methods=["GET"])
 @auth_required
 def user_page():
-    """Render the users management page"""
+    """Render the users page"""
     try:
         db = next(db_connect.get_db())
-        users = db.query(User).all()
-        
-        # Format user data for the template
+        # Get all users with their total points
+        users = db.query(
+            User,
+            func.coalesce(func.sum(Points.points), 0).label('total_points')
+        ).outerjoin(
+            Points, User.id == Points.user_id
+        ).group_by(
+            User.id
+        ).all()
+
+        # Format the data for the template
         users_data = []
-        for user in users:
-            # Get the total points for each user
-            total_points = db.query(Points).filter_by(user_email=user.email).with_entities(
-                Points.points).all()
-            total = sum(points[0] for points in total_points) if total_points else 0
-            
+        for user, total_points in users:
             users_data.append({
+                'id': user.id,
                 'name': user.name,
                 'email': user.email,
-                'uuid': user.uuid,
-                'academic_standing': user.academic_standing,
-                'major': user.major,
-                'total_points': total
+                'total_points': total_points
             })
-            
-        return render_template("users/users.html", 
-                              users=users_data,
-                              current_user=session.get('user'),
-                              current_year=datetime.now().year)
+
+        return render_template("users/users.html",
+                            current_user=session.get('token'),
+                            current_year=datetime.now().year,
+                            users=users_data)
     except Exception as e:
         logger.error(f"Error fetching users: {str(e)}")
         return redirect(url_for('public_views.server_error'))

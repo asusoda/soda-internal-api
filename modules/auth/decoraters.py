@@ -1,34 +1,46 @@
 from shared import tokenManger
-from flask import request, jsonify
+from flask import request, jsonify, session, redirect, url_for, session
 from dotenv import load_dotenv
 import functools
 import os
+from functools import wraps
 
 
 def auth_required(f):
     """
-    A decorator for Flask endpoints to ensure the user is authorized through Discord OAuth2.
+    A decorator for Flask endpoints to ensure the user is authenticated.
+    Checks both session cookies and Authorization headers.
     """
-
-    @functools.wraps(f)
+    @wraps(f)
     def wrapper(*args, **kwargs):
-        token = None
+        # Check session cookie first
+        if session.get('token'):
+            try:
+                if not tokenManger.is_token_valid(session['token']):
+                    session.pop('token', None)
+                    return redirect(url_for('auth.login'))
+                elif tokenManger.is_token_expired(session['token']):
+                    session.pop('token', None)
+                    return redirect(url_for('auth.login'))
+                return f(*args, **kwargs)
+            except Exception as e:
+                session.pop('token', None)
+                return redirect(url_for('auth.login'))
 
+        # If no session, check Authorization header (for API calls)
+        token = None
         if "Authorization" in request.headers:
-            token = request.headers["Authorization"].split(" ")[
-                1
-            ]  # Extract the token from the Authorization header
+            token = request.headers["Authorization"].split(" ")[1]
 
         if not token:
-            return jsonify({"message": "Token is missing!"}), 401
+            return redirect(url_for('auth.login'))
 
         try:
             if not tokenManger.is_token_valid(token):
                 return jsonify({"message": "Token is invalid!"}), 401
             elif tokenManger.is_token_expired(token):
                 return jsonify({"message": "Token is expired!"}), 403
-            else:
-                return f(*args, **kwargs)
+            return f(*args, **kwargs)
         except Exception as e:
             return jsonify({"message": str(e)}), 401
 
