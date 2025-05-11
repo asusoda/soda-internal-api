@@ -42,6 +42,14 @@ class BotFork(commands.Bot):
         # super().add_cog(HelperCog(self))
         # super().add_cog(GameCog(self))
 
+    async def on_ready(self):
+        """Event that fires when the bot is ready."""
+        print(f'Logged in as {self.user} (ID: {self.user.id})')
+        print('------')
+
+        # For py-cord, commands should sync automatically
+        print("Discord connection established. Commands should be registered automatically.")
+
     def set_token(self, token):
         """
         Sets the bot token.
@@ -64,6 +72,8 @@ class BotFork(commands.Bot):
             threading.Thread(target=super().run, args=(self.token,)).start()
         else:
             asyncio.run_coroutine_threadsafe(self.change_presence(status=discord.Status.online))
+
+    # py-cord handles command synchronization automatically
 
     async def stop(self):
         """

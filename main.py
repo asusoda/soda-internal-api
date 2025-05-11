@@ -8,6 +8,7 @@ from modules.users.api import users_blueprint
 from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
+from modules.summarizer.api import summarizer_blueprint
 # from modules.calendar.service import CalendarService # Removed local import
 from migrations import run_all_migrations
 from shared import config # logger is imported above, calendar_service removed
@@ -25,6 +26,7 @@ app.register_blueprint(points_blueprint, url_prefix="/points")
 app.register_blueprint(users_blueprint, url_prefix="/users")
 app.register_blueprint(auth_blueprint, url_prefix="/auth")
 app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
+app.register_blueprint(summarizer_blueprint, url_prefix="/summarizer")
 
 # # Configure static file serving
 # @app.route('/', defaults={'path': ''})

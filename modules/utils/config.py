@@ -17,7 +17,8 @@ class Config:
             self.PROD = os.environ.get("PROD", "false").lower() == "true"
 
             # Service Tokens
-            self.BOT_TOKEN = os.environ["BOT_TOKEN"]
+            self.BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Legacy token
+            self.AVERY_BOT_TOKEN = os.environ.get("AVERY_BOT_TOKEN")  # AVERY bot token
             
             # Database Configuration
             self.DB_TYPE = os.environ["DB_TYPE"]
@@ -47,6 +48,9 @@ class Config:
 
             # Monitoring Configuration (Optional)
             self.SENTRY_DSN = os.environ.get("SENTRY_DSN") # Optional: Used for Sentry error/performance monitoring
+
+            # AI Service Keys
+            self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # Google Gemini API key
 
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e

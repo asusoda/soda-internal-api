@@ -54,10 +54,31 @@ db_connect = DBConnect("sqlite:///./data/user.db")
 tokenManger = TokenManager()
 
 def init_discord_bot():
-    intents = discord.Intents.all()
+    # Use default intents and enable only what's needed
+    intents = discord.Intents.default()
+    intents.message_content = True  # For reading message content
+    intents.guild_messages = True   # For message events in guilds
+
     bot = BotFork(command_prefix="!", intents=intents)
     notion = Client(auth=config.NOTION_API_KEY)
-    bot.set_token(config.BOT_TOKEN)
+    bot.set_token(config.AVERY_BOT_TOKEN)
+
+    # Register summarizer commands
+    try:
+        # First try direct command approach
+        from modules.summarizer.discord_modules.direct_commands import register_direct_commands
+        register_direct_commands(bot)
+        logger.info("Summarizer direct commands registered successfully")
+    except Exception as e:
+        logger.error(f"Error registering direct commands: {e}")
+        # Fall back to cog approach
+        try:
+            from modules.summarizer.discord_modules.setup import setup_summarizer_cog
+            setup_summarizer_cog(bot)
+            logger.info("Summarizer cog registered as fallback")
+        except Exception as e2:
+            logger.error(f"Error registering summarizer cog: {e2}")
+
     return bot, notion
 
 # Initialize Discord bot and Notion client
