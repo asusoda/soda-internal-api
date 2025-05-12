@@ -149,6 +149,8 @@ class SummarizerService:
         Returns:
             Dictionary with summary text and metrics
         """
+        # The code is checking if the `gemini_client` attribute of the current object is `None` or
+        # empty. If it is `None` or empty, the condition will evaluate to `True`.
         if not self.gemini_client:
             raise Exception("Gemini client not initialized")
 
@@ -191,14 +193,26 @@ I didn't find any messages in this channel for the specified period (`{duration_
             try:
                 # Format messages for the prompt
                 formatted_messages = ""
+                citation_index = 1
+                citation_map = {}
+                
                 for msg in messages:
                     author = msg.get("author", {}).get("name", "Unknown")
                     content = msg.get("content", "")
                     timestamp = msg.get("timestamp", "")
-                    formatted_messages += f"{timestamp} | {author}: {content}\n\n"
+                    msg_id = msg.get("id", "")
+                    jump_url = msg.get("jump_url", "")
+                    
+                    # Create a citation ID for this message
+                    citation_id = f"[c{citation_index}]"
+                    citation_map[citation_id] = jump_url
+                    
+                    # Add the message with citation ID
+                    formatted_messages += f"{timestamp} | {author} {citation_id}: {content}\n\n"
+                    citation_index += 1
 
                 # Log the number of messages being summarized
-                logger.info(f"Formatting {len(messages)} messages for summarization")
+                logger.info(f"Formatting {len(messages)} messages for summarization with citations")
 
                 # Create prompt for Gemini
                 prompt = f"""
@@ -211,6 +225,7 @@ I didn't find any messages in this channel for the specified period (`{duration_
                 4. Be extremely brief but informative
                 5. Format in bulleted lists using dashes (-) for bullets
                 6. Follow EXACTLY the header structure from the example below
+                7. IMPORTANT: Include citations to reference specific messages using the citation format [cX] that appears after each message author's name
 
                 Focus on:
                 1. Participants involved (who was talking)
@@ -222,22 +237,22 @@ I didn't find any messages in this channel for the specified period (`{duration_
                 Format the output EXACTLY like this example, using proper Markdown header levels:
 
                 # Action Items ✨
-                - **[Person responsible]:** [Action item description]
-                - **[Person responsible]:** [Another action item if applicable]
+                - **[Person responsible]:** [Action item description] [c1]
+                - **[Person responsible]:** [Another action item if applicable] [c2]
                 # Conversation Summary ✨
                 ## Conversation Purpose
                 [Brief description of meeting purpose]
                 ## Key Takeaways
-                - [First key takeaway from the conversation]
-                - [Second key takeaway from the conversation]
-                - [Third key takeaway if applicable]
+                - [First key takeaway from the conversation] [c3]
+                - [Second key takeaway from the conversation] [c4]
+                - [Third key takeaway if applicable] [c5]
                 ## Topics
                 ### [Topic Name]
-                - [Detail about the first topic]
-                - [Another point about the first topic]
+                - [Detail about the first topic] [c6]
+                - [Another point about the first topic] [c7]
                 ### [Another Topic Name]
-                - [Detail about the second topic]
-                - [Another point about the second topic]
+                - [Detail about the second topic] [c8]
+                - [Another point about the second topic] [c9]
 
                 IMPORTANT FORMATTING RULES:
                 1. Use "# " for first-level headers ("Action Items ✨" and "Conversation Summary ✨")
@@ -249,6 +264,8 @@ I didn't find any messages in this channel for the specified period (`{duration_
                 7. ONLY use bold formatting (**text**) for assignee names in action items
                 8. Maintain consistent indentation for bullet points
                 9. For action items, format as a single bullet with the person's name in bold followed by a colon and the action item description
+                10. ALWAYS include citation references in the format [cX] after important information to refer to the original messages
+                11. Use citations [cX] to reference specific messages that support your summary points
 
                 MESSAGES TO SUMMARIZE:
                 {formatted_messages}
@@ -290,6 +307,24 @@ I encountered a problem generating a summary for this conversation. This is like
 
 - Try again later when the service may be less busy
 - Try requesting a shorter time period (fewer messages)"""
+                    else:
+                        # Parse and format citations
+                        summary = self._parse_citations(summary, citation_map)
+                        
+                        # Split the summary if it's too long for Discord
+                        if len(summary) > 4000:  # Using 4000 to leave some buffer
+                            logger.info(f"Summary exceeds Discord's limit ({len(summary)} chars). Splitting into parts.")
+                            summary_parts = self._split_summary_for_discord(summary)
+                            # Return as multiple parts
+                            return {
+                                "summary": summary_parts[0],
+                                "continuation_parts": summary_parts[1:],
+                                "message_count": len(messages),
+                                "duration": duration_str,
+                                "completion_time": time.time() - start_time,
+                                "error": False,
+                                "is_split": True
+                            }
 
                 except Exception as api_error:
                     logger.error(f"Error in Gemini API call: {api_error}")
@@ -317,7 +352,8 @@ Error type: API Connection Issue
                     "message_count": len(messages),
                     "duration": duration_str,
                     "completion_time": completion_time,
-                    "error": False
+                    "error": False,
+                    "is_split": False
                 }
 
             except Exception as e:
@@ -349,3 +385,160 @@ An error occurred during summary generation.
                 }
         finally:
             db.close()
+
+
+    # _parse_citations method to parse citations in the summary text
+    def _parse_citations(self, text: str, citation_map: Dict[str, str]) -> str:
+        """Parse and format citations in the summary text."""
+        import re
+        
+        # First, find range citations like [c16-c19] and expand them
+        range_pattern = r'\[c(\d+)-c(\d+)\]'
+        
+        def expand_range_citation(match):
+            start = int(match.group(1))
+            end = int(match.group(2)) + 1
+            return ''.join(f'[c{i}]' for i in range(start, end))
+        
+        text = re.sub(range_pattern, expand_range_citation, text)
+        
+        # Find all grouped citations like [c1, c2, c3]
+        grouped_citation_pattern = r'\[(c\d+(?:,\s*c\d+)*)\]'
+        
+        def replace_grouped_citations(match):
+            citations_content = match.group(1)
+            individual_citations = [c.strip() for c in citations_content.split(',')]
+            return ''.join(f'[{c}]' for c in individual_citations)
+        
+        text = re.sub(grouped_citation_pattern, replace_grouped_citations, text)
+        
+        # Find citations without brackets like c1c2c3
+        unbracket_pattern = r'(?<!\[)c(\d+)(?!\])'
+        
+        def add_brackets(match):
+            return f'[c{match.group(1)}]'
+        
+        text = re.sub(unbracket_pattern, add_brackets, text)
+        
+        # Replace each citation with a hyperlink
+        for citation_id, jump_url in citation_map.items():
+            # Ensure we're looking for [cN]
+            bracket_citation = citation_id if citation_id.startswith('[') else f'[{citation_id.strip("[]")}]'
+            # Create hyperlink with brackets preserved
+            hyperlink = f"[{bracket_citation}]({jump_url})"
+            # Replace in text, being careful with the brackets
+            text = text.replace(bracket_citation, hyperlink)
+        
+        return text
+
+    def _split_summary_for_discord(self, summary: str) -> List[str]:
+        """Split a long summary into multiple parts that fit within Discord's limits.
+        
+        Discord has a 4096 character limit for embed descriptions.
+        This function tries to split at logical section boundaries (Markdown headers)
+        and ensures each part is under the limit.
+        
+        Args:
+            summary: The full summary text
+            
+        Returns:
+            List of summary parts, each under 4000 characters
+        """
+        import re
+        
+        # Maximum size for each part (leaving some buffer)
+        MAX_PART_SIZE = 4000
+        
+        # If the summary is already small enough, return it as a single part
+        if len(summary) <= MAX_PART_SIZE:
+            return [summary]
+            
+        # Try to split at main section headers (# or ##)
+        parts = []
+        header_pattern = re.compile(r'^#{1,2}\s', re.MULTILINE)
+        
+        # Find all section headers
+        header_matches = list(header_pattern.finditer(summary))
+        
+        if len(header_matches) <= 1:
+            # Not enough headers to split meaningfully, just split by size
+            return self._split_by_size(summary, MAX_PART_SIZE)
+            
+        # Start with first part from beginning to first split point
+        current_pos = 0
+        current_part = ""
+        
+        for i in range(1, len(header_matches)):
+            # Get the position of this header
+            header_pos = header_matches[i].start()
+            
+            # Check if adding this section would exceed the limit
+            section = summary[current_pos:header_pos]
+            
+            if len(current_part) + len(section) <= MAX_PART_SIZE:
+                # Add this section to current part
+                current_part += section
+            else:
+                # Current part is full, add it to parts and start a new one
+                parts.append(current_part)
+                current_part = section
+            
+            current_pos = header_pos
+            
+        # Add the last part from the last split point to the end
+        last_section = summary[current_pos:]
+        if len(current_part) + len(last_section) <= MAX_PART_SIZE:
+            current_part += last_section
+            parts.append(current_part)
+        else:
+            parts.append(current_part)
+            parts.append(last_section)
+            
+        # Check if any part is still too long and split it further if needed
+        final_parts = []
+        for part in parts:
+            if len(part) <= MAX_PART_SIZE:
+                final_parts.append(part)
+            else:
+                # Split this part by size
+                final_parts.extend(self._split_by_size(part, MAX_PART_SIZE))
+                
+        # Add part indicators to the parts
+        for i in range(len(final_parts)):
+            if i > 0:
+                final_parts[i] = f"**(Part {i+1} continued)**\n\n{final_parts[i]}"
+                
+        return final_parts
+        
+    def _split_by_size(self, text: str, max_size: int) -> List[str]:
+        """Split text by size, trying to split at paragraph boundaries
+        
+        Args:
+            text: Text to split
+            max_size: Maximum size for each part
+            
+        Returns:
+            List of text parts
+        """
+        parts = []
+        
+        while text:
+            if len(text) <= max_size:
+                parts.append(text)
+                break
+                
+            # Try to find a paragraph break within the limit
+            split_pos = text[:max_size].rfind("\n\n")
+            
+            if split_pos == -1 or split_pos < max_size // 2:
+                # No good paragraph break, try a line break
+                split_pos = text[:max_size].rfind("\n")
+                
+            if split_pos == -1 or split_pos < max_size // 2:
+                # No good line break either, just split at the limit
+                split_pos = max_size
+                
+            parts.append(text[:split_pos])
+            text = text[split_pos:].strip()
+            
+        return parts

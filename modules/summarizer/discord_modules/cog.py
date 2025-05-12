@@ -151,6 +151,23 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             try:
                 await thinking_message.edit(content=None, embed=embed)
                 logger.info("Slash command: Successfully updated message with summary embed")
+                
+                # If the summary was split into multiple parts, send continuation messages
+                if summary_result.get("is_split", False) and "continuation_parts" in summary_result:
+                    logger.info(f"Sending {len(summary_result['continuation_parts'])} continuation parts")
+                    
+                    for i, part in enumerate(summary_result["continuation_parts"]):
+                        # Create continuation embed
+                        cont_embed = discord.Embed(
+                            title=f"Channel Summary ({duration}) - Part {i+2}",
+                            description=part,
+                            color=discord.Color.blue()
+                        )
+                        
+                        # Send as a separate message
+                        await ctx.followup.send(embed=cont_embed, ephemeral=not public)
+                        logger.info(f"Sent continuation part {i+2}")
+
             except Exception as e:
                 logger.error(f"Slash command: Error updating message with summary: {e}")
                 # Fallback - try sending a new message
@@ -329,14 +346,25 @@ An error occurred during the summarization process.
             try:
                 await thinking_message.edit(content=None, embed=embed)
                 logger.info("Context menu: Successfully updated message with summary embed")
+                
+                # If the summary was split into multiple parts, send continuation messages
+                if summary_result.get("is_split", False) and "continuation_parts" in summary_result:
+                    logger.info(f"Context menu: Sending {len(summary_result['continuation_parts'])} continuation parts")
+                    
+                    for i, part in enumerate(summary_result["continuation_parts"]):
+                        # Create continuation embed
+                        cont_embed = discord.Embed(
+                            title=f"Channel Summary ({selected_duration}) - Part {i+2}",
+                            description=part,
+                            color=discord.Color.blue()
+                        )
+                        
+                        # Send as a separate message
+                        await modal_interaction.followup.send(embed=cont_embed, ephemeral=True)
+                        logger.info(f"Context menu: Sent continuation part {i+2}")
+                    
             except Exception as e:
                 logger.error(f"Context menu: Error updating message with summary: {e}")
-                # Fallback - try sending a new message
-                try:
-                    await ctx.followup.send(content=None, embed=embed, ephemeral=True)
-                    logger.info("Context menu: Sent summary as a new message")
-                except Exception as send_error:
-                    logger.error(f"Context menu: Error sending fallback message: {send_error}")
             
         except asyncio.TimeoutError:
             await ctx.followup.send(
