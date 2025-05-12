@@ -388,6 +388,241 @@ An error occurred during summary generation.
         finally:
             db.close()
 
+    def answer_question(self,
+                      messages: List[Dict[str, Any]],
+                      question: str,
+                      duration_str: str,
+                      user_id: str,
+                      channel_id: str,
+                      guild_id: str) -> Dict[str, Any]:
+        """Answer a specific question about Discord messages using Gemini API
+
+        Args:
+            messages: List of Discord message objects with author, content, timestamp
+            question: The specific question to answer about the conversation
+            duration_str: Duration or date range string
+            user_id: Discord user ID who requested the answer
+            channel_id: Discord channel ID where the question was asked
+            guild_id: Discord guild/server ID
+
+        Returns:
+            Dictionary with answer text and metrics
+        """
+        if not self.gemini_client:
+            raise Exception("Gemini client not initialized")
+
+        if not messages:
+            return {
+                "answer": f"""# No Messages Found 🔎
+
+I didn't find any messages in this channel for the specified period (`{duration_str}`).
+
+## Options
+
+- Try a longer time period
+- Check if there are messages in this channel
+- Try another channel""",
+                "message_count": 0,
+                "duration": duration_str,
+                "error": False
+            }
+
+        # Log some info about the request
+        logger.info(f"Question request for channel {channel_id} - Found {len(messages)} messages over {duration_str}")
+        logger.info(f"Question: {question}")
+
+        db = next(self.db_connect.get_db())
+
+        try:
+            # Create log entry (reusing SummaryLog for simplicity)
+            log_entry = SummaryLog(
+                user_id=user_id,
+                channel_id=channel_id,
+                guild_id=guild_id,
+                duration=duration_str,
+                message_count=len(messages)
+            )
+
+            db.add(log_entry)
+            db.commit()
+
+            start_time = time.time()
+
+            try:
+                # Format messages for the prompt
+                formatted_messages = ""
+                citation_index = 1
+                citation_map = {}
+                
+                for msg in messages:
+                    author = msg.get("author", {}).get("name", "Unknown")
+                    content = msg.get("content", "")
+                    timestamp = msg.get("timestamp", "")
+                    msg_id = msg.get("id", "")
+                    jump_url = msg.get("jump_url", "")
+                    
+                    # Create a citation ID for this message
+                    citation_id = f"[c{citation_index}]"
+                    citation_map[citation_id] = jump_url
+                    
+                    # Add the message with citation ID
+                    formatted_messages += f"{timestamp} | {author} {citation_id}: {content}\n\n"
+                    citation_index += 1
+
+                # Log the number of messages being analyzed
+                logger.info(f"Formatting {len(messages)} messages for question answering with citations")
+
+                # Create prompt for Gemini
+                prompt = f"""
+                You are AVERY, a Discord bot that accurately answers specific questions about chat conversations. I am giving you Discord messages and a question to answer.
+
+                Time Range Analyzed: {duration_str}
+                
+                USER QUESTION: {question}
+
+                CRITICAL INSTRUCTIONS:
+                1. Focus ONLY on answering the specific question that was asked
+                2. Provide a clear, accurate, and direct answer based solely on the content of the messages
+                3. Use citations [cX] to reference specific messages that support your answer
+                4. If the question cannot be answered from these messages, clearly state that
+                5. Be objective and factual - don't speculate beyond what's in the messages
+                6. Format your answer in a clear, readable way using Markdown
+
+                Your answer should:
+                - Start with a clear, direct response to the question
+                - Include relevant evidence from the messages
+                - Cite specific messages to support your points
+                - Be well-organized using appropriate headings and bullet points
+                - Be comprehensive but concise
+
+                Format the output using proper Markdown:
+                - Use "# " for the main answer header
+                - Use "## " for any section headers if needed
+                - Use "### " for subsection headers if needed
+                - Use bullet points (- ) for lists
+                - Use bold (**text**) for emphasis
+                - ALWAYS cite sources with the citation format [cX] that appears after each message author's name
+
+                MESSAGES TO ANALYZE:
+                {formatted_messages}
+                """
+
+                # Generate answer using the Genai API
+                try:
+                    # Configure the generation parameters
+                    generation_config = types.GenerateContentConfig(
+                        temperature=self.temperature,
+                        max_output_tokens=self.max_tokens,
+                        top_p=0.8,
+                        top_k=40
+                    )
+
+                    # Send request to Gemini API
+                    response = self.gemini_client.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt,
+                        config=generation_config
+                    )
+
+                    # Log response details
+                    logger.info(f"Gemini response type: {type(response)}")
+                    logger.info(f"Response structure: {response.model_dump_json(exclude_none=True)[:100]}...")
+
+                    # Get the answer text
+                    answer = response.text.strip()
+                    logger.info(f"Generated answer with {len(answer)} characters")
+
+                    # Check for empty or very short answers
+                    if not answer or len(answer) < 50:
+                        logger.warning(f"Gemini returned empty or very short answer: '{answer}' - this might indicate an issue with the API")
+                        answer = """# Unable to Generate Answer ⚠️
+
+I encountered a problem generating an answer for your question. This is likely due to an issue with the AI service.
+
+## Options
+
+- Try again later when the service may be less busy
+- Try rephrasing your question
+- Try with a different time period"""
+                    else:
+                        # Parse and format citations
+                        answer = self._parse_citations(answer, citation_map)
+                        
+                        # Split the answer if it's too long for Discord
+                        if len(answer) > 4000:  # Using 4000 to leave some buffer
+                            logger.info(f"Answer exceeds Discord's limit ({len(answer)} chars). Splitting into parts.")
+                            answer_parts = self._split_summary_for_discord(answer)
+                            # Return as multiple parts
+                            return {
+                                "answer": answer_parts[0],
+                                "continuation_parts": answer_parts[1:],
+                                "message_count": len(messages),
+                                "duration": duration_str,
+                                "completion_time": time.time() - start_time,
+                                "error": False,
+                                "is_split": True
+                            }
+
+                except Exception as api_error:
+                    logger.error(f"Error in Gemini API call: {api_error}")
+                    answer = """# API Error ⚠️
+
+I encountered an error while trying to answer your question. The AI service returned an error.
+
+## Technical Details
+
+Error type: API Connection Issue
+
+## Next Steps
+
+- Try again later
+- Contact support if the issue persists"""
+
+                completion_time = time.time() - start_time
+
+                # Update log entry with success
+                log_entry.completion_time = completion_time
+                db.commit()
+
+                return {
+                    "answer": answer,
+                    "message_count": len(messages),
+                    "duration": duration_str,
+                    "completion_time": completion_time,
+                    "error": False,
+                    "is_split": False
+                }
+
+            except Exception as e:
+                # Log error
+                logger.error(f"Error generating answer: {e}")
+
+                # Update log entry with error
+                log_entry.error = True
+                log_entry.error_message = str(e)
+                db.commit()
+
+                return {
+                    "answer": """# Error Answering Question ⚠️
+
+I encountered an unexpected error while processing your request.
+
+## Technical Details
+
+An error occurred during answer generation.
+
+## Next Steps
+
+- Try again with a simpler question
+- Try with a shorter time period
+- Contact support if the issue persists""",
+                    "message_count": len(messages),
+                    "duration": duration_str,
+                    "error": True,
+                    "error_message": str(e)
+                }
+        finally:
+            db.close()
 
     # _parse_citations method to parse citations in the summary text
     def _parse_citations(self, text: str, citation_map: Dict[str, str]) -> str:

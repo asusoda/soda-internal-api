@@ -589,6 +589,321 @@ An error occurred during the summarization process.
             logger.error(f"Error fetching messages: {e}")
             return []
 
+    # Create a slash command for asking questions about chat
+    @discord.slash_command(
+        name="ask",
+        description="Ask a specific question about channel messages",
+        guild_ids=None  # This makes it global
+    )
+    async def ask_command(
+        self,
+        ctx: discord.ApplicationContext,
+        question: discord.Option(
+            str,
+            "Your question about the conversation",
+            required=True
+        ),
+        mode: discord.Option(
+            str,
+            "Choose search mode (default: duration)",
+            required=False,
+            choices=[
+                "duration", 
+                "timeline"
+            ],
+            default="duration"
+        ),
+        duration: discord.Option(
+            str,
+            "Time period to analyze (when using duration mode)",
+            required=False,
+            choices=[
+                "1h",
+                "24h",
+                "1d",
+                "3d",
+                "7d",
+                "1w"
+            ],
+            default="24h"
+        ),
+        start_date: discord.Option(
+            str,
+            "Start date (YYYY-MM-DD) for timeline mode",
+            required=False,
+            default=None
+        ),
+        end_date: discord.Option(
+            str,
+            "End date (YYYY-MM-DD) for timeline mode",
+            required=False,
+            default=None
+        ),
+        public: discord.Option(
+            bool,
+            "Make the answer visible to everyone (default: False)",
+            required=False,
+            default=False
+        )
+    ):
+        """Ask a specific question about channel messages"""
+        # Initial response to user - ephemeral based on public parameter
+        await ctx.defer(ephemeral=not public)
+        
+        try:
+            # Show initial thinking message
+            thinking_message = await ctx.followup.send(
+                "🔄 Thinking... I'm reviewing the messages to answer your question.",
+                ephemeral=not public
+            )
+
+            # Calculate time range based on selected mode
+            if mode == "duration":
+                time_delta = self.summarizer_service.parse_duration(duration)
+                look_back_time = datetime.now(timezone.utc) - time_delta
+                display_range = duration
+            else:  # timeline mode
+                # Validate date inputs
+                if not start_date or not end_date:
+                    await thinking_message.edit(content="⚠️ Error: Both start_date and end_date are required for timeline mode.")
+                    return
+                
+                try:
+                    # Parse dates (assume input is in user's local timezone, convert to UTC)
+                    start_datetime = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    
+                    # Ensure end date is after start date
+                    if end_datetime <= start_datetime:
+                        await thinking_message.edit(content="⚠️ Error: End date must be after start date.")
+                        return
+                    
+                    # Set variables for fetching messages
+                    look_back_time = start_datetime
+                    display_range = f"{start_date} to {end_date}"
+                except ValueError:
+                    await thinking_message.edit(content="⚠️ Error: Invalid date format. Please use YYYY-MM-DD.")
+                    return
+
+            # Show message about fetching messages
+            await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
+
+            # Fetch messages from the channel - pass end_time if in timeline mode
+            if mode == "timeline":
+                messages = await self._fetch_messages_in_range(ctx.channel, look_back_time, end_datetime)
+            else:
+                messages = await self._fetch_messages(ctx.channel, look_back_time)
+
+            # Use a simple spinner animation for loading
+            spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+            loading_base = "Analyzing messages... "
+
+            # Set an initial static message
+            try:
+                await thinking_message.edit(content=f"{loading_base} Please wait, this may take a minute.")
+                logger.info("Ask command: Set static loading message")
+            except Exception as e:
+                logger.error(f"Ask command: Failed to set static loading message: {e}")
+
+            # Define a stub task that does nothing (we're avoiding animation due to Discord rate limits)
+            async def dummy_task():
+                try:
+                    await asyncio.sleep(60)  # Just wait until cancelled
+                except asyncio.CancelledError:
+                    logger.info("Ask command: Dummy task cancelled")
+                    return
+
+            # Create a task that doesn't actually edit messages
+            loop = asyncio.get_event_loop()
+            loading_task = loop.create_task(dummy_task())
+
+            # Generate answer
+            try:
+                answer_result = self.summarizer_service.answer_question(
+                    messages=messages,
+                    question=question,
+                    duration_str=display_range,
+                    user_id=str(ctx.author.id),
+                    channel_id=str(ctx.channel.id),
+                    guild_id=str(ctx.guild.id)
+                )
+
+                # Cancel the loading task when done
+                if loading_task.cancel():
+                    logger.info("Ask command: Loading task was successfully cancelled")
+
+                try:
+                    # Wait for the task to cancel with timeout
+                    await asyncio.wait_for(loading_task, timeout=1.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                    pass
+            except Exception as gen_error:
+                # Handle answer generation error
+                if loading_task.cancel():
+                    logger.info("Ask command: Loading task was cancelled due to generation error")
+                try:
+                    await asyncio.wait_for(loading_task, timeout=1.0)
+                except Exception:
+                    pass
+                logger.error(f"Ask command: Error generating answer: {gen_error}")
+                raise  # Re-raise to be caught by the outer try/except
+            
+            # Get stats
+            message_count = answer_result['message_count']
+
+            # Get unique participants
+            participants = set()
+            for msg in messages:
+                participants.add(msg["author"]["name"])
+            participant_count = len(participants)
+
+            # Calculate time span
+            time_span = "0 minutes"
+            if messages and len(messages) > 1:
+                first_msg_time = datetime.strptime(messages[0]["timestamp"], "%Y-%m-%d %H:%M:%S")
+                last_msg_time = datetime.strptime(messages[-1]["timestamp"], "%Y-%m-%d %H:%M:%S")
+                delta = last_msg_time - first_msg_time
+                minutes = delta.total_seconds() / 60
+                time_span = f"{int(minutes)} minutes"
+
+            # Create embed for response
+            embed = discord.Embed(
+                title=f"Question: {question}",
+                description=answer_result["answer"],
+                color=discord.Color.green()
+            )
+
+            # Stats now in footer instead of field
+            embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+
+            # Edit the thinking message with the final response
+            try:
+                await thinking_message.edit(content=None, embed=embed)
+                logger.info("Ask command: Successfully updated message with answer embed")
+                
+                # If the answer was split into multiple parts, send continuation messages
+                if answer_result.get("is_split", False) and "continuation_parts" in answer_result:
+                    logger.info(f"Sending {len(answer_result['continuation_parts'])} continuation parts")
+                    
+                    for i, part in enumerate(answer_result["continuation_parts"]):
+                        # Create continuation embed
+                        cont_embed = discord.Embed(
+                            title=f"Answer (continued part {i+2})",
+                            description=part,
+                            color=discord.Color.green()
+                        )
+                        
+                        # Send as a separate message
+                        await ctx.followup.send(embed=cont_embed, ephemeral=not public)
+                        logger.info(f"Ask command: Sent continuation part {i+2}")
+            except Exception as e:
+                logger.error(f"Ask command: Error updating message with answer: {e}")
+                # Fallback - try sending a new message
+                try:
+                    await ctx.followup.send(content=None, embed=embed, ephemeral=not public)
+                    logger.info("Ask command: Sent answer as a new message")
+                except Exception as send_error:
+                    logger.error(f"Ask command: Error sending fallback message: {send_error}")
+            
+        except Exception as e:
+            # Make sure to cancel the loading task if it exists
+            if 'loading_task' in locals():
+                try:
+                    if loading_task.cancel():
+                        logger.info("Ask command error handler: Loading task was successfully cancelled")
+                    await asyncio.wait_for(loading_task, timeout=1.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as task_error:
+                    logger.error(f"Ask command error handler: Issue cancelling loading task: {task_error}")
+
+            logger.error(f"Error in ask command: {e}")
+
+            # Create an error embed with Markdown formatting
+            error_embed = discord.Embed(
+                title="Answer Generation Error",
+                description="""# Error Answering Question ⚠️
+
+I encountered an unexpected error while processing your request.
+
+## Technical Details
+
+An error occurred during the question answering process.
+
+## Next Steps
+
+- Try again with a shorter time period
+- Try simplifying your question
+- Contact support if the issue persists""",
+                color=discord.Color.red()
+            )
+
+            try:
+                # First try to edit the thinking message if it exists
+                if 'thinking_message' in locals():
+                    await thinking_message.edit(content=None, embed=error_embed)
+                else:
+                    # Fall back to sending a new message
+                    await ctx.followup.send(embed=error_embed, ephemeral=not public)
+            except Exception as send_error:
+                logger.error(f"Ask command: Failed to send error message: {send_error}")
+                # Last resort plain text fallback
+                await ctx.followup.send(
+                    "⚠️ Sorry, I encountered an error trying to answer your question. Please try again later.",
+                    ephemeral=not public
+                )
+
+    @discord.slash_command(
+        name="help",
+        description="Show help and instructions for the summarizer bot",
+        guild_ids=None
+    )
+    async def help_command(self, ctx: discord.ApplicationContext,
+        public: discord.Option(
+            bool,
+            "Make the help message visible to everyone (default: False)",
+            required=False,
+            default=False
+        )
+    ):
+        """Show help and instructions for the summarizer bot"""
+        help_text = (
+            """
+**/summarize**
+Summarize recent channel messages. You can use this command to get a concise summary of recent activity in the current channel.
+
+**Options:**
+- `mode`: Choose between `duration` (default) or `timeline`.
+- `duration`: For duration mode, pick a time period (e.g., 1h, 24h, 1d, 3d, 7d, 1w).
+- `start_date`/`end_date`: For timeline mode, specify the date range (YYYY-MM-DD).
+- `public`: Set to true to make the summary visible to everyone (default: false).
+
+**/ask**
+Ask a specific question about the channel's messages. The bot will analyze the chat history and answer your question, citing relevant messages.
+
+**Options:**
+- `question`: The question you want to ask about the chat.
+- `mode`, `duration`, `start_date`, `end_date`, `public`: Same as `/summarize`.
+
+**Requirements:**
+- The bot must have permission to read message history in the channel.
+- For timeline mode, both `start_date` and `end_date` are required and must be in YYYY-MM-DD format.
+- For duration mode, only the `duration` option is needed.
+
+**Tips:**
+- Use `/summarize` to quickly catch up on what you missed in a channel.
+- Use `/ask` to get answers to specific questions, such as "Who made the final decision?" or "What was the main topic on Monday?"
+- Both commands support citations: click on citation links in the summary or answer to jump to the original message.
+- If your summary or answer is too long, it will be split into multiple messages automatically.
+
+For more details, see the project README or contact the bot maintainer.
+"""
+        )
+        embed = discord.Embed(
+            title="SoDA Summarizer Bot Help",
+            description=help_text,
+            color=discord.Color.purple()
+        )
+        await ctx.respond(embed=embed, ephemeral=not public)
+
 
 class SummarizerDurationModal(discord.ui.Modal):
     """Modal for selecting summary duration from context menu"""
