@@ -58,8 +58,9 @@ def initialize_app():
     # Run all database migrations
     run_all_migrations()
 
-    # Start Discord bot in a separate thread
-    bot_thread = threading.Thread(target=bot.run)
+    # Start Discord bot in a separate thread with token
+    bot_token = config.AVERY_BOT_TOKEN
+    bot_thread = threading.Thread(target=lambda: bot.run(bot_token))
     bot_thread.daemon = True
     bot_thread.start()
 

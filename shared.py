@@ -10,7 +10,6 @@ from modules.utils.config import Config
 import logging
 from modules.utils.db import DBConnect, Base
 from modules.utils.TokenManager import TokenManager
-from modules.bot.discord_modules.bot import BotFork
 import sentry_sdk # Added for Sentry
 from sentry_sdk.integrations.flask import FlaskIntegration # Added for Sentry
 
@@ -59,25 +58,17 @@ def init_discord_bot():
     intents.message_content = True  # For reading message content
     intents.guild_messages = True   # For message events in guilds
 
-    bot = BotFork(command_prefix="!", intents=intents)
+    # Create a standard py-cord bot
+    bot = discord.Bot(intents=intents)
     notion = Client(auth=config.NOTION_API_KEY)
-    bot.set_token(config.AVERY_BOT_TOKEN)
 
-    # Register summarizer commands
+    # Register summarizer commands - only using the cog approach
     try:
-        # First try direct command approach
-        from modules.summarizer.discord_modules.direct_commands import register_direct_commands
-        register_direct_commands(bot)
-        logger.info("Summarizer direct commands registered successfully")
+        from modules.summarizer.discord_modules.setup import setup_summarizer_cog
+        setup_summarizer_cog(bot)
+        logger.info("Summarizer cog registered successfully")
     except Exception as e:
-        logger.error(f"Error registering direct commands: {e}")
-        # Fall back to cog approach
-        try:
-            from modules.summarizer.discord_modules.setup import setup_summarizer_cog
-            setup_summarizer_cog(bot)
-            logger.info("Summarizer cog registered as fallback")
-        except Exception as e2:
-            logger.error(f"Error registering summarizer cog: {e2}")
+        logger.error(f"Error registering summarizer cog: {e}")
 
     return bot, notion
 
