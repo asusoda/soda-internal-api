@@ -132,6 +132,20 @@ class BotFork(commands.Bot):
                 return member.name
         else:
             return None
+    
+    def get_guild_roles(self, guild_id : int):
+        guild = super().get_guild(guild_id)
+        return guild.roles
+
+    def check_role(self, guild_id : int, role_id : int, user_id : int):
+        guild = super().get_guild(guild_id)
+        member = guild.get_member(user_id)
+        return role_id in [role.id for role in member.roles]
+    
+    def check_user_officer_status(self, user_id : int, guild_id : int, role_id : int):
+        guild = super().get_guild(guild_id)
+        member = guild.get_member(user_id)
+        return role_id in [role.id for role in member.roles]
 
     # async def setup_game(self):
     #     """

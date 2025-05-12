@@ -6,7 +6,8 @@ from sqlalchemy import func
 from shared import db_connect
 from modules.organizations.models import Organization, Officer
 from modules.points.models import Points, User
-
+from modules.auth.decoraters import auth_required
+from shared import bot
 # Create an absolute path to the templates directory
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
 
@@ -18,9 +19,10 @@ public_views = Blueprint("public_views", __name__,
 @public_views.route("/", methods=["GET"])
 def index():
     """Render the login page"""
-    return redirect(url_for('public_views.home'))
+    return render_template("public/login.html")
 
 @public_views.route("/home", methods=["GET"])
+@auth_required
 def home():
     """Render the home page with organizations"""
     try:
@@ -43,6 +45,7 @@ def server_error():
     return render_template("public/server_error.html", current_year=datetime.now().year)
 
 @public_views.route("/organizations", methods=["GET"])
+@auth_required
 def organizations():
     """View all organizations"""
     try:
@@ -58,6 +61,7 @@ def organizations():
         db.close()
 
 @public_views.route("/<prefix>", methods=["GET"])
+@auth_required
 def org_dashboard(prefix):
     """Access organization dashboard using its prefix"""
     try:
@@ -113,6 +117,7 @@ def org_dashboard(prefix):
         db.close()
 
 @public_views.route("/organization/<int:org_id>", methods=["GET"])
+@auth_required
 def view_organization(org_id):
     """View a specific organization"""
     try:
@@ -129,6 +134,7 @@ def view_organization(org_id):
         db.close()
 
 @public_views.route("/organization/<int:org_id>/home", methods=["GET"])
+@auth_required
 def org_home(org_id):
     """Render the organization home page"""
     try:
@@ -145,23 +151,30 @@ def org_home(org_id):
         db.close()
 
 @public_views.route("/<prefix>/config", methods=["GET", "POST"])
+@auth_required
 def org_config(prefix):
     """View and edit organization configuration"""
     try:
         db = next(db_connect.get_db())
         organization = db.query(Organization).filter_by(prefix=prefix).first()
-        
         if not organization:
             logger.error(f"Organization with prefix {prefix} not found")
             return redirect(url_for('public_views.server_error'))
         
+        # Get roles from Discord server
+        try:
+            guild_id = int(organization.guild_id)
+            roles = bot.get_guild_roles(guild_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error getting guild roles: {str(e)}")
+            roles = []
+        
         if request.method == "POST":
             # Update organization details
-            organization.name = request.form.get('name', organization.name)
+            # Note: name and guild_id are not included as they are read-only
             organization.prefix = request.form.get('prefix', organization.prefix)
             organization.description = request.form.get('description', organization.description)
-            organization.guild_id = request.form.get('guild_id', organization.guild_id)
-            organization.welcome_channel_id = request.form.get('welcome_channel', organization.welcome_channel_id)
+            organization.officer_role_id = request.form.get('officer_role', organization.officer_role_id)
             
             # Update points configuration
             try:
@@ -185,7 +198,8 @@ def org_config(prefix):
         
         return render_template("public/org_config.html",
                             current_year=datetime.now().year,
-                            organization=organization)
+                            organization=organization,
+                            roles=roles)
     except Exception as e:
         logger.error(f"Error accessing organization configuration: {str(e)}")
         return redirect(url_for('public_views.server_error'))

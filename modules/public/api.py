@@ -75,13 +75,3 @@ def get_leaderboard():
         for name, total_points, uuid in leaderboard
     ]), 200
 
-# Catch-all route for static files - must be last to not interfere with API routes
-@public_blueprint.route('/', defaults={'path': ''})
-@public_blueprint.route('/<path:path>')
-def serve_static(path):
-    if path == "":
-        return send_from_directory('web/build', 'index.html')
-    elif os.path.exists(os.path.join('web/build', path)):
-        return send_from_directory('web/build', path)
-    else:
-        return send_from_directory('web/build', 'index.html')

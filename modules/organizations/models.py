@@ -18,6 +18,9 @@ class Organization(Base):
     config = Column(JSON, default=dict)  # Store organization-specific settings
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    officer_role_id = Column(String(50), nullable=True)  # Changed to String since Discord role IDs are strings
+    points_per_message = Column(Integer, default=1)  # Default points per message
+    points_cooldown = Column(Integer, default=60)  # Default cooldown in seconds
 
     def __repr__(self):
         return f"<Organization(name='{self.name}', guild_id='{self.guild_id}')>"
@@ -34,7 +37,10 @@ class Organization(Base):
             "is_active": self.is_active,
             "config": self.config,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "officer_role_id": self.officer_role_id,
+            "points_per_message": self.points_per_message,
+            "points_cooldown": self.points_cooldown
         }
 
 class OrganizationConfig(Base):

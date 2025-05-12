@@ -20,7 +20,7 @@ def superadmin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@superadmin_views.route("/superadmin")
+@superadmin_views.route("/")
 @superadmin_required
 def dashboard():
     """SuperAdmin dashboard showing all available servers"""

@@ -21,8 +21,8 @@
             <div class="space-x-4">
                 {% if session.get('user') %}
                 <a href="{{ url_for('public_views.home') }}" class="hover:text-blue-300">Home</a>
-                <a href="{{ url_for('users.user_page') }}" class="hover:text-blue-300">Users</a>
-                <a href="{{ url_for('points.leaderboard') }}" class="hover:text-blue-300">Leaderboard</a>
+                <a href="{{ url_for('users_views.user_page') }}" class="hover:text-blue-300">Users</a>
+                <a href="{{ url_for('points_views.leaderboard') }}" class="hover:text-blue-300">Leaderboard</a>
                 <a href="{{ url_for('auth.logout') }}" class="hover:text-blue-300">Logout</a>
                 {% endif %}
             </div>

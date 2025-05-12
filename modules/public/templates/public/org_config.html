@@ -19,8 +19,9 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="name" class="block text-sm font-medium text-gray-400 mb-2">Organization Name</label>
-                    <input type="text" id="name" name="name" value="{{ organization.name }}"
-                           class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500">
+                    <input type="text" id="name" value="{{ organization.name }}"
+                           class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                           disabled>
                 </div>
                 <div>
                     <label for="prefix" class="block text-sm font-medium text-gray-400 mb-2">Command Prefix</label>
@@ -41,8 +42,21 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="guild_id" class="block text-sm font-medium text-gray-400 mb-2">Discord Server ID</label>
-                    <input type="text" id="guild_id" name="guild_id" value="{{ organization.guild_id }}"
-                           class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500">
+                    <input type="text" id="guild_id" value="{{ organization.guild_id }}"
+                           class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                           disabled>
+                </div>
+                <div>
+                    <label for="officer_role" class="block text-sm font-medium text-gray-400 mb-2">Officer Role</label>
+                    <select id="officer_role" name="officer_role" 
+                            class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500">
+                        <option value="">Select a role</option>
+                        {% for role in roles %}
+                        <option value="{{ role.id }}" {% if role.id == organization.officer_role_id %}selected{% endif %}>
+                            {{ role.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div>
                     <label for="welcome_channel" class="block text-sm font-medium text-gray-400 mb-2">Welcome Channel ID</label>

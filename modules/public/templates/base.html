@@ -6,6 +6,8 @@
     <title>{% block title %}SoDA at ASU{% endblock %}</title>
     <!-- Include Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <!-- Additional styles -->
     <style>
         {% block additional_styles %}{% endblock %}
@@ -17,7 +19,7 @@
         <div class="container mx-auto flex justify-between items-center">
             <a href="{{ url_for('public_views.index') }}" class="text-xl font-bold">SoDA at ASU</a>
             <div class="space-x-4">
-                {% if session.get('token') %}
+                {% if session.get('user') %}
                 <a href="{{ url_for('public_views.home') }}" class="hover:text-blue-300">Home</a>
                 <a href="{{ url_for('users_views.user_page') }}" class="hover:text-blue-300">Users</a>
                 <a href="{{ url_for('points_views.leaderboard') }}" class="hover:text-blue-300">Leaderboard</a>
@@ -41,6 +43,5 @@
 
     <!-- JavaScript -->
     {% block scripts %}{% endblock %}
-    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html> 

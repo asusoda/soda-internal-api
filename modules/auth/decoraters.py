@@ -1,5 +1,6 @@
 from shared import tokenManger
 from flask import request, jsonify, session, redirect, url_for, session
+from shared import bot, db_connect
 from dotenv import load_dotenv
 import functools
 import os
@@ -47,22 +48,7 @@ def auth_required(f):
     return wrapper
 
 
-def low_level_authentication(f):
-    """
-    A decorator for Flask endpoints to ensure the user is authorized through a low-level authentication mechanism.
 
-    This is a very badly designed and implemented auth mechanism. It is intended to be used only while the authentication mechanism is being developed.
-    """
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-       load_dotenv()
-       token = request.headers.get("Authorization")
-       if token == os.environ["SUPER_SECRET_PASSWORD"]:
-            return f(*args, **kwargs)
-       else:
-            return jsonify({"message": "Unauthorized"}), 401
-       
-    return wrapper
 
 
 def error_handler(f):
@@ -78,3 +64,14 @@ def error_handler(f):
             return jsonify({"error": str(e)}), 500
 
     return wrapper
+
+
+def auth_officer(f):
+    """
+    A decorator for Flask endpoints to ensure the user is an officer of the organization.
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        request_path = request.path.split("/")
+        if len(request_path) > 2:
+            org_prefix = request_path[1]

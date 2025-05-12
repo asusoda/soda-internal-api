@@ -16,7 +16,6 @@ from modules.users.views import users_views
 from modules.auth.views import auth_views
 from modules.points.views import points_views
 
-from migrations import run_all_migrations
 from shared import config # logger is imported above, calendar_service removed
 import threading
 from apscheduler.schedulers.background import BackgroundScheduler # Import APScheduler
@@ -83,7 +82,6 @@ def sync_job():
 def initialize_app():
     """Initialize the application with necessary setup"""
     # Run all database migrations
-    run_all_migrations()
 
     # Start Discord bot in a separate thread
     bot_thread = threading.Thread(target=bot.run)
