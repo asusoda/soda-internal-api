@@ -216,7 +216,9 @@ I didn't find any messages in this channel for the specified period (`{duration_
 
                 # Create prompt for Gemini
                 prompt = f"""
-                You are AVERY, a Discord bot that creates BRIEF summaries of chat activity. I am giving you Discord messages from the last {duration_str} to summarize.
+                You are AVERY, a Discord bot that creates BRIEF summaries of chat activity. I am giving you Discord messages to summarize.
+
+                Summary Time Range: {duration_str}
 
                 CRITICAL INSTRUCTIONS:
                 1. Create a VERY CONCISE summary (max 300 words)

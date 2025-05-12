@@ -24,9 +24,19 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
     async def summarize_command(
         self,
         ctx: discord.ApplicationContext,
+        mode: discord.Option(
+            str,
+            "Choose summarization mode (default: duration)",
+            required=False,
+            choices=[
+                "duration", 
+                "timeline"
+            ],
+            default="duration"
+        ),
         duration: discord.Option(
             str,
-            "Time period to summarize (default: 24h)",
+            "Time period to summarize (when using duration mode)",
             required=False,
             choices=[
                 "1h",
@@ -38,6 +48,18 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             ],
             default="24h"
         ),
+        start_date: discord.Option(
+            str,
+            "Start date (YYYY-MM-DD) for timeline mode",
+            required=False,
+            default=None
+        ),
+        end_date: discord.Option(
+            str,
+            "End date (YYYY-MM-DD) for timeline mode",
+            required=False,
+            default=None
+        ),
         public: discord.Option(
             bool,
             "Make the summary visible to everyone (default: False)",
@@ -45,7 +67,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             default=False
         )
     ):
-        """Generate a summary of recent channel messages"""
+        """Generate a summary of channel messages"""
         # Initial response to user - ephemeral based on public parameter
         await ctx.defer(ephemeral=not public)
         
@@ -56,15 +78,42 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                 ephemeral=not public
             )
 
-            # Parse duration and calculate time range
-            time_delta = self.summarizer_service.parse_duration(duration)
-            look_back_time = datetime.now(timezone.utc) - time_delta
+            # Calculate time range based on selected mode
+            if mode == "duration":
+                time_delta = self.summarizer_service.parse_duration(duration)
+                look_back_time = datetime.now(timezone.utc) - time_delta
+                display_range = duration
+            else:  # timeline mode
+                # Validate date inputs
+                if not start_date or not end_date:
+                    await thinking_message.edit(content="⚠️ Error: Both start_date and end_date are required for timeline mode.")
+                    return
+                
+                try:
+                    # Parse dates (assume input is in user's local timezone, convert to UTC)
+                    start_datetime = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    
+                    # Ensure end date is after start date
+                    if end_datetime <= start_datetime:
+                        await thinking_message.edit(content="⚠️ Error: End date must be after start date.")
+                        return
+                    
+                    # Set variables for fetching messages
+                    look_back_time = start_datetime
+                    display_range = f"{start_date} to {end_date}"
+                except ValueError:
+                    await thinking_message.edit(content="⚠️ Error: Invalid date format. Please use YYYY-MM-DD.")
+                    return
 
             # Show message about fetching messages
-            await thinking_message.edit(content=f"🔍 Searching for messages since {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
+            await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
 
-            # Fetch messages from the channel
-            messages = await self._fetch_messages(ctx.channel, look_back_time)
+            # Fetch messages from the channel - pass end_time if in timeline mode
+            if mode == "timeline":
+                messages = await self._fetch_messages_in_range(ctx.channel, look_back_time, end_datetime)
+            else:
+                messages = await self._fetch_messages(ctx.channel, look_back_time)
 
             # Use a simple spinner animation for loading
             spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -93,7 +142,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             try:
                 summary_result = self.summarizer_service.generate_summary(
                     messages=messages,
-                    duration_str=duration,
+                    duration_str=display_range,
                     user_id=str(ctx.author.id),
                     channel_id=str(ctx.channel.id),
                     guild_id=str(ctx.guild.id)
@@ -139,7 +188,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
 
             # Create embed for response
             embed = discord.Embed(
-                title=f"Channel Summary ({duration})",
+                title=f"Channel Summary ({display_range})",
                 description=summary_result["summary"],
                 color=discord.Color.blue()
             )
@@ -159,7 +208,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                     for i, part in enumerate(summary_result["continuation_parts"]):
                         # Create continuation embed
                         cont_embed = discord.Embed(
-                            title=f"Channel Summary ({duration}) - Part {i+2}",
+                            title=f"Channel Summary ({display_range}) - Part {i+2}",
                             description=part,
                             color=discord.Color.blue()
                         )
@@ -226,7 +275,7 @@ An error occurred during the summarization process.
     async def summarize_context_menu(self, ctx: discord.ApplicationContext, message: discord.Message):
         """Context menu command for summarizing a channel"""
         # Create a modal for duration selection
-        modal = SummarizerDurationModal(title="Select Summary Duration")
+        modal = SummarizerDurationModal(title="Select Summary Options")
         
         # Send the modal
         await ctx.send_modal(modal)
@@ -239,8 +288,11 @@ An error occurred during the summarization process.
                 timeout=60.0
             )
             
-            # Get selected duration from modal
+            # Get selected options from modal
+            selected_mode = modal.mode_select.values[0]
             selected_duration = modal.duration_select.values[0]
+            start_date = modal.start_date.value
+            end_date = modal.end_date.value
             
             # Defer response
             await modal_interaction.response.defer(ephemeral=True)
@@ -251,15 +303,45 @@ An error occurred during the summarization process.
                 ephemeral=True
             )
 
-            # Parse duration and calculate time range
-            time_delta = self.summarizer_service.parse_duration(selected_duration)
-            look_back_time = datetime.now(timezone.utc) - time_delta
-
-            # Show message about fetching messages
-            await thinking_message.edit(content=f"🔍 Searching for messages since {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
-
-            # Fetch messages from the channel
-            messages = await self._fetch_messages(ctx.channel, look_back_time)
+            # Calculate time range based on selected mode
+            if selected_mode == "duration":
+                time_delta = self.summarizer_service.parse_duration(selected_duration)
+                look_back_time = datetime.now(timezone.utc) - time_delta
+                display_range = selected_duration
+                
+                # Show message about fetching messages
+                await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
+                
+                # Fetch messages
+                messages = await self._fetch_messages(ctx.channel, look_back_time)
+            else:  # timeline mode
+                # Validate date inputs
+                if not start_date or not end_date:
+                    await thinking_message.edit(content="⚠️ Error: Both start date and end date are required for timeline mode.")
+                    return
+                
+                try:
+                    # Parse dates (assume input is in user's local timezone, convert to UTC)
+                    start_datetime = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    
+                    # Ensure end date is after start date
+                    if end_datetime <= start_datetime:
+                        await thinking_message.edit(content="⚠️ Error: End date must be after start date.")
+                        return
+                    
+                    # Set variables for fetching messages
+                    look_back_time = start_datetime
+                    display_range = f"{start_date} to {end_date}"
+                    
+                    # Show message about fetching messages
+                    await thinking_message.edit(content=f"🔍 Searching for messages from {start_date} to {end_date}...")
+                    
+                    # Fetch messages in date range
+                    messages = await self._fetch_messages_in_range(ctx.channel, start_datetime, end_datetime)
+                except ValueError:
+                    await thinking_message.edit(content="⚠️ Error: Invalid date format. Please use YYYY-MM-DD.")
+                    return
 
             # Use a simple spinner animation for loading
             spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -288,7 +370,7 @@ An error occurred during the summarization process.
             try:
                 summary_result = self.summarizer_service.generate_summary(
                     messages=messages,
-                    duration_str=selected_duration,
+                    duration_str=display_range,
                     user_id=str(ctx.author.id),
                     channel_id=str(ctx.channel.id),
                     guild_id=str(ctx.guild.id)
@@ -334,7 +416,7 @@ An error occurred during the summarization process.
 
             # Create embed for response
             embed = discord.Embed(
-                title=f"Channel Summary ({selected_duration})",
+                title=f"Channel Summary ({display_range})",
                 description=summary_result["summary"],
                 color=discord.Color.blue()
             )
@@ -354,7 +436,7 @@ An error occurred during the summarization process.
                     for i, part in enumerate(summary_result["continuation_parts"]):
                         # Create continuation embed
                         cont_embed = discord.Embed(
-                            title=f"Channel Summary ({selected_duration}) - Part {i+2}",
+                            title=f"Channel Summary ({display_range}) - Part {i+2}",
                             description=part,
                             color=discord.Color.blue()
                         )
@@ -461,6 +543,52 @@ An error occurred during the summarization process.
             logger.error(f"Error fetching messages: {e}")
             return []
 
+    async def _fetch_messages_in_range(self, channel: discord.TextChannel, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
+        """Fetch messages from a channel between two specific times
+        
+        Args:
+            channel: Discord channel to fetch messages from
+            start_time: Only fetch messages after this time
+            end_time: Only fetch messages before this time
+            
+        Returns:
+            List of message dictionaries with author, content, and timestamp
+        """
+        messages = []
+        
+        try:
+            async for message in channel.history(after=start_time, before=end_time, limit=None):
+                # Skip bot messages
+                if message.author.bot:
+                    continue
+                    
+                # Skip system messages
+                if message.type != discord.MessageType.default:
+                    continue
+                
+                # Format the message
+                message_data = {
+                    "id": str(message.id),
+                    "content": message.content,
+                    "author": {
+                        "id": str(message.author.id),
+                        "name": message.author.display_name
+                    },
+                    "timestamp": message.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    "jump_url": message.jump_url
+                }
+                
+                messages.append(message_data)
+                
+            # Sort messages by timestamp (oldest first)
+            messages.sort(key=lambda msg: msg["timestamp"])
+            
+            return messages
+            
+        except Exception as e:
+            logger.error(f"Error fetching messages: {e}")
+            return []
+
 
 class SummarizerDurationModal(discord.ui.Modal):
     """Modal for selecting summary duration from context menu"""
@@ -468,6 +596,16 @@ class SummarizerDurationModal(discord.ui.Modal):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.custom_id = "duration_modal"
+        
+        # Add mode selector
+        self.mode_select = discord.ui.Select(
+            custom_id="mode_select",
+            placeholder="Select summary mode",
+            options=[
+                discord.SelectOption(label="Duration-based", value="duration", description="Summarize based on time period", default=True),
+                discord.SelectOption(label="Timeline", value="timeline", description="Summarize between specific dates")
+            ]
+        )
         
         # Add a select menu for duration options
         self.duration_select = discord.ui.Select(
@@ -481,8 +619,40 @@ class SummarizerDurationModal(discord.ui.Modal):
             ]
         )
         
-        # Add the select menu to the modal
+        # Add start date input for timeline mode
+        self.start_date = discord.ui.TextInput(
+            label="Start Date (YYYY-MM-DD)",
+            custom_id="start_date",
+            placeholder="e.g., 2025-05-01",
+            required=False,
+            style=discord.TextInputStyle.short
+        )
+        
+        # Add end date input for timeline mode
+        self.end_date = discord.ui.TextInput(
+            label="End Date (YYYY-MM-DD)",
+            custom_id="end_date",
+            placeholder="e.g., 2025-05-10",
+            required=False,
+            style=discord.TextInputStyle.short
+        )
+        
+        # Add instructions text
+        self.instructions = discord.ui.TextInput(
+            label="Instructions",
+            custom_id="instructions",
+            value="Choose either duration-based or timeline mode. For timeline, enter both dates.",
+            required=False,
+            style=discord.TextInputStyle.paragraph
+        )
+        self.instructions.disabled = True
+        
+        # Add all items to the modal
+        self.add_item(self.mode_select)
         self.add_item(self.duration_select)
+        self.add_item(self.start_date)
+        self.add_item(self.end_date)
+        self.add_item(self.instructions)
     
     async def callback(self, interaction: discord.Interaction):
         """Callback for modal submission"""
