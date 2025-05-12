@@ -21,23 +21,29 @@ logger = logging.getLogger(__name__)
 async def summarize_command(
     ctx,
     duration: discord.Option(
-        str, 
-        "Time period to summarize (default: 24h)", 
+        str,
+        "Time period to summarize (default: 24h)",
         required=False,
         choices=[
             "1h",
-            "24h", 
+            "24h",
             "1d",
-            "3d", 
-            "7d", 
+            "3d",
+            "7d",
             "1w"
         ],
         default="24h"
+    ),
+    public: discord.Option(
+        bool,
+        "Make the summary visible to everyone (default: False)",
+        required=False,
+        default=False
     )
 ):
     """Generate a summary of recent channel messages"""
-    # Initial response to user
-    await ctx.defer(ephemeral=True)
+    # Initial response to user - ephemeral based on public parameter
+    await ctx.defer(ephemeral=not public)
     
     service = SummarizerService()
     
@@ -45,7 +51,7 @@ async def summarize_command(
         # Show thinking message
         thinking_message = await ctx.followup.send(
             "🔄 Thinking... I'm reviewing the messages and generating a summary.",
-            ephemeral=True
+            ephemeral=not public
         )
         
         # Parse duration and calculate time range
@@ -213,7 +219,7 @@ async def summarize_command(
             logger.error(f"Error updating message with summary: {e}")
             # Fallback - try sending a new message
             try:
-                await ctx.followup.send(content=None, embed=embed, ephemeral=True)
+                await ctx.followup.send(content=None, embed=embed, ephemeral=not public)
                 logger.info("Sent summary as a new message")
             except Exception as send_error:
                 logger.error(f"Error sending fallback message: {send_error}")
@@ -254,13 +260,13 @@ An error occurred during the summarization process.
                 await thinking_message.edit(content=None, embed=error_embed)
             else:
                 # Fall back to sending a new message
-                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                await ctx.followup.send(embed=error_embed, ephemeral=not public)
         except Exception as send_error:
             logger.error(f"Failed to send error message: {send_error}")
             # Last resort plain text fallback
             await ctx.followup.send(
                 "⚠️ Sorry, I encountered an error trying to generate the summary. Please try again later.",
-                ephemeral=True
+                ephemeral=not public
             )
 
 def register_direct_commands(bot):

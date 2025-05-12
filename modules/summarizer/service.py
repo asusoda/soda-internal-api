@@ -222,8 +222,8 @@ I didn't find any messages in this channel for the specified period (`{duration_
                 Format the output EXACTLY like this example, using proper Markdown header levels:
 
                 # Action Items ✨
-                - *[Person responsible:]* [Action item description]
-                - *[Person responsible:]* [Another action item if applicable]
+                - **[Person responsible]:** [Action item description]
+                - **[Person responsible]:** [Another action item if applicable]
                 # Conversation Summary ✨
                 ## Conversation Purpose
                 [Brief description of meeting purpose]
@@ -246,9 +246,9 @@ I didn't find any messages in this channel for the specified period (`{duration_
                 4. Make sure there is a space after each # symbol
                 5. Use dashes (-) for bullet points, NOT Unicode bullets or asterisks
                 6. Include emoji (✨) ONLY for the two main section headers as shown
-                7. DO NOT use bold text or ** formatting
+                7. ONLY use bold formatting (**text**) for assignee names in action items
                 8. Maintain consistent indentation for bullet points
-                9. For action items, list the item description on one line and the responsible person on the next line
+                9. For action items, format as a single bullet with the person's name in bold followed by a colon and the action item description
 
                 MESSAGES TO SUMMARIZE:
                 {formatted_messages}
