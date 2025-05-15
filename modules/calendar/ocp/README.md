@@ -55,6 +55,27 @@ The OCP module follows a layered architecture:
 3. **Utils** (`utils.py`): Utility functions for parsing Notion data and calculating points
 4. **Service** (`service.py`): Business logic for syncing data and managing officer points
 5. **API** (`api.py`): Flask endpoints that expose the OCP functionality
+6. **NotionOCPSyncService** (`notion_sync_service.py`): Dedicated service for syncing Notion to OCP database
+
+## Syncing Services
+
+### OCPService (Base Service)
+The core service that provides functionality to sync Notion data to the OCP database, as well as manage officer points records.
+
+### NotionOCPSyncService (Dedicated Sync Service)
+A specialized service that handles the orchestration of syncing between Notion and the OCP database:
+- Provides a simplified interface for syncing
+- Handles transaction management
+- Provides detailed logging and error handling
+- Used by both the scheduled job and the CalendarService
+
+## Scheduled Synchronization
+
+The system automatically syncs OCP data from Notion on a regular basis:
+
+1. **Directly from main application**: Every 15 minutes, the application runs a scheduled job (`ocp_sync_job`) that calls the NotionOCPSyncService to sync Notion data to the OCP database.
+
+2. **As part of Calendar sync**: When Google Calendar is synchronized with Notion (via `sync_job`), the OCP sync is also triggered as a follow-up action. This ensures that when calendar events are updated, officer contribution points are also updated accordingly.
 
 ## API Endpoints
 
@@ -74,6 +95,7 @@ The module provides the following API endpoints (as an extension of the calendar
 3. Points are stored in the OCP database, linked to both the officer and the originating Notion event
 4. APIs provide access to this data for reporting and display purposes, including a leaderboard
 5. Manual CRUD operations allow for custom point assignments outside of Notion events
+6. Automated syncs run every 15 minutes to keep data fresh without manual intervention
 
 ## Integration
 
@@ -81,17 +103,19 @@ The OCP module integrates with:
 
 1. **Calendar Module**: Reuses the Notion client to access event data and exposes endpoints as a sub-module
 2. **Configuration**: Uses the same Notion database ID from the application config
+3. **APScheduler**: Scheduled sync job runs automatically through the application's background scheduler
+4. **Sentry**: Performance monitoring and error tracking for all sync operations
 
 ## Getting Started
 
 1. Ensure your Notion database has the required properties for officer assignments
 2. Configure the application with your Notion API key and database ID
-3. Run the application and trigger a sync via the API endpoint
+3. Start the application, which will automatically begin syncing on the configured schedule
 4. Access officer points data through the provided endpoints
 
 ## Example Usage
 
-### Triggering a Sync
+### Triggering a Sync Manually
 
 ```
 POST /calendar/ocp/sync-from-notion

@@ -89,7 +89,7 @@ def initialize_app():
     scheduler.add_job(sync_job, 'interval', minutes=15, id='notion_google_sync_job')
     scheduler.add_job(ocp_sync_job, 'interval', minutes=15, id='notion_ocp_sync_job')
     scheduler.start()
-    logger.info("APScheduler started with Notion-Google Calendar sync (15 min) and Notion-OCP sync (30 min).")
+    logger.info("APScheduler started with Notion-Google Calendar sync (15 min) and Notion-OCP sync (15 min).")
     
     # Start Flask app
     # Ensure use_reloader=False if debug is False, as reloader can cause scheduler issues
