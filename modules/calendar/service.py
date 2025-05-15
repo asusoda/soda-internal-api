@@ -358,7 +358,7 @@ class CalendarService:
 
     def _sync_ocp_database(self, transaction=None) -> Dict[str, Any]:
         """
-        Triggers the OCP database sync by calling the OCP sync endpoint.
+        Triggers the OCP database sync by using the NotionOCPSyncService directly.
         
         Args:
             transaction: Optional Sentry transaction
@@ -366,52 +366,37 @@ class CalendarService:
         Returns:
             Dict with status and result information
         """
-        import requests
-        
         op_name = "sync_ocp_database"
         self.logger.info(f"Starting {op_name} after calendar sync")
         
-        result = {
-            "status": "success",
-            "message": "OCP sync started",
-            "details": {}
-        }
-        
         try:
-            # Make a POST request to the OCP sync endpoint
-            url = f"http://localhost:{config.SERVER_PORT}/calendar/ocp/sync-from-notion"
-            self.logger.info(f"Calling OCP sync endpoint: {url}")
+            # Import here to avoid circular imports
+            from modules.calendar.ocp.notion_sync_service import NotionOCPSyncService
             
             # Add Sentry context if transaction exists
             if transaction:
-                set_context("ocp_sync", {"triggered_by": "calendar_sync", "url": url})
+                set_context("ocp_sync", {"triggered_by": "calendar_sync"})
             
-            response = requests.post(url, timeout=5)  # 5 second timeout
+            # Use the NotionOCPSyncService directly instead of making an HTTP request
+            ocp_sync_service = NotionOCPSyncService(self.logger)
+            sync_result = ocp_sync_service.sync_notion_to_ocp(transaction)
             
-            if response.status_code == 200:
-                self.logger.info(f"OCP sync completed successfully: {response.json()}")
-                result["details"] = response.json()
+            if sync_result.get("status") == "success":
+                self.logger.info(f"OCP sync completed successfully: {sync_result.get('message')}")
             else:
-                self.logger.warning(f"OCP sync returned non-200 status code: {response.status_code}, response: {response.text}")
-                result["status"] = "warning"
-                result["message"] = f"OCP sync returned status code {response.status_code}"
-                result["details"] = {"status_code": response.status_code}
-                if response.text:
-                    try:
-                        result["details"]["response"] = response.json()
-                    except:
-                        result["details"]["response"] = response.text
+                self.logger.warning(f"OCP sync returned status {sync_result.get('status')}: {sync_result.get('message')}")
             
-            return result
+            return sync_result
                 
         except Exception as e:
             self.logger.error(f"Error triggering OCP sync: {str(e)}")
             if transaction:
                 capture_exception(e)
             
-            result["status"] = "error"
-            result["message"] = f"Error triggering OCP sync: {str(e)}"
-            return result
+            return {
+                "status": "error",
+                "message": f"Error triggering OCP sync: {str(e)}"
+            }
 
     def sync_notion_to_google(self, transaction=None) -> Dict[str, Any]:
         """

@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory
 from shared import app, bot, logger # Ensure logger is imported here or below
 from modules.calendar.service import CalendarService # Import CalendarService
+from modules.calendar.ocp.notion_sync_service import NotionOCPSyncService # Import NotionOCPSyncService
 
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint
@@ -19,6 +20,10 @@ import os
 # Instantiate and attach CalendarService after app is defined
 calendar_service = CalendarService(logger)
 app.calendar_service = calendar_service
+
+# Instantiate and attach NotionOCPSyncService for OCP syncing
+ocp_sync_service = NotionOCPSyncService(logger)
+app.ocp_sync_service = ocp_sync_service
 
 # Register Blueprints
 app.register_blueprint(public_blueprint, url_prefix="/")
@@ -52,6 +57,22 @@ def sync_job():
         except Exception as e:
             logger.error(f"Error during scheduled sync: {e}", exc_info=True)
 
+def ocp_sync_job():
+    """Job function to sync Notion to OCP database."""
+    with app.app_context():
+        logger.info("Running scheduled Notion to OCP database sync...")
+        try:
+            # Use the OCP sync service to run the sync
+            sync_result = ocp_sync_service.sync_notion_to_ocp()
+            
+            if sync_result.get("status") == "success":
+                logger.info(f"Scheduled OCP sync completed successfully: {sync_result.get('message')}")
+            else:
+                logger.warning(f"Scheduled OCP sync completed with issues. Status: {sync_result.get('status')}, Message: {sync_result.get('message')}")
+                
+        except Exception as e:
+            logger.error(f"Error during scheduled OCP sync: {e}", exc_info=True)
+
 # --- App Initialization ---
 def initialize_app():
     """Initialize the application with necessary setup"""
@@ -64,10 +85,11 @@ def initialize_app():
     bot_thread.daemon = True
     bot_thread.start()
 
-    # Add and start the scheduler job
+    # Add and start the scheduler jobs
     scheduler.add_job(sync_job, 'interval', minutes=15, id='notion_google_sync_job')
+    scheduler.add_job(ocp_sync_job, 'interval', minutes=15, id='notion_ocp_sync_job')
     scheduler.start()
-    logger.info("APScheduler started for Notion-Google Calendar sync.")
+    logger.info("APScheduler started with Notion-Google Calendar sync (15 min) and Notion-OCP sync (30 min).")
     
     # Start Flask app
     # Ensure use_reloader=False if debug is False, as reloader can cause scheduler issues
