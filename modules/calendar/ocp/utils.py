@@ -105,27 +105,39 @@ def normalize_name(name: str) -> str:
     # Remove special characters, convert to lowercase
     return re.sub(r'[^a-z0-9]', '', name.lower())
 
-def parse_notion_event_for_officers(notion_event: Dict) -> List[Dict]:
+def parse_notion_event_for_officers(notion_event: Dict, debug=False) -> List[Dict]:
     """
     Parse a Notion event and extract all officers and their roles.
     
-    Returns a list of dictionaries, each containing:
-    {
-        "name": str,
-        "email": str or None,  # Now can be None if not available
-        "role": str,
-        "points": int,
-        "event": str,
-        "event_type": str,
-        "notion_page_id": str,
-        "event_date": datetime
-    }
+    Args:
+        notion_event: Raw Notion event data
+        debug: Whether to print debug information
+    
+    Returns:
+        List of dictionaries, each containing:
+        {
+            "name": str,
+            "email": str or None,
+            "role": str,
+            "points": int,
+            "event": str,
+            "event_type": str,
+            "notion_page_id": str,
+            "event_date": datetime,
+            "department": str,
+            "title": str
+        }
     """
     result = []
-    officers_without_email = []
+    # No longer tracking officers without email
     
     properties = notion_event.get("properties", {})
     notion_page_id = notion_event.get("id")
+    
+    if debug:
+        print("\n========= NOTION EVENT PARSING DEBUG =========")
+        print(f"Notion Page ID: {notion_page_id}")
+        print(f"Available properties: {', '.join(properties.keys())}")
     
     # Extract event name
     event_name = extract_property(properties, "Name", "title")
@@ -133,8 +145,14 @@ def parse_notion_event_for_officers(notion_event: Dict) -> List[Dict]:
         logger.warning(f"Event without a name found, id: {notion_page_id}")
         event_name = "Unnamed Event"
     
+    if debug:
+        print(f"Event Name: {event_name}")
+    
     # Extract event type (to determine points)
     event_type = extract_property(properties, "Event Type", "select") or "Default"
+    
+    if debug:
+        print(f"Event Type: {event_type}")
     
     # Extract event date
     date_prop = extract_property(properties, "Date", "date")
@@ -142,11 +160,31 @@ def parse_notion_event_for_officers(notion_event: Dict) -> List[Dict]:
     if date_prop and date_prop.get("start"):
         try:
             event_date = datetime.fromisoformat(date_prop["start"].replace("Z", "+00:00"))
+            if debug:
+                print(f"Event Date: {event_date}")
         except (ValueError, TypeError):
             logger.warning(f"Could not parse date for event {event_name}, id: {notion_page_id}")
+            if debug:
+                print(f"Failed to parse date: {date_prop}")
+    elif debug:
+        print("No event date found")
     
     # Get all officers by role
     officers_by_role = get_event_officers(properties)
+    
+    if debug:
+        print("\nOfficers by Role:")
+        for role, officers in officers_by_role.items():
+            print(f"  Role: {role}, Officers: {len(officers)}")
+            for i, officer in enumerate(officers):
+                print(f"    Officer #{i+1} ID: {officer.get('id', 'No ID')}")
+                print(f"    Officer #{i+1} Name: {officer.get('name', 'Unknown')}")
+                print(f"    Officer #{i+1} Object Type: {type(officer).__name__}")
+                
+                # If the officer object contains a 'person' subobject, examine that too
+                if 'person' in officer:
+                    person = officer.get('person', {})
+                    print(f"      Person Object Keys: {list(person.keys())}")
     
     # Process each role and its officers
     for role, officers in officers_by_role.items():
@@ -157,25 +195,88 @@ def parse_notion_event_for_officers(notion_event: Dict) -> List[Dict]:
         event_type_points = calculate_points_for_event_type(event_type)
         
         # Calculate final points - for now we'll use the higher of the two
-        # This could be adjusted to add them together or use other logic
         points = max(role_points, event_type_points)
         
+        if debug:
+            print(f"\nProcessing role: {role}")
+            print(f"  Base points for role: {role_points}")
+            print(f"  Points for event type '{event_type}': {event_type_points}")
+            print(f"  Final points: {points}")
+        
         for officer in officers:
+            if debug:
+                print("\n  Officer Raw Data:")
+                # Pretty print all keys and non-nested values
+                for key, value in officer.items():
+                    if isinstance(value, dict):
+                        print(f"    {key}: {type(value).__name__} with keys {list(value.keys())}")
+                    elif isinstance(value, list):
+                        print(f"    {key}: {type(value).__name__} with {len(value)} items")
+                    else:
+                        print(f"    {key}: {value}")
+                        
+                # If there's a person object, show its contents in detail
+                if "person" in officer:
+                    person_data = officer.get("person", {})
+                    print(f"    person object details:")
+                    for person_key, person_value in person_data.items():
+                        print(f"      {person_key}: {person_value}")
+            
             # Person objects from Notion have name and id, might have email or person objects
             officer_name = officer.get("name", "Unknown")
+            
+            # Skip if officer name is empty or unknown
+            if not officer_name or officer_name.lower() == "unknown":
+                if debug:
+                    print(f"  Skipping officer with missing/unknown name: {officer_name}")
+                logger.warning(f"Skipping officer with missing name in event {event_name}")
+                continue
+                
+            # Make sure we're using a real name, not just "Unknown"
+            if officer_name.lower() in ["unknown", "unnamed", "no name", "none", ""]:
+                if debug:
+                    print(f"  Skipping officer with placeholder name: {officer_name}")
+                logger.warning(f"Skipping officer with placeholder name in event {event_name}")
+                continue
+                
+            # Clean up officer name (remove extra spaces, normalize case)
+            officer_name = " ".join(officer_name.strip().split())
+            
+            if debug:
+                print(f"  Officer Name (cleaned): {officer_name}")
             
             # Try to get email in different ways
             officer_email = None
             if "email" in officer:
                 officer_email = officer["email"]
+                if debug:
+                    print(f"  Email (from officer object): {officer_email}")
             elif "person" in officer and "email" in officer["person"]:
                 officer_email = officer["person"]["email"]
+                if debug:
+                    print(f"  Email (from person object): {officer_email}")
+            elif debug:
+                print("  No email found for officer")
+                
+            # Try to extract department and title if available
+            department = "Unknown"
+            title = "Unknown"
             
-            # Track officers without email instead of logging each one
-            if not officer_email:
-                officers_without_email.append(officer_name)
+            # Try to extract from officer object
+            if "person" in officer:
+                person_data = officer["person"]
+                if "department" in person_data:
+                    department = person_data["department"]
+                    if debug:
+                        print(f"  Department: {department}")
+                if "title" in person_data:
+                    title = person_data["title"]
+                    if debug:
+                        print(f"  Title: {title}")
             
-            result.append({
+            # Remove tracking of officers without email
+            
+            contribution = {
                 "name": officer_name,
                 "email": officer_email,
                 "role": role,
@@ -183,11 +284,22 @@ def parse_notion_event_for_officers(notion_event: Dict) -> List[Dict]:
                 "event": event_name,
                 "event_type": event_type,
                 "notion_page_id": notion_page_id,
-                "event_date": event_date
-            })
+                "event_date": event_date,
+                "department": department,
+                "title": title
+            }
+            
+            if debug:
+                print("  Final contribution data:")
+                for key, value in contribution.items():
+                    print(f"    {key}: {value}")
+            
+            result.append(contribution)
     
-    # Log a summary of officers without emails
-    if officers_without_email:
-        logger.info(f"Event '{event_name}': {len(officers_without_email)} officers have no email addresses")
+    # Remove logging about missing emails
+    
+    if debug:
+        print(f"\nTotal contributions extracted: {len(result)}")
+        print("========= END NOTION EVENT PARSING DEBUG =========\n")
     
     return result 
