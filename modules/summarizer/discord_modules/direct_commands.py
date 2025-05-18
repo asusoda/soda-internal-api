@@ -33,17 +33,11 @@ async def summarize_command(
             "1w"
         ],
         default="24h"
-    ),
-    public: discord.Option(
-        bool,
-        "Make the summary visible to everyone (default: False)",
-        required=False,
-        default=False
     )
 ):
     """Generate a summary of recent channel messages"""
-    # Initial response to user - ephemeral based on public parameter
-    await ctx.defer(ephemeral=not public)
+    # Initial response to user - always ephemeral initially
+    await ctx.defer(ephemeral=True)
     
     service = SummarizerService()
     
@@ -51,7 +45,7 @@ async def summarize_command(
         # Show thinking message
         thinking_message = await ctx.followup.send(
             "🔄 Thinking... I'm reviewing the messages and generating a summary.",
-            ephemeral=not public
+            ephemeral=True
         )
         
         # Parse duration and calculate time range
@@ -194,6 +188,35 @@ async def summarize_command(
         # Move stats to the footer with emojis and bullet separators
         embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
         
+        # Create a view with the make public button
+        view = discord.ui.View()
+        make_public_button = discord.ui.Button(
+            style=discord.ButtonStyle.secondary,
+            label="Make Public",
+            emoji="🌐",
+            custom_id="make_summary_public"
+        )
+        
+        # Define the callback for the button
+        async def make_public_callback(interaction):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message("Only the user who requested the summary can make it public.", ephemeral=True)
+                return
+            
+            # Send the same embed as a public message directly
+            await ctx.channel.send(embed=embed)
+            
+            # Delete the ephemeral message
+            try:
+                # Acknowledge the interaction without sending a visible message
+                await interaction.response.defer(ephemeral=True)
+                await thinking_message.delete()
+            except Exception as e:
+                logger.error(f"Failed to delete ephemeral message: {e}")
+        
+        make_public_button.callback = make_public_callback
+        view.add_item(make_public_button)
+        
         # Cancel the loading animation task and wait for it to complete
         if loading_task.cancel():
             logger.info("Loading task was successfully cancelled")
@@ -213,13 +236,13 @@ async def summarize_command(
 
         # Edit the thinking message with the final response
         try:
-            await thinking_message.edit(content=None, embed=embed)
+            await thinking_message.edit(content=None, embed=embed, view=view)
             logger.info("Successfully updated message with summary embed")
         except Exception as e:
             logger.error(f"Error updating message with summary: {e}")
             # Fallback - try sending a new message
             try:
-                await ctx.followup.send(content=None, embed=embed, ephemeral=not public)
+                await ctx.followup.send(content=None, embed=embed, view=view, ephemeral=True)
                 logger.info("Sent summary as a new message")
             except Exception as send_error:
                 logger.error(f"Error sending fallback message: {send_error}")
@@ -260,13 +283,13 @@ An error occurred during the summarization process.
                 await thinking_message.edit(content=None, embed=error_embed)
             else:
                 # Fall back to sending a new message
-                await ctx.followup.send(embed=error_embed, ephemeral=not public)
+                await ctx.followup.send(embed=error_embed, ephemeral=True)
         except Exception as send_error:
             logger.error(f"Failed to send error message: {send_error}")
             # Last resort plain text fallback
             await ctx.followup.send(
                 "⚠️ Sorry, I encountered an error trying to generate the summary. Please try again later.",
-                ephemeral=not public
+                ephemeral=True
             )
 
 def register_direct_commands(bot):

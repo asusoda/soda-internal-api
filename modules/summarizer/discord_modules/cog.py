@@ -59,23 +59,17 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             "End date (YYYY-MM-DD) for timeline mode",
             required=False,
             default=None
-        ),
-        public: discord.Option(
-            bool,
-            "Make the summary visible to everyone (default: False)",
-            required=False,
-            default=False
         )
     ):
         """Generate a summary of channel messages"""
-        # Initial response to user - ephemeral based on public parameter
-        await ctx.defer(ephemeral=not public)
+        # Initial response to user - always ephemeral initially
+        await ctx.defer(ephemeral=True)
         
         try:
             # Show initial thinking message
             thinking_message = await ctx.followup.send(
                 "🔄 Thinking... I'm reviewing the messages and generating a summary.",
-                ephemeral=not public
+                ephemeral=True
             )
 
             # Calculate time range based on selected mode
@@ -195,10 +189,39 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
 
             # Stats now in footer instead of field
             embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+            
+            # Create a view with the make public button
+            view = discord.ui.View()
+            make_public_button = discord.ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Make Public",
+                emoji="🌐",
+                custom_id="make_summary_public"
+            )
+            
+            # Define the callback for the button
+            async def make_public_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    await interaction.response.send_message("Only the user who requested the summary can make it public.", ephemeral=True)
+                    return
+                
+                # Send the same embed as a public message directly
+                await ctx.channel.send(embed=embed)
+                
+                # Delete the ephemeral message
+                try:
+                    # Acknowledge the interaction without sending a visible message
+                    await interaction.response.defer(ephemeral=True)
+                    await thinking_message.delete()
+                except Exception as e:
+                    logger.error(f"Failed to delete ephemeral message: {e}")
+            
+            make_public_button.callback = make_public_callback
+            view.add_item(make_public_button)
 
             # Edit the thinking message with the final response
             try:
-                await thinking_message.edit(content=None, embed=embed)
+                await thinking_message.edit(content=None, embed=embed, view=view)
                 logger.info("Slash command: Successfully updated message with summary embed")
                 
                 # If the summary was split into multiple parts, send continuation messages
@@ -214,14 +237,14 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                         )
                         
                         # Send as a separate message
-                        await ctx.followup.send(embed=cont_embed, ephemeral=not public)
+                        await ctx.followup.send(embed=cont_embed, ephemeral=True)
                         logger.info(f"Sent continuation part {i+2}")
 
             except Exception as e:
                 logger.error(f"Slash command: Error updating message with summary: {e}")
                 # Fallback - try sending a new message
                 try:
-                    await ctx.followup.send(content=None, embed=embed, ephemeral=not public)
+                    await ctx.followup.send(content=None, embed=embed, view=view, ephemeral=True)
                     logger.info("Slash command: Sent summary as a new message")
                 except Exception as send_error:
                     logger.error(f"Slash command: Error sending fallback message: {send_error}")
@@ -262,13 +285,13 @@ An error occurred during the summarization process.
                     await thinking_message.edit(content=None, embed=error_embed)
                 else:
                     # Fall back to sending a new message
-                    await ctx.followup.send(embed=error_embed, ephemeral=not public)
+                    await ctx.followup.send(embed=error_embed, ephemeral=True)
             except Exception as send_error:
                 logger.error(f"Slash command: Failed to send error message: {send_error}")
                 # Last resort plain text fallback
                 await ctx.followup.send(
                     "⚠️ Sorry, I encountered an error trying to generate the summary. Please try again later.",
-                    ephemeral=not public
+                    ephemeral=True
                 )
     
     @discord.message_command(name="Summarize Channel")
@@ -423,6 +446,35 @@ An error occurred during the summarization process.
 
             # Stats now in footer instead of field
             embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+            
+            # Create a view with the make public button
+            view = discord.ui.View()
+            make_public_button = discord.ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Make Public",
+                emoji="🌐",
+                custom_id="make_summary_public"
+            )
+            
+            # Define the callback for the button
+            async def make_public_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    await interaction.response.send_message("Only the user who requested the summary can make it public.", ephemeral=True)
+                    return
+                
+                # Send the same embed as a public message directly
+                await ctx.channel.send(embed=embed)
+                
+                # Delete the ephemeral message
+                try:
+                    # Acknowledge the interaction without sending a visible message
+                    await interaction.response.defer(ephemeral=True)
+                    await thinking_message.delete()
+                except Exception as e:
+                    logger.error(f"Failed to delete ephemeral message: {e}")
+            
+            make_public_button.callback = make_public_callback
+            view.add_item(make_public_button)
 
             # Edit the thinking message with the final response
             try:
@@ -638,23 +690,17 @@ An error occurred during the summarization process.
             "End date (YYYY-MM-DD) for timeline mode",
             required=False,
             default=None
-        ),
-        public: discord.Option(
-            bool,
-            "Make the answer visible to everyone (default: False)",
-            required=False,
-            default=False
         )
     ):
         """Ask a specific question about channel messages"""
-        # Initial response to user - ephemeral based on public parameter
-        await ctx.defer(ephemeral=not public)
+        # Initial response to user - always ephemeral initially
+        await ctx.defer(ephemeral=True)
         
         try:
             # Show initial thinking message
             thinking_message = await ctx.followup.send(
                 "🔄 Thinking... I'm reviewing the messages to answer your question.",
-                ephemeral=not public
+                ephemeral=True
             )
 
             # Calculate time range based on selected mode
@@ -775,10 +821,39 @@ An error occurred during the summarization process.
 
             # Stats now in footer instead of field
             embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+            
+            # Create a view with the make public button
+            view = discord.ui.View()
+            make_public_button = discord.ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Make Public",
+                emoji="🌐",
+                custom_id="make_answer_public"
+            )
+            
+            # Define the callback for the button
+            async def make_public_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    await interaction.response.send_message("Only the user who asked the question can make it public.", ephemeral=True)
+                    return
+                
+                # Send the same embed as a public message directly
+                await ctx.channel.send(embed=embed)
+                
+                # Delete the ephemeral message
+                try:
+                    # Acknowledge the interaction without sending a visible message
+                    await interaction.response.defer(ephemeral=True)
+                    await thinking_message.delete()
+                except Exception as e:
+                    logger.error(f"Failed to delete ephemeral message: {e}")
+            
+            make_public_button.callback = make_public_callback
+            view.add_item(make_public_button)
 
             # Edit the thinking message with the final response
             try:
-                await thinking_message.edit(content=None, embed=embed)
+                await thinking_message.edit(content=None, embed=embed, view=view)
                 logger.info("Ask command: Successfully updated message with answer embed")
                 
                 # If the answer was split into multiple parts, send continuation messages
@@ -794,13 +869,13 @@ An error occurred during the summarization process.
                         )
                         
                         # Send as a separate message
-                        await ctx.followup.send(embed=cont_embed, ephemeral=not public)
+                        await ctx.followup.send(embed=cont_embed, ephemeral=True)
                         logger.info(f"Ask command: Sent continuation part {i+2}")
             except Exception as e:
                 logger.error(f"Ask command: Error updating message with answer: {e}")
                 # Fallback - try sending a new message
                 try:
-                    await ctx.followup.send(content=None, embed=embed, ephemeral=not public)
+                    await ctx.followup.send(content=None, embed=embed, view=view, ephemeral=True)
                     logger.info("Ask command: Sent answer as a new message")
                 except Exception as send_error:
                     logger.error(f"Ask command: Error sending fallback message: {send_error}")
@@ -842,13 +917,13 @@ An error occurred during the question answering process.
                     await thinking_message.edit(content=None, embed=error_embed)
                 else:
                     # Fall back to sending a new message
-                    await ctx.followup.send(embed=error_embed, ephemeral=not public)
+                    await ctx.followup.send(embed=error_embed, ephemeral=True)
             except Exception as send_error:
                 logger.error(f"Ask command: Failed to send error message: {send_error}")
                 # Last resort plain text fallback
                 await ctx.followup.send(
                     "⚠️ Sorry, I encountered an error trying to answer your question. Please try again later.",
-                    ephemeral=not public
+                    ephemeral=True
                 )
 
     @discord.slash_command(
@@ -856,14 +931,7 @@ An error occurred during the question answering process.
         description="Show help and instructions for the summarizer bot",
         guild_ids=None
     )
-    async def help_command(self, ctx: discord.ApplicationContext,
-        public: discord.Option(
-            bool,
-            "Make the help message visible to everyone (default: False)",
-            required=False,
-            default=False
-        )
-    ):
+    async def help_command(self, ctx: discord.ApplicationContext):
         """Show help and instructions for the summarizer bot"""
         help_text = (
             """
@@ -874,14 +942,13 @@ Summarize recent channel messages. You can use this command to get a concise sum
 - `mode`: Choose between `duration` (default) or `timeline`.
 - `duration`: For duration mode, pick a time period (e.g., 1h, 24h, 1d, 3d, 7d, 1w).
 - `start_date`/`end_date`: For timeline mode, specify the date range (YYYY-MM-DD).
-- `public`: Set to true to make the summary visible to everyone (default: false).
 
 **/ask**
 Ask a specific question about the channel's messages. The bot will analyze the chat history and answer your question, citing relevant messages.
 
 **Options:**
 - `question`: The question you want to ask about the chat.
-- `mode`, `duration`, `start_date`, `end_date`, `public`: Same as `/summarize`.
+- `mode`, `duration`, `start_date`, `end_date`: Same as `/summarize`.
 
 **Requirements:**
 - The bot must have permission to read message history in the channel.
@@ -893,6 +960,7 @@ Ask a specific question about the channel's messages. The bot will analyze the c
 - Use `/ask` to get answers to specific questions, such as "Who made the final decision?" or "What was the main topic on Monday?"
 - Both commands support citations: click on citation links in the summary or answer to jump to the original message.
 - If your summary or answer is too long, it will be split into multiple messages automatically.
+- All results are private by default. Use the "Make Public" button to share with the channel.
 
 For more details, see the project README or contact the bot maintainer.
 """
@@ -902,7 +970,36 @@ For more details, see the project README or contact the bot maintainer.
             description=help_text,
             color=discord.Color.purple()
         )
-        await ctx.respond(embed=embed, ephemeral=not public)
+        # Create a view with the make public button
+        view = discord.ui.View()
+        make_public_button = discord.ui.Button(
+            style=discord.ButtonStyle.secondary,
+            label="Make Public",
+            emoji="🌐",
+            custom_id="make_help_public"
+        )
+        
+        # Define the callback for the button
+        async def make_public_callback(interaction):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message("Only the user who requested help can make it public.", ephemeral=True)
+                return
+            
+            # Send the same embed as a public message directly
+            await ctx.channel.send(embed=embed)
+            
+            # Delete the ephemeral message - for help, we need to use interaction.message
+            try:
+                # Acknowledge the interaction without sending a visible message
+                await interaction.response.defer(ephemeral=True)
+                await interaction.message.delete()
+            except Exception as e:
+                logger.error(f"Failed to delete ephemeral help message: {e}")
+        
+        make_public_button.callback = make_public_callback
+        view.add_item(make_public_button)
+        
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
 
 
 class SummarizerDurationModal(discord.ui.Modal):
