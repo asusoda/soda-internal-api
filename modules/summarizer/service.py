@@ -813,10 +813,11 @@ MESSAGES TO ANALYZE:
         This method transforms citation references in the text into clickable
         Discord message links. It handles several citation formats:
         
-        1. Standard citations: [c1], [c2], etc.
-        2. Range citations: [c1-c5] (expands to individual citations)
-        3. Grouped citations: [c1, c2, c3]
-        4. Citations without brackets: c1 (converted to proper format)
+        1. Standard citations: [c1], [c2], etc. → converted to [1], [2], etc.
+        2. Range citations: [c1-c5] → converted to [1-5]
+        3. Grouped citations: [c1, c2, c3] → converted to [1, 2, 3]
+        4. Complex mixed formats: [c1-c3, c5, c10] → combination of ranges and individual citations
+        5. Complex formats like [c723-c741, c765] or [c178, c185-c208] → combination of ranges and individual citations
         
         Args:
             text: The summary or answer text containing citation references
@@ -825,50 +826,160 @@ MESSAGES TO ANALYZE:
         Returns:
             Formatted text with clickable Discord citation links
         """
-        # Handle standard citation format [c1], [c2], etc.
-        for citation_id, jump_url in citation_map.items():
-            # Replace citations with links
-            text = text.replace(f"[{citation_id}]", f"[[{citation_id}]]({jump_url})")
-            
-            # Also handle citations without brackets (just "c1" instead of "[c1]")
-            # But be careful not to replace parts of words or already processed citations
-            pattern = r'(?<!\[)(?<!\[\[)(?<!\w)' + re.escape(citation_id) + r'(?!\w)(?!\]\])(?!\])'
-            text = re.sub(pattern, f"[[{citation_id}]]({jump_url})", text)
+        processed_text = text
         
-        # Handle citation ranges like [c1-c5]
+        # Create a new map with numeric keys instead of 'c' prefixed keys
+        numeric_citation_map = {}
+        for citation_id, jump_url in citation_map.items():
+            if citation_id.startswith('c') and citation_id[1:].isdigit():
+                numeric_id = citation_id[1:]  # Remove the 'c' prefix
+                numeric_citation_map[numeric_id] = jump_url
+                
+        # First, fix nested brackets that might appear like [[c1]] or [[[c1]]]
+        processed_text = re.sub(r'\[\[\s*c(\d+)\s*\]\]', r'[c\1]', processed_text)
+        processed_text = re.sub(r'\[\[\[\s*c(\d+)\s*\]\]\]', r'[c\1]', processed_text)
+        
+        # Handle complex mixed citations [c#-c#, c#, c#-c#, ...] first
+        # This pattern matches citations with ranges and commas inside brackets
+        complex_pattern = r'\[((?:c\d+(?:-c\d+)?(?:,\s*)?)+)\]'
+        for match in re.finditer(complex_pattern, processed_text):
+            citation_content = match.group(1)
+            
+            # Skip if this is a simple citation (no commas or ranges)
+            if ',' not in citation_content and '-' not in citation_content:
+                continue
+                
+            # If we have a complex citation with commas or ranges, process it
+            # Replace the entire bracket content with processed citations
+            original_citation = match.group(0)  # The full citation with brackets
+            
+            # First remove the 'c' prefix from all numbers
+            simplified_content = re.sub(r'c(\d+)', r'\1', citation_content)
+            
+            # Split by commas to get individual citations or ranges
+            citation_parts = [part.strip() for part in simplified_content.split(',')]
+            replacement_parts = []
+            
+            for part in citation_parts:
+                if '-' in part:
+                    # This is a range citation like '1-5'
+                    start_num, end_num = map(int, part.split('-'))
+                    for i in range(start_num, end_num + 1):
+                        numeric_id = str(i)
+                        c_id = f'c{numeric_id}'
+                        if c_id in citation_map:
+                            replacement_parts.append(f"[{numeric_id}]({citation_map[c_id]})")
+                        else:
+                            replacement_parts.append(f"[{numeric_id}]")
+                else:
+                    # This is a single citation like '1'
+                    numeric_id = part
+                    c_id = f'c{numeric_id}'
+                    if c_id in citation_map:
+                        replacement_parts.append(f"[{numeric_id}]({citation_map[c_id]})")
+                    else:
+                        replacement_parts.append(f"[{numeric_id}]")
+            
+            # Join all parts with commas and replace the original citation
+            replacement = ", ".join(replacement_parts)
+            processed_text = processed_text.replace(original_citation, replacement, 1)
+        
+        # Process remaining standard citations
+        # Convert [c#] citations to [#]
+        processed_text = re.sub(r'\[c(\d+)\]', r'[\1]', processed_text)
+        
+        # Convert remaining [c#-c#] range citations to [#-#]
         range_pattern = r'\[c(\d+)-c(\d+)\]'
-        for match in re.finditer(range_pattern, text):
+        for match in re.finditer(range_pattern, processed_text):
+            start_num = int(match.group(1))
+            end_num = int(match.group(2))
+            replacement_parts = []
+            
+            for i in range(start_num, end_num + 1):
+                numeric_id = str(i)
+                c_id = f'c{numeric_id}'
+                if c_id in citation_map:
+                    replacement_parts.append(f"[{numeric_id}]({citation_map[c_id]})")
+                else:
+                    replacement_parts.append(f"[{numeric_id}]")
+                    
+            replacement = ", ".join(replacement_parts)
+            processed_text = processed_text.replace(match.group(0), replacement, 1)
+        
+        # Convert remaining grouped citations like [c1, c2, c3] to [1, 2, 3]
+        # First capture the content inside brackets
+        grouped_pattern = r'\[(c\d+(?:,\s*c\d+)+)\]'
+        for match in re.finditer(grouped_pattern, processed_text):
+            citation_group = match.group(1)
+            # Remove 'c' prefix from each number
+            citation_ids = re.findall(r'c(\d+)', citation_group)
+            replacement_parts = []
+            
+            for numeric_id in citation_ids:
+                c_id = f'c{numeric_id}'
+                if c_id in citation_map:
+                    replacement_parts.append(f"[{numeric_id}]({citation_map[c_id]})")
+                else:
+                    replacement_parts.append(f"[{numeric_id}]")
+                    
+            replacement = ", ".join(replacement_parts)
+            processed_text = processed_text.replace(match.group(0), replacement, 1)
+        
+        # Identify already processed citations to protect them
+        protected_citations = {}
+        protected_counter = 0
+        
+        # Find and protect already processed citations with format [#](url)
+        already_processed_pattern = r'\[\d+\]\([^)]+\)'
+        for match in re.finditer(already_processed_pattern, processed_text):
+            placeholder = f"__PROTECTED_CITATION_{protected_counter}__"
+            protected_citations[placeholder] = match.group(0)
+            processed_text = processed_text.replace(match.group(0), placeholder, 1)
+            protected_counter += 1
+        
+        # Handle standard citation format [1], [2], etc.
+        for numeric_id, jump_url in numeric_citation_map.items():
+            # Replace citations with links
+            processed_text = processed_text.replace(f"[{numeric_id}]", f"[{numeric_id}]({jump_url})")
+        
+        # Handle citation ranges like [1-5]
+        range_pattern = r'\[(\d+)-(\d+)\]'
+        for match in re.finditer(range_pattern, processed_text):
             start_num = int(match.group(1))
             end_num = int(match.group(2))
             
             replacement = ""
             for i in range(start_num, end_num + 1):
-                citation_id = f"c{i}"
-                if citation_id in citation_map:
+                numeric_id = str(i)
+                if numeric_id in numeric_citation_map:
                     if replacement:
                         replacement += ", "
-                    replacement += f"[[{citation_id}]]({citation_map[citation_id]})"
+                    replacement += f"[{numeric_id}]({numeric_citation_map[numeric_id]})"
                     
             if replacement:
-                text = text.replace(match.group(0), replacement)
+                processed_text = processed_text.replace(match.group(0), replacement, 1)
         
-        # Handle grouped citations like [c1, c2, c3]
-        grouped_pattern = r'\[(c\d+(?:,\s*c\d+)+)\]'
-        for match in re.finditer(grouped_pattern, text):
+        # Handle grouped citations like [1, 2, 3]
+        grouped_pattern = r'\[(\d+(?:,\s*\d+)+)\]'
+        for match in re.finditer(grouped_pattern, processed_text):
             citation_group = match.group(1)
             citation_ids = [c.strip() for c in citation_group.split(',')]
             
             replacement = ""
-            for citation_id in citation_ids:
-                if citation_id in citation_map:
+            for numeric_id in citation_ids:
+                if numeric_id in numeric_citation_map:
                     if replacement:
                         replacement += ", "
-                    replacement += f"[[{citation_id}]]({citation_map[citation_id]})"
+                    replacement += f"[{numeric_id}]({numeric_citation_map[numeric_id]})"
                     
             if replacement:
-                text = text.replace(match.group(0), replacement)
-                
-        return text
+                processed_text = processed_text.replace(match.group(0), replacement, 1)
+        
+        # Restore protected citations
+        for placeholder, original in protected_citations.items():
+            processed_text = processed_text.replace(placeholder, original)
+        
+        return processed_text
 
     def _split_long_response(self, text: str) -> Dict[str, Any]:
         """Split a long response text into multiple parts for Discord embeds
