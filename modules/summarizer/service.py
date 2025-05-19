@@ -11,6 +11,7 @@ from modules.utils.config import Config as AppConfig
 import dateparser
 import re
 from timefhuman import timefhuman
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Get logger
 logger = logging.getLogger(__name__)
@@ -130,17 +131,14 @@ class SummarizerService:
         return self.get_config()
     
     def test_gemini_connection(self, test_text: str) -> str:
-        """Test the connection to Gemini API"""
+        """Test the connection to Gemini API with automatic retries"""
         if not self.gemini_client:
             raise Exception("Gemini client not initialized")
 
         try:
-            # Use the new Google Genai API with hardcoded model
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=f"Respond briefly to this message: {test_text}"
-            )
-
+            # Use the retry-enabled method to make the API call
+            response = self._generate_test_content_with_retry(test_text)
+            
             # Log the response for debugging
             logger.info(f"Test response type: {type(response)}")
             logger.info(f"Response structure: {response.model_dump_json(exclude_none=True)[:100]}...")
@@ -148,8 +146,17 @@ class SummarizerService:
             # The new SDK has a simpler way to access the response text
             return response.text
         except Exception as e:
-            logger.error(f"Error testing Gemini connection: {e}")
-            return f"Error generating response: {str(e)}"
+            logger.error(f"Error testing Gemini connection after retries: {e}")
+            return f"Error generating response after multiple retry attempts: {str(e)}"
+            
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def _generate_test_content_with_retry(self, test_text: str):
+        """Make a test request to Gemini API with retries"""
+        logger.info("Making test Gemini API request with retries enabled")
+        return self.gemini_client.models.generate_content(
+            model=self.model_name,
+            contents=f"Respond briefly to this message: {test_text}"
+        )
     
     def parse_duration(self, duration_str: str) -> timedelta:
         """Parse a duration string into a timedelta object
@@ -185,43 +192,38 @@ class SummarizerService:
     def extract_timeframe_from_text(self, text: str) -> Optional[str]:
         """Extract time-related expressions from natural language text.
         
-        This method uses a multi-layered approach to extract time expressions:
-        1. Check for exact matches of common time expressions (today, yesterday, etc.)
-        2. Check if the text contains standard duration formats (e.g., "24h", "3d")
-        3. Try to extract time expressions using timefhuman
-        4. Use regex pattern matching to extract time-related phrases
+        This method primarily uses timefhuman to extract temporal expressions,
+        with fallbacks to specific keyword matching for common expressions.
         
-        The method distinguishes between two types of time expressions:
-        - Calendar-aligned expressions ("today", "last month") - These align with calendar boundaries
-        - Duration-based expressions ("7d", "past month"/"30d") - These represent exact time durations
+        The method distinguishes between:
+        - Date ranges ("Monday to Friday", "January to February") 
+        - Single dates ("tomorrow", "January 1st")
+        - Relative time periods ("last week", "past 3 days")
         
         Args:
             text: Text to analyze for time expressions
             
         Returns:
-            Extracted time expression or None if no valid expression found
+            Extracted time expression or None if no valid expression found:
+            - Date ranges return formatted strings ("from 2023-01-01 to 2023-01-31")
             - Calendar expressions return string descriptors ("today", "last month")
             - Duration expressions return standardized formats ("7d", "30d")
-            - Date ranges return formatted strings ("from 2023-01-01 to 2023-01-31")
-            - Returns None if no time expression is found or recognized
+            - Returns None if no time expression is found
         """
         if not text:
             return None
         
-        # Remove any question marks which can confuse timefhuman
+        # Clean the text for processing
         clean_text = text.replace('?', '').strip()
         text_lower = clean_text.lower()
         
-        # Special case for 'how does this system work' type phrases - explicitly return None
+        # Special case for 'how does this system work' type phrases
         if text_lower.startswith('how') and ('work' in text_lower or 'system' in text_lower):
             return None
-            
-        # Unified expression mapping: maps text patterns to their normalized values
-        # - Duration-based expressions use standardized Nd format
-        # - Calendar-based expressions use descriptive strings for calendar alignment
-        # This distinction matters for timezone interpretation later in the process
+        
+        # Direct look-up for common expressions (fast path)
         time_expressions = {
-            # Calendar-aligned expressions (based on local calendar dates)
+            # Calendar-aligned expressions
             "today": "today", 
             "yesterday": "yesterday",
             "this week": "this week", 
@@ -231,7 +233,7 @@ class SummarizerService:
             "this year": "this year", 
             "last year": "last year",
             
-            # Duration-based expressions (N days/months/years ago until now)
+            # Duration-based expressions
             "past week": "7d", 
             "the past week": "7d",
             "last 7 days": "7d",
@@ -243,7 +245,7 @@ class SummarizerService:
             "last 365 days": "365d"
         }
         
-        # Use module-level TIME_PHRASES constant to check for time keywords
+        # Quick check for time keywords before proceeding
         contains_time_keyword = False
         for phrase in TIME_PHRASES:
             if phrase in text_lower:
@@ -251,142 +253,141 @@ class SummarizerService:
                 break
                 
         if not contains_time_keyword:
-            # No time-related words found, return None early
             return None
             
-        # Check for expressions in a single loop
+        # Standard expression matching
         for expr, value in time_expressions.items():
             if expr in text_lower:
                 return value
             
-        # 2. Check if this is already a standard duration format
+        # Standard duration format check
         duration_match = re.match(r'^(\d+)([hdw])$', text_lower)
         if duration_match:
-            # Already in our standard format, no extraction needed
             return text_lower
         
-        # We already checked for time keywords at the beginning of the method
+        # First check for month ranges directly since timefhuman sometimes struggles with these
+        month_names = "january|february|march|april|may|june|july|august|september|october|november|december"
+        month_pattern = rf'(?:last\s+)?({month_names})\s+(?:to|through|until|and|-)\s+(?:last\s+)?({month_names})'
+        month_match = re.search(month_pattern, text_lower)
+        
+        if month_match:
+            start_month, end_month = month_match.groups()
+            is_last_year = 'last' in text_lower
+            month_range = f"{'last ' if is_last_year else ''}{start_month} to {'last ' if is_last_year else ''}{end_month}"
+            logger.info(f"Extracted explicit month range: '{month_range}'")
+            return month_range
             
-        # 3. Try using timefhuman for complex expressions
+        # Try timefhuman as the primary parser for other cases
         try:
-            # Use local time for better relative date handling
+            # Get local reference time
             local_now = datetime.now()
+            logger.debug(f"Using reference time for timefhuman: {local_now}")
             
-            # Try to extract a datetime or datetime range with timefhuman
-            # Log timezone information for debugging
-            logger.debug(f"Using reference time for extraction: {local_now} (local timezone)")
+            # Let timefhuman process the text (handles a wide range of formats)
             parsed = timefhuman(clean_text, now=local_now)
             
-            # Check if we got a valid result
+            # Process timefhuman's results
             if parsed and parsed != []:
-                # Successfully parsed - convert to a string representation
-                if isinstance(parsed, list):
-                    # It's a list of datetimes (likely a range)
-                    if len(parsed) == 2:
-                        # It's a datetime range (start and end)
-                        start, end = parsed
+                logger.info(f"Timefhuman extracted: {parsed}")
+                
+                # Handle date ranges (list of tuples)
+                if isinstance(parsed, list) and len(parsed) > 0 and isinstance(parsed[0], tuple):
+                    start, end = parsed[0]
+                    logger.info(f"Date range: {start} to {end}")
+                    return f"from {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
+                
+                # Handle nested lists
+                elif isinstance(parsed, list) and len(parsed) > 0 and isinstance(parsed[0], list):
+                    start = parsed[0][0] 
+                    end = parsed[0][-1]  
+                    logger.info(f"List range: {start} to {end}")
+                    return f"from {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
+                
+                # Handle list of dates
+                elif isinstance(parsed, list):
+                    if len(parsed) >= 2:
+                        start, end = parsed[0], parsed[-1]
+                        logger.info(f"Multiple dates: {start} to {end}")
                         return f"from {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
                     elif len(parsed) == 1:
-                        # It's a single datetime
                         dt = parsed[0]
-                        # Check if it's a date only (no specific time)
                         if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
                             return dt.strftime("%Y-%m-%d") 
                         else:
-                            # Specific time - create a 24h window
                             return f"24 hours ending {dt.strftime('%Y-%m-%d %H:%M')}"
+                
+                # Handle single datetime
                 elif isinstance(parsed, datetime):
-                    # It's a single datetime
-                    # Check if it's a date only (no specific time)
                     if parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0:
                         return parsed.strftime("%Y-%m-%d") 
                     else:
-                        # Specific time - create a window
                         return f"24 hours ending {parsed.strftime('%Y-%m-%d %H:%M')}"
                 
         except Exception as e:
-            logger.debug(f"Failed to extract datetime with timefhuman: {e}")
+            logger.debug(f"Timefhuman extraction failed: {e}")
+        
+        # Fallback for expressions timefhuman may miss
+        # Check for expressions timefhuman sometimes struggles with
+        
+        # Common date range patterns (day of week ranges, month ranges)
+        range_separators = "to|through|until|and|-"
+        weekday_names = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+        month_names = "january|february|march|april|may|june|july|august|september|october|november|december"
+        
+        # Check for weekday and month ranges explicitly
+        weekday_pattern = rf'(?:last\s+)?({weekday_names})\s+(?:{range_separators})\s+(?:last\s+)?({weekday_names})'
+        weekday_match = re.search(weekday_pattern, text_lower)
+        if weekday_match:
+            start_day, end_day = weekday_match.groups()
+            is_last_week = 'last' in text_lower
+            time_prefix = "last " if is_last_week else ""
+            logger.info(f"Extracted weekday range: {time_prefix}{start_day} to {end_day}")
+            return f"{time_prefix}{start_day} to {end_day}"
             
-        # Pattern matching for time references that need regex for more flexible matching
-        # Dictionary mapping regex patterns to standard timeframe formats
-        # Sorted from more specific to more general to avoid mismatches
-        std_patterns = {
-            # Number-based duration patterns (most explicit)
+        month_pattern = rf'(?:last\s+)?({month_names})\s+(?:{range_separators})\s+(?:last\s+)?({month_names})'
+        month_match = re.search(month_pattern, text_lower)
+        if month_match:
+            start_month, end_month = month_match.groups()
+            is_last_year = 'last' in text_lower
+            month_range = f"{'last ' if is_last_year else ''}{start_month} to {'last ' if is_last_year else ''}{end_month}"
+            logger.info(f"Extracted month range: {month_range}")
+            return month_range
+            
+        # Relative time expressions fallback
+        relative_patterns = {
+            # Duration patterns with numbers
             r'\b(?:last|past|previous)\s+(\d+)\s+days?\b': lambda m: f"{m.group(1)}d",
             r'\b(?:last|past|previous)\s+(\d+)\s+weeks?\b': lambda m: f"{int(m.group(1))*7}d",
             r'\b(?:last|past|previous)\s+(\d+)\s+months?\b': lambda m: f"{int(m.group(1))*30}d",
-            r'\b(?:last|past|previous)\s+(\d+)\s+years?\b': lambda m: f"{int(m.group(1))*365}d",
             
-            # Day expressions
+            # Standardized time periods
             r'\b(?:last|previous)\s+day\b': "1d",
-            r'\byesterday\b': "yesterday",  # Calendar-aligned
-            
-            # Week expressions - distinguish between calendar week and 7-day period
-            r'\b(?:last|previous)\s+week\b': "last week",  # Calendar-aligned
-            r'\bpast\s+week\b': "7d",                      # Duration-based
-            r'\brecent\s+week\b': "7d",
-            
-            # Month expressions - calendar month vs 30-day period
-            r'\b(?:last|previous)\s+month\b': "last month", # Calendar-aligned
-            r'\bpast\s+month\b': "30d",                     # Duration-based
-            r'\brecent\s+month\b': "30d",
-            
-            # Year expressions
-            r'\b(?:last|previous)\s+year\b': "last year",    # Calendar-aligned
-            r'\bpast\s+year\b': "365d",                     # Duration-based
-            
-            # Compound patterns with articles
-            r'\bthe\s+(?:last|previous)\s+(day|week|month|year)\b': lambda m: "1d" if m.group(1) == "day" else 
-                                                                      "last week" if m.group(1) == "week" else 
-                                                                      "last month" if m.group(1) == "month" else "last year",
-            
-            r'\bthe\s+past\s+(\d+)\s+(days?|weeks?|months?|years?)\b': lambda m: f"{int(m.group(1))*1}d" if "day" in m.group(2) else 
-                                                                        f"{int(m.group(1))*7}d" if "week" in m.group(2) else 
-                                                                        f"{int(m.group(1))*30}d" if "month" in m.group(2) else 
-                                                                        f"{int(m.group(1))*365}d",
-                                                                        
-            r'\bthe\s+past\s+(week|month|year)\b': lambda m: "7d" if m.group(1) == "week" else 
-                                                 "30d" if m.group(1) == "month" else "365d"
+            r'\bpast\s+week\b': "7d",
+            r'\bpast\s+month\b': "30d",
+            r'\bpast\s+year\b': "365d"
         }
         
-        for pattern, mapper in std_patterns.items():
+        for pattern, mapper in relative_patterns.items():
             match = re.search(pattern, text_lower)
             if match:
-                # If the mapper is a function, call it with the match object
-                if callable(mapper):
-                    return mapper(match)
-                # Otherwise, return the static value
-                return mapper
-                
-        # 5. Extract time-related context if we found a time keyword
-        time_related_text = None
-        for phrase in TIME_PHRASES:  # Use the module-level constant
-            if phrase in text_lower:
-                # Find the complete expression including context around the keyword
-                # This regex looks for 3 words before and after the time phrase
-                pattern = r'(\S+\s+){0,3}' + re.escape(phrase) + r'(\s+\S+){0,3}'
-                match = re.search(pattern, text_lower)
-                if match:
-                    time_related_text = match.group(0).strip()
-                    break
+                return mapper(match) if callable(mapper) else mapper
         
-        # Return the extracted time context if found
-        if time_related_text:
-            # Try dateparser on the extracted time-related text segment
-            try:
-                # Use local time as reference
-                local_time = datetime.now()
-                parsed = dateparser.parse(time_related_text, settings={'RELATIVE_BASE': local_time})
-                
-                if parsed:
-                    # Return a date string if we successfully parsed a date
-                    return parsed.strftime("%Y-%m-%d")
-                else:
-                    # Return the extracted text if dateparser couldn't handle it
-                    return time_related_text
-            except Exception as e:
-                logger.debug(f"Failed dateparser extraction: {e}")
-                return time_related_text
+        # If we have a time keyword but no patterns matched, extract the context
+        if contains_time_keyword:
+            for phrase in TIME_PHRASES:
+                if phrase in text_lower:
+                    pattern = r'(\S+\s+){0,3}' + re.escape(phrase) + r'(\s+\S+){0,3}'
+                    match = re.search(pattern, text_lower)
+                    if match:
+                        time_context = match.group(0).strip()
+                        # Try dateparser as a last resort
+                        try:
+                            parsed = dateparser.parse(time_context, settings={'RELATIVE_BASE': datetime.now()})
+                            if parsed:
+                                return parsed.strftime("%Y-%m-%d")
+                        except Exception:
+                            pass
+                        return time_context
         
         # No valid timeframe found
         return None
@@ -394,16 +395,9 @@ class SummarizerService:
     def parse_date_range(self, text: str) -> Tuple[datetime, Optional[datetime], str]:
         """Parse natural language date/time expressions into a start and end datetime.
         
-        This method distinguishes between two types of time expressions:
-        1. Calendar-aligned expressions ("today", "last week") - based on local calendar dates
-        2. Duration-based expressions ("7d", "30d") - specific number of days back from now
-        
-        The method uses a layered approach to handle various date formats:
-        1. Common expressions (today, yesterday, this week, etc.) from dictionary
-        2. Single dates (YYYY-MM-DD) for full day ranges
-        3. Date ranges (from YYYY-MM-DD to YYYY-MM-DD)
-        4. Standard duration formats (24h, 3d, 1w)
-        5. Natural language parsing with timefhuman/dateparser
+        This method primarily uses timefhuman to handle date ranges, with fallbacks to 
+        handle special cases. It returns timezone-aware datetime objects for the 
+        parsed time range.
         
         Args:
             text: Natural language text describing a time period
@@ -415,8 +409,6 @@ class SummarizerService:
             - display_range: A string representation of the time range for display purposes
             
         Note on timezones: 
-        - Calendar-based expressions use local date boundaries (e.g., "today" is midnight-to-midnight in local time)
-        - Duration-based expressions use exact time offsets from the current time (e.g., "24h" is exactly 24 hours)
         - All returned datetime objects are timezone-aware (using timezone.utc)
         - Local time is used as the reference point for parsing relative expressions
         """
@@ -424,161 +416,269 @@ class SummarizerService:
         if not text or text.strip() == "":
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=24)
-            return start_time, None, "24h"
+            return start_time, None, "24h (default)"
         
         text = text.strip().lower()
-        
-        # Get local time for relative expressions
         local_now = datetime.now()
         today = local_now.date()
         
-        # Helper functions to calculate date ranges (defined once and cached)
-        def week_start(d): return d - timedelta(days=d.weekday())
-        def week_end(d): return d
-        def prev_week_start(d): return week_start(d) - timedelta(days=7)
-        def prev_week_end(d): return week_start(d) - timedelta(days=1)
-        def month_start(d): return d.replace(day=1)
-        def month_end(d): return d
-        def prev_month_start(d): return (month_start(d) - timedelta(days=1)).replace(day=1)
-        def prev_month_end(d): return month_start(d) - timedelta(days=1)
-        
-        # Pre-calculate common date values to avoid repeated calculations
-        today_start_end = (today, today)
-        yesterday_start_end = (today - timedelta(days=1), today - timedelta(days=1))
-        this_week_start_end = (week_start(today), week_end(today))
-        last_week_start_end = (prev_week_start(today), prev_week_end(today))
-        this_month_start_end = (month_start(today), month_end(today))
-        last_month_start_end = (prev_month_start(today), prev_month_end(today))
-        
-        # Define pattern handlers for various date formats
-        # Maps patterns or expressions to handler functions
-        pattern_handlers = {
-            # 1. Common calendar expressions (direct matches)
-            "today": lambda: (today_start_end, f"{today.strftime('%Y-%m-%d')} ({today.strftime('%A')})"),
-            "yesterday": lambda: (yesterday_start_end, f"{yesterday_start_end[0].strftime('%Y-%m-%d')} ({yesterday_start_end[0].strftime('%A')})"),
-            "this week": lambda: (this_week_start_end, 
-                                f"{this_week_start_end[0].strftime('%Y-%m-%d')} ({this_week_start_end[0].strftime('%a')}) to {this_week_start_end[1].strftime('%Y-%m-%d')} ({this_week_start_end[1].strftime('%a')})"),
-            "last week": lambda: (last_week_start_end,
-                                f"{last_week_start_end[0].strftime('%Y-%m-%d')} ({last_week_start_end[0].strftime('%a')}) to {last_week_start_end[1].strftime('%Y-%m-%d')} ({last_week_start_end[1].strftime('%a')})"),
-            "this month": lambda: (this_month_start_end,
-                                 f"{this_month_start_end[0].strftime('%Y-%m-%d')} to {this_month_start_end[1].strftime('%Y-%m-%d')}"),
-            "last month": lambda: (last_month_start_end,
-                                 f"{last_month_start_end[0].strftime('%Y-%m-%d')} to {last_month_start_end[1].strftime('%Y-%m-%d')}"),
-            
-            # 2. Single date format regex
-            r'^(\d{4}-\d{2}-\d{2})$': lambda m: ((datetime.strptime(m.group(1), "%Y-%m-%d").date(), 
-                                                    datetime.strptime(m.group(1), "%Y-%m-%d").date()), 
-                                                   m.group(1)),
-            
-            # 3. Date range format regex
-            r'^from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$': lambda m: ((datetime.strptime(m.group(1), "%Y-%m-%d").date(), 
-                                                                                       datetime.strptime(m.group(2), "%Y-%m-%d").date()),
-                                                                                      f"{m.group(1)} to {m.group(2)}"),
-            
-            # 4. Standard duration format regex
-            r'^(\d+)([hdw])$': lambda m: self._handle_duration_format(m)
+        # Handle common calendar expressions first (fast path)
+        calendar_expressions = {
+            "today": (today, today, f"{today.strftime('%Y-%m-%d')} ({today.strftime('%A')})"),
+            "yesterday": (today - timedelta(days=1), today - timedelta(days=1), f"{(today - timedelta(days=1)).strftime('%Y-%m-%d')} ({(today - timedelta(days=1)).strftime('%A')})"),
+            "this week": (today - timedelta(days=today.weekday()), today, f"This week ({(today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')})"),
+            "last week": (today - timedelta(days=today.weekday()+7), today - timedelta(days=today.weekday()+1), f"Last week ({(today - timedelta(days=today.weekday()+7)).strftime('%Y-%m-%d')} to {(today - timedelta(days=today.weekday()+1)).strftime('%Y-%m-%d')})"),
+            "this month": (today.replace(day=1), today, f"This month ({today.replace(day=1).strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')})"),
+            "last month": ((today.replace(day=1) - timedelta(days=1)).replace(day=1), today.replace(day=1) - timedelta(days=1), f"Last month ({(today.replace(day=1) - timedelta(days=1)).replace(day=1).strftime('%Y-%m-%d')} to {(today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')})")
         }
         
-        # Process patterns in order of specificity using the pattern_handlers dictionary
+        if text in calendar_expressions:
+            start_date, end_date, display = calendar_expressions[text]
+            start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            return start_time, end_time, display
+            
+        # Handle standard duration format (e.g., "24h", "3d", "1w")
+        duration_match = re.match(r'^(\d+)([hdw])$', text)
+        if duration_match:
+            value, unit = duration_match.groups()
+            start_time, end_time, display = self._handle_duration_format(duration_match)
+            return start_time, end_time, display
         
-        # 1. Check for direct string matches in pattern_handlers
-        if text in pattern_handlers:
-            # Direct match for a common expression - call its handler
-            date_tuple, display_range = pattern_handlers[text]()
+        # Handle month ranges before trying timefhuman (since it sometimes struggles with these)
+        month_names = "january|february|march|april|may|june|july|august|september|october|november|december"
+        month_pattern = rf'(?:last\s+)?({month_names})\s+(?:to|through|until|and|-)\s+(?:last\s+)?({month_names})'
+        month_match = re.search(month_pattern, text.lower())
+        
+        if month_match and not text.startswith('20'):  # Avoid matching explicit date formats
+            start_month, end_month = month_match.groups()
+            is_last_year = 'last' in text.lower()
+            date_tuple, display_range = self._handle_month_range(start_month, end_month, is_last_year)
             start_date, end_date = date_tuple
             
-            # Convert dates to timezone-aware datetime objects
             start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
             end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
             
+            logger.info(f"Parsed month range directly: {start_time} to {end_time}")
             return start_time, end_time, display_range
-        
-        # 2. Try regex pattern matches
-        for pattern, handler in pattern_handlers.items():
-            # Skip direct string matches - we already checked those
-            if not pattern.startswith('^'):
-                continue
-                
-            match = re.match(pattern, text)
-            if match:
-                # Call the pattern's handler with the match object
-                date_tuple, display_range = handler(match)
-                
-                # Handle special case for duration format which returns final values directly
-                if pattern == r'^(\d+)([hdw])$':
-                    return date_tuple[0], date_tuple[1], display_range
-                    
-                # For other patterns, convert dates to datetime objects
-                start_date, end_date = date_tuple
-                start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-                end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-                
-                return start_time, end_time, display_range
-        
-        # 5. Try natural language parsing with timefhuman using local time as reference
+            
+        # Use timefhuman as primary datetime parser for other cases
         try:
-            # Parse with timefhuman using local time as the reference
+            # Let timefhuman handle most natural language expressions  
+            logger.info(f"Parsing with timefhuman: '{text}'")
             parsed = timefhuman(text, now=local_now)
             
             if parsed:
-                # Handle date/time list (range)
-                if isinstance(parsed, list):
-                    if len(parsed) == 2:
-                        start_dt, end_dt = parsed
-                        
-                        # Ensure timezone awareness
-                        if start_dt.tzinfo is None:
-                            start_dt = start_dt.replace(tzinfo=timezone.utc)
-                        if end_dt.tzinfo is None:
-                            end_dt = end_dt.replace(tzinfo=timezone.utc)
-                        
-                        # Make end time inclusive if it's a date without time
-                        if end_dt.hour == 0 and end_dt.minute == 0:
-                            end_dt = end_dt.replace(hour=23, minute=59, second=59)
-                        
-                        if start_dt.date() == end_dt.date():
-                            display_range = start_dt.strftime("%Y-%m-%d")
-                        else:
-                            display_range = f"{start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}"
-                        
-                        return start_dt, end_dt, display_range
-                    
-                    elif len(parsed) == 1:
-                        # Single date in a list
-                        dt = parsed[0]
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                        
-                        if dt.hour == 0 and dt.minute == 0:
-                            # Full day
-                            return dt, dt.replace(hour=23, minute=59, second=59), dt.strftime("%Y-%m-%d")
-                        else:
-                            # 24h window ending at the time
-                            return dt - timedelta(hours=24), dt, f"24h ending {dt.strftime('%Y-%m-%d %H:%M')}"
+                logger.info(f"Timefhuman parsed result: {parsed}")
                 
-                # Handle single datetime
+                # CASE 1: Date range as list of tuples [(start, end)]
+                if isinstance(parsed, list) and len(parsed) > 0 and isinstance(parsed[0], tuple):
+                    start, end = parsed[0]
+                    
+                    # Ensure timezone awareness
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                    if end.tzinfo is None:
+                        end = end.replace(tzinfo=timezone.utc)
+                        
+                    # Make end time inclusive (end of day)
+                    if end.hour == 0 and end.minute == 0 and end.second == 0:
+                        end = end.replace(hour=23, minute=59, second=59)
+                        
+                    # Create a human-readable display format
+                    if start.date() == end.date():
+                        display_range = start.strftime("%Y-%m-%d")
+                    else:
+                        display_range = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
+                    
+                    logger.info(f"Parsed date range: {start} to {end}")
+                    return start, end, display_range
+                
+                # CASE 2: Nested lists [[date1, date2]]
+                elif isinstance(parsed, list) and len(parsed) > 0 and isinstance(parsed[0], list):
+                    start = parsed[0][0]
+                    end = parsed[0][-1]
+                    
+                    # Ensure timezone awareness
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                    if end.tzinfo is None:
+                        end = end.replace(tzinfo=timezone.utc)
+                        
+                    # Make end time inclusive (end of day)
+                    if end.hour == 0 and end.minute == 0 and end.second == 0:
+                        end = end.replace(hour=23, minute=59, second=59)
+                        
+                    # Create a human-readable display format
+                    display_range = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
+                    
+                    logger.info(f"Parsed date list: {start} to {end}")
+                    return start, end, display_range
+                
+                # CASE 3: Simple list of dates [date1, date2]
+                elif isinstance(parsed, list) and len(parsed) >= 1:
+                    if len(parsed) >= 2:
+                        # Multiple dates - treat as range
+                        start, end = parsed[0], parsed[-1]
+                    else:
+                        # Single date - use the same date for start and end
+                        start = end = parsed[0]
+                    
+                    # Ensure timezone awareness
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                    if end.tzinfo is None:
+                        end = end.replace(tzinfo=timezone.utc)
+                    
+                    # Make end time inclusive (end of day)
+                    if end.hour == 0 and end.minute == 0 and end.second == 0:
+                        end = end.replace(hour=23, minute=59, second=59)
+                    
+                    # Create an appropriate display format
+                    if start.date() == end.date():
+                        display_range = start.strftime("%Y-%m-%d")
+                    else:
+                        display_range = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
+                    
+                    return start, end, display_range
+                
+                # CASE 4: Single datetime
                 elif isinstance(parsed, datetime):
                     dt = parsed
+                    
+                    # Ensure timezone awareness
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
                     
-                    if dt.hour == 0 and dt.minute == 0:
-                        # Full day
+                    # Handle full day
+                    if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
                         return dt, dt.replace(hour=23, minute=59, second=59), dt.strftime("%Y-%m-%d")
                     else:
-                        # 24h window
+                        # Handle specific time as 24h window
                         return dt - timedelta(hours=24), dt, f"24h ending {dt.strftime('%Y-%m-%d %H:%M')}"
         
         except Exception as e:
-            logger.debug(f"Natural language parsing failed: {e}")
+            logger.debug(f"Timefhuman parsing failed: {e}")
         
-        # 6. Try dateparser as a last resort (has good multi-language support)
+        # Handle specific patterns that timefhuman might struggle with
+        
+        # Handle explicit date format "from YYYY-MM-DD to YYYY-MM-DD"
+        explicit_date_pattern = r'^(?:from\s+)?(\d{4}-\d{2}-\d{2})\s+(?:to|through|until|and|-)\s+(\d{4}-\d{2}-\d{2})$'
+        explicit_date_match = re.match(explicit_date_pattern, text)
+        
+        if explicit_date_match:
+            start_date_str, end_date_str = explicit_date_match.groups()
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            
+            start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            
+            display_range = f"{start_date_str} to {end_date_str}"
+            logger.info(f"Parsed explicit date range: {start_time} to {end_time}")
+            return start_time, end_time, display_range
+        
+        # Month ranges (e.g., "January to February", "last January to February")
+        month_names = "january|february|march|april|may|june|july|august|september|october|november|december"
+        month_pattern = rf'^(?:from\s+)?(?:last\s+)?({month_names})\s+(?:to|through|until|and|-)\s+(?:last\s+)?({month_names})'
+        month_range_match = re.match(month_pattern, text)
+        
+        if month_range_match:
+            start_month, end_month = month_range_match.groups()
+            is_last_year = 'last' in text
+            date_tuple, display_range = self._handle_month_range(start_month, end_month, is_last_year)
+            start_date, end_date = date_tuple
+            
+            start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            
+            logger.info(f"Parsed month range: {start_time} to {end_time}")
+            return start_time, end_time, display_range
+            
+        # Weekday ranges (e.g., "Monday to Friday")
+        weekday_names = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+        range_separators = "to|through|until|and|-"
+        weekday_pattern = rf'^(?:from\s+)?(?:last\s+)?({weekday_names})\s+(?:{range_separators})\s+(?:last\s+)?({weekday_names})'
+        weekday_range_match = re.match(weekday_pattern, text)
+        
+        if weekday_range_match:
+            weekday_map = {
+                'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+                'friday': 4, 'saturday': 5, 'sunday': 6
+            }
+            
+            start_weekday_name, end_weekday_name = weekday_range_match.groups()
+            start_weekday = weekday_map[start_weekday_name]
+            end_weekday = weekday_map[end_weekday_name]
+            
+            current_date = datetime.now().date()
+            current_weekday = current_date.weekday()
+            
+            # Check if "last" was mentioned in the query
+            is_last_week = 'last' in text.lower()
+            
+            # Always look at the most recent past occurrence of the weekdays
+            # Never look into the future, always use the most recent past days
+            
+            # Calculate days to go back to reach the most recent occurrence of each day
+            days_to_start = (current_weekday - start_weekday) % 7
+            if days_to_start == 0 and datetime.now().hour < 12:
+                # If it's the same day but before noon, use today
+                days_to_start = 0
+            elif days_to_start == 0:
+                # If it's the same day but after noon, use last week
+                days_to_start = 7
+                
+            days_to_end = (current_weekday - end_weekday) % 7
+            if days_to_end == 0 and datetime.now().hour < 12:
+                # If it's the same day but before noon, use today
+                days_to_end = 0
+            elif days_to_end == 0:
+                # If it's the same day but after noon, use last week
+                days_to_end = 7
+            
+            # If "last" is explicitly mentioned, go back one more week
+            if is_last_week:
+                days_to_start += 7
+                days_to_end += 7
+                
+            # Calculate the dates
+            start_date = current_date - timedelta(days=days_to_start)
+            end_date = current_date - timedelta(days=days_to_end)
+            
+            # Ensure end date is after or equal to start date
+            if end_date < start_date:
+                # For cases like "Friday to Monday" where Friday is before Monday in the week
+                # but the most recent Monday might be later than the most recent Friday
+                
+                # Check if we need to go back one more week for the end date
+                if (current_weekday > end_weekday) and (end_weekday < start_weekday):
+                    # The end weekday is earlier in the week than start weekday
+                    # and we've already passed the end weekday this week
+                    end_date = end_date + timedelta(days=7)
+                elif days_between := (7 + end_weekday - start_weekday) % 7:
+                    # Handle cross-week ranges
+                    end_date = start_date + timedelta(days=days_between)
+            
+            start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            
+            # Fixed dates in tests use "Previous" for all non-explicit "last" ranges
+            if is_last_week:
+                time_descriptor = "Last "
+            else:
+                time_descriptor = "Previous "
+                
+            display_range = f"{time_descriptor}{start_weekday_name.capitalize()} to {end_weekday_name.capitalize()} ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})"
+            
+            logger.info(f"Parsed weekday range: {start_time} to {end_time}")
+            return start_time, end_time, display_range
+        
+        # Try dateparser as a last resort
         try:
-            # Use local time as the reference for better user experience
             parsed = dateparser.parse(text, settings={'RELATIVE_BASE': local_now})
             
             if parsed:
-                # Make timezone aware
                 if parsed.tzinfo is None:
                     parsed = parsed.replace(tzinfo=timezone.utc)
                 
@@ -586,23 +686,17 @@ class SummarizerService:
                     # Full day
                     return parsed, parsed.replace(hour=23, minute=59, second=59), parsed.strftime("%Y-%m-%d")
                 else:
-                    # 24h window ending at the specific time
+                    # 24h window
                     return parsed - timedelta(hours=24), parsed, f"24h ending {parsed.strftime('%Y-%m-%d %H:%M')}"
-        
         except Exception as e:
             logger.debug(f"Dateparser failed: {e}")
         
-        # Improved fallback with more detailed logging
+        # Fall back to 24-hour window if all parsing attempts fail
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
         
-        # Log detailed information about the failed parsing attempt
-        logger.info(f"Unable to parse time expression: '{text}'")
-        logger.info(f"Tried: common expressions, date formats, duration formats, timefhuman, and dateparser")
-        logger.info(f"Falling back to default 24-hour window: {start_time.isoformat()} to {end_time.isoformat()}")
-        
-        # Return a more descriptive display format for the fallback case
-        return start_time, None, "last 24 hours (default)"
+        logger.info(f"All parsing methods failed for: '{text}'. Using 24h default.")
+        return start_time, None, "24h (default)"
     
     def generate_summary(self,
                          messages: List[Dict[str, Any]],
@@ -756,8 +850,8 @@ I didn't find any messages in this channel for the specified period (`{duration_
                         top_k=40
                     )
 
-                    # Send request to Gemini API
-                    response = self.gemini_client.models.generate_content(
+                    # Send request to Gemini API with retry
+                    response = self._generate_content_with_retry(
                         model=self.model_name,  # Using our hardcoded model name
                         contents=prompt,
                         config=generation_config
@@ -990,8 +1084,8 @@ I didn't find any messages in this channel for the specified period (`{duration_
                         top_k=40
                     )
 
-                    # Send request to Gemini API
-                    response = self.gemini_client.models.generate_content(
+                    # Send request to Gemini API with retry
+                    response = self._generate_content_with_retry(
                         model=self.model_name,
                         contents=prompt,
                         config=generation_config
@@ -1243,7 +1337,69 @@ An error occurred during answer generation.
                 
         return final_parts
         
-    def _handle_duration_format(self, match) -> Tuple[Tuple[datetime, Optional[datetime]], str]:
+    def _handle_month_range(self, start_month: str, end_month: str, is_last_year: bool = False) -> Tuple[Tuple[datetime.date, datetime.date], str]:
+        """Handle month-to-month range expressions with smart year detection.
+        
+        Args:
+            start_month: Name of the starting month (e.g., 'january')
+            end_month: Name of the ending month (e.g., 'february')
+            is_last_year: Whether to use last year's date for the range
+            
+        Returns:
+            Tuple containing:
+            - Tuple of (start_date, end_date) as date objects
+            - Display range string
+        """
+        # Month name to number mapping
+        month_map = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4,
+            'may': 5, 'june': 6, 'july': 7, 'august': 8,
+            'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+        
+        # Get current date reference
+        current_date = datetime.now().date()
+        current_year = current_date.year
+        
+        # Determine the year for start month
+        if is_last_year:
+            year = current_year - 1
+        else:
+            year = current_year
+            # If both months are future months, use previous year
+            if month_map[start_month] > current_date.month and month_map[end_month] > current_date.month:
+                year = current_year - 1
+        
+        # Create start date (first day of start month)
+        start_date = datetime(year, month_map[start_month], 1).date()
+        
+        # Determine year for end month (handle year transitions)
+        end_year = year
+        if month_map[end_month] < month_map[start_month]:
+            # Handle ranges like "November to January" that cross year boundary
+            end_year = year + 1
+            
+        # Calculate end date (last day of end month)
+        if month_map[end_month] == 12:  # December
+            end_date = datetime(end_year, 12, 31).date()
+        else:
+            # Get the last day of the month by finding the first day of next month and going back one day
+            next_month = month_map[end_month] + 1
+            next_month_year = end_year
+            end_date = datetime(next_month_year, next_month, 1).date() - timedelta(days=1)
+        
+        # Create user-friendly display string
+        display_start = start_month.capitalize()
+        display_end = end_month.capitalize()
+        
+        if year == end_year and year == current_year:
+            display_range = f"{display_start} to {display_end} {year}"
+        else:
+            display_range = f"{display_start} {year} to {display_end} {end_year}"
+            
+        return (start_date, end_date), display_range
+        
+    def _handle_duration_format(self, match) -> Tuple[datetime, Optional[datetime], str]:
         """Handle standard duration formats (e.g., 24h, 3d, 1w).
         
         Args:
@@ -1251,32 +1407,33 @@ An error occurred during answer generation.
             
         Returns:
             Tuple containing:
-            - Tuple of (start_time, end_time) where end_time is None for durations
-            - Display range string
+            - start_time: datetime at the beginning of the duration
+            - end_time: datetime at the end of the duration or None
+            - display_range: string representation of the duration
         """
         value, unit = match.groups()
         value = int(value)
         
-        # For duration formats, always use UTC time with clear display formatting
+        # Get current time in UTC
         end_time = datetime.now(timezone.utc)
-        unit_name = {"h": "hour", "d": "day", "w": "week"}[unit]
-        plural = "s" if value > 1 else ""
         
-        if unit == 'h':
-            start_time = end_time - timedelta(hours=value)
-            display_range = f"last {value} {unit_name}{plural}"
-        elif unit == 'd':
-            start_time = end_time - timedelta(days=value)
-            display_range = f"last {value} {unit_name}{plural}"
-        elif unit == 'w':
-            start_time = end_time - timedelta(weeks=value)
-            display_range = f"last {value} {unit_name}{plural}"
-        else:
-            # Fallback to 24h (shouldn't happen with regex validation)
-            start_time = end_time - timedelta(hours=24)
-            display_range = "last 24 hours"
+        # Map units to timedelta arguments and display names
+        unit_config = {
+            'h': {'timedelta_kwarg': 'hours', 'name': 'hour'},
+            'd': {'timedelta_kwarg': 'days', 'name': 'day'},
+            'w': {'timedelta_kwarg': 'weeks', 'name': 'week'}
+        }
+        
+        # Calculate the start time using the appropriate timedelta
+        timedelta_args = {unit_config[unit]['timedelta_kwarg']: value}
+        start_time = end_time - timedelta(**timedelta_args)
+        
+        # Create user-friendly display string
+        unit_name = unit_config[unit]['name']
+        plural = "s" if value > 1 else ""
+        display_range = f"last {value} {unit_name}{plural}"
             
-        return (start_time, None), display_range
+        return start_time, None, display_range
         
     def _split_by_size(self, text: str, max_size: int) -> List[str]:
         """Split text by size, trying to split at paragraph boundaries.
@@ -1318,3 +1475,25 @@ An error occurred during answer generation.
             text = text[split_pos:].strip()
             
         return parts
+        
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def _generate_content_with_retry(self, model: str, contents: str, config: Any) -> Any:
+        """Generate content with Gemini API with automatic retries.
+        
+        This method is a thin wrapper around the Gemini generate_content method
+        that adds retry logic for handling transient errors.
+        
+        Args:
+            model: The model name to use
+            contents: The prompt content
+            config: Generation configuration
+            
+        Returns:
+            The Gemini API response
+        """
+        logger.info("Making Gemini API request with retries enabled")
+        return self.gemini_client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config
+        )
