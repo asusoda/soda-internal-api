@@ -1,62 +1,11 @@
-# soda-internal-api
-This project provides a modular internal API and Discord bot for the SoDA (Software Developers Association) student organization. It includes several modules:
-
-1. **Discord Bot with Jeopardy Game**: A Discord bot that allows members to play Jeopardy-style games in Discord channels
-2. **Points Tracking System**: For tracking member participation and contributions
-3. **Event Calendar Integration**: Syncs events between Notion and Google Calendar
-4. **Summarizer Module**: Provides AI-powered summaries of Discord channel conversations using natural language date queries
-5. **Web Control Panel**: Built with React, allows authorized users to manage the bot, games, and other features
+# TANAY API
+This project provides a modular internal API and Discord bots for SoDA. 
 
 The server side is developed using Flask, handling API requests, Discord bot interactions, and data management across all modules.
 
-## Key Features
+See the READMEs for more detailed documentation on the respective modules in `./modules`
 
-### Summarizer Module
-The summarizer module provides AI-powered summaries and question answering for Discord channel conversations:
-
-- **Natural Language Date Understanding**: Users can reference time periods using intuitive expressions:
-  - `/summarize last week`
-  - `/summarize january to february`
-  - `/summarize the past 3 days`
-  - `/ask what happened last month?`
-  - `/ask what did Alice say yesterday?`
-
-- **Smart Timeframe Extraction**: The system intelligently extracts timeframes from:
-  - Direct parameters in the `/summarize` command
-  - Questions asked with the `/ask` command
-  - Supports both calendar expressions ("last week", "this month") and duration expressions ("past 7 days")
-
-- **Smart Formatting**: Provides well-structured content with:
-  - Action items with assignees
-  - Conversation topics and key takeaways
-  - Citations linking to original messages
-  - Direct answers to specific questions
-
-#### Available Commands
-
-**Summarize Command**
-```
-/summarize [timeframe]
-```
-Summarizes channel activity for the specified timeframe. If no timeframe is provided, defaults to the last 24 hours.
-
-**Ask Command**
-```
-/ask <question>
-```
-Answers specific questions about channel conversations. Include timeframe references directly in your question (e.g., "What happened last week?").
-
-See [Summarizer Module Documentation](modules/summarizer/README.md) for more details.
-
-## Requirements
-
-#### Server (Flask App)
-- Python 3.9.2 or newer
-- Poetry (recommended) or pip
-- Dependencies as listed in `pyproject.toml`
-
-
-## Server Setup
+## Development Setup
 1. Clone the repository:
    ```bash
    git clone https://github.com/asusoda/soda-internal-api.git
@@ -73,14 +22,7 @@ See [Summarizer Module Documentation](modules/summarizer/README.md) for more det
    # Activate the virtual environment
    poetry shell
    ```
-   
-   Alternative methods:
-   - Using venv:
-     ```bash
-     python3 -m venv venv
-     source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-     pip install -r requirements.txt
-     ```
+
 4. Edit the secret values
   Copy the .env.template to .env
       ```bash
@@ -90,16 +32,13 @@ See [Summarizer Module Documentation](modules/summarizer/README.md) for more det
 
 5. Run the program 
       ```bash
-      # If using Poetry
       poetry run python main.py
       
       # If using activated virtual environment
       python main.py
       ```
 
-## Development and Testing
-
-### Running Tests
+## Testing
 
 This project uses pytest for automated testing. To run the tests:
 
@@ -127,30 +66,9 @@ This project uses pytest for automated testing. To run the tests:
    ./run_tests.sh -k "month"                  # Run tests matching a keyword
    ```
 
-### Ad-hoc Testing
-
-For testing the date parsing functionality directly:
-
-```bash
-python check_date.py "last week" "january to february"
-```
-
-This will display the parsed date ranges for the given expressions, showing:
-- Display format
-- Start date/time
-- End date/time
-
 ## Deployment
 
-### Deploying Flask Server
-
-1. **Configure production settings** in the `.env` file.
-2. **Use a production-ready WSGI server** such as `gunicorn` or `uWSGI` to serve the Flask app.
-
-   Example with `gunicorn`:
-   ```bash
-   gunicorn --bind 0.0.0.0:8000 wsgi:app
-   ```
+TODO. Tanay needs to fill us in on this.
 
 ## License
 
