@@ -15,6 +15,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
         self.summarizer_service = SummarizerService()
         print("SummarizerCog initialized - registering /summarize command")
 
+    
     # Create a slash command for summarization
     @discord.slash_command(
         name="summarize",
@@ -24,41 +25,11 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
     async def summarize_command(
         self,
         ctx: discord.ApplicationContext,
-        mode: discord.Option(
+        timeframe: discord.Option(
             str,
-            "Choose summarization mode (default: duration)",
+            "Time period to summarize (e.g., '3 days', 'last week', 'January 1 to January 15')",
             required=False,
-            choices=[
-                "duration", 
-                "timeline"
-            ],
-            default="duration"
-        ),
-        duration: discord.Option(
-            str,
-            "Time period to summarize (when using duration mode)",
-            required=False,
-            choices=[
-                "1h",
-                "24h",
-                "1d",
-                "3d",
-                "7d",
-                "1w"
-            ],
             default="24h"
-        ),
-        start_date: discord.Option(
-            str,
-            "Start date (YYYY-MM-DD) for timeline mode",
-            required=False,
-            default=None
-        ),
-        end_date: discord.Option(
-            str,
-            "End date (YYYY-MM-DD) for timeline mode",
-            required=False,
-            default=None
         )
     ):
         """Generate a summary of channel messages"""
@@ -72,39 +43,39 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                 ephemeral=True
             )
 
-            # Calculate time range based on selected mode
-            if mode == "duration":
-                time_delta = self.summarizer_service.parse_duration(duration)
-                look_back_time = datetime.now(timezone.utc) - time_delta
-                display_range = duration
-            else:  # timeline mode
-                # Validate date inputs
-                if not start_date or not end_date:
-                    await thinking_message.edit(content="⚠️ Error: Both start_date and end_date are required for timeline mode.")
-                    return
+            # The timeframe parameter itself will be processed directly by parse_date_range
+            # No additional extraction needed for explicitly provided timeframes
+            
+            # Check if the timeframe might contain multiple time references
+            if timeframe and (" and " in timeframe.lower() or "," in timeframe):
+                logger.warning(f"Timeframe might contain multiple time references: '{timeframe}'")
+                logger.warning("Only the first detected reference will be used")
+            
+            # Parse the timeframe using natural language processing
+            try:
+                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe)
                 
-                try:
-                    # Parse dates (assume input is in user's local timezone, convert to UTC)
-                    start_datetime = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-                    end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                # If end_time is provided, we're in timeline mode (specific date range)
+                if end_time:
+                    look_back_time = start_time
+                    end_datetime = end_time
+                else:
+                    # Duration mode - just use start_time
+                    look_back_time = start_time
+                    end_datetime = None
                     
-                    # Ensure end date is after start date
-                    if end_datetime <= start_datetime:
-                        await thinking_message.edit(content="⚠️ Error: End date must be after start date.")
-                        return
-                    
-                    # Set variables for fetching messages
-                    look_back_time = start_datetime
-                    display_range = f"{start_date} to {end_date}"
-                except ValueError:
-                    await thinking_message.edit(content="⚠️ Error: Invalid date format. Please use YYYY-MM-DD.")
-                    return
+                logger.info(f"Parsed timeframe '{timeframe}' as: {start_time} to {end_time if end_time else 'now'} (display: {display_range})")
+                
+            except Exception as e:
+                logger.error(f"Error parsing timeframe '{timeframe}': {e}")
+                await thinking_message.edit(content=f"⚠️ Error: I couldn't understand the timeframe '{timeframe}'. Try something like '24h', 'last week', or 'January 1 to January 15'.")
+                return
 
             # Show message about fetching messages
             await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
 
-            # Fetch messages from the channel - pass end_time if in timeline mode
-            if mode == "timeline":
+            # Fetch messages from the channel - pass end_time if in timeline mode (specific date range)
+            if end_datetime:
                 messages = await self._fetch_messages_in_range(ctx.channel, look_back_time, end_datetime)
             else:
                 messages = await self._fetch_messages(ctx.channel, look_back_time)
@@ -188,7 +159,9 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             )
 
             # Stats now in footer instead of field
-            embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+            # Include timespan information in the footer
+            timespan_info = f"{start_time.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}" if not end_time else f"{start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}"
+            embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • 📅 {timespan_info} • Requested by {ctx.author.display_name}")
             
             # Create a view with the make public button
             view = discord.ui.View()
@@ -218,6 +191,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             
             make_public_button.callback = make_public_callback
             view.add_item(make_public_button)
+            
 
             # Edit the thinking message with the final response
             try:
@@ -399,41 +373,11 @@ An error occurred during the summarization process.
             "Your question about the conversation",
             required=True
         ),
-        mode: discord.Option(
+        timeframe: discord.Option(
             str,
-            "Choose search mode (default: duration)",
+            "Time period to analyze (e.g., '3 days', 'last week', 'January 1 to January 15')",
             required=False,
-            choices=[
-                "duration", 
-                "timeline"
-            ],
-            default="duration"
-        ),
-        duration: discord.Option(
-            str,
-            "Time period to analyze (when using duration mode)",
-            required=False,
-            choices=[
-                "1h",
-                "24h",
-                "1d",
-                "3d",
-                "7d",
-                "1w"
-            ],
             default="24h"
-        ),
-        start_date: discord.Option(
-            str,
-            "Start date (YYYY-MM-DD) for timeline mode",
-            required=False,
-            default=None
-        ),
-        end_date: discord.Option(
-            str,
-            "End date (YYYY-MM-DD) for timeline mode",
-            required=False,
-            default=None
         )
     ):
         """Ask a specific question about channel messages"""
@@ -447,39 +391,48 @@ An error occurred during the summarization process.
                 ephemeral=True
             )
 
-            # Calculate time range based on selected mode
-            if mode == "duration":
-                time_delta = self.summarizer_service.parse_duration(duration)
-                look_back_time = datetime.now(timezone.utc) - time_delta
-                display_range = duration
-            else:  # timeline mode
-                # Validate date inputs
-                if not start_date or not end_date:
-                    await thinking_message.edit(content="⚠️ Error: Both start_date and end_date are required for timeline mode.")
-                    return
+            # Extract timeframe information from the question text using our method
+            extracted_timeframe = self.summarizer_service.extract_timeframe_from_text(question)
+            
+            # If we extracted a timeframe from the question and no explicit timeframe was provided
+            # (or it was the default), use the extracted timeframe
+            if extracted_timeframe and (timeframe == "24h" or not timeframe):
+                timeframe = extracted_timeframe
+                logger.info(f"Extracted timeframe from question: '{extracted_timeframe}'")
                 
-                try:
-                    # Parse dates (assume input is in user's local timezone, convert to UTC)
-                    start_datetime = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-                    end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                # If the extracted timeframe seems to be complex and might have multiple parts,
+                # log a warning to help with debugging
+                if " and " in question.lower() or "," in question:
+                    potential_compound = True
+                    logger.warning(f"Question might contain multiple time references: '{question}'")
+                    logger.warning(f"Only using the first detected reference: '{extracted_timeframe}'")
+                    # In the future, we could enhance this to handle multiple time references
+            
+            # Parse the timeframe using natural language processing
+            try:
+                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe)
+                
+                # If end_time is provided, we're in timeline mode (specific date range)
+                if end_time:
+                    look_back_time = start_time
+                    end_datetime = end_time
+                else:
+                    # Duration mode - just use start_time
+                    look_back_time = start_time
+                    end_datetime = None
                     
-                    # Ensure end date is after start date
-                    if end_datetime <= start_datetime:
-                        await thinking_message.edit(content="⚠️ Error: End date must be after start date.")
-                        return
-                    
-                    # Set variables for fetching messages
-                    look_back_time = start_datetime
-                    display_range = f"{start_date} to {end_date}"
-                except ValueError:
-                    await thinking_message.edit(content="⚠️ Error: Invalid date format. Please use YYYY-MM-DD.")
-                    return
+                logger.info(f"Parsed timeframe '{timeframe}' as: {start_time} to {end_time if end_time else 'now'} (display: {display_range})")
+                
+            except Exception as e:
+                logger.error(f"Error parsing timeframe '{timeframe}': {e}")
+                await thinking_message.edit(content=f"⚠️ Error: I couldn't understand the timeframe '{timeframe}'. Try something like '24h', 'last week', or 'January 1 to January 15'.")
+                return
 
             # Show message about fetching messages
             await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
 
-            # Fetch messages from the channel - pass end_time if in timeline mode
-            if mode == "timeline":
+            # Fetch messages from the channel - pass end_time if in timeline mode (specific date range)
+            if end_datetime:
                 messages = await self._fetch_messages_in_range(ctx.channel, look_back_time, end_datetime)
             else:
                 messages = await self._fetch_messages(ctx.channel, look_back_time)
@@ -564,7 +517,9 @@ An error occurred during the summarization process.
             )
 
             # Stats now in footer instead of field
-            embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • Requested by {ctx.author.display_name}")
+            # Include timespan information in the footer
+            timespan_info = f"{start_time.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}" if not end_time else f"{start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}"
+            embed.set_footer(text=f"📊 {message_count} msgs • 👥 {participant_count} participants • ⏱️ {time_span} • 📅 {timespan_info} • Requested by {ctx.author.display_name}")
             
             # Create a view with the make public button
             view = discord.ui.View()
@@ -594,6 +549,7 @@ An error occurred during the summarization process.
             
             make_public_button.callback = make_public_callback
             view.add_item(make_public_button)
+            
 
             # Edit the thinking message with the final response
             try:
@@ -682,26 +638,34 @@ An error occurred during the question answering process.
 **/summarize**
 Summarize recent channel messages. You can use this command to get a concise summary of recent activity in the current channel.
 
-**Options:**
-- `mode`: Choose between `duration` (default) or `timeline`.
-- `duration`: For duration mode, pick a time period (e.g., 1h, 24h, 1d, 3d, 7d, 1w).
-- `start_date`/`end_date`: For timeline mode, specify the date range (YYYY-MM-DD).
+**Usage:**
+- `/summarize` - Summarizes the last 24 hours
+- `/summarize 3 days` - Summarizes the last 3 days
+- `/summarize last week` - Summarizes the past week
+- `/summarize January 1 to January 15` - Summarizes a specific date range
 
 **/ask**
 Ask a specific question about the channel's messages. The bot will analyze the chat history and answer your question, citing relevant messages.
 
-**Options:**
-- `question`: The question you want to ask about the chat.
-- `mode`, `duration`, `start_date`, `end_date`: Same as `/summarize`.
+**Usage:**
+- `/ask "Who made the decision about the website redesign?"` - Uses default 24h timeframe
+- `/ask "What happened last month?"` - Automatically detects "last month" as the timeframe
+- `/ask "What was discussed?" timeframe: last week` - Explicitly sets the timeframe
+
+**Natural Language Time Understanding:**
+Both commands support natural language time expressions like:
+- Time periods: "last week", "past 3 days", "last month", "previous year"
+- Specific months: "last January", "this April"
+- Date ranges: "January to February", "from December to January"
+- Traditional formats: "24h", "3d", "1w" also still work
 
 **Requirements:**
 - The bot must have permission to read message history in the channel.
-- For timeline mode, both `start_date` and `end_date` are required and must be in YYYY-MM-DD format.
-- For duration mode, only the `duration` option is needed.
 
 **Tips:**
 - Use `/summarize` to quickly catch up on what you missed in a channel.
 - Use `/ask` to get answers to specific questions, such as "Who made the final decision?" or "What was the main topic on Monday?"
+- Include time references directly in your questions for `/ask` commands
 - Both commands support citations: click on citation links in the summary or answer to jump to the original message.
 - If your summary or answer is too long, it will be split into multiple messages automatically.
 - All results are private by default. Use the "Make Public" button to share with the channel.

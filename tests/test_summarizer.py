@@ -25,16 +25,16 @@ def test_gemini_connection():
         print("❌ Gemini client initialization failed. Check your API key.")
         print(f"GEMINI_API_KEY in environment: {'Yes' if os.environ.get('GEMINI_API_KEY') else 'No'}")
         print(f"GEMINI_API_KEY in config: {'Yes' if AppConfig().GEMINI_API_KEY else 'No'}")
-        return False
+        assert False, "Gemini client initialization failed"
     
     try:
         response = service.test_gemini_connection("Hello, Gemini! This is a test from AVERY summarizer.")
         print(f"✅ Successfully connected to Gemini API")
         print(f"Response: {response}")
-        return True
+        assert response is not None, "Gemini connection test failed with no response"
     except Exception as e:
         print(f"❌ Error testing Gemini connection: {e}")
-        return False
+        assert False, f"Error testing Gemini connection: {e}"
 
 def test_summarization():
     """Test the summarization functionality with sample messages"""
@@ -113,10 +113,13 @@ def test_summarization():
         print(f"Duration: {summary_result['duration']}")
         print(f"Completion time: {summary_result.get('completion_time', 'N/A')} seconds")
         
-        return True
+        # Assert that summary was generated successfully
+        assert summary_result is not None
+        assert "summary" in summary_result
+        assert summary_result["summary"] != ""
     except Exception as e:
         print(f"❌ Error testing summarization: {e}")
-        return False
+        assert False, f"Error testing summarization: {e}"
 
 def test_empty_messages():
     """Test summarization with no messages"""
@@ -139,10 +142,12 @@ def test_empty_messages():
         print(summary_result["summary"])
         print("=" * 50)
         
-        return True
+        # Assert that empty message case was handled
+        assert summary_result is not None
+        assert "summary" in summary_result
     except Exception as e:
         print(f"❌ Error testing empty messages: {e}")
-        return False
+        assert False, f"Error testing empty messages: {e}"
 
 def test_duration_parsing():
     """Test parsing of duration strings"""
@@ -160,16 +165,13 @@ def test_duration_parsing():
         None: timedelta(hours=24),  # Should default to 24h
     }
     
-    success = True
     for input_str, expected in test_cases.items():
         result = service.parse_duration(input_str)
         if result == expected:
             print(f"✅ Successfully parsed '{input_str}' to {result}")
         else:
             print(f"❌ Failed to parse '{input_str}'. Got {result}, expected {expected}")
-            success = False
-    
-    return success
+        assert result == expected, f"Failed to parse '{input_str}'. Got {result}, expected {expected}"
 
 def run_all_tests():
     """Run all test functions"""

@@ -20,18 +20,10 @@ logger = logging.getLogger(__name__)
 )
 async def summarize_command(
     ctx,
-    duration: discord.Option(
+    timeframe: discord.Option(
         str,
-        "Time period to summarize (default: 24h)",
+        "Time period to summarize (e.g., '3 days', 'last week', 'January 1 to January 15')",
         required=False,
-        choices=[
-            "1h",
-            "24h",
-            "1d",
-            "3d",
-            "7d",
-            "1w"
-        ],
         default="24h"
     )
 ):
@@ -48,47 +40,94 @@ async def summarize_command(
             ephemeral=True
         )
         
-        # Parse duration and calculate time range
-        time_delta = service.parse_duration(duration)
-        look_back_time = datetime.now(timezone.utc) - time_delta
+        # Parse the timeframe using natural language processing
+        try:
+            start_time, end_time, display_range = service.parse_date_range(timeframe)
+            
+            # If end_time is provided, we're in timeline mode (specific date range)
+            if end_time:
+                look_back_time = start_time
+                end_datetime = end_time
+            else:
+                # Duration mode - just use start_time
+                look_back_time = start_time
+                end_datetime = None
+                
+            logger.info(f"Parsed timeframe '{timeframe}' as: {start_time} to {end_time if end_time else 'now'} (display: {display_range})")
+            
+        except Exception as e:
+            logger.error(f"Error parsing timeframe '{timeframe}': {e}")
+            await thinking_message.edit(content=f"⚠️ Error: I couldn't understand the timeframe '{timeframe}'. Try something like '24h', 'last week', or 'January 1 to January 15'.")
+            return
         
         # Fetch messages from the channel - with debug info
         messages = []
         try:
             # First message to report the timeframe
-            await thinking_message.edit(content=f"🔍 Searching for messages since {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
+            await thinking_message.edit(content=f"🔍 Searching for messages from {look_back_time.strftime('%Y-%m-%d %H:%M:%S')} UTC...")
 
             message_count = 0
-            async for message in ctx.channel.history(after=look_back_time, limit=None):
-                message_count += 1
-                # Skip bot messages
-                if message.author.bot:
-                    continue
+            
+            # Use different fetching methods based on whether we have an end date
+            if end_datetime:
+                async for message in ctx.channel.history(after=look_back_time, before=end_datetime, limit=None):
+                    message_count += 1
+                    # Skip bot messages
+                    if message.author.bot:
+                        continue
 
-                # Skip system messages
-                if message.type != discord.MessageType.default:
-                    continue
+                    # Skip system messages
+                    if message.type != discord.MessageType.default:
+                        continue
 
-                # Format the message
-                message_data = {
-                    "id": str(message.id),
-                    "content": message.content,
-                    "author": {
-                        "id": str(message.author.id),
-                        "name": message.author.display_name
-                    },
-                    "timestamp": message.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    "jump_url": message.jump_url
-                }
+                    # Format the message
+                    message_data = {
+                        "id": str(message.id),
+                        "content": message.content,
+                        "author": {
+                            "id": str(message.author.id),
+                            "name": message.author.display_name
+                        },
+                        "timestamp": message.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "jump_url": message.jump_url
+                    }
 
-                messages.append(message_data)
+                    messages.append(message_data)
 
-                # Update the message every 25 messages for user feedback
-                if len(messages) % 25 == 0:
-                    await thinking_message.edit(content=f"🔍 Found {len(messages)} relevant messages out of {message_count} total...")
+                    # Update the message every 25 messages for user feedback
+                    if len(messages) % 25 == 0:
+                        await thinking_message.edit(content=f"🔍 Found {len(messages)} relevant messages out of {message_count} total...")
+            else:
+                async for message in ctx.channel.history(after=look_back_time, limit=None):
+                    message_count += 1
+                    # Skip bot messages
+                    if message.author.bot:
+                        continue
+
+                    # Skip system messages
+                    if message.type != discord.MessageType.default:
+                        continue
+
+                    # Format the message
+                    message_data = {
+                        "id": str(message.id),
+                        "content": message.content,
+                        "author": {
+                            "id": str(message.author.id),
+                            "name": message.author.display_name
+                        },
+                        "timestamp": message.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "jump_url": message.jump_url
+                    }
+
+                    messages.append(message_data)
+
+                    # Update the message every 25 messages for user feedback
+                    if len(messages) % 25 == 0:
+                        await thinking_message.edit(content=f"🔍 Found {len(messages)} relevant messages out of {message_count} total...")
 
             # Log the results
-            print(f"Discord history search for the last {duration}: Found {len(messages)} relevant messages out of {message_count} total")
+            print(f"Discord history search for timeframe '{display_range}': Found {len(messages)} relevant messages out of {message_count} total")
             logger.info(f"Found {len(messages)} relevant messages out of {message_count} total")
 
             # Sort messages by timestamp (oldest first)
@@ -105,8 +144,8 @@ async def summarize_command(
         # Check if we have enough messages to summarize
         if len(messages) == 0:
             embed = discord.Embed(
-                title=f"Channel Summary ({duration})",
-                description=f"🔎 No messages found in this channel for the specified period ({duration}).",
+                title=f"Channel Summary ({display_range})",
+                description=f"🔎 No messages found in this channel for the specified period ({display_range}).",
                 color=discord.Color.blue()
             )
             await thinking_message.edit(content=None, embed=embed)
@@ -138,7 +177,7 @@ async def summarize_command(
         # Generate summary
         summary_result = service.generate_summary(
             messages=messages,
-            duration_str=duration,
+            duration_str=display_range,
             user_id=str(ctx.author.id),
             channel_id=str(ctx.channel.id),
             guild_id=str(ctx.guild.id)
@@ -180,7 +219,7 @@ async def summarize_command(
 
         # Create embed for response
         embed = discord.Embed(
-            title=f"Channel Summary ({duration})",
+            title=f"Channel Summary ({display_range})",
             description=summary,
             color=discord.Color.blue()
         )

@@ -1,5 +1,30 @@
 # soda-internal-api
-This project provides a web-based control panel for managing a Jeopardy-themed Discord bot. The control panel, built with React, allows authorized users to toggle the bot's status and schedule new Jeopardy games by uploading a JSON file. The server side, developed using Flask, handles API requests, Discord bot interactions, and game management.
+This project provides a modular internal API and Discord bot for the SoDA (Software Developers Association) student organization. It includes several modules:
+
+1. **Discord Bot with Jeopardy Game**: A Discord bot that allows members to play Jeopardy-style games in Discord channels
+2. **Points Tracking System**: For tracking member participation and contributions
+3. **Event Calendar Integration**: Syncs events between Notion and Google Calendar
+4. **Summarizer Module**: Provides AI-powered summaries of Discord channel conversations using natural language date queries
+5. **Web Control Panel**: Built with React, allows authorized users to manage the bot, games, and other features
+
+The server side is developed using Flask, handling API requests, Discord bot interactions, and data management across all modules.
+
+## Key Features
+
+### Summarizer Module
+The summarizer module provides AI-powered summaries of Discord channel conversations:
+
+- **Natural Language Date Queries**: Users can request summaries with intuitive time expressions:
+  - `/summarize last week`
+  - `/summarize january to february`
+  - `/summarize the past 3 days`
+
+- **Smart Formatting**: Provides well-structured summaries with:
+  - Action items with assignees
+  - Conversation topics and key takeaways
+  - Citations linking to original messages
+
+See [Summarizer Module Documentation](modules/summarizer/README.md) for more details.
 
 ## Requirements
 
@@ -39,6 +64,46 @@ This project provides a web-based control panel for managing a Jeopardy-themed D
       ```bash
       python3 main.py
       ```
+
+## Development and Testing
+
+### Running Tests
+
+This project uses pytest for automated testing. To run the tests:
+
+1. Make sure you have the development dependencies installed:
+   ```bash
+   pip install -r requirements.txt
+   poetry install  # If using Poetry
+   ```
+
+2. Run all tests:
+   ```bash
+   ./run_tests.sh  # Simple shell script that runs pytest
+   # OR
+   pytest          # If pytest is in your PATH
+   # OR
+   poetry run pytest  # If using Poetry
+   ```
+
+3. Run specific tests:
+   ```bash
+   ./run_tests.sh tests/test_date_parsing.py  # Run specific test file
+   ./run_tests.sh -k "month"                  # Run tests matching a keyword
+   ```
+
+### Ad-hoc Testing
+
+For testing the date parsing functionality directly:
+
+```bash
+python check_date.py "last week" "january to february"
+```
+
+This will display the parsed date ranges for the given expressions, showing:
+- Display format
+- Start date/time
+- End date/time
 
 ## Deployment
 
