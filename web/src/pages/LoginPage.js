@@ -7,7 +7,7 @@ const LoginPage = () => {
 
     // Function to handle login
     const handleLogin = () => {
-        window.location.href = 'http://api.thesoda.io/auth/login';  // Redirect to your Flask backend login route
+        window.location.href = 'http://localhost:8000/auth/login';  // Redirect to your Flask backend login route
     };
 
     // Check if the token in localStorage is valid

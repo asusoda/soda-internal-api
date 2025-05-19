@@ -1,6 +1,6 @@
-from flask import Flask, send_from_directory
-from shared import app, bot, logger # Ensure logger is imported here or below
-from modules.calendar.service import CalendarService # Import CalendarService
+from flask import Flask, send_from_directory, current_app # Import current_app
+from shared import app, logger, config, create_summarizer_bot, create_auth_bot
+from modules.calendar.service import CalendarService
 
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint
@@ -9,11 +9,11 @@ from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
 from modules.summarizer.api import summarizer_blueprint
-# from modules.calendar.service import CalendarService # Removed local import
+from modules.bot.api import game_blueprint
 from migrations import run_all_migrations
-from shared import config # logger is imported above, calendar_service removed
 import threading
-from apscheduler.schedulers.background import BackgroundScheduler # Import APScheduler
+import asyncio
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 
 # Instantiate and attach CalendarService after app is defined
@@ -27,51 +27,91 @@ app.register_blueprint(users_blueprint, url_prefix="/users")
 app.register_blueprint(auth_blueprint, url_prefix="/auth")
 app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
 app.register_blueprint(summarizer_blueprint, url_prefix="/summarizer")
-
-# # Configure static file serving
-# @app.route('/', defaults={'path': ''})
-# @app.route('/<path:path>')
-# def serve(path):
-#     if path == "":
-#         return send_from_directory('web/dist', 'index.html')
-#     else:
-#         return send_from_directory('web/dist', path)
+app.register_blueprint(game_blueprint, url_prefix="/bot")
 
 # --- Scheduler Setup ---
 scheduler = BackgroundScheduler(daemon=True)
 
 def sync_job():
-    """Job function to sync Notion to Google Calendar."""
     with app.app_context():
         logger.info("Running scheduled Notion to Google Calendar sync...")
         try:
-            # Instantiate service within context to ensure access to app resources
-            # calendar_service is now imported from shared.py
             calendar_service.sync_notion_to_google()
             logger.info("Scheduled sync completed successfully.")
         except Exception as e:
             logger.error(f"Error during scheduled sync: {e}", exc_info=True)
 
+# --- Bot Thread Functions ---
+def run_summarizer_bot_in_thread():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # Create bot instance inside the thread, using the thread's loop
+    summarizer_bot_instance = create_summarizer_bot(loop)
+    try:
+        logger.info("Starting summarizer bot thread...")
+        summarizer_bot_token = config.AVERY_BOT_TOKEN
+        if not summarizer_bot_token:
+            logger.error("AVERY_BOT_TOKEN not found. Summarizer bot will not start.")
+            return
+        # Use bot_instance.start() and manage the loop
+        loop.run_until_complete(summarizer_bot_instance.start(summarizer_bot_token))
+    except discord.errors.LoginFailure:
+        logger.error(f"Login failed for summarizer bot. Check AVERY_BOT_TOKEN.")
+    except Exception as e:
+        logger.error(f"Error in summarizer bot thread: {e}", exc_info=True)
+    finally:
+        if loop.is_running() and not summarizer_bot_instance.is_closed():
+            logger.info("Closing summarizer bot...")
+            loop.run_until_complete(summarizer_bot_instance.close())
+        loop.close()
+        logger.info("Summarizer bot thread finished and loop closed.")
+
+def run_auth_bot_in_thread():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # Create bot instance inside the thread, using the thread's loop
+    auth_bot_instance = create_auth_bot(loop)
+    # Store the auth_bot instance on the Flask app context for API use
+    app.auth_bot = auth_bot_instance
+    try:
+        logger.info("Starting auth bot thread...")
+        auth_bot_token = config.AUTH_BOT_TOKEN
+        if not auth_bot_token:
+            logger.error("AUTH_BOT_TOKEN not found. Auth bot will not start.")
+            return
+        # Use bot_instance.start() and manage the loop
+        loop.run_until_complete(auth_bot_instance.start(auth_bot_token))
+    except discord.errors.LoginFailure:
+        logger.error(f"Login failed for auth bot. Check AUTH_BOT_TOKEN.")
+    except Exception as e:
+        logger.error(f"Error in auth bot thread: {e}", exc_info=True)
+    finally:
+        if loop.is_running() and not auth_bot_instance.is_closed():
+            logger.info("Closing auth bot...")
+            loop.run_until_complete(auth_bot_instance.close())
+        loop.close()
+        logger.info("Auth bot thread finished and loop closed.")
+
 # --- App Initialization ---
 def initialize_app():
-    """Initialize the application with necessary setup"""
-    # Run all database migrations
     run_all_migrations()
 
-    # Start Discord bot in a separate thread with token
-    bot_token = config.AVERY_BOT_TOKEN
-    bot_thread = threading.Thread(target=lambda: bot.run(bot_token))
-    bot_thread.daemon = True
-    bot_thread.start()
+    summarizer_thread = threading.Thread(target=run_summarizer_bot_in_thread, name="SummarizerBotThread")
+    summarizer_thread.daemon = True
+    summarizer_thread.start()
+    logger.info("Summarizer bot thread initiated")
 
-    # Add and start the scheduler job
+    auth_thread = threading.Thread(target=run_auth_bot_in_thread, name="AuthBotThread")
+    auth_thread.daemon = True
+    auth_thread.start()
+    logger.info("Auth bot thread initiated")
+
     scheduler.add_job(sync_job, 'interval', minutes=15, id='notion_google_sync_job')
     scheduler.start()
     logger.info("APScheduler started for Notion-Google Calendar sync.")
-    
-    # Start Flask app
-    # Ensure use_reloader=False if debug is False, as reloader can cause scheduler issues
-    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+
+    logger.info(f"Starting Flask application on port {config.SERVER_PORT} with debug={config.SERVER_DEBUG}")
+    app.run(host='0.0.0.0', port=8000, debug=config.SERVER_DEBUG, use_reloader=False)
 
 if __name__ == "__main__":
     initialize_app()

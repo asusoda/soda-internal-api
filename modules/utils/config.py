@@ -13,12 +13,16 @@ class Config:
             self.CLIENT_ID = os.environ["CLIENT_ID"]
             self.CLIENT_SECRET = os.environ["CLIENT_SECRET"]
             self.REDIRECT_URI = os.environ["REDIRECT_URI"]
+            self.AUTH_CLIENT_ID = os.environ["AUTH_CLIENT_ID"]
+            self.AUTH_CLIENT_SECRET = os.environ["AUTH_CLIENT_SECRET"]
+            self.AUTH_REDIRECT_URI = os.environ["AUTH_REDIRECT_URI"]
             self.CLIENT_URL = os.environ["CLIENT_URL"]
             self.PROD = os.environ.get("PROD", "false").lower() == "true"
 
             # Service Tokens
             self.BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Legacy token
             self.AVERY_BOT_TOKEN = os.environ.get("AVERY_BOT_TOKEN")  # AVERY bot token
+            self.AUTH_BOT_TOKEN = os.environ.get("AUTH_BOT_TOKEN")  # Auth bot token
             
             # Database Configuration
             self.DB_TYPE = os.environ["DB_TYPE"]
@@ -29,14 +33,14 @@ class Config:
             self.DB_HOST = os.environ["DB_HOST"]
             self.DB_PORT = os.environ["DB_PORT"]
             # Calendar Integration
-            try:
-                with open("google-secret.json", "r") as file:
-                    print("Loading Google service account credentials")
-                    self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
-                    print("Google service account credentials loaded successfully")
-                    print("Google service account credentials:", self.GOOGLE_SERVICE_ACCOUNT)
-            except Exception as e:
-                raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
+            # try:
+            #     with open("google-secret.json", "r") as file:
+            #         print("Loading Google service account credentials")
+            #         self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
+            #         print("Google service account credentials loaded successfully")
+            #         print("Google service account credentials:", self.GOOGLE_SERVICE_ACCOUNT)
+            # except Exception as e:
+            #     raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
                 
             self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
             self.NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
