@@ -156,6 +156,66 @@ class DurationFormatParser(TimeParserBase):
         return None
 
 
+class MonthNameParser(TimeParserBase):
+    """Parser for expressions like 'January', 'February', etc. (without 'last' prefix)"""
+    
+    def __init__(self):
+        """Initialize parser with month names."""
+        self.month_names = {
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        self.pattern = re.compile(r'^(' + '|'.join(self.month_names.keys()) + ')$')
+    
+    def can_parse(self, text: str) -> bool:
+        """Check if text matches a month name without 'last'."""
+        return bool(self.pattern.match(text.lower()))
+    
+    def parse_date_range(self, text: str, reference_date: datetime) -> Optional[Tuple[datetime, Optional[datetime], str]]:
+        """Parse month name expressions into date ranges. Behaves exactly like LastMonthNameParser."""
+        match = self.pattern.match(text.lower())
+        if not match:
+            return None
+            
+        month_name = match.group(1)
+        month_num = self.month_names[month_name]
+        today = reference_date.date()
+        current_year = today.year
+        
+        # If the month is in the future or current, use last year's date
+        if month_num > today.month or (month_num == today.month and today.day == 1):
+            year = current_year - 1
+        else:
+            year = current_year
+            
+        # Create start and end dates for the entire month
+        start_date = datetime(year, month_num, 1).date()
+        
+        # Get the last day of the month
+        if month_num == 12:  # December
+            end_date = datetime(year, 12, 31).date()
+        else:
+            # Last day of month is the day before the first day of next month
+            end_date = (datetime(year, month_num + 1, 1) - timedelta(days=1)).date()
+            
+        start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        
+        display_range = f"{month_name.capitalize()} {year} ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})"
+        
+        logger.info(f"Parsed '{month_name}' as {start_time} to {end_time}")
+        return start_time, end_time, display_range
+    
+    def extract_timeframe(self, text: str) -> Optional[str]:
+        """Extract month name expressions from text."""
+        text_lower = text.lower()
+        for month_name in self.month_names.keys():
+            # Make sure it's not preceded by 'last' (that would be handled by LastMonthNameParser)
+            if re.search(r'\b' + re.escape(month_name) + r'\b', text_lower) and not re.search(r'\blast\s+' + re.escape(month_name) + r'\b', text_lower):
+                return month_name
+        return None
+
+
 class LastMonthNameParser(TimeParserBase):
     """Parser for expressions like 'last January', 'last February', etc."""
     
@@ -212,6 +272,70 @@ class LastMonthNameParser(TimeParserBase):
         for month_name in self.month_names.keys():
             if f"last {month_name}" in text_lower:
                 return f"last {month_name}"
+        return None
+
+
+class WeekdayNameParser(TimeParserBase):
+    """Parser for bare weekday names like 'Monday', 'Friday', etc. (without prefixes)"""
+    
+    def __init__(self):
+        """Initialize parser with weekday names."""
+        self.weekday_names = {
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6
+        }
+        self.pattern = re.compile(r'^(' + '|'.join(self.weekday_names.keys()) + ')$')
+    
+    def can_parse(self, text: str) -> bool:
+        """Check if text matches a bare weekday name."""
+        return bool(self.pattern.match(text.lower()))
+    
+    def parse_date_range(self, text: str, reference_date: datetime) -> Optional[Tuple[datetime, Optional[datetime], str]]:
+        """Parse bare weekday expressions into date ranges. Behaves like 'last [weekday]'."""
+        match = self.pattern.match(text.lower())
+        if not match:
+            return None
+            
+        weekday_name = match.group(1)
+        target_weekday = self.weekday_names[weekday_name]
+        today = reference_date.date()
+        current_weekday = today.weekday()
+        
+        # For bare weekday names, use the same behavior as 'last [weekday]'
+        # "Last weekday" refers to the most recent occurrence in the past
+        if target_weekday < current_weekday:
+            # It's earlier in the current week, so use this week's occurrence
+            days_diff = current_weekday - target_weekday
+        else:
+            # It's later in the week, so use last week's occurrence
+            days_diff = current_weekday + (7 - target_weekday)
+            
+        # Special case: If today is the same weekday as target, use last week's occurrence
+        if target_weekday == current_weekday:
+            days_diff = 7
+                
+        # Calculate the target date
+        target_date = today - timedelta(days=days_diff)
+        
+        # Create the start and end times (full day)
+        start_time = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        end_time = datetime.combine(target_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        
+        # Create display string
+        weekday_display = weekday_name.capitalize()
+        display_range = f"{weekday_display} ({target_date.strftime('%Y-%m-%d')})"
+        
+        logger.info(f"Parsed '{weekday_name}' as {start_time} to {end_time}")
+        return start_time, end_time, display_range
+    
+    def extract_timeframe(self, text: str) -> Optional[str]:
+        """Extract bare weekday expressions from text."""
+        text_lower = text.lower()
+        for weekday in self.weekday_names.keys():
+            # Make sure it's not preceded by 'last', 'previous', or 'this'
+            # This ensures we don't conflict with RelativeWeekdayParser
+            if re.search(r'\b' + re.escape(weekday) + r'\b', text_lower) and not re.search(r'\b(last|previous|this)\s+' + re.escape(weekday) + r'\b', text_lower):
+                return weekday
         return None
 
 
@@ -493,7 +617,7 @@ class DefaultParser(TimeParserBase):
         """Return a 24-hour window for any text."""
         end_time = reference_date.replace(tzinfo=timezone.utc)
         start_time = end_time - timedelta(hours=24)
-        return start_time, None, "24h (default)"
+        return start_time, None, "24h (default) ⚠️ Tip: For more specific results, try a clearer timeframe"
     
     def extract_timeframe(self, text: str) -> Optional[str]:
         """Default extractor doesn't extract any specific timeframe."""
@@ -834,7 +958,9 @@ def get_parser_registry() -> List[TimeParserBase]:
     return [
         CalendarExpressionParser(),
         DurationFormatParser(),
+        MonthNameParser(),       # Parser for 'january', 'february', etc.
         LastMonthNameParser(),
+        WeekdayNameParser(),     # Parser for 'monday', 'tuesday', etc.
         RelativeWeekdayParser(),
         WeekdayRangeParser(),
         MonthRangeParser(),
