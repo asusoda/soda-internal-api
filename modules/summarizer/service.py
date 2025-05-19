@@ -353,6 +353,60 @@ class SummarizerService:
             logger.info(f"Extracted month range: {month_range}")
             return month_range
             
+        # Define mapping for weekday names
+        weekday_names = {
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6
+        }
+        
+        # Match relative weekday expressions like "last Monday", "previous Friday", etc.
+        relative_weekday_pattern = r'\b(last|previous|this)\s+(' + '|'.join(weekday_names.keys()) + r')\b'
+        weekday_match = re.search(relative_weekday_pattern, text_lower)
+        if weekday_match:
+            prefix, weekday_name = weekday_match.groups()
+            return f"{prefix} {weekday_name}"
+            
+        # Define number word mapping for "ago" expressions
+        number_words = {
+            "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+            "ninety": 90, "hundred": 100
+        }
+        
+        # "Ago" patterns
+        # Match digit number (e.g., "3 days ago")
+        ago_digit_pattern = r'\b(\d+)\s+(day|days|week|weeks|month|months|year|years)\s+ago\b'
+        ago_digit_match = re.search(ago_digit_pattern, text_lower)
+        if ago_digit_match:
+            quantity, unit = ago_digit_match.groups()
+            quantity = int(quantity)
+            if unit.startswith('day'):
+                return f"{quantity} days ago"
+            elif unit.startswith('week'):
+                return f"{quantity} weeks ago"
+            elif unit.startswith('month'):
+                return f"{quantity} months ago"
+            elif unit.startswith('year'):
+                return f"{quantity} years ago"
+        
+        # Match word number (e.g., "two weeks ago")
+        number_words_pattern = '|'.join(number_words.keys())
+        ago_word_pattern = rf'\b({number_words_pattern})\s+(day|days|week|weeks|month|months|year|years)\s+ago\b'
+        ago_word_match = re.search(ago_word_pattern, text_lower)
+        if ago_word_match:
+            word_num, unit = ago_word_match.groups()
+            quantity = number_words[word_num]
+            if unit.startswith('day'):
+                return f"{quantity} days ago"
+            elif unit.startswith('week'):
+                return f"{quantity} weeks ago"
+            elif unit.startswith('month'):
+                return f"{quantity} months ago"
+            elif unit.startswith('year'):
+                return f"{quantity} years ago"
+        
         # Relative time expressions fallback
         relative_patterns = {
             # Duration patterns with numbers
@@ -431,6 +485,187 @@ class SummarizerService:
             "this month": (today.replace(day=1), today, f"This month ({today.replace(day=1).strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')})"),
             "last month": ((today.replace(day=1) - timedelta(days=1)).replace(day=1), today.replace(day=1) - timedelta(days=1), f"Last month ({(today.replace(day=1) - timedelta(days=1)).replace(day=1).strftime('%Y-%m-%d')} to {(today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')})")
         }
+        
+        # Add support for specific month names like "last january"
+        month_names = {
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        
+        # Check for "last [month]" pattern
+        last_month_match = re.match(r'^last\s+(' + '|'.join(month_names.keys()) + ')$', text.lower())
+        if last_month_match:
+            month_name = last_month_match.group(1)
+            month_num = month_names[month_name]
+            current_year = today.year
+            
+            # If the month is in the future or current, use last year's date
+            if month_num > today.month or (month_num == today.month and today.day == 1):
+                year = current_year - 1
+            else:
+                year = current_year
+                
+            # Create start and end dates for the entire month
+            start_date = datetime(year, month_num, 1).date()
+            
+            # Get the last day of the month
+            if month_num == 12:  # December
+                end_date = datetime(year, 12, 31).date()
+            else:
+                # Last day of month is the day before the first day of next month
+                end_date = (datetime(year, month_num + 1, 1) - timedelta(days=1)).date()
+                
+            start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(end_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            
+            display_range = f"{month_name.capitalize()} {year} ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})"
+            
+            logger.info(f"Parsed 'last {month_name}' as {start_time} to {end_time}")
+            return start_time, end_time, display_range
+            
+        # Support for relative weekday expressions (last Monday, previous Tuesday, etc.)
+        weekday_names = {
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6
+        }
+        
+        # Pattern matches: "last Monday", "previous Tuesday", etc.
+        relative_weekday_pattern = r'^(last|previous|this)\s+(' + '|'.join(weekday_names.keys()) + r')$'
+        weekday_match = re.match(relative_weekday_pattern, text.lower())
+        
+        if weekday_match:
+            prefix, weekday_name = weekday_match.groups()
+            target_weekday = weekday_names[weekday_name]
+            current_weekday = today.weekday()
+            
+            # Calculate the date of the target weekday
+            if prefix.lower() == "this":
+                # "This weekday" refers to the current week's occurrence
+                # If it's already happened this week, use it; otherwise use next week
+                if target_weekday <= current_weekday:
+                    # It's already happened this week, so use this week's occurrence
+                    days_diff = current_weekday - target_weekday
+                else:
+                    # It hasn't happened yet this week, so find the occurrence next week
+                    days_diff = current_weekday + (7 - target_weekday)
+            else:  # "last" or "previous"
+                # "Last weekday" refers to the most recent occurrence in the past
+                if target_weekday < current_weekday:
+                    # It's earlier in the current week, so use this week's occurrence
+                    days_diff = current_weekday - target_weekday
+                else:
+                    # It's later in the week, so use last week's occurrence
+                    days_diff = current_weekday + (7 - target_weekday)
+                    
+                # Special case: If today is the same weekday as target, use last week's occurrence
+                if target_weekday == current_weekday:
+                    days_diff = 7
+                    
+            # Calculate the target date
+            target_date = today - timedelta(days=days_diff)
+            
+            # Create the start and end times (full day)
+            start_time = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_time = datetime.combine(target_date, datetime.max.time()).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            
+            # Create display string
+            weekday_display = weekday_name.capitalize()
+            prefix_display = prefix.capitalize()
+            display_range = f"{prefix_display} {weekday_display} ({target_date.strftime('%Y-%m-%d')})"
+            
+            logger.info(f"Parsed '{text}' as {start_time} to {end_time}")
+            return start_time, end_time, display_range
+        
+        # Support for "ago" expressions (3 days ago, a week ago, etc.)
+        # Handle both numeric and text representations of numbers
+        number_words = {
+            "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+            "ninety": 90, "hundred": 100
+        }
+        
+        # Pattern matches: "3 days ago", "a week ago", "two months ago", etc.
+        ago_pattern = r'^(?:(\d+)|(' + '|'.join(number_words.keys()) + r'))\s+(day|days|week|weeks|month|months|year|years)\s+ago$'
+        ago_match = re.match(ago_pattern, text.lower())
+        
+        if ago_match:
+            digit_num, word_num, unit = ago_match.groups()
+            
+            # Get the quantity (either from digit or word)
+            if digit_num:
+                quantity = int(digit_num)
+            else:
+                quantity = number_words[word_num]
+                
+            # Calculate the start time based on unit
+            if unit.startswith('day'):
+                delta = timedelta(days=quantity)
+                unit_display = 'day' if quantity == 1 else 'days'
+            elif unit.startswith('week'):
+                delta = timedelta(weeks=quantity)
+                unit_display = 'week' if quantity == 1 else 'weeks'
+            elif unit.startswith('month'):
+                # For months, calculate target month
+                target_month = today.month - quantity
+                target_year = today.year
+                
+                # Adjust for year boundary if needed
+                while target_month <= 0:
+                    target_year -= 1
+                    target_month += 12
+                
+                # Try to use the same day of month, but adjust for shorter months
+                try:
+                    start_date = datetime(target_year, target_month, today.day).date()
+                except ValueError:
+                    # Get the last day of the target month if day is out of range
+                    if target_month == 12:
+                        start_date = datetime(target_year, 12, 31).date()
+                    else:
+                        start_date = (datetime(target_year, target_month + 1, 1) - timedelta(days=1)).date()
+                
+                # Create the start_time from the date
+                start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+                
+                # No need for delta, since we've already calculated the date directly
+                delta = None
+                unit_display = 'month' if quantity == 1 else 'months'
+            elif unit.startswith('year'):
+                target_year = today.year - quantity
+                
+                # Use the same month and day, but in the target year
+                try:
+                    start_date = datetime(target_year, today.month, today.day).date()
+                except ValueError:
+                    # Handle leap year issues with Feb 29
+                    if today.month == 2 and today.day == 29:
+                        start_date = datetime(target_year, 2, 28).date()
+                    else:
+                        # This shouldn't happen for other dates
+                        start_date = datetime(target_year, today.month, 1).date()
+                
+                # Create the start_time from the date
+                start_time = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+                
+                # No need for delta, since we've already calculated the date directly
+                delta = None
+                unit_display = 'year' if quantity == 1 else 'years'
+            else:
+                # Fallback to day if somehow unit is not matched
+                delta = timedelta(days=quantity)
+                unit_display = 'day' if quantity == 1 else 'days'
+            
+            # Apply delta if needed (for days and weeks)
+            if delta is not None:
+                start_time = local_now.replace(tzinfo=timezone.utc) - delta
+            
+            # Format display range
+            display_range = f"{quantity} {unit_display} ago ({start_time.strftime('%Y-%m-%d')})"
+            
+            logger.info(f"Parsed '{text}' as {start_time}")
+            return start_time, None, display_range
         
         if text in calendar_expressions:
             start_date, end_date, display = calendar_expressions[text]
