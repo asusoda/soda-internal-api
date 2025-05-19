@@ -44,26 +44,14 @@ This project uses pytest for automated testing. To run the tests:
 
 1. Make sure you have the development dependencies installed:
    ```bash
-   # Using Poetry (recommended)
    poetry install
-   
-   # Or using pip
-   pip install -r requirements.txt
    ```
 
 2. Run all tests:
    ```bash
-   ./run_tests.sh  # Simple shell script that runs pytest
-   # OR
    pytest          # If pytest is in your PATH
    # OR
    poetry run pytest  # If using Poetry
-   ```
-
-3. Run specific tests:
-   ```bash
-   ./run_tests.sh tests/test_date_parsing.py  # Run specific test file
-   ./run_tests.sh -k "month"                  # Run tests matching a keyword
    ```
 
 ## Deployment
