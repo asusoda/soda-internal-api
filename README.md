@@ -12,17 +12,39 @@ The server side is developed using Flask, handling API requests, Discord bot int
 ## Key Features
 
 ### Summarizer Module
-The summarizer module provides AI-powered summaries of Discord channel conversations:
+The summarizer module provides AI-powered summaries and question answering for Discord channel conversations:
 
-- **Natural Language Date Queries**: Users can request summaries with intuitive time expressions:
+- **Natural Language Date Understanding**: Users can reference time periods using intuitive expressions:
   - `/summarize last week`
   - `/summarize january to february`
   - `/summarize the past 3 days`
+  - `/ask what happened last month?`
+  - `/ask what did Alice say yesterday?`
 
-- **Smart Formatting**: Provides well-structured summaries with:
+- **Smart Timeframe Extraction**: The system intelligently extracts timeframes from:
+  - Direct parameters in the `/summarize` command
+  - Questions asked with the `/ask` command
+  - Supports both calendar expressions ("last week", "this month") and duration expressions ("past 7 days")
+
+- **Smart Formatting**: Provides well-structured content with:
   - Action items with assignees
   - Conversation topics and key takeaways
   - Citations linking to original messages
+  - Direct answers to specific questions
+
+#### Available Commands
+
+**Summarize Command**
+```
+/summarize [timeframe]
+```
+Summarizes channel activity for the specified timeframe. If no timeframe is provided, defaults to the last 24 hours.
+
+**Ask Command**
+```
+/ask <question>
+```
+Answers specific questions about channel conversations. Include timeframe references directly in your question (e.g., "What happened last week?").
 
 See [Summarizer Module Documentation](modules/summarizer/README.md) for more details.
 

@@ -43,9 +43,18 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                 ephemeral=True
             )
 
-            # The timeframe parameter itself will be processed directly by parse_date_range
-            # No additional extraction needed for explicitly provided timeframes
+            # First try to extract timeframe from the parameter using the same
+            # extraction logic as the /ask command
+            extracted_timeframe = self.summarizer_service.extract_timeframe_from_text(timeframe)
             
+            # If we successfully extracted a standard timeframe, use that
+            if extracted_timeframe:
+                logger.info(f"Extracted timeframe from parameter: '{extracted_timeframe}'")
+                timeframe_to_parse = extracted_timeframe
+            else:
+                # Otherwise use the original timeframe parameter
+                timeframe_to_parse = timeframe
+                
             # Check if the timeframe might contain multiple time references
             if timeframe and (" and " in timeframe.lower() or "," in timeframe):
                 logger.warning(f"Timeframe might contain multiple time references: '{timeframe}'")
@@ -53,7 +62,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             
             # Parse the timeframe using natural language processing
             try:
-                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe)
+                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe_to_parse)
                 
                 # If end_time is provided, we're in timeline mode (specific date range)
                 if end_time:
@@ -362,7 +371,7 @@ An error occurred during the summarization process.
     # Create a slash command for asking questions about chat
     @discord.slash_command(
         name="ask",
-        description="Ask a specific question about channel messages",
+        description="Ask a specific question about channel messages (include timeframe in your question)",
         guild_ids=None  # This makes it global
     )
     async def ask_command(
@@ -370,14 +379,8 @@ An error occurred during the summarization process.
         ctx: discord.ApplicationContext,
         question: discord.Option(
             str,
-            "Your question about the conversation",
+            "Your question about the conversation (include timeframe like 'last week' in your question)",
             required=True
-        ),
-        timeframe: discord.Option(
-            str,
-            "Time period to analyze (e.g., '3 days', 'last week', 'January 1 to January 15')",
-            required=False,
-            default="24h"
         )
     ):
         """Ask a specific question about channel messages"""
@@ -394,19 +397,20 @@ An error occurred during the summarization process.
             # Extract timeframe information from the question text using our method
             extracted_timeframe = self.summarizer_service.extract_timeframe_from_text(question)
             
-            # If we extracted a timeframe from the question and no explicit timeframe was provided
-            # (or it was the default), use the extracted timeframe
-            if extracted_timeframe and (timeframe == "24h" or not timeframe):
+            # If we extracted a timeframe from the question, use it
+            if extracted_timeframe:
                 timeframe = extracted_timeframe
                 logger.info(f"Extracted timeframe from question: '{extracted_timeframe}'")
+            else:
+                # Default to 24h if no timeframe was extracted
+                timeframe = "24h"
+                logger.info(f"No timeframe found in question, using default: 24h")
                 
-                # If the extracted timeframe seems to be complex and might have multiple parts,
-                # log a warning to help with debugging
-                if " and " in question.lower() or "," in question:
-                    potential_compound = True
-                    logger.warning(f"Question might contain multiple time references: '{question}'")
-                    logger.warning(f"Only using the first detected reference: '{extracted_timeframe}'")
-                    # In the future, we could enhance this to handle multiple time references
+            # If the question contains multiple time references, log a warning
+            if " and " in question.lower() or "," in question:
+                logger.warning(f"Question might contain multiple time references: '{question}'")
+                logger.warning(f"Only using the first detected reference: '{timeframe}'")
+                # In the future, we could enhance this to handle multiple time references
             
             # Parse the timeframe using natural language processing
             try:
@@ -649,8 +653,8 @@ Ask a specific question about the channel's messages. The bot will analyze the c
 
 **Usage:**
 - `/ask "Who made the decision about the website redesign?"` - Uses default 24h timeframe
-- `/ask "What happened last month?"` - Automatically detects "last month" as the timeframe
-- `/ask "What was discussed?" timeframe: last week` - Explicitly sets the timeframe
+- `/ask "What happened last month?"` - Analyzes messages from the last month
+- `/ask "What did John say yesterday?"` - Analyzes messages from yesterday
 
 **Natural Language Time Understanding:**
 Both commands support natural language time expressions like:
