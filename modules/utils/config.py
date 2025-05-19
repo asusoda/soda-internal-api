@@ -34,7 +34,12 @@ class Config:
                     print("Loading Google service account credentials")
                     self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
                     print("Google service account credentials loaded successfully")
-                    print("Google service account credentials:", self.GOOGLE_SERVICE_ACCOUNT)
+                    # Redact sensitive information
+                    masked_credentials = {
+                        **self.GOOGLE_SERVICE_ACCOUNT,
+                        "private_key": "[REDACTED]"
+                    } if self.GOOGLE_SERVICE_ACCOUNT else None
+                    print("Google service account credentials loaded")
             except Exception as e:
                 raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
                 
