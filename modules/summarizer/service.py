@@ -444,7 +444,7 @@ class SummarizerService:
             except Exception as dateparser_error:
                 logger.debug(f"Dateparser also failed: {dateparser_error}")
         
-        # Default to 24h if all parsing attempts fail
+        # Default to a 24h if all parsing attempts fail
         # Use the reference date as the end time if provided
         if reference_date is not None:
             end_time = reference_date.replace(tzinfo=timezone.utc) if reference_date.tzinfo is None else reference_date
@@ -454,7 +454,7 @@ class SummarizerService:
         start_time = end_time - timedelta(hours=24)
         
         logger.info(f"All parsing methods failed for: '{text}'. Using 24h default.")
-        return start_time, None, "24h (default)"
+        return start_time, None, "24h (default) ⚠️ Tip: For more specific results, try a clearer timeframe"
     
     def generate_summary(self,
                      messages: List[Dict[str, Any]],
