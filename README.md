@@ -29,8 +29,9 @@ See [Summarizer Module Documentation](modules/summarizer/README.md) for more det
 ## Requirements
 
 #### Server (Flask App)
-- Python 3.8 or newer
-- Dependencies as listed in `requirements.txt`
+- Python 3.9.2 or newer
+- Poetry (recommended) or pip
+- Dependencies as listed in `pyproject.toml`
 
 
 ## Server Setup
@@ -38,21 +39,26 @@ See [Summarizer Module Documentation](modules/summarizer/README.md) for more det
    ```bash
    git clone https://github.com/asusoda/soda-internal-api.git
    ```
-2. Create a new virtual environment eihter conda or venv
-    If using conda:
-    ```bash
-    conda create --name soda-internal-api python=3.8
-    conda activate soda-internal-api
-    ```
-    if usning venv:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
-3. Install the dependencies:
-    ```bash
-      pip install -r requirements.txt
-    ```
+2. Install dependencies using Poetry:
+   ```bash
+   # Install Poetry if you don't have it yet
+   # See https://python-poetry.org/docs/#installation for more details
+   curl -sSL https://install.python-poetry.org | python3 -
+   
+   # Install project dependencies
+   poetry install
+   
+   # Activate the virtual environment
+   poetry shell
+   ```
+   
+   Alternative methods:
+   - Using venv:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+     pip install -r requirements.txt
+     ```
 4. Edit the secret values
   Copy the .env.template to .env
       ```bash
@@ -62,7 +68,11 @@ See [Summarizer Module Documentation](modules/summarizer/README.md) for more det
 
 5. Run the program 
       ```bash
-      python3 main.py
+      # If using Poetry
+      poetry run python main.py
+      
+      # If using activated virtual environment
+      python main.py
       ```
 
 ## Development and Testing
@@ -73,8 +83,11 @@ This project uses pytest for automated testing. To run the tests:
 
 1. Make sure you have the development dependencies installed:
    ```bash
+   # Using Poetry (recommended)
+   poetry install
+   
+   # Or using pip
    pip install -r requirements.txt
-   poetry install  # If using Poetry
    ```
 
 2. Run all tests:
