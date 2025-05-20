@@ -75,9 +75,9 @@ def run_auth_bot_in_thread():
     app.auth_bot = auth_bot_instance
     try:
         logger.info("Starting auth bot thread...")
-        auth_bot_token = config.AUTH_BOT_TOKEN
+        auth_bot_token = config.BOT_TOKEN
         if not auth_bot_token:
-            logger.error("AUTH_BOT_TOKEN not found. Auth bot will not start.")
+            logger.error("BOT_TOKEN not found. Auth bot will not start.")
             return
         # Use bot_instance.start() and manage the loop
         loop.run_until_complete(auth_bot_instance.start(auth_bot_token))

@@ -13,9 +13,6 @@ class Config:
             self.CLIENT_ID = os.environ["CLIENT_ID"]
             self.CLIENT_SECRET = os.environ["CLIENT_SECRET"]
             self.REDIRECT_URI = os.environ["REDIRECT_URI"]
-            self.AUTH_CLIENT_ID = os.environ["AUTH_CLIENT_ID"]
-            self.AUTH_CLIENT_SECRET = os.environ["AUTH_CLIENT_SECRET"]
-            self.AUTH_REDIRECT_URI = os.environ["AUTH_REDIRECT_URI"]
             self.CLIENT_URL = os.environ["CLIENT_URL"]
             self.PROD = os.environ.get("PROD", "false").lower() == "true"
 

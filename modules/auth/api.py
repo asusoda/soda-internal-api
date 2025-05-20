@@ -4,9 +4,9 @@ from modules.auth.decoraters import auth_required, error_handler
 import requests
 
 auth_blueprint = Blueprint("auth", __name__, template_folder=None, static_folder=None)
-CLIENT_ID = config.AUTH_CLIENT_ID
-CLIENT_SECRET = config.AUTH_CLIENT_SECRET
-REDIRECT_URI = config.AUTH_REDIRECT_URI
+CLIENT_ID = config.CLIENT_ID
+CLIENT_SECRET = config.CLIENT_SECRET
+REDIRECT_URI = config.REDIRECT_URI
 GUILD_ID = 762811961238618122
 
 logger.info(f"Auth API using CLIENT_ID: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_URI}")
