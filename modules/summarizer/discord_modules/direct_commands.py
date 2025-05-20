@@ -10,8 +10,10 @@ from datetime import datetime, timezone, timedelta
 import logging
 import asyncio
 import random
+from modules.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+# Get module logger
+logger = get_logger("summarizer.commands")
 
 # Create a direct slash command without using a cog
 @discord.slash_command(
@@ -56,7 +58,7 @@ async def summarize_command(
             logger.info(f"Parsed timeframe '{timeframe}' as: {start_time} to {end_time if end_time else 'now'} (display: {display_range})")
             
         except Exception as e:
-            logger.error(f"Error parsing timeframe '{timeframe}': {e}")
+            logger.error(f"Error parsing timeframe '{timeframe}': {e}", exc_info=True)
             await thinking_message.edit(content=f"⚠️ Error: I couldn't understand the timeframe '{timeframe}'. Try something like '24h', 'last week', or 'January 1 to January 15'.")
             return
         
@@ -127,8 +129,7 @@ async def summarize_command(
                         await thinking_message.edit(content=f"🔍 Found {len(messages)} relevant messages out of {message_count} total...")
 
             # Log the results
-            print(f"Discord history search for timeframe '{display_range}': Found {len(messages)} relevant messages out of {message_count} total")
-            logger.info(f"Found {len(messages)} relevant messages out of {message_count} total")
+            logger.info(f"Discord history search for timeframe '{display_range}': Found {len(messages)} relevant messages out of {message_count} total")
 
             # Sort messages by timestamp (oldest first)
             messages.sort(key=lambda msg: msg["timestamp"])
@@ -138,8 +139,7 @@ async def summarize_command(
             await thinking_message.edit(content="⚠️ I don't have permission to read the message history in this channel.")
             return
         except Exception as e:
-            logger.error(f"Error fetching messages: {e}")
-            print(f"Error fetching message history: {e}")
+            logger.error(f"Error fetching messages: {e}", exc_info=True)
         
         # Check if we have enough messages to summarize
         if len(messages) == 0:
@@ -160,7 +160,7 @@ async def summarize_command(
             await thinking_message.edit(content=f"{loading_base} Please wait, this may take a minute.")
             logger.info("Set static loading message")
         except Exception as e:
-            logger.error(f"Failed to set static loading message: {e}")
+            logger.error(f"Failed to set static loading message: {e}", exc_info=True)
 
         # Define a stub task that does nothing (we're avoiding animation due to Discord rate limits)
         async def dummy_task():
@@ -204,14 +204,9 @@ async def summarize_command(
         # Get the summary from the result
         summary = summary_result["summary"]
 
-        # Print detailed debug info
-        print(f"============ SUMMARY START ============")
-        print(f"Summary length: {len(summary)} characters")
-        print(f"Summary content: {summary}")
-        print(f"============ SUMMARY END ==============")
-
-        # Log that we're using the raw LLM output
-        logger.info(f"Using LLM-generated summary without manual formatting")
+        # Debug log the summary details
+        logger.debug(f"Summary length: {len(summary)} characters")
+        logger.debug(f"Using LLM-generated summary without manual formatting")
 
         # Check if summary is too long for embed description (which has a 4096 character limit)
         if len(summary) > 4000:
@@ -251,7 +246,7 @@ async def summarize_command(
                 await interaction.response.defer(ephemeral=True)
                 await thinking_message.delete()
             except Exception as e:
-                logger.error(f"Failed to delete ephemeral message: {e}")
+                logger.error(f"Failed to delete ephemeral message: {e}", exc_info=True)
         
         make_public_button.callback = make_public_callback
         view.add_item(make_public_button)
@@ -271,20 +266,20 @@ async def summarize_command(
         except asyncio.CancelledError:
             logger.info("Loading task was properly cancelled")
         except Exception as e:
-            logger.error(f"Error during loading task cancellation: {e}")
+            logger.error(f"Error during loading task cancellation: {e}", exc_info=True)
 
         # Edit the thinking message with the final response
         try:
             await thinking_message.edit(content=None, embed=embed, view=view)
             logger.info("Successfully updated message with summary embed")
         except Exception as e:
-            logger.error(f"Error updating message with summary: {e}")
+            logger.error(f"Error updating message with summary: {e}", exc_info=True)
             # Fallback - try sending a new message
             try:
                 await ctx.followup.send(content=None, embed=embed, view=view, ephemeral=True)
                 logger.info("Sent summary as a new message")
             except Exception as send_error:
-                logger.error(f"Error sending fallback message: {send_error}")
+                logger.error(f"Error sending fallback message: {send_error}", exc_info=True)
         
     except Exception as e:
         # Make sure to cancel the loading task if it exists
@@ -294,9 +289,9 @@ async def summarize_command(
                     logger.info("Error handler: Loading task was successfully cancelled")
                 await asyncio.wait_for(loading_task, timeout=1.0)
             except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as task_error:
-                logger.error(f"Error handler: Issue cancelling loading task: {task_error}")
+                logger.error(f"Error handler: Issue cancelling loading task: {task_error}", exc_info=True)
 
-        logger.error(f"Error in summarize command: {e}")
+        logger.error(f"Error in summarize command: {e}", exc_info=True)
 
         # Create an error embed with Markdown formatting
         error_embed = discord.Embed(
@@ -324,7 +319,7 @@ An error occurred during the summarization process.
                 # Fall back to sending a new message
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
         except Exception as send_error:
-            logger.error(f"Failed to send error message: {send_error}")
+            logger.error(f"Failed to send error message: {send_error}", exc_info=True)
             # Last resort plain text fallback
             await ctx.followup.send(
                 "⚠️ Sorry, I encountered an error trying to generate the summary. Please try again later.",
@@ -340,7 +335,7 @@ def register_direct_commands(bot):
     """
     # Add the direct commands to the bot
     bot.add_application_command(summarize_command)
-    print(f"Registered direct command: summarize")
+    logger.info(f"Registered direct command: summarize")
     
     # Return success
     return True

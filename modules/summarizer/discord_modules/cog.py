@@ -5,7 +5,10 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from modules.summarizer.service import SummarizerService
-from shared import logger
+from modules.utils.logging_config import logger, get_logger
+
+# Get module logger
+logger = get_logger("summarizer.discord_modules.cog")
 
 class SummarizerCog(commands.Cog, name="Summarizer"):
     """Discord cog for the channel summarizer functionality"""
@@ -13,7 +16,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
     def __init__(self, bot):
         self.bot = bot
         self.summarizer_service = SummarizerService()
-        print("SummarizerCog initialized - registering /summarize command")
+        logger.info("SummarizerCog initialized - registering /summarize command")
 
     
     # Create a slash command for summarization

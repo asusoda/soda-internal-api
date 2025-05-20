@@ -8,6 +8,8 @@ import asyncio
 from modules.utils.config import Config
 # from modules.utils.db import DBManager
 import logging
+# Import the logger from our dedicated logging module
+from modules.utils.logging_config import logger, get_logger
 from modules.utils.db import DBConnect, Base
 from modules.utils.TokenManager import TokenManager
 import sentry_sdk # Added for Sentry
@@ -15,10 +17,6 @@ from sentry_sdk.integrations.flask import FlaskIntegration # Added for Sentry
 
 # Import custom BotFork class
 from modules.bot.discord_modules.bot import BotFork
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask("SoDA internal API", 

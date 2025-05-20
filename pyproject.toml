@@ -74,6 +74,7 @@ dateparser = "^1.2.1"
 google-generativeai = "^0.8.5"
 tzdata = "^2025.2"
 timefhuman = "^0.0.5"
+colorlog = "^6.9.0"
 
 
 # Since the script approach is causing issues, we'll rely on direct pytest command instead
