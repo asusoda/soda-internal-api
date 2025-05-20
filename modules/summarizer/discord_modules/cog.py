@@ -43,9 +43,18 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                 ephemeral=True
             )
 
-            # The timeframe parameter itself will be processed directly by parse_date_range
-            # No additional extraction needed for explicitly provided timeframes
+            # First try to extract timeframe from the parameter using the same
+            # extraction logic as the /ask command
+            extracted_timeframe = self.summarizer_service.extract_timeframe_from_text(timeframe)
             
+            # If we successfully extracted a standard timeframe, use that
+            if extracted_timeframe:
+                logger.info(f"Extracted timeframe from parameter: '{extracted_timeframe}'")
+                timeframe_to_parse = extracted_timeframe
+            else:
+                # Otherwise use the original timeframe parameter
+                timeframe_to_parse = timeframe
+                
             # Check if the timeframe might contain multiple time references
             if timeframe and (" and " in timeframe.lower() or "," in timeframe):
                 logger.warning(f"Timeframe might contain multiple time references: '{timeframe}'")
@@ -53,7 +62,7 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
             
             # Parse the timeframe using natural language processing
             try:
-                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe)
+                start_time, end_time, display_range = self.summarizer_service.parse_date_range(timeframe_to_parse)
                 
                 # If end_time is provided, we're in timeline mode (specific date range)
                 if end_time:
@@ -172,22 +181,41 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                 custom_id="make_summary_public"
             )
             
+            # Keep track of all ephemeral message IDs for deletion
+            ephemeral_message_ids = []
+            ephemeral_embeds = []
+            
             # Define the callback for the button
             async def make_public_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     await interaction.response.send_message("Only the user who requested the summary can make it public.", ephemeral=True)
                     return
                 
-                # Send the same embed as a public message directly
+                # Acknowledge the interaction without sending a visible message
+                await interaction.response.defer(ephemeral=True)
+                
+                # Send the main embed as a public message
                 await ctx.channel.send(embed=embed)
                 
-                # Delete the ephemeral message
+                # Send all continuation parts as public messages, if any exist
+                if summary_result.get("is_split", False) and "continuation_parts" in summary_result:
+                    for i, part in enumerate(summary_result["continuation_parts"]):
+                        # Create continuation embed
+                        cont_embed = discord.Embed(
+                            title=f"Channel Summary ({display_range}) - Part {i+2}",
+                            description=part,
+                            color=discord.Color.blue()
+                        )
+                        # Add the same footer
+                        cont_embed.set_footer(text=embed.footer.text)
+                        # Send publicly
+                        await ctx.channel.send(embed=cont_embed)
+                
+                # Try to delete all ephemeral messages (main and continuations)
                 try:
-                    # Acknowledge the interaction without sending a visible message
-                    await interaction.response.defer(ephemeral=True)
                     await thinking_message.delete()
                 except Exception as e:
-                    logger.error(f"Failed to delete ephemeral message: {e}")
+                    logger.error(f"Failed to delete main ephemeral message: {e}")
             
             make_public_button.callback = make_public_callback
             view.add_item(make_public_button)
@@ -210,8 +238,11 @@ class SummarizerCog(commands.Cog, name="Summarizer"):
                             color=discord.Color.blue()
                         )
                         
-                        # Send as a separate message
-                        await ctx.followup.send(embed=cont_embed, ephemeral=True)
+                        # Add the same footer to all continuation parts
+                        cont_embed.set_footer(text=embed.footer.text)
+                        
+                        # Send as a separate message with the same view containing the button
+                        await ctx.followup.send(embed=cont_embed, ephemeral=True, view=view)
                         logger.info(f"Sent continuation part {i+2}")
 
             except Exception as e:
@@ -362,7 +393,7 @@ An error occurred during the summarization process.
     # Create a slash command for asking questions about chat
     @discord.slash_command(
         name="ask",
-        description="Ask a specific question about channel messages",
+        description="Ask a specific question about channel messages (include timeframe in your question)",
         guild_ids=None  # This makes it global
     )
     async def ask_command(
@@ -370,14 +401,8 @@ An error occurred during the summarization process.
         ctx: discord.ApplicationContext,
         question: discord.Option(
             str,
-            "Your question about the conversation",
+            "Your question about the conversation (include timeframe like 'last week' in your question)",
             required=True
-        ),
-        timeframe: discord.Option(
-            str,
-            "Time period to analyze (e.g., '3 days', 'last week', 'January 1 to January 15')",
-            required=False,
-            default="24h"
         )
     ):
         """Ask a specific question about channel messages"""
@@ -394,19 +419,20 @@ An error occurred during the summarization process.
             # Extract timeframe information from the question text using our method
             extracted_timeframe = self.summarizer_service.extract_timeframe_from_text(question)
             
-            # If we extracted a timeframe from the question and no explicit timeframe was provided
-            # (or it was the default), use the extracted timeframe
-            if extracted_timeframe and (timeframe == "24h" or not timeframe):
+            # If we extracted a timeframe from the question, use it
+            if extracted_timeframe:
                 timeframe = extracted_timeframe
                 logger.info(f"Extracted timeframe from question: '{extracted_timeframe}'")
+            else:
+                # Default to 24h if no timeframe was extracted
+                timeframe = "24h"
+                logger.info(f"No timeframe found in question, using default: 24h")
                 
-                # If the extracted timeframe seems to be complex and might have multiple parts,
-                # log a warning to help with debugging
-                if " and " in question.lower() or "," in question:
-                    potential_compound = True
-                    logger.warning(f"Question might contain multiple time references: '{question}'")
-                    logger.warning(f"Only using the first detected reference: '{extracted_timeframe}'")
-                    # In the future, we could enhance this to handle multiple time references
+            # If the question contains multiple time references, log a warning
+            if " and " in question.lower() or "," in question:
+                logger.warning(f"Question might contain multiple time references: '{question}'")
+                logger.warning(f"Only using the first detected reference: '{timeframe}'")
+                # In the future, we could enhance this to handle multiple time references
             
             # Parse the timeframe using natural language processing
             try:
@@ -530,19 +556,38 @@ An error occurred during the summarization process.
                 custom_id="make_answer_public"
             )
             
+            # Keep track of all ephemeral message IDs for deletion
+            ephemeral_message_ids = []
+            ephemeral_embeds = []
+            
             # Define the callback for the button
             async def make_public_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     await interaction.response.send_message("Only the user who asked the question can make it public.", ephemeral=True)
                     return
                 
-                # Send the same embed as a public message directly
+                # Acknowledge the interaction without sending a visible message
+                await interaction.response.defer(ephemeral=True)
+                
+                # Send the main embed as a public message directly
                 await ctx.channel.send(embed=embed)
+                
+                # Send all continuation parts as public messages, if any exist
+                if answer_result.get("is_split", False) and "continuation_parts" in answer_result:
+                    for i, part in enumerate(answer_result["continuation_parts"]):
+                        # Create continuation embed
+                        cont_embed = discord.Embed(
+                            title=f"Answer (continued part {i+2})",
+                            description=part,
+                            color=discord.Color.green()
+                        )
+                        # Add the same footer
+                        cont_embed.set_footer(text=embed.footer.text)
+                        # Send publicly
+                        await ctx.channel.send(embed=cont_embed)
                 
                 # Delete the ephemeral message
                 try:
-                    # Acknowledge the interaction without sending a visible message
-                    await interaction.response.defer(ephemeral=True)
                     await thinking_message.delete()
                 except Exception as e:
                     logger.error(f"Failed to delete ephemeral message: {e}")
@@ -568,8 +613,11 @@ An error occurred during the summarization process.
                             color=discord.Color.green()
                         )
                         
-                        # Send as a separate message
-                        await ctx.followup.send(embed=cont_embed, ephemeral=True)
+                        # Add the same footer to all continuation parts
+                        cont_embed.set_footer(text=embed.footer.text)
+                        
+                        # Send as a separate message with the same view containing the button
+                        await ctx.followup.send(embed=cont_embed, ephemeral=True, view=view)
                         logger.info(f"Ask command: Sent continuation part {i+2}")
             except Exception as e:
                 logger.error(f"Ask command: Error updating message with answer: {e}")
@@ -649,8 +697,8 @@ Ask a specific question about the channel's messages. The bot will analyze the c
 
 **Usage:**
 - `/ask "Who made the decision about the website redesign?"` - Uses default 24h timeframe
-- `/ask "What happened last month?"` - Automatically detects "last month" as the timeframe
-- `/ask "What was discussed?" timeframe: last week` - Explicitly sets the timeframe
+- `/ask "What happened last month?"` - Analyzes messages from the last month
+- `/ask "What did John say yesterday?"` - Analyzes messages from yesterday
 
 **Natural Language Time Understanding:**
 Both commands support natural language time expressions like:
@@ -693,13 +741,14 @@ For more details, see the project README or contact the bot maintainer.
                 await interaction.response.send_message("Only the user who requested help can make it public.", ephemeral=True)
                 return
             
+            # Acknowledge the interaction without sending a visible message
+            await interaction.response.defer(ephemeral=True)
+            
             # Send the same embed as a public message directly
             await ctx.channel.send(embed=embed)
             
             # Delete the ephemeral message - for help, we need to use interaction.message
             try:
-                # Acknowledge the interaction without sending a visible message
-                await interaction.response.defer(ephemeral=True)
                 await interaction.message.delete()
             except Exception as e:
                 logger.error(f"Failed to delete ephemeral help message: {e}")
