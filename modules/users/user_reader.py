@@ -5,7 +5,10 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from modules.utils.db import DBConnect
 from modules.points.models import User
+from modules.utils.logging_config import get_logger
 
+# Get module logger
+logger = get_logger("users.reader")
 
 def check_gForm_for_distinguished_members():
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
@@ -15,19 +18,17 @@ def check_gForm_for_distinguished_members():
     creds = None
     if os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-        print("Loaded credentials from token.json")
+        logger.info("Loaded credentials from token.json")
     else:
-        print("Token not found. Please run the generate_token.py script to create one.")
+        logger.warning("Token not found. Please run the generate_token.py script to create one.")
         return
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            print("Refreshed credentials")
+            logger.info("Refreshed credentials")
         else:
-            print(
-                "Invalid or expired token. Please run the generate_token.py script to create a new one."
-            )
+            logger.error("Invalid or expired token. Please run the generate_token.py script to create a new one.")
             return
 
     try:
@@ -39,30 +40,28 @@ def check_gForm_for_distinguished_members():
             .execute()
         )
         values = result.get("values", [])
-        print(f"Retrieved {len(values)} rows from Google Sheets")
+        logger.info(f"Retrieved {len(values)} rows from Google Sheets")
 
         if not values:
-            print("No data found.")
+            logger.warning("No data found.")
             return
 
         db_connect = DBConnect("sqlite:///user.db")  # Use the existing database
-        print("Connected to the database")
+        logger.debug("Connected to the database")
 
         for i, row in enumerate(
             values[1:], start=2
         ):  # Skip header row and enumerate for easier debugging
-            print(f"Processing row {i}: {row}")
+            logger.debug(f"Processing row {i}: {row}")
             timestamp, asu_id, name, email, year, major, distinguished_member, *_ = row
             if distinguished_member.lower() == "yes":
-                print(
-                    f"Adding user {name} ({email}) with ASU ID {asu_id} to the database"
-                )
+                logger.info(f"Adding user {name} ({email}) with ASU ID {asu_id} to the database")
                 add_user_to_db(db_connect, asu_id, name, email, year, major)
             else:
-                print(f"Skipping user {name} ({email}) - Not a distinguished member")
+                logger.debug(f"Skipping user {name} ({email}) - Not a distinguished member")
 
     except HttpError as err:
-        print(f"HTTP error occurred: {err}")
+        logger.error(f"HTTP error occurred: {err}")
 
 
 def add_user_to_db(db_connect, asu_id, name, email, year, major):
@@ -70,11 +69,9 @@ def add_user_to_db(db_connect, asu_id, name, email, year, major):
     try:
         user = User(asu_id=asu_id, name=name, email=email, academic_standing=year)
         db_user = db_connect.create_user(db, user)
-        print(
-            f"Successfully added user: {db_user.name} ({db_user.email}) with ASU ID {db_user.asu_id}"
-        )
+        logger.info(f"Successfully added user: {db_user.name} ({db_user.email}) with ASU ID {db_user.asu_id}")
     except Exception as e:
-        print(f"Error adding user: {e}")
+        logger.error(f"Error adding user: {e}", exc_info=True)
     finally:
         db.close()
-        print("Database connection closed")
+        logger.debug("Database connection closed")
