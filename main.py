@@ -10,6 +10,7 @@ from modules.auth.api import auth_blueprint
 from modules.calendar.api import calendar_blueprint
 from modules.summarizer.api import summarizer_blueprint
 from modules.bot.api import game_blueprint
+from modules.storefront.api import storefront_blueprint
 from migrations import run_all_migrations
 import threading
 import asyncio
@@ -28,6 +29,8 @@ app.register_blueprint(auth_blueprint, url_prefix="/auth")
 app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
 app.register_blueprint(summarizer_blueprint, url_prefix="/summarizer")
 app.register_blueprint(game_blueprint, url_prefix="/bot")
+app.register_blueprint(storefront_blueprint, url_prefix="/storefront")
+
 
 # --- Scheduler Setup ---
 scheduler = BackgroundScheduler(daemon=True)
