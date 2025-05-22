@@ -19,6 +19,7 @@ class Config:
             # Service Tokens
             self.BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Legacy token
             self.AVERY_BOT_TOKEN = os.environ.get("AVERY_BOT_TOKEN")  # AVERY bot token
+            self.AUTH_BOT_TOKEN = os.environ.get("AUTH_BOT_TOKEN")  # Auth bot token
             
             # Database Configuration
             self.DB_TYPE = os.environ["DB_TYPE"]
@@ -29,12 +30,18 @@ class Config:
             self.DB_HOST = os.environ["DB_HOST"]
             self.DB_PORT = os.environ["DB_PORT"]
             # Calendar Integration
+
             try:
                 with open("google-secret.json", "r") as file:
                     print("Loading Google service account credentials")
                     self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
                     print("Google service account credentials loaded successfully")
-                    print("Google service account credentials:", self.GOOGLE_SERVICE_ACCOUNT)
+                    # Redact sensitive information
+                    masked_credentials = {
+                        **self.GOOGLE_SERVICE_ACCOUNT,
+                        "private_key": "[REDACTED]"
+                    } if self.GOOGLE_SERVICE_ACCOUNT else None
+                    print("Google service account credentials loaded")
             except Exception as e:
                 raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
                 
