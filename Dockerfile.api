@@ -16,7 +16,7 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 
 # Export dependencies to requirements.txt for faster installation
-RUN pip install poetry && \
+RUN pip install poetry poetry-plugin-export && \
     poetry export -f requirements.txt --output requirements.txt --without-hashes
 
 # Install dependencies using pip (faster than poetry)
