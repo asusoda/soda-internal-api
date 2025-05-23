@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
@@ -14,3 +14,15 @@ services:
     ports:
       - "8000:8000"
       - "5678:5678"  # Python debugger port
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./web:/app  # Mount web directory for hot reloading
+      - /app/node_modules  # Exclude node_modules from mount
+    ports:
+      - "3000:3000"

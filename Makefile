@@ -84,11 +84,11 @@ deploy:
 	@echo -e "$(GREEN)[INFO]$(NC) Tagging current version as previous..."
 	@docker tag soda-internal-api:latest soda-internal-api:previous 2>/dev/null || true
 	@echo -e "$(GREEN)[INFO]$(NC) Building Docker image..."
-	@$(COMPOSE_CMD) build || (echo -e "$(RED)[ERROR]$(NC) Failed to build Docker image"; exit 1)
+	@DOCKER_BUILDKIT=1 $(COMPOSE_CMD) -f docker-compose.yml build || (echo -e "$(RED)[ERROR]$(NC) Failed to build Docker image"; exit 1)
 	@echo -e "$(GREEN)[INFO]$(NC) Stopping existing containers..."
-	@$(COMPOSE_CMD) down
+	@$(COMPOSE_CMD) -f docker-compose.yml down
 	@echo -e "$(GREEN)[INFO]$(NC) Starting containers..."
-	@$(COMPOSE_CMD) up -d || (echo -e "$(RED)[ERROR]$(NC) Failed to start containers"; exit 1)
+	@$(COMPOSE_CMD) -f docker-compose.yml up -d || (echo -e "$(RED)[ERROR]$(NC) Failed to start containers"; exit 1)
 	@echo -e "$(GREEN)[INFO]$(NC) Waiting for container to be healthy..."
 	@for i in $$(seq 1 30); do \
 		if $(COMPOSE_CMD) ps | grep -q "healthy"; then \
