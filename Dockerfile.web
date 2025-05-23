@@ -4,8 +4,8 @@ FROM node:18-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY web/package*.json ./
+# Copy package files for better caching
+COPY web/package.json web/package-lock.json ./
 
 # Install dependencies
 RUN npm ci

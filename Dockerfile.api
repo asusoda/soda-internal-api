@@ -1,10 +1,7 @@
-# Use a Python version compatible with pyproject.toml
-FROM python:3.12-slim
+# Build stage
+FROM python:3.12-slim AS builder
 
-# Set the working directory
-WORKDIR /app
-
-# Install build tools
+# Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -12,38 +9,45 @@ RUN apt-get update && \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry system-wide using pip
-RUN pip install --no-cache-dir poetry
+# Set working directory
+WORKDIR /app
 
-# Disable virtualenv creation using environment variable
-ENV POETRY_VIRTUALENVS_CREATE=false
-
-# Copy Poetry project files first
+# Copy dependency files first (better caching)
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies using Poetry as root
-RUN poetry install --no-root --only main
+# Export dependencies to requirements.txt for faster installation
+RUN pip install poetry && \
+    poetry export -f requirements.txt --output requirements.txt --without-hashes
 
-# Create a non-root user
-RUN useradd -m appuser
+# Install dependencies using pip (faster than poetry)
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Create data directory
-RUN mkdir -p /app/data
+# Runtime stage
+FROM python:3.12-slim
 
-# Copy only the API code (exclude web directory)
-COPY modules ./modules
-COPY migrations ./migrations
-COPY *.py ./
-COPY LICENSE ./
-COPY README.md ./
+# Install only runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* && \
+    useradd -m appuser && \
+    mkdir -p /app/data
 
-# Set ownership for the app directory to the non-root user
-RUN chown -R appuser:appuser /app
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY --chown=appuser:appuser modules ./modules
+COPY --chown=appuser:appuser migrations ./migrations
+COPY --chown=appuser:appuser *.py ./
 
 # Switch to non-root user
 USER appuser
 
-# Expose the port the app runs on
+# Expose the port
 EXPOSE 8000
 
 # Run the application

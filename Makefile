@@ -29,8 +29,18 @@ help:
 
 # Build Docker images
 build:
-	@echo -e "$(GREEN)[INFO]$(NC) Building Docker images..."
-	@$(COMPOSE_CMD) build
+	@echo -e "$(GREEN)[INFO]$(NC) Building Docker images with BuildKit..."
+	@DOCKER_BUILDKIT=1 $(COMPOSE_CMD) build --parallel
+
+# Build only API
+build-api:
+	@echo -e "$(GREEN)[INFO]$(NC) Building API image..."
+	@DOCKER_BUILDKIT=1 $(COMPOSE_CMD) build api
+
+# Build only web
+build-web:
+	@echo -e "$(GREEN)[INFO]$(NC) Building web image..."
+	@DOCKER_BUILDKIT=1 $(COMPOSE_CMD) build web
 
 # Start services in development mode
 up:

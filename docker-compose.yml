@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+      cache_from:
+        - soda-internal-api:latest
     image: soda-internal-api:latest
     container_name: soda-internal-api
     restart: unless-stopped
@@ -29,6 +31,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
+      cache_from:
+        - soda-web:latest
     image: soda-web:latest
     container_name: soda-web
     restart: unless-stopped
