@@ -37,8 +37,16 @@ logs/
 
 # Docker
 docker-compose*.yml
-Dockerfile
+Dockerfile*
 .dockerignore
+
+# Node/React (for web service)
+web/node_modules/
+web/build/
+web/dist/
+web/.env
+web/.env.*
+web/npm-debug.log*
 
 # Documentation
 *.md

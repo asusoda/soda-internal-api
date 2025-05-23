@@ -1,0 +1,50 @@
+# Use a Python version compatible with pyproject.toml
+FROM python:3.12-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Install build tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry system-wide using pip
+RUN pip install --no-cache-dir poetry
+
+# Disable virtualenv creation using environment variable
+ENV POETRY_VIRTUALENVS_CREATE=false
+
+# Copy Poetry project files first
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies using Poetry as root
+RUN poetry install --no-root --only main
+
+# Create a non-root user
+RUN useradd -m appuser
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Copy only the API code (exclude web directory)
+COPY modules ./modules
+COPY migrations ./migrations
+COPY *.py ./
+COPY LICENSE ./
+COPY README.md ./
+
+# Set ownership for the app directory to the non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# Run the application
+CMD ["python3", "main.py"]
