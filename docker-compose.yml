@@ -12,6 +12,11 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./.env:/app/.env:ro
+      - ./google-secret.json:/app/google-secret.json:ro
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
     user: "1000:1000"
     logging:
       driver: json-file
@@ -42,6 +47,7 @@ services:
       - api
     environment:
       - REACT_APP_API_URL=http://api:8000
+      - NODE_ENV=production
     logging:
       driver: json-file
       options:

@@ -116,7 +116,7 @@ dev:
 # Production environment (locally)
 prod:
 	@echo -e "$(GREEN)[INFO]$(NC) Starting production environment..."
-	@$(COMPOSE_CMD) -f docker-compose.yml -f docker-compose.prod.yml up -d
+	@$(COMPOSE_CMD) up -d
 
 # Rollback to previous version
 rollback:

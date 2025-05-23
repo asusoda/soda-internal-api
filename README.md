@@ -91,8 +91,8 @@ docker-compose down
 # View logs
 docker-compose logs -f
 
-# Production deployment with overrides
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production deployment
+docker-compose up -d
 ```
 
 #### Deployment Process
@@ -116,9 +116,7 @@ make deploy BRANCH=develop
 
 ### Docker Configuration Files
 
-- `docker-compose.yml` - Base configuration
-- `docker-compose.override.yml` - Development overrides (auto-loaded)
-- `docker-compose.prod.yml` - Production-specific settings
+- `docker-compose.yml` - Single configuration for all environments
 - `.dockerignore` - Optimizes build context
 
 ### Data Persistence
