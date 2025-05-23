@@ -14,3 +14,14 @@ services:
           cpus: '0.5'
           memory: 512M
     restart: always
+
+  web:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    restart: always
