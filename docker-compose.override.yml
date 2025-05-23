@@ -1,0 +1,19 @@
+# Development override configuration
+# This file is automatically loaded by docker-compose in development
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development  # Use development stage if multi-stage build
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - .:/app  # Mount entire project for hot reloading
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Python debugger port

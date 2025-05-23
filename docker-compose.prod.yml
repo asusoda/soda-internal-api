@@ -1,0 +1,18 @@
+# Production-specific configuration
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+version: '3.8'
+
+services:
+  api:
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    restart: always
