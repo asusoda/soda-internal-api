@@ -25,4 +25,4 @@ services:
       - ./web:/app  # Mount web directory for hot reloading
       - /app/node_modules  # Exclude node_modules from mount
     ports:
-      - "3000:3000"
+      - "5000:5000"
