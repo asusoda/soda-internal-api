@@ -1,13 +1,10 @@
 # Development override configuration
 # This file is automatically loaded by docker-compose in development
-version: '3.8'
-
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development  # Use development stage if multi-stage build
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
