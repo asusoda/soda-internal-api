@@ -24,6 +24,9 @@ docker rm soda-internal-api || true
 
 echo "Running the Docker container"
 docker run -d \
+  --log-driver json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   --user 1000:1000 \
   --name soda-internal-api \
   -p 8000:8000 \
