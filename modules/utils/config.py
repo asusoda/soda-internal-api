@@ -27,7 +27,7 @@ class Config:
                 self.DB_TYPE = os.environ.get("DB_TYPE", "sqlite")
                 self.DB_URI = os.environ.get("DB_URI", "sqlite:///test.db")
                 self.DB_NAME = os.environ.get("DB_NAME", "test")
-                self.DB_USER = os.environ.get("DB_USER", "test")
+                self.DB_USER = os.environ.get("DB_USER", "test") 
                 self.DB_PASSWORD = os.environ.get("DB_PASSWORD", "test")
                 self.DB_HOST = os.environ.get("DB_HOST", "localhost")
                 self.DB_PORT = os.environ.get("DB_PORT", "5432")
@@ -53,6 +53,12 @@ class Config:
                 self.CLIENT_SECRET = os.environ["CLIENT_SECRET"]
                 self.REDIRECT_URI = os.environ["REDIRECT_URI"]
                 self.CLIENT_URL = os.environ["CLIENT_URL"]
+                self.TNAY_API_URL = os.environ["TNAY_API_URL"]
+                self.ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+                self.DISCORD_OFFICER_WEBHOOK_URL = os.environ["DISCORD_OFFICER_WEBHOOK_URL"]
+                self.DISCORD_POST_WEBHOOK_URL = os.environ["DISCORD_POST_WEBHOOK_URL"]
+                self.ONEUP_PASSWORD = os.environ["ONEUP_PASSWORD"]
+                self.ONEUP_EMAIL = os.environ["ONEUP_EMAIL"]
                 self.PROD = os.environ.get("PROD", "false").lower() == "true"
 
                 # Service Tokens

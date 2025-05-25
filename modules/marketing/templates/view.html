@@ -1,0 +1,36 @@
+
+<!-- templates/view.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrapesJS Preview</title>
+    <style id="page-styles"></style>
+</head>
+<body>
+    <div id="content-container"></div>
+    
+    <script>
+        // Load content from the server
+        fetch('/marketing/load-content')
+            .then(response => response.json())
+            .then(data => {
+                // Set the HTML content
+                document.getElementById('content-container').innerHTML = data.html;
+                
+                // Set the CSS content
+                document.getElementById('page-styles').textContent = data.css;
+            })
+            .catch(error => {
+                console.error('Error loading content:', error);
+                document.getElementById('content-container').innerHTML = 
+                    '<div style="color: red; padding: 20px; text-align: center;">' +
+                    '<h2>Error Loading Content</h2>' +
+                    '<p>Could not load the page content. Please try again later.</p>' +
+                    '</div>';
+            });
+    </script>
+</body>
+</html>
+            

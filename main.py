@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory, current_app # Import current_app
 from shared import app, logger, config, create_summarizer_bot, create_auth_bot
 from modules.calendar.service import CalendarService
+from modules.marketing.service import MarketingService
 
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint
@@ -11,6 +12,8 @@ from modules.calendar.api import calendar_blueprint
 from modules.summarizer.api import summarizer_blueprint
 from modules.bot.api import game_blueprint
 from modules.storefront.api import storefront_blueprint
+from modules.marketing.api import marketing_blueprint
+
 from migrations import run_all_migrations
 import threading
 import asyncio
@@ -21,6 +24,11 @@ import os
 calendar_service = CalendarService(logger)
 app.calendar_service = calendar_service
 
+# Instantiate and attach MarketingService
+marketing_service = MarketingService(logger)
+app.marketing_service = marketing_service
+
+
 # Register Blueprints
 app.register_blueprint(public_blueprint, url_prefix="/")
 app.register_blueprint(points_blueprint, url_prefix="/points")
@@ -30,6 +38,7 @@ app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
 app.register_blueprint(summarizer_blueprint, url_prefix="/summarizer")
 app.register_blueprint(game_blueprint, url_prefix="/bot")
 app.register_blueprint(storefront_blueprint, url_prefix="/storefront")
+app.register_blueprint(marketing_blueprint, url_prefix="/marketing")
 
 
 # --- Scheduler Setup ---
