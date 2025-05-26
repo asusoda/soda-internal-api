@@ -402,7 +402,6 @@ def view_event(event_id):
     
     return render_template('view.html')
 
-
 @marketing_blueprint.route('/load-content')
 def load_content():
     """API endpoint to load the current editor content"""
@@ -415,13 +414,6 @@ def load_content():
     
     # Default to global editor_content if no event is being edited
     return jsonify(editor_content)
-
-@marketing_blueprint.route('/')
-def home():
-    """Render the main editor page or redirect to dashboard"""
-    # Redirect to dashboard if no specific event is being edited
-    return redirect(url_for('marketing.dashboard'))
-
 
 @marketing_blueprint.route('/load-content', methods=['GET'])
 def load_content():
@@ -447,66 +439,10 @@ def update_content():
             
     return jsonify({"status": "success"})
 
-
-
 @marketing_blueprint.route('/view')
 def view():
     """Render the view-only page showing the current design"""
     return render_template('view.html')
-
-@marketing_blueprint.route('/post-to-discord', methods=['POST'])
-def post_to_discord():
-    """API endpoint to send banner image to Discord via webhook"""
-    try:
-        webhook_url = config['post_webhook_url']
-        
-        if not webhook_url:
-            return jsonify({"success": False, "message": "No post webhook URL configured"})
-        
-        # Check if there's a file in the request
-        if 'file' not in request.files:
-            return jsonify({"success": False, "message": "No image file found in request"})
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"success": False, "message": "No file selected"})
-        
-        # Get optional message content
-        message_content = request.form.get('content', 'Generated banner from SoDA Marketing Bot')
-        
-        # Prepare the payload for Discord
-        payload = {
-            "content": message_content
-        }
-        
-        # Create multipart form data
-        files = {
-            'payload_json': (None, json.dumps(payload), 'application/json'),
-            'file': (file.filename, file.stream, file.content_type)
-        }
-        
-        # Send the file to Discord webhook
-        response = requests.post(webhook_url, files=files)
-        
-        if response.status_code == 204:  # Discord returns 204 No Content on success
-            # If posting from a specific event editor, mark it as completed
-            if current_event_id:
-                mark_event_completed(current_event_id)
-                
-            return jsonify({
-                "success": True, 
-                "message": "Image successfully sent to Discord"
-            })
-        else:
-            error_info = response.text if response.text else f"Status code: {response.status_code}"
-            return jsonify({
-                "success": False, 
-                "message": f"Failed to send image to Discord: {error_info}"
-            })
-            
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
-
 
 @marketing_blueprint.route('/status', methods=['GET'])
 def get_status():
@@ -520,7 +456,6 @@ def get_status():
         "api_key_configured": bool(config['open_router_claude_api_key'])
     })
 
-
 @marketing_blueprint.route('/toggle-monitoring', methods=['POST'])
 def toggle_monitoring():
     """Toggle event monitoring on/off"""
@@ -530,8 +465,7 @@ def toggle_monitoring():
         "monitoring_active": config['monitoring_active']
     })
 
-
-@marketing_blueprint.route('/dashboard')
+@marketing_blueprint.route('/')
 def dashboard():
     """Admin dashboard showing all managed events"""
     # Get all events from database
