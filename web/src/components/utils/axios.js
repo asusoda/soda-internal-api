@@ -1,16 +1,17 @@
-import axios from 'axios';
-import { useAuth } from '../auth/AuthContext';
+import axios from "axios";
+import { useAuth } from "../auth/AuthContext";
 
 const apiClient = axios.create({
-  baseURL: 'http://api.thesoda.io', // Your Flask API base URL
+  // baseURL: 'http://api.thesoda.io', // Your Flask API base URL
+  baseURL: "http://localhost:8000", // Your Flask API base URL
 });
 
 // Attach token to all requests
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem("accessToken");
     if (token) {
-      config.headers['Authorization'] = token;
+      config.headers["Authorization"] = token;
     }
     return config;
   },
