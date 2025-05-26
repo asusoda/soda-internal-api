@@ -21,14 +21,27 @@ def format_discord_message(event, content, editor_url):
         str: Formatted message for Discord
     """
     
-    # Add editor link to the message
+    # Add editor link to the message - now using event-specific URL
     editor_section = f"""---
     [Edit this banner here]({editor_url})
     ---
     """
+    try:
+        date_obj = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
+        format_event_date = date_obj.strftime("%A, %B %d, %Y at %I:%M %p")
+    except (ValueError, KeyError):
+        formatted_date = event.get('date', 'TBD')
+            
     # Use discord content if available, otherwise create a generic message
-    if content and "discord" in content:
-        message = content["discord"]
+    if content and "text" in content:
+        message = f"""
+        # 📣 **{event['name']}**
+
+        {content['text']}
+        
+        📅 **Date:** {format_event_date(event['date'])}
+        📍 **Location:** {event['location']}
+        """
     else:
         # Format date nicely
         try:

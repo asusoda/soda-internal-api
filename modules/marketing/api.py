@@ -1,5 +1,4 @@
-# app.py - Consolidated Flask application with event monitoring
-from flask import Flask, render_template, request, jsonify, send_from_directory, Blueprint
+from flask import Flask, render_template, request, jsonify, send_from_directory, Blueprint, redirect, url_for
 import os
 import threading
 import time
@@ -16,11 +15,24 @@ from get_editable_link import get_server_url
 from send_message import send_officer_notification, post_instagram_post, post_linkedin_post
 from dotenv import load_dotenv
 from shared import logger, config
-
+from get_database import (
+    get_all_events, get_event_by_id, save_event, mark_event_completed,
+    get_all_completed_events, is_event_completed
+)
 marketing_blueprint = Blueprint('marketing', __name__, template_folder='templates', static_folder='static')
 
 # Load environment variables
 load_dotenv()
+
+# Global array to store multiple events and their generated content
+# This will be populated by the event monitoring process
+managed_events = []
+
+# Track which event is currently being edited (for the main editor route)
+current_event_id = None
+
+# Store completed events (those with saved images)
+completed_events = {}
 
 # Store the current editor content
 editor_content = {
@@ -31,7 +43,7 @@ editor_content = {
 # Global configuration
 config = {
     'api_url': config.TNAY_API_URL,
-    'api_key': config.ANTHROPIC_API_KEY,
+    'open_router_claude_api_key': config.OPEN_ROUTER_CLAUDE_API_KEY,
     'officer_webhook_url': config.DISCORD_OFFICER_WEBHOOK_URL,
     'oneup_email': config.ONEUP_EMAIL,
     'oneup_pass': config.ONEUP_PASSWORD,
@@ -144,8 +156,6 @@ def ensure_template_files():
     <button id="save-html-btn" class="gjs-btn">Save as HTML</button>
     <button id="save-image-btn" class="gjs-btn">Save as Image</button>
     <button id="send-discord-btn" class="gjs-btn">Send to Discord</button>
-    <button id="send-instagram-btn" class="gjs-btn">Send to Instagram</button>
-    <button id="send-linkedin-btn" class="gjs-btn">Send to LinkedIn</button>
 
     
     </div>
@@ -332,103 +342,6 @@ def ensure_template_files():
             alert('Failed to capture image.');
         });
     });
-        // Send to Instagram button handler
-document.getElementById('send-instagram-btn').addEventListener('click', () => {
-    const iframe = document.querySelector('.gjs-frame');
-    if (!iframe) {
-        alert('GrapesJS iframe not found.');
-        return;
-    }
-
-    const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-    let targetElement = iframeDocument.querySelector('.banner');
-    if (!targetElement) {
-        targetElement = iframeDocument.body;
-    }
-
-    html2canvas(targetElement, {
-        allowTaint: true,
-        useCORS: true,
-        backgroundColor: null
-    }).then(canvas => {
-        canvas.toBlob(blob => {
-            // Prompt for a caption
-            const caption = prompt('Enter Instagram caption:', 'Check out our upcoming SoDA event!');
-            if (!caption) return; // User cancelled
-            
-            const formData = new FormData();
-            formData.append('file', blob, 'soda_banner.png');
-            formData.append('caption', caption);
-
-            fetch('/post-to-instagram', {
-                method: 'POST',
-                body: formData
-            }).then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStatusMessage('Image sent to Instagram successfully!');
-                } else {
-                    showStatusMessage('Failed to send image to Instagram: ' + data.message, true);
-                }
-            }).catch(err => {
-                console.error('Network error sending to Instagram:', err);
-                showStatusMessage('Network error sending image to Instagram', true);
-            });
-        }, 'image/png');
-    }).catch(err => {
-        console.error('Error capturing image:', err);
-        alert('Failed to capture image.');
-    });
-});
-
-// Send to LinkedIn button handler
-document.getElementById('send-linkedin-btn').addEventListener('click', () => {
-    const iframe = document.querySelector('.gjs-frame');
-    if (!iframe) {
-        alert('GrapesJS iframe not found.');
-        return;
-    }
-
-    const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-    let targetElement = iframeDocument.querySelector('.banner');
-    if (!targetElement) {
-        targetElement = iframeDocument.body;
-    }
-
-    html2canvas(targetElement, {
-        allowTaint: true,
-        useCORS: true,
-        backgroundColor: null
-    }).then(canvas => {
-        canvas.toBlob(blob => {
-            // Prompt for LinkedIn content
-            const content = prompt('Enter LinkedIn post content:', 'Excited to announce our upcoming SoDA event!');
-            if (!content) return; // User cancelled
-            
-            const formData = new FormData();
-            formData.append('file', blob, 'soda_banner.png');
-            formData.append('content', content);
-
-            fetch('/post-to-linkedin', {
-                method: 'POST',
-                body: formData
-            }).then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStatusMessage('Content sent to LinkedIn successfully!');
-                } else {
-                    showStatusMessage('Failed to send content to LinkedIn: ' + data.message, true);
-                }
-            }).catch(err => {
-                console.error('Network error sending to LinkedIn:', err);
-                showStatusMessage('Network error sending content to LinkedIn', true);
-            });
-        }, 'image/png');
-    }).catch(err => {
-        console.error('Error capturing image:', err);
-        alert('Failed to capture image.');
-    });
-});
 
 </script>
 </body>
@@ -474,10 +387,41 @@ document.getElementById('send-linkedin-btn').addEventListener('click', () => {
 </html>
             ''')
 
+@marketing_blueprint.route('/view/<event_id>')
+def view_event(event_id):
+    """Render the view-only page showing a specific event design"""
+    # Find the event in our database
+    event = get_event_by_id(event_id)
+    
+    if not event:
+        return "Event not found", 404
+        
+    # Set the editor content to this event's content
+    global editor_content
+    editor_content = event['grapes_code']
+    
+    return render_template('view.html')
+
+
+@marketing_blueprint.route('/load-content')
+def load_content():
+    """API endpoint to load the current editor content"""
+    # Check if we have a current event being edited
+    if current_event_id:
+        # Find the event in our database
+        event = get_event_by_id(current_event_id)
+        if event:
+            return jsonify(event['grapes_code'])
+    
+    # Default to global editor_content if no event is being edited
+    return jsonify(editor_content)
+
 @marketing_blueprint.route('/')
 def home():
-    """Render the main editor page"""
-    return render_template('editor.html')
+    """Render the main editor page or redirect to dashboard"""
+    # Redirect to dashboard if no specific event is being edited
+    return redirect(url_for('marketing.dashboard'))
+
 
 @marketing_blueprint.route('/load-content', methods=['GET'])
 def load_content():
@@ -493,7 +437,17 @@ def update_content():
         'html': data.get('html', ''),
         'css': data.get('css', '')
     }
+    
+    # If editing a specific event, save it to the database
+    if current_event_id:
+        event = get_event_by_id(current_event_id)
+        if event:
+            event['grapes_code'] = editor_content
+            save_event(event)
+            
     return jsonify({"status": "success"})
+
+
 
 @marketing_blueprint.route('/view')
 def view():
@@ -535,6 +489,10 @@ def post_to_discord():
         response = requests.post(webhook_url, files=files)
         
         if response.status_code == 204:  # Discord returns 204 No Content on success
+            # If posting from a specific event editor, mark it as completed
+            if current_event_id:
+                mark_event_completed(current_event_id)
+                
             return jsonify({
                 "success": True, 
                 "message": "Image successfully sent to Discord"
@@ -549,62 +507,7 @@ def post_to_discord():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
-@marketing_blueprint.route('/post-to-instagram', methods=['POST'])
-def post_to_instagram():
-    """API endpoint to send banner image to Instagram via OneUp API"""
-    try:
-        oneup_api_url = config.get('oneup_api_url', os.environ.get("ONEUP_API_URL"))
-        
-        if not oneup_api_url:
-            return jsonify({"success": False, "message": "No OneUp API URL configured"})
-        
-        # Check if there's a file in the request
-        if 'file' not in request.files:
-            return jsonify({"success": False, "message": "No image file found in request"})
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"success": False, "message": "No file selected"})
-        
-        # Get caption content
-        caption = request.form.get('caption', 'Check out our upcoming SoDA event!')
-        
-        # Send to Instagram using OneUp API
-        result = post_instagram_post(file.read(), caption, oneup_api_url)
-        
-        return jsonify(result)
-            
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
 
-@marketing_blueprint.route('/post-to-linkedin', methods=['POST'])
-def post_to_linkedin():
-    """API endpoint to send banner image to LinkedIn via OneUp API"""
-    try:
-        oneup_api_url = config.get('oneup_api_url', os.environ.get("ONEUP_API_URL"))
-        
-        if not oneup_api_url:
-            return jsonify({"success": False, "message": "No OneUp API URL configured"})
-        
-        # Check if there's a file in the request
-        if 'file' not in request.files:
-            return jsonify({"success": False, "message": "No image file found in request"})
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"success": False, "message": "No file selected"})
-        
-        # Get content for LinkedIn post
-        content = request.form.get('content', 'Excited to announce our upcoming SoDA event!')
-        
-        # Send to LinkedIn using OneUp API
-        result = post_linkedin_post(file.read(), content, oneup_api_url)
-        
-        return jsonify(result)
-            
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}) 
-    
 @marketing_blueprint.route('/status', methods=['GET'])
 def get_status():
     """Get monitoring status"""
@@ -614,8 +517,9 @@ def get_status():
         "api_url_configured": bool(config['api_url']),
         "officer_webhook_configured": bool(config['officer_webhook_url']),
         "post_webhook_configured": bool(config['post_webhook_url']),
-        "api_key_configured": bool(config['api_key'])
+        "api_key_configured": bool(config['open_router_claude_api_key'])
     })
+
 
 @marketing_blueprint.route('/toggle-monitoring', methods=['POST'])
 def toggle_monitoring():
@@ -626,23 +530,121 @@ def toggle_monitoring():
         "monitoring_active": config['monitoring_active']
     })
 
+
 @marketing_blueprint.route('/dashboard')
 def dashboard():
-    """Simple admin dashboard"""
-    return '''
+    """Admin dashboard showing all managed events"""
+    # Get all events from database
+    managed_events = get_all_events()
+    completed_events_dict = get_all_completed_events()
+    
+    # First, convert the events to safe HTML
+    event_cards = []
+    for event in managed_events:
+        # Format the date nicely
+        try:
+            date_obj = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
+            formatted_date = date_obj.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event['date']
+            
+        # Create HTML for the event card
+        completed = event['status'] == 'completed' or event['id'] in completed_events_dict
+        checked_attr = 'checked' if completed else ''
+        disabled_attr = 'disabled' if completed else ''
+        
+        event_card = f'''
+        <div class="event-card {event['status']}">
+            <div class="event-header">
+                <h3>{event['name']}</h3>
+                <div class="event-status">
+                    <input type="checkbox" {checked_attr} {disabled_attr}/>
+                    <span>{event['status'].capitalize()}</span>
+                </div>
+            </div>
+            <div class="event-details">
+                <p><strong>Date:</strong> {formatted_date}</p>
+                <p><strong>Location:</strong> {event['location']}</p>
+                <div class="event-actions">
+                    <a href="/marketing/events/{event['id']}" class="btn btn-edit" target="_blank">Edit</a>
+                    <a href="/marketing/view/{event['id']}" class="btn btn-view" target="_blank">View</a>
+                </div>
+            </div>
+        </div>
+        '''
+        event_cards.append(event_card)
+    
+    
+    # Join all event cards
+    events_html = "\n".join(event_cards) if event_cards else '<p>No events found. Use "Process Events Now" to check for new events.</p>'
+    
+    return f'''
     <!DOCTYPE html>
     <html>
     <head>
         <title>SoDA Marketing Bot Dashboard</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-            .card { background: #f5f5f5; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
-            button { background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
-            button.stop { background: #f44336; }
-            .status { margin: 20px 0; }
-            .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; }
-            .status-active { background: #4CAF50; }
-            .status-inactive { background: #f44336; }
+            body {{ font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }}
+            .card {{ background: #f5f5f5; border-radius: 5px; padding: 15px; margin-bottom: 15px; }}
+            button {{ background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }}
+            button.stop {{ background: #f44336; }}
+            .status {{ margin: 20px 0; }}
+            .status-indicator {{ display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; }}
+            .status-active {{ background: #4CAF50; }}
+            .status-inactive {{ background: #f44336; }}
+            
+            /* Event cards styling */
+            .events-container {{ 
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 15px;
+                margin-top: 20px;
+            }}
+            .event-card {{ 
+                background: white;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                padding: 15px;
+                border-left: 5px solid #9b59b6;
+            }}
+            .event-card.completed {{ 
+                border-left: 5px solid #4CAF50;
+                opacity: 0.8;
+            }}
+            .event-header {{ 
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }}
+            .event-header h3 {{
+                margin: 0;
+                font-size: 18px;
+                color: #333;
+            }}
+            .event-status {{
+                display: flex;
+                align-items: center;
+            }}
+            .event-status span {{
+                margin-left: 5px;
+                font-size: 14px;
+                color: #666;
+            }}
+            .event-actions {{
+                display: flex;
+                gap: 10px;
+                margin-top: 10px;
+            }}
+            .btn {{
+                padding: 8px 12px;
+                border-radius: 4px;
+                text-decoration: none;
+                color: white;
+                font-size: 14px;
+            }}
+            .btn-edit {{ background-color: #3498db; }}
+            .btn-view {{ background-color: #9b59b6; }}
         </style>
     </head>
     <body>
@@ -659,52 +661,61 @@ def dashboard():
         
         <div class="card">
             <h2>Actions</h2>
-            <button onclick="window.open('/', '_blank')">Open Editor</button>
-            <button onclick="window.open('/view', '_blank')">View Banner</button>
+            <button onclick="window.open('/marketing/', '_blank')">Open Editor</button>
+            <button onclick="window.open('/marketing/view', '_blank')">View Banner</button>
             <button id="process-events-btn">Process Events Now</button>
+        </div>
+        
+        <div class="card">
+            <h2>Events</h2>
+            <div class="events-container">
+                {events_html}
+            </div>
         </div>
         
         <script>
             // Load status
-            function updateStatus() {
-                fetch('/status')
+            function updateStatus() {{
+                fetch('/marketing/status')
                     .then(response => response.json())
-                    .then(data => {
+                    .then(data => {{
                         const statusIndicator = document.getElementById('status-indicator');
                         const statusText = document.getElementById('status-text');
                         const toggleBtn = document.getElementById('toggle-btn');
                         
-                        if (data.monitoring_active) {
+                        if (data.monitoring_active) {{
                             statusIndicator.className = 'status-indicator status-active';
                             statusText.textContent = 'Monitoring is ACTIVE';
                             toggleBtn.textContent = 'Stop Monitoring';
                             toggleBtn.className = 'stop';
-                        } else {
+                        }} else {{
                             statusIndicator.className = 'status-indicator status-inactive';
                             statusText.textContent = 'Monitoring is INACTIVE';
                             toggleBtn.textContent = 'Start Monitoring';
                             toggleBtn.className = '';
-                        }
-                    });
-            }
+                        }}
+                    }});
+            }}
             
             // Toggle monitoring
-            document.getElementById('toggle-btn').addEventListener('click', () => {
-                fetch('/toggle-monitoring', { method: 'POST' })
+            document.getElementById('toggle-btn').addEventListener('click', () => {{
+                fetch('/marketing/toggle-monitoring', {{ method: 'POST' }})
                     .then(response => response.json())
-                    .then(data => {
+                    .then(data => {{
                         updateStatus();
-                    });
-            });
+                    }});
+            }});
             
             // Process events now
-            document.getElementById('process-events-btn').addEventListener('click', () => {
-                fetch('/process-events', { method: 'POST' })
+            document.getElementById('process-events-btn').addEventListener('click', () => {{
+                fetch('/marketing/process-events', {{ method: 'POST' }})
                     .then(response => response.json())
-                    .then(data => {
+                    .then(data => {{
                         alert(data.message);
-                    });
-            });
+                        // Refresh the page to show new events
+                        location.reload();
+                    }});
+            }});
             
             // Update status on load
             updateStatus();
@@ -712,6 +723,128 @@ def dashboard():
     </body>
     </html>
     '''
+    
+@marketing_blueprint.route('/events/<event_id>')
+def event_editor(event_id):
+    """Render the editor page for a specific event"""
+    # Find the event in our database
+    event = get_event_by_id(event_id)
+    
+    if not event:
+        return "Event not found", 404
+    
+    # Set this as the current event being edited
+    global current_event_id
+    current_event_id = event_id
+    
+    # Update the editor_content with this event's content
+    global editor_content
+    editor_content = event['grapes_code']
+    
+    # Render the editor template
+    return render_template('editor.html', event=event)
+
+@marketing_blueprint.route('/events/<event_id>/update-content', methods=['POST'])
+def update_event_content(event_id):
+    """API endpoint to update content for a specific event"""
+    # Find the event in our database
+    event = get_event_by_id(event_id)
+    
+    if not event:
+        return jsonify({"status": "error", "message": "Event not found"}), 404
+    
+    data = request.json
+    html_content = data.get('html', '')
+    css_content = data.get('css', '')
+    
+    # Update the event's grapes_code
+    event['grapes_code'] = {
+        'html': html_content,
+        'css': css_content
+    }
+    
+    # Save the updated event
+    save_event(event)
+    
+    return jsonify({"status": "success"})
+
+@marketing_blueprint.route('/events/<event_id>/save-image', methods=['POST'])
+def save_event_image(event_id):
+    """API endpoint to save the final image for an event"""
+    # Check if the event exists
+    event = get_event_by_id(event_id)
+    
+    if not event:
+        return jsonify({"status": "error", "message": "Event not found"}), 404
+    
+    # Check if there's a file in the request
+    if 'file' not in request.files:
+        return jsonify({"success": False, "message": "No image file found in request"})
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "message": "No file selected"})
+    
+    # In production, save the file with event_id as name
+    # file_path = os.path.join('static', 'images', f"{event_id}.png")
+    # file.save(file_path)
+    
+    # Mark the event as completed
+    mark_event_completed(event_id, event.get('name'))
+    
+    return jsonify({"success": True, "message": "Event image saved successfully"})
+
+@marketing_blueprint.route('/events/<event_id>/post-to-discord', methods=['POST'])
+def post_event_to_discord(event_id):
+    """API endpoint to send banner image to Discord for a specific event"""
+    try:
+        webhook_url = config['post_webhook_url']
+        
+        if not webhook_url:
+            return jsonify({"success": False, "message": "No post webhook URL configured"})
+        
+        # Check if there's a file in the request
+        if 'file' not in request.files:
+            return jsonify({"success": False, "message": "No image file found in request"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "message": "No file selected"})
+        
+        # Get optional message content
+        message_content = request.form.get('content', 'Generated banner from SoDA Marketing Bot')
+        
+        # Prepare the payload for Discord
+        payload = {
+            "content": message_content
+        }
+        
+        # Create multipart form data
+        files = {
+            'payload_json': (None, json.dumps(payload), 'application/json'),
+            'file': (file.filename, file.stream, file.content_type)
+        }
+        
+        # Send the file to Discord webhook
+        response = requests.post(webhook_url, files=files)
+        
+        if response.status_code == 204:  # Discord returns 204 No Content on success
+            # Mark this event as completed
+            mark_event_completed(event_id)
+                
+            return jsonify({
+                "success": True, 
+                "message": "Image successfully sent to Discord"
+            })
+        else:
+            error_info = response.text if response.text else f"Status code: {response.status_code}"
+            return jsonify({
+                "success": False, 
+                "message": f"Failed to send image to Discord: {error_info}"
+            })
+            
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 @marketing_blueprint.route('/process-events', methods=['POST'])
 def process_events_now():
@@ -729,12 +862,15 @@ def process_events_once():
         
         # DEV
         # events = get_upcoming_events(config['api_url'], mock=True)
-        if events is None:
+        if events is None or len(events) == 0:
             print("No events found or error fetching events")
-            return jsonify({"status": "success", "message": "No events found"})
-                
+            return
+        
         for event in events:
+            # Events are already filtered to exclude existing ones in get_upcoming_events
+            print(f"Processing new event: {event['name']}")
             process_event(event)
+                
     except Exception as e:
         print(f"Error processing events: {str(e)}")
 
@@ -745,7 +881,7 @@ def process_event(event):
     try:
         # Step 1: Generate content for platforms
         print("Generating content...")
-        content = generate_content(event, config['api_key'])
+        content = generate_content(event, config['open_router_claude_api_key'])
         
         # Step 2: Get HTML/CSS template
         print("Getting template...")
@@ -753,20 +889,30 @@ def process_event(event):
         
         # Step 3: Generate GrapesJS code
         print("Generating GrapesJS code...")
-        grapes_code = generate_grapes_code(event, template, content, config['api_key'])
+        grapes_code = generate_grapes_code(event, template, content, config['open_router_claude_api_key'])
         
-        # Step 4: Push content to editor
-        print("Updating GrapesJS content...")
-        global editor_content
-        editor_content = {
-            'html': grapes_code["html"],
-            'css': grapes_code["css"]
+        # Step 4: Create an event object with all the generated content
+        event_object = {
+            'id': event['id'],
+            'name': event['name'],
+            'date': event['date'],
+            'location': event['location'],
+            'info': event['info'],
+            'content': content,
+            'grapes_code': grapes_code,
+            'created_at': datetime.now().isoformat(),
+            'status': 'pending' # pending, completed
         }
         
-        # Step 5: Send Discord notification
+        # Step 5: Save the event to the database
+        save_event(event_object)
+        
+        # Step 6: Send Discord notification with the event-specific editor URL
         print("Sending Discord notification...")
         server_url = get_server_url()
-        notification_result = send_officer_notification(event, content, server_url, config['officer_webhook_url'])
+        editor_url = f"{server_url}/marketing/events/{event['id']}"
+        
+        notification_result = send_officer_notification(event, content, editor_url, config['officer_webhook_url'])
         if not notification_result["success"]:
             print(f"ERROR: {notification_result['message']}")
             return False
@@ -793,7 +939,7 @@ def monitor_events():
             
         except Exception as e:
             print(f"Error in monitoring loop: {str(e)}")
-            time.sleep(60)  # Sleep briefly before retrying
+            time.sleep(60)  # Sleep briefly before retrying          
 
 if __name__ == '__main__':
     # Ensure template files exist

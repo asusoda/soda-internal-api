@@ -4,41 +4,11 @@
 # one to take 
 # [ latest events ]
 
-#  example events structure : [ name , date, location , info ]
-
-# Monitor /events endpoint in T’NAY API for new events one week into the future
-
-    # mock_api_response = {
-    #     "events": [
-    #         {
-    #             "end": (now + timedelta(days=2, hours=2)).isoformat(),
-    #             "id": "event-001",
-    #             "location": "PSH 150",
-    #             "start": (now + timedelta(days=2)).isoformat(),
-    #             "title": "Amazon ML Specialist Guest Lecture"
-    #         },
-    #         {
-    #             "end": (now + timedelta(days=5, hours=24)).isoformat(),
-    #             "id": "event-002",
-    #             "location": "COOR Hall 174",
-    #             "start": (now + timedelta(days=5)).isoformat(),
-    #             "title": "SoDA Hackathon"
-    #         },
-    #         {
-    #             "end": (now + timedelta(days=10, hours=2)).isoformat(),
-    #             "id": "event-003",
-    #             "location": "CAVC 101",
-    #             "start": (now + timedelta(days=10)).isoformat(),
-    #             "title": "Resume Workshop with Microsoft"
-    #         }
-    #     ],
-    #     "status": "success"
-    # }
-
 import requests
 from datetime import datetime, timedelta
 import json
 import os
+from get_database import get_all_event_ids, is_event_completed, get_all_completed_events
 
 def get_upcoming_events(api_url=None, days_window=7, mock=False):
     """
@@ -80,7 +50,8 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
                 "info": "Participate in our Resume Workshop with Microsoft and gain hands-on experience. Bring your laptop and be ready to learn!"
             }
         ]
-        return mock_events
+        # Filter out events that are already completed
+        return filter_new_events(mock_events)
     
     # Real API implementation
     try:
@@ -94,11 +65,14 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
             if "status" in response_data and response_data["status"] == "success" and "events" in response_data:
                 all_events = response_data["events"]
                 
-                # Filter events within time window
+                # Filter events within time window and check if they're new
                 upcoming_events = filter_upcoming_events(all_events, days_window)
                 
-                print(f"Found {len(upcoming_events)} upcoming events in the next {days_window} days")
-                return upcoming_events
+                # Filter out events that are already in the database or completed
+                new_events = filter_new_events(upcoming_events)
+                
+                print(f"Found {len(new_events)} new upcoming events in the next {days_window} days")
+                return new_events
             else:
                 print("Invalid API response format")
                 return []
@@ -109,9 +83,39 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
         print(f"Exception while fetching events: {str(e)}")
         return []
     
+def filter_new_events(events):
+    """
+    Filter out events that are already in the database or completed
+    
+    Args:
+        events (list): List of event dictionaries
+    
+    Returns:
+        list: List of new events not yet in the database or completed
+    """
+    # Get all existing event IDs and completed event IDs
+    existing_ids = get_all_event_ids()
+    completed_events = get_all_completed_events()
+    
+    new_events = []
+    for event in events:
+        event_id = event.get('id')
+        if event_id and event_id not in existing_ids and event_id not in completed_events:
+            new_events.append(event)
+            
+    return new_events
     
 def filter_upcoming_events(events, days_window):
-    """Filter events to include only those occurring within specified days"""
+    """
+    Filter events to include only those occurring within specified days
+    
+    Args:
+        events (list): List of event dictionaries
+        days_window (int): Number of days to look ahead
+        
+    Returns:
+        list: List of events within the time window
+    """
     now = datetime.now().replace(tzinfo=None)  # Ensure naive datetime
     cutoff = now + timedelta(days=days_window)
     
@@ -135,34 +139,3 @@ def filter_upcoming_events(events, days_window):
             continue
     
     return upcoming
-
-def format_event_info(event):
-    """Generate a more detailed info field if not provided"""
-    if 'info' in event and event['info']:
-        return event['info']
-    
-    # Try to create a description based on event title
-    title = event['title'].lower()
-    
-    if 'lecture' in title or 'talk' in title:
-        return f"Join us for an informative session on {event['title']}. Don't miss this opportunity to learn from industry experts."
-    
-    elif 'workshop' in title:
-        return f"Participate in our {event['title']} and gain hands-on experience. Bring your laptop and be ready to learn!"
-    
-    elif 'hackathon' in title:
-        return f"Join us for {event['title']} - a coding marathon where you can build amazing projects, win prizes, and meet fellow developers."
-    
-    elif 'gbm' in title or 'general' in title:
-        return f"Join us for our General Body Meeting. We'll discuss upcoming events, opportunities, and more!"
-    
-    elif 'social' in title or 'mixer' in title or 'hours' in title:
-        return f"Come hang out with fellow SoDA members, make new friends, and enjoy some refreshments!"
-    
-    else:
-        return f"Join us for {event['title']}. More details will be announced soon!"
-
-# if __name__ == "__main__":
-#     # Test the function
-#     events = get_upcoming_events()
-#     print(json.dumps(events, indent=2))

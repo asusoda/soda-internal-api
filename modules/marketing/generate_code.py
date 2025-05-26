@@ -5,28 +5,28 @@
 # <code>
 
 import os
-import anthropic
+from openai import OpenAI
 import re
 from datetime import datetime
 
 def generate_grapes_code(event, template, content=None, api_key=None):
     """
-    Generate GrapesJS compatible HTML/CSS code for the event using Claude
+    Generate GrapesJS compatible HTML/CSS code for the event using Claude via OpenRouter
     
-    Args:
+    Args: 
         event (dict): Event data containing name, date, etc.
         template (dict): Base HTML/CSS templates to use
         content (dict): Platform specific content (if already generated)
-        api_key (str): Claude API key
+        api_key (str): OpenRouter API key
         
     Returns:
         dict: HTML and CSS for GrapesJS
     """
-    if not api_key:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
     
-    
-    client = anthropic.Anthropic(api_key=api_key)
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key
+    )
     
     # Format the event date nicely
     try:
@@ -50,7 +50,7 @@ def generate_grapes_code(event, template, content=None, api_key=None):
     You are an expert HTML/CSS developer. I need you to generate code for a SoDA (Software Developers Association) event banner.
 
     Here's the event information:
-    - Event name: {event['name']}
+    - Event name: {event['name']} 
     - Date: {formatted_date}
     - Location: {event['location']}
     - Description: {event['info']}
@@ -75,10 +75,12 @@ def generate_grapes_code(event, template, content=None, api_key=None):
     """
 
     try:
-        response = client.messages.create(
-            model="claude-3-7-sonnet-20240620",
-            max_tokens=2000,
-            temperature=0.2,
+        response = client.chat.completions.create(
+            extra_headers={
+                "HTTP-Referer": "https://soda.engineering.asu.edu",
+                "X-Title": "SoDA Internal API",
+            },
+            model="anthropic/claude-3-7-sonnet",
             messages=[
                 {
                     "role": "user",
@@ -87,8 +89,8 @@ def generate_grapes_code(event, template, content=None, api_key=None):
             ]
         )
         
-        # Extract the JSON response
-        content_text = response.content[0].text
+        # Extract the response content
+        content_text = response.choices[0].message.content
         
         # Parse out HTML and CSS from Claude's response
         html_match = re.search(r'```html\s*(.*?)\s*```', content_text, re.DOTALL)
@@ -116,7 +118,7 @@ def generate_grapes_code(event, template, content=None, api_key=None):
         return fill_template_manually(event, template, content)
         
     except Exception as e:
-        print(f"Error generating code with Claude: {str(e)}")
+        print(f"Error generating code with Claude via OpenRouter: {str(e)}")
         return fill_template_manually(event, template, content)
 
 def fill_template_manually(event, template, content=None):

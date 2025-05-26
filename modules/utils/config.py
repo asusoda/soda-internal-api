@@ -54,7 +54,7 @@ class Config:
                 self.REDIRECT_URI = os.environ["REDIRECT_URI"]
                 self.CLIENT_URL = os.environ["CLIENT_URL"]
                 self.TNAY_API_URL = os.environ["TNAY_API_URL"]
-                self.ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+                self.OPEN_ROUTER_CLAUDE_API_KEY = os.environ["OPEN_ROUTER_CLAUDE_API_KEY"]
                 self.DISCORD_OFFICER_WEBHOOK_URL = os.environ["DISCORD_OFFICER_WEBHOOK_URL"]
                 self.DISCORD_POST_WEBHOOK_URL = os.environ["DISCORD_POST_WEBHOOK_URL"]
                 self.ONEUP_PASSWORD = os.environ["ONEUP_PASSWORD"]

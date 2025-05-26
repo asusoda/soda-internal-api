@@ -2,12 +2,12 @@
 # discord and caption for
 #  instagram
 # [ instagram : {}, discord :{} ]
-#  using claude
+#  using OpenRouter with Claude
 
 import os
 import json
 from datetime import datetime
-import anthropic
+from openai import OpenAI
 
 def format_event_date(date_str):
     """Format date string to a more readable format"""
@@ -19,95 +19,87 @@ def format_event_date(date_str):
 
 def generate_content(event, api_key=None):
     """
-    Generate platform-specific descriptions for an event using Claude
+    Generate a text paragraph description for an event using Claude via OpenRouter
     
     Args:
         event (dict): Event data containing name, date, location, info
-        api_key (str): Claude API key (defaults to environment variable)
+        api_key (str): OpenRouter API key (defaults to environment variable)
         
     Returns:
-        dict: Contains generated content for different platforms
-    """
-    if not api_key:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        dict: Contains generated text paragraph for the event
+    """    
     
-    
-    client = anthropic.Anthropic(api_key=api_key)
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
     
     # Format event data for better prompt
     formatted_date = format_event_date(event["date"])
     
     prompt = f"""
-    Generate social media content for a Software Developers Association (SoDA) event:
+    Generate a concise text paragraph describing this Software Developers Association (SoDA) event:
 
     Event Name: {event['name']}
     Date: {formatted_date}
     Location: {event['location']}
     Description: {event['info']}
 
-    Create the following content:
-    1. Instagram caption (limited to 280 characters, including relevant hashtags like #ASUSoDA #ASU #Programming)
-    2. Discord announcement (longer form, more detailed with formatting, addressing members directly)
-    
-    Format your response as JSON with fields "instagram" and "discord".
+    The paragraph should be informative, engaging, and highlight the key details and benefits of attending.
+    Format your response as a simple text paragraph.
     """
 
     try:
-        response = client.messages.create(
-            model="claude-3-7-sonnet-20240620",
-            max_tokens=1000,
-            temperature=0.4,
+        response = client.chat.completions.create(
+            extra_headers={
+                "HTTP-Referer": "https://soda.engineering.asu.edu",  # Replace with your site URL
+                "X-Title": "ASU SoDA",  # Replace with your site name
+            },
+            model="anthropic/claude-3.7-sonnet",
             messages=[
                 {
                     "role": "user",
                     "content": prompt
                 }
-            ]
+            ],
+            temperature=0.4,
+            max_tokens=500
         )
         
-        # Extract the JSON response
-        content_text = response.content[0].text
-        # Find JSON within the text (in case Claude adds explanatory text)
-        start_idx = content_text.find('{')
-        end_idx = content_text.rfind('}') + 1
+        # Extract the text response
+        content_text = response.choices[0].message.content.strip()
         
-        if start_idx >= 0 and end_idx > start_idx:
-            json_str = content_text[start_idx:end_idx]
-            try:
-                content = json.loads(json_str)
-                return content
-            except json.JSONDecodeError:
-                print("Error parsing JSON from Claude response")
-        
-        print("Couldn't extract valid JSON from Claude response")
-        return generate_mock_content(event)
+        return {
+            "text": content_text
+        }
         
     except Exception as e:
-        print(f"Error generating content with Claude: {str(e)}")
-        return generate_mock_content(event)
+        print(f"Error generating content with OpenRouter: {str(e)}")
+        return e
+        # return generate_mock_content(event)
 
-def generate_mock_content(event):
-    """Generate mock content for development without API access"""
-    formatted_date = format_event_date(event["date"])
+# def generate_mock_content(event):
+#     """Generate mock content for development without API access"""
+#     formatted_date = format_event_date(event["date"])
     
-    return {
-            "instagram": f"🚨 Join us for {event['name']} on {formatted_date} at {event['location']}! {event['info'][:100]}... #ASUSoDA #ASU #Programming #TechEvents",
+#     return {
+#             "instagram": f"🚨 Join us for {event['name']} on {formatted_date} at {event['location']}! {event['info'][:100]}... #ASUSoDA #ASU #Programming #TechEvents",
             
-            "discord": f"""
-    # 📣 **{event['name']}**
+#             "discord": f"""
+#     # 📣 **{event['name']}**
 
-    Hey SoDA members!
+#     Hey SoDA members!
 
-    Join us for an exciting event:
+#     Join us for an exciting event:
 
-    📅 **Date:** {formatted_date}
-    📍 **Location:** {event['location']}
+#     📅 **Date:** {formatted_date}
+#     📍 **Location:** {event['location']}
+ 
+#     {event['info']}
 
-    {event['info']}
-
-    See you there! Don't forget to RSVP.
-    """
-    }
+#     See you there! Don't forget to RSVP.
+#     """
+#     }
 
 # if __name__ == "__main__":
 #     # Test with a sample event

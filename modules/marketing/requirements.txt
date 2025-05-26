@@ -1,5 +1,0 @@
-# all requiurements will be here
-flask
-requests
-anthropic
-python-dotenv
