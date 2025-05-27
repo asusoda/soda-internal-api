@@ -12,7 +12,6 @@ from modules.marketing.template import get_discord_template, get_editor_html_css
 from modules.marketing.claude import generate_content, generate_grapes_code
 from modules.marketing.editable_link import get_server_url
 from modules.marketing.message import send_officer_notification
-from dotenv import load_dotenv
 from shared import logger, config
 from modules.marketing.database import (
     get_all_events, get_event_by_id, save_event, mark_event_completed,
@@ -24,9 +23,6 @@ from modules.marketing.selenium import post_to_social_media
 
 # Create a Flask Blueprint for the marketing module
 marketing_blueprint = Blueprint('marketing', __name__, template_folder='templates', static_folder='static')
-
-# Load environment variables
-load_dotenv()
 
 # Global array to store multiple events and their generated content
 # This will be populated by the event monitoring process
