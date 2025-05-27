@@ -24,8 +24,7 @@ from modules.marketing.selenium import post_to_social_media
 # Create a Flask Blueprint for the marketing module
 marketing_blueprint = Blueprint('marketing', __name__, template_folder='templates', static_folder='static')
 
-# Global array to store multiple events and their generated content
-# This will be populated by the event monitoring process
+# Global array to store multiple events and their generated content, will be populated by the event monitoring process
 managed_events = []
 
 # Track which event is currently being edited (for the main editor route)
