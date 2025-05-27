@@ -1,6 +1,5 @@
-# all selenium related functions should be defined in get_selenium.py and used in api.py
+# This module provides functions to interact with the OneUp platform using Selenium WebDriver.
 
-# all selenium related functions should be defined in get_selenium.py and used in api.py
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
