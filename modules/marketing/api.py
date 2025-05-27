@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, Blueprint, redirect, url_for
+from flask import Flask, render_template, request, jsonify, Blueprint
 import os
 import threading
 import time
@@ -12,12 +12,12 @@ from get_template import get_discord_template
 from generate_body import generate_content
 from generate_code import generate_grapes_code
 from get_editable_link import get_server_url
-from send_message import send_officer_notification, post_instagram_post, post_linkedin_post
+from send_message import send_officer_notification
 from dotenv import load_dotenv
 from shared import logger, config
 from get_database import (
     get_all_events, get_event_by_id, save_event, mark_event_completed,
-    get_all_completed_events, is_event_completed
+    get_all_completed_events
 )
 
 # ==================================================================================================
