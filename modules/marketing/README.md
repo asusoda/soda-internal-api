@@ -10,8 +10,8 @@ This solution reduces manual effort from the marketing team on tedious tasks (fr
 
 ## Latest Updates (May 2025)
 
-* **Code Consolidation**: Merged `generate_body.py` and `generate_code.py` into a single `get_claude.py` module that handles all Claude AI interactions
-* **Social Media Integration**: Added Selenium automation (`get_selenium.py`) to post directly to social media platforms via OneUp
+* **Code Consolidation**: Merged `generate_body.py` and `generate_code.py` into a single `claude.py` module that handles all Claude AI interactions
+* **Social Media Integration**: Added Selenium automation (`selenium.py`) to post directly to social media platforms via OneUp
 * **API Improvements**: Enhanced API endpoints with proper error handling and improved user experience
 * **Database Persistence**: Added better data storage with both JSON and SQLite options
 
@@ -97,12 +97,12 @@ graph TD
 ```bash
 modules/marketing/
 ├── api.py                  # Main API routes and controller
-├── get_claude.py           # Claude AI integration (content & code gen)
-├── get_database.py         # Database operations for event storage
-├── get_editable_link.py    # GrapeJS editor link generation 
-├── get_events.py           # Event fetching from T'NAY API
-├── get_selenium.py         # Selenium automation for social media
-├── get_template.py         # HTML/CSS templates for banners
+├── claude.py           # Claude AI integration (content & code gen)
+├── database.py         # Database operations for event storage
+├── editable_link.py    # GrapeJS editor link generation 
+├── events.py           # Event fetching from T'NAY API
+├── selenium.py         # Selenium automation for social media
+├── template.py         # HTML/CSS templates for banners
 ├── send_message.py         # Discord message formatting and sending
 ├── templates/              # HTML templates for web interface
 └── README.md               # Documentation
@@ -110,7 +110,7 @@ modules/marketing/
 
 ## Key Components
 
-### 1. AI Integration (`🔮 get_claude.py`)
+### 1. AI Integration (`🔮 claude.py`)
 
 Consolidated Claude AI interactions, providing:
 
@@ -118,7 +118,7 @@ Consolidated Claude AI interactions, providing:
 * HTML/CSS code generation for visual banners
 * Intelligent template filling and formatting
 
-### 2. Social Media Automation (`🤖 get_selenium.py`)
+### 2. Social Media Automation (`🤖 selenium.py`)
 
 Selenium-based automation for posting to social platforms:
 
@@ -127,7 +127,7 @@ Selenium-based automation for posting to social platforms:
 * Image and caption upload functionality
 * Multi-platform posting (Instagram, LinkedIn)
 
-### 3. Event Management (`📅 get_events.py`, `🗄️ get_database.py`)
+### 3. Event Management (`📅 events.py`, `🗄️ database.py`)
 
 Comprehensive event workflow:
 
@@ -136,7 +136,7 @@ Comprehensive event workflow:
 * Persistent storage in database
 * Completion tracking
 
-### 4. Visual Editing (`🎨 get_editable_link.py`)
+### 4. Visual Editing (`🎨 editable_link.py`)
 
 GrapesJS integration enabling:
 
