@@ -3,7 +3,6 @@
 # "hi! @officers, heres the ..."
 
 # filepath: /home/ash/student_orgs/SoDA/soda-marketing-bot/send_message.py
-import os
 import requests
 import json
 from datetime import datetime

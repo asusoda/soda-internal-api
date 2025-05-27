@@ -8,6 +8,7 @@ import os
 from openai import OpenAI
 import re
 from datetime import datetime
+from shared import logger
 
 def generate_grapes_code(event, template, content=None, api_key=None):
     """
@@ -114,11 +115,11 @@ def generate_grapes_code(event, template, content=None, api_key=None):
                 pass
         
         # Fallback to manual template filling
-        print("Couldn't extract HTML/CSS from Claude response, falling back to manual template")
+        logger.info("Couldn't extract HTML/CSS from Claude response, falling back to manual template")
         return fill_template_manually(event, template, content)
         
     except Exception as e:
-        print(f"Error generating code with Claude via OpenRouter: {str(e)}")
+        logger.info(f"Error generating code with Claude via OpenRouter: {str(e)}")
         return fill_template_manually(event, template, content)
 
 def fill_template_manually(event, template, content=None):

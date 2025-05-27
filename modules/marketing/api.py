@@ -23,7 +23,7 @@ from get_database import (
 # ==================================================================================================
 
 # Create a Flask Blueprint for the marketing module
-marketing_blueprint = Blueprint('marketing', __name__, template_folder='templates', static_folder='static')
+marketing_blueprint = Bluelogger.info('marketing', __name__, template_folder='templates', static_folder='static')
 
 # Load environment variables
 load_dotenv()
@@ -898,23 +898,23 @@ def process_events():
         # DEV
         # events = get_upcoming_events(config['api_url'], mock=True)
         if events is None or len(events) == 0:
-            print("No events found or error fetching events")
+            logger.info("No events found or error fetching events")
             return
         
         for event in events:
             # Events are already filtered to exclude existing ones in get_upcoming_events
-            print(f"Processing new event: {event['name']}")
+            logger.info(f"Processing new event: {event['name']}")
             try:
                 # Step 1: Generate content for platforms
-                print("Generating content...")
+                logger.info("Generating content...")
                 content = generate_content(event, config['open_router_claude_api_key'])
                 
                 # Step 2: Get HTML/CSS template
-                print("Getting template...")
+                logger.info("Getting template...")
                 template = get_discord_template()
                 
                 # Step 3: Generate GrapesJS code
-                print("Generating GrapesJS code...")
+                logger.info("Generating GrapesJS code...")
                 grapes_code = generate_grapes_code(event, template, content, config['open_router_claude_api_key'])
                 
                 # Step 4: Create an event object with all the generated content
@@ -934,28 +934,28 @@ def process_events():
                 save_event(event_object)
                 
                 # Step 6: Send Discord notification with the event-specific editor URL
-                print("Sending Discord notification...")
+                logger.info("Sending Discord notification...")
                 server_url = get_server_url()
                 editor_url = f"{server_url}/marketing/events/{event['id']}"
                 
                 notification_result = send_officer_notification(event, content, editor_url, config['officer_webhook_url'])
                 if not notification_result["success"]:
-                    print(f"ERROR: {notification_result['message']}")
+                    logger.info(f"ERROR: {notification_result['message']}")
                     return False
                 
-                print(f"✅ Successfully processed event: {event['name']}")
+                logger.info(f"✅ Successfully processed event: {event['name']}")
                 return True
                 
             except Exception as e:
-                print(f"ERROR processing event {event['name']}: {str(e)}")
+                logger.info(f"ERROR processing event {event['name']}: {str(e)}")
                 return False
                 
     except Exception as e:
-        print(f"Error processing events: {str(e)}")
+        logger.info(f"Error processing events: {str(e)}")
 
 def monitor_events():
     """Continuously monitor for upcoming events"""
-    print("Starting event monitoring...")
+    logger.info("Starting event monitoring...")
     
     while True:
         try:
@@ -967,7 +967,7 @@ def monitor_events():
             time.sleep(config['check_interval'])
             
         except Exception as e:
-            print(f"Error in monitoring loop: {str(e)}")
+            logger.info(f"Error in monitoring loop: {str(e)}")
             time.sleep(60)  # Sleep briefly before retrying          
 
 # ==================================================================================================
@@ -984,5 +984,5 @@ if __name__ == '__main__':
     monitor_thread.start()
     
     # Print some info
-    print("SoDA Marketing Bot")
-    print("=================")    
+    logger.info("SoDA Marketing Bot")
+    logger.info("=================")    

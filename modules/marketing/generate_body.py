@@ -4,10 +4,9 @@
 # [ instagram : {}, discord :{} ]
 #  using OpenRouter with Claude
 
-import os
-import json
 from datetime import datetime
 from openai import OpenAI
+from shared import logger
 
 def format_event_date(date_str):
     """Format date string to a more readable format"""
@@ -74,7 +73,7 @@ def generate_content(event, api_key=None):
         }
         
     except Exception as e:
-        print(f"Error generating content with OpenRouter: {str(e)}")
+        logger.info(f"Error generating content with OpenRouter: {str(e)}")
         return e
         # return generate_mock_content(event)
 

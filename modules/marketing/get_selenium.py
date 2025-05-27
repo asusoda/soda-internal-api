@@ -10,6 +10,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import time
 import os
 import tempfile
+from shared import logger
 
 def create_driver(headless=True):
     """
@@ -72,7 +73,7 @@ def login_to_oneup(driver, email, password):
         
         return True
     except (TimeoutException, NoSuchElementException) as e:
-        print(f"Login error: {str(e)}")
+        logger.info(f"Login error: {str(e)}")
         return False
 
 def create_social_media_post(driver, image_data, caption, platforms=None):
@@ -110,7 +111,7 @@ def create_social_media_post(driver, image_data, caption, platforms=None):
                 platform_checkbox.click()
                 time.sleep(0.5)  # Small delay between clicks
             except NoSuchElementException:
-                print(f"Platform {platform} not found")
+                logger.info(f"Platform {platform} not found")
         
         # Upload image
         # First, we need to save the image data to a temporary file
@@ -145,7 +146,7 @@ def create_social_media_post(driver, image_data, caption, platforms=None):
         
         return True
     except (TimeoutException, NoSuchElementException) as e:
-        print(f"Error creating post: {str(e)}")
+        logger.info(f"Error creating post: {str(e)}")
         return False
 
 def post_to_social_media(image_data, caption, email, password, platforms=None):

@@ -6,9 +6,8 @@
 
 import requests
 from datetime import datetime, timedelta
-import json
-import os
 from get_database import get_all_event_ids, is_event_completed, get_all_completed_events
+from shared import logger
 
 def get_upcoming_events(api_url=None, days_window=7, mock=False):
     """
@@ -24,7 +23,7 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
     """
     # Return mock events for testing if requested
     if mock:
-        print("Using mock events for testing")
+        logger.info("Using mock events for testing")
         now = datetime.now()
         # Mock events with realistic data
         mock_events = [
@@ -59,7 +58,7 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
         if response.status_code == 200:
             response_data = response.json()
             
-            print(f"API response: {response_data}")
+            logger.info(f"API response: {response_data}")
             
             # Check if the response has the expected structure
             if "status" in response_data and response_data["status"] == "success" and "events" in response_data:
@@ -71,16 +70,16 @@ def get_upcoming_events(api_url=None, days_window=7, mock=False):
                 # Filter out events that are already in the database or completed
                 new_events = filter_new_events(upcoming_events)
                 
-                print(f"Found {len(new_events)} new upcoming events in the next {days_window} days")
+                logger.info(f"Found {len(new_events)} new upcoming events in the next {days_window} days")
                 return new_events
             else:
-                print("Invalid API response format")
+                logger.info("Invalid API response format")
                 return []
         else:
-            print(f"Error fetching events: HTTP {response.status_code}")
+            logger.info(f"Error fetching events: HTTP {response.status_code}")
             return []
     except Exception as e:
-        print(f"Exception while fetching events: {str(e)}")
+        logger.info(f"Exception while fetching events: {str(e)}")
         return []
     
 def filter_new_events(events):
@@ -135,7 +134,7 @@ def filter_upcoming_events(events, days_window):
                 }
                 upcoming.append(formatted_event)
         except (ValueError, KeyError) as e:
-            print(f"Error parsing event: {str(e)}")
+            logger.info(f"Error parsing event: {str(e)}")
             continue
     
     return upcoming
