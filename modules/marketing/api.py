@@ -64,7 +64,6 @@ def ensure_template_files():
     # Create editor.html if it doesn't exist
     with open(editor_html_path, 'w') as f:
         f.write('''
-<!-- templates/editor.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -230,10 +229,6 @@ def ensure_template_files():
         });
     });
 
-    // View button handler
-    document.getElementById('view-btn').addEventListener('click', () => {
-        window.open('/view', '_blank');
-    });
     
     // Save as HTML button handler
     document.getElementById('save-html-btn').addEventListener('click', () => {
@@ -351,7 +346,6 @@ def ensure_template_files():
     # Create view.html if it doesn't exist
     with open(view_html_path, 'w') as f:
             f.write('''
-<!-- templates/view.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -438,11 +432,6 @@ def update_content():
             save_event(event)
             
     return jsonify({"status": "success"})
-
-@marketing_blueprint.route('/view')
-def view():
-    """Render the view-only page showing the current design"""
-    return render_template('view.html')
 
 @marketing_blueprint.route('/status', methods=['GET'])
 def get_status():
