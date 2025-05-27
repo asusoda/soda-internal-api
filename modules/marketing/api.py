@@ -155,6 +155,7 @@ def ensure_template_files():
     <button id="save-html-btn" class="gjs-btn">Save as HTML</button>
     <button id="save-image-btn" class="gjs-btn">Save as Image</button>
     <button id="send-discord-btn" class="gjs-btn">Send to Discord</button>
+    <button id="send-socials-btn" class="gjs-btn">Send to Socials</button>
 
     
     </div>
@@ -335,6 +336,55 @@ def ensure_template_files():
         }).catch(err => {
             console.error('Error capturing image:', err);
             alert('Failed to capture image.');
+        });
+    });
+    
+    // Only including the part that needs to be modified
+
+    // Send to Socials button handler
+    document.getElementById('send-socials-btn').addEventListener('click', () => {
+        const iframe = document.querySelector('.gjs-frame');
+        if (!iframe) {
+            alert('GrapesJS iframe not found.');
+            return;
+        }
+
+        // First show a loading message
+        showStatusMessage('Posting to social media, please wait...', false);
+
+        const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+        let targetElement = iframeDocument.querySelector('.banner');
+        if (!targetElement) {
+            targetElement = iframeDocument.body;
+        }
+
+        html2canvas(targetElement, {
+            allowTaint: true,
+            useCORS: true,
+            backgroundColor: null
+        }).then(canvas => {
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('file', blob, 'soda_banner.png');
+
+                fetch('/marketing/events/<EVENT_ID>/post-to-socials'.replace('<EVENT_ID>', window.location.pathname.split('/').pop()), {
+                    method: 'POST',
+                    body: formData
+                }).then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatusMessage('Successfully posted to social media!');
+                    } else {
+                        showStatusMessage('Failed to post to social media: ' + data.message, true);
+                    }
+                }).catch(err => {
+                    console.error('Network error when posting to social media:', err);
+                    showStatusMessage('Network error when posting to social media', true);
+                });
+            }, 'image/png');
+        }).catch(err => {
+            console.error('Error capturing image:', err);
+            showStatusMessage('Failed to capture image', true);
         });
     });
 
@@ -763,6 +813,63 @@ def post_event_to_discord(event_id):
             
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+
+@marketing_blueprint.route('/events/<event_id>/post-to-socials', methods=['POST'])
+def post_event_to_socials(event_id):
+    """API endpoint to send event banner to social media platforms via OneUp"""
+    try:
+        # Import the selenium function
+        from get_selenium import post_to_social_media
+        
+        # Check credentials
+        oneup_email = config['oneup_email']
+        oneup_password = config['oneup_pass']
+        
+        if not oneup_email or not oneup_password:
+            return jsonify({"success": False, "message": "OneUp credentials not configured"})
+        
+        # Check if the event exists
+        event = get_event_by_id(event_id)
+        if not event:
+            return jsonify({"success": False, "message": "Event not found"})
+        
+        # Check if there's a file in the request
+        if 'file' not in request.files:
+            return jsonify({"success": False, "message": "No image file found in request"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "message": "No file selected"})
+        
+        # Read the file data
+        image_data = file.read()
+        
+        # Get caption from event content
+        caption = ""
+        if event.get('content') and isinstance(event['content'], dict):
+            caption = event['content'].get('text', '')
+        
+        # If no content from LLM, create a simple caption
+        if not caption:
+            return jsonify({"success": False, "message": "No content available for caption"})
+        
+        # Post to social media
+        result = post_to_social_media(
+            image_data=image_data,
+            caption=caption,
+            email=oneup_email,
+            password=oneup_password,
+            platforms=["instagram", "linkedin"]
+        )
+        
+        if result["success"]:
+            # Mark the event as completed
+            mark_event_completed(event_id, event.get('name'))
+            
+        return jsonify(result)
+            
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error posting to social media: {str(e)}"})
 
 @marketing_blueprint.route('/process-events', methods=['POST'])
 def process_events_now():
