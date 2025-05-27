@@ -8,7 +8,7 @@ import requests
 
 # Import our modules
 from modules.marketing.events import get_upcoming_events
-from get_template import get_discord_template
+from modules.marketing.template import get_discord_template
 from modules.marketing.claude import generate_content, generate_grapes_code
 from modules.marketing.editable_link import get_server_url
 from modules.marketing.message import send_officer_notification
