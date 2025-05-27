@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Blueprint
+from flask import render_template, request, jsonify, Blueprint
 import os
 import threading
 import time
@@ -7,17 +7,18 @@ from datetime import datetime
 import requests
 
 # Import our modules
-from get_events import get_upcoming_events
+from modules.marketing.events import get_upcoming_events
 from get_template import get_discord_template
-from get_claude import generate_content, generate_grapes_code
-from get_editable_link import get_server_url
-from send_message import send_officer_notification
+from modules.marketing.claude import generate_content, generate_grapes_code
+from modules.marketing.editable_link import get_server_url
+from modules.marketing.message import send_officer_notification
 from dotenv import load_dotenv
 from shared import logger, config
-from get_database import (
+from modules.marketing.database import (
     get_all_events, get_event_by_id, save_event, mark_event_completed,
     get_all_completed_events
 )
+from modules.marketing.selenium import post_to_social_media
 
 # ==================================================================================================
 
@@ -446,8 +447,6 @@ def post_event_to_discord(event_id):
 def post_event_to_socials(event_id):
     """API endpoint to send event banner to social media platforms via OneUp"""
     try:
-        # Import the selenium function
-        from get_selenium import post_to_social_media
         
         # Check credentials
         oneup_email = config['oneup_email']
@@ -951,7 +950,6 @@ def process_events():
                 
     except Exception as e:
         logger.info(f"Error processing events: {str(e)}")
-
 
 def monitor_events():
     """Continuously monitor for upcoming events"""

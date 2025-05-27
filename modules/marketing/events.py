@@ -6,7 +6,7 @@
 
 import requests
 from datetime import datetime, timedelta
-from get_database import get_all_event_ids, get_all_completed_events
+from modules.marketing.database import get_all_event_ids, get_all_completed_events
 from shared import logger
 
 def get_upcoming_events(api_url=None, days_window=7, mock=False):
