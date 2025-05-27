@@ -676,7 +676,7 @@ def dashboard():
             
             // Process events now
             document.getElementById('process-events-btn').addEventListener('click', () => {{
-                fetch('/marketing/process-events', {{ method: 'POST' }})
+                fetch('/marketing/process-events-now', {{ method: 'POST' }})
                     .then(response => response.json())
                     .then(data => {{
                         alert(data.message);
@@ -871,16 +871,16 @@ def post_event_to_socials(event_id):
     except Exception as e:
         return jsonify({"success": False, "message": f"Error posting to social media: {str(e)}"})
 
-@marketing_blueprint.route('/process-events', methods=['POST'])
+@marketing_blueprint.route('/process-events-now', methods=['POST'])
 def process_events_now():
     """Process events immediately"""
-    thread = threading.Thread(target=process_events_once)
+    thread = threading.Thread(target=process_events)
     thread.daemon = True
     thread.start()
     return jsonify({"status": "success", "message": "Started Processing Events..."})
 
-def process_events_once():
-    """Process events one time"""
+def process_events():
+    """Process events at the instance"""
     try:
         # PROD
         events = get_upcoming_events(config['api_url'])
@@ -894,60 +894,54 @@ def process_events_once():
         for event in events:
             # Events are already filtered to exclude existing ones in get_upcoming_events
             print(f"Processing new event: {event['name']}")
-            process_event(event)
+            try:
+                # Step 1: Generate content for platforms
+                print("Generating content...")
+                content = generate_content(event, config['open_router_claude_api_key'])
+                
+                # Step 2: Get HTML/CSS template
+                print("Getting template...")
+                template = get_discord_template()
+                
+                # Step 3: Generate GrapesJS code
+                print("Generating GrapesJS code...")
+                grapes_code = generate_grapes_code(event, template, content, config['open_router_claude_api_key'])
+                
+                # Step 4: Create an event object with all the generated content
+                event_object = {
+                    'id': event['id'],
+                    'name': event['name'],
+                    'date': event['date'],
+                    'location': event['location'],
+                    'info': event['info'],
+                    'content': content,
+                    'grapes_code': grapes_code,
+                    'created_at': datetime.now().isoformat(),
+                    'status': 'pending' # pending, completed
+                }
+                
+                # Step 5: Save the event to the database
+                save_event(event_object)
+                
+                # Step 6: Send Discord notification with the event-specific editor URL
+                print("Sending Discord notification...")
+                server_url = get_server_url()
+                editor_url = f"{server_url}/marketing/events/{event['id']}"
+                
+                notification_result = send_officer_notification(event, content, editor_url, config['officer_webhook_url'])
+                if not notification_result["success"]:
+                    print(f"ERROR: {notification_result['message']}")
+                    return False
+                
+                print(f"✅ Successfully processed event: {event['name']}")
+                return True
+                
+            except Exception as e:
+                print(f"ERROR processing event {event['name']}: {str(e)}")
+                return False
                 
     except Exception as e:
         print(f"Error processing events: {str(e)}")
-
-def process_event(event):
-    """Process a single event through the entire workflow"""
-    print(f"\nProcessing event: {event['name']}")
-    
-    try:
-        # Step 1: Generate content for platforms
-        print("Generating content...")
-        content = generate_content(event, config['open_router_claude_api_key'])
-        
-        # Step 2: Get HTML/CSS template
-        print("Getting template...")
-        template = get_discord_template()
-        
-        # Step 3: Generate GrapesJS code
-        print("Generating GrapesJS code...")
-        grapes_code = generate_grapes_code(event, template, content, config['open_router_claude_api_key'])
-        
-        # Step 4: Create an event object with all the generated content
-        event_object = {
-            'id': event['id'],
-            'name': event['name'],
-            'date': event['date'],
-            'location': event['location'],
-            'info': event['info'],
-            'content': content,
-            'grapes_code': grapes_code,
-            'created_at': datetime.now().isoformat(),
-            'status': 'pending' # pending, completed
-        }
-        
-        # Step 5: Save the event to the database
-        save_event(event_object)
-        
-        # Step 6: Send Discord notification with the event-specific editor URL
-        print("Sending Discord notification...")
-        server_url = get_server_url()
-        editor_url = f"{server_url}/marketing/events/{event['id']}"
-        
-        notification_result = send_officer_notification(event, content, editor_url, config['officer_webhook_url'])
-        if not notification_result["success"]:
-            print(f"ERROR: {notification_result['message']}")
-            return False
-        
-        print(f"✅ Successfully processed event: {event['name']}")
-        return True
-        
-    except Exception as e:
-        print(f"ERROR processing event {event['name']}: {str(e)}")
-        return False
 
 def monitor_events():
     """Continuously monitor for upcoming events"""
@@ -957,7 +951,7 @@ def monitor_events():
         try:
             # Only process events if monitoring is active
             if config['monitoring_active']:
-                process_events_once()
+                process_events()
             
             # Sleep for the specified interval
             time.sleep(config['check_interval'])
