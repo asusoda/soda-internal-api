@@ -9,8 +9,7 @@ import requests
 # Import our modules
 from get_events import get_upcoming_events
 from get_template import get_discord_template
-from generate_body import generate_content
-from generate_code import generate_grapes_code
+from get_claude import generate_content, generate_grapes_code
 from get_editable_link import get_server_url
 from send_message import send_officer_notification
 from dotenv import load_dotenv
@@ -23,7 +22,7 @@ from get_database import (
 # ==================================================================================================
 
 # Create a Flask Blueprint for the marketing module
-marketing_blueprint = Bluelogger.info('marketing', __name__, template_folder='templates', static_folder='static')
+marketing_blueprint = Blueprint('marketing', __name__, template_folder='templates', static_folder='static')
 
 # Load environment variables
 load_dotenv()
@@ -952,6 +951,7 @@ def process_events():
                 
     except Exception as e:
         logger.info(f"Error processing events: {str(e)}")
+
 
 def monitor_events():
     """Continuously monitor for upcoming events"""

@@ -1,14 +1,96 @@
-#  considers template and
-# description to generate
-# actual code for 
-# grapeJS using claude
-# <code>
+# This file consolidates all Claude API interactions for content and code generation
 
-import os
-from openai import OpenAI
 import re
+import json
 from datetime import datetime
+from openai import OpenAI
 from shared import logger
+
+def format_event_date(date_str):
+    """Format date string to a more readable format"""
+    try:
+        date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        return date_obj.strftime("%A, %B %d, %Y at %I:%M %p")
+    except ValueError:
+        return date_str  # Return original if parsing fails
+
+def get_claude_client(api_key=None):
+    """
+    Create and return an OpenAI client configured to use Claude via OpenRouter
+    
+    Args:
+        api_key (str): OpenRouter API key
+        
+    Returns:
+        OpenAI: Configured client instance
+    """
+    return OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
+# -- Content Generation Functions (from generate_body.py) --
+
+def generate_content(event, api_key=None):
+    """
+    Generate a text paragraph description for an event using Claude via OpenRouter
+    
+    Args:
+        event (dict): Event data containing name, date, location, info
+        api_key (str): OpenRouter API key (defaults to environment variable)
+        
+    Returns:
+        dict: Contains generated text paragraph for the event
+    """    
+    
+    client = get_claude_client(api_key)
+    
+    # Format event data for better prompt
+    formatted_date = format_event_date(event["date"])
+    
+    prompt = f"""
+    Generate a concise text paragraph describing this Software Developers Association (SoDA) event:
+
+    Event Name: {event['name']}
+    Date: {formatted_date}
+    Location: {event['location']}
+    Description: {event['info']}
+
+    The paragraph should be informative, engaging, and highlight the key details and benefits of attending.
+    Format your response as a simple text paragraph.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            extra_headers={
+                "HTTP-Referer": "https://soda.engineering.asu.edu", 
+                "X-Title": "ASU SoDA",
+            },
+            model="anthropic/claude-3.7-sonnet",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.4,
+            max_tokens=500
+        )
+        
+        # Extract the text response
+        content_text = response.choices[0].message.content.strip()
+        
+        return {
+            "text": content_text
+        }
+        
+    except Exception as e:
+        logger.info(f"Error generating content with OpenRouter: {str(e)}")
+        return {
+            "text": f"Join us for {event['name']} on {formatted_date} at {event['location']}! {event.get('info', '')[:150]}... #ASUSoDA #SoftwareDevelopment"
+        }
+
+# -- Code Generation Functions (from generate_code.py) --
 
 def generate_grapes_code(event, template, content=None, api_key=None):
     """
@@ -24,10 +106,7 @@ def generate_grapes_code(event, template, content=None, api_key=None):
         dict: HTML and CSS for GrapesJS
     """
     
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key
-    )
+    client = get_claude_client(api_key)
     
     # Format the event date nicely
     try:
@@ -81,7 +160,7 @@ def generate_grapes_code(event, template, content=None, api_key=None):
                 "HTTP-Referer": "https://soda.engineering.asu.edu",
                 "X-Title": "SoDA Internal API",
             },
-            model="anthropic/claude-3-7-sonnet",
+            model="anthropic/claude-3.7-sonnet",
             messages=[
                 {
                     "role": "user",
@@ -107,7 +186,6 @@ def generate_grapes_code(event, template, content=None, api_key=None):
         json_match = re.search(r'\{[\s\S]*"html"[\s\S]*"css"[\s\S]*\}', content_text)
         if json_match:
             try:
-                import json
                 result = json.loads(json_match.group(0))
                 if "html" in result and "css" in result:
                     return result
