@@ -409,11 +409,6 @@ def load_content():
     # Default to global editor_content if no event is being edited
     return jsonify(editor_content)
 
-@marketing_blueprint.route('/load-content', methods=['GET'])
-def load_content():
-    """API endpoint to load the current editor content"""
-    return jsonify(editor_content)
-
 @marketing_blueprint.route('/update-content', methods=['POST'])
 def update_content():
     """API endpoint to update editor content (from LLM or editor)"""
