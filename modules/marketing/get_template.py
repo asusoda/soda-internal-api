@@ -162,17 +162,3 @@ def get_email_template():
     templates["css"] = templates["css"].replace("width: 500px;\n        height: 500px;", 
                                               "width: 1300px;\n        height: 780px;")
     return templates
-
-# if __name__ == "__main__":
-#     # Test the templates
-#     import json
-#     templates = {
-#         "base": get_base_templates(),
-#         "instagram": get_instagram_template(),
-#         "discord": get_discord_template(),
-#         "email": get_email_template()
-#     }
-    
-#     print("Available templates:")
-#     for name in templates.keys():
-#         print(f"- {name}")

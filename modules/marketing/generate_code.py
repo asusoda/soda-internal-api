@@ -162,22 +162,3 @@ def fill_template_manually(event, template, content=None):
     html = html.replace("{{EVENT_DESCRIPTION}}", event.get('info', ''))
     
     return {"html": html, "css": css}
-
-# if __name__ == "__main__":
-#     # Test with a sample event
-#     from get_template import get_discord_template
-    
-#     test_event = {
-#         "name": "Amazon ML Specialist Guest Lecture",
-#         "date": "2025-05-21T18:00:00",
-#         "location": "PSH 150",
-#         "info": "Learn about the latest in machine learning and AI technologies at Amazon"
-#     }
-    
-#     template = get_discord_template()
-#     result = generate_grapes_code(test_event, template)
-    
-#     print("=== HTML ===")
-#     print(result["html"])
-#     print("\n=== CSS ===")
-#     print(result["css"])

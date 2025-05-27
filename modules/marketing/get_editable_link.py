@@ -86,11 +86,3 @@ def wait_for_server(url, max_attempts=5, wait_time=2):
         time.sleep(wait_time)
         attempts += 1
     return False
-
-# if __name__ == "__main__":
-#     # Test pushing content
-#     test_html = "<div>This is a test</div>"
-#     test_css = "div { color: red; }"
-    
-#     result = push_content_to_grapesjs(test_html, test_css)
-#     print(json.dumps(result, indent=2))

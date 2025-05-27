@@ -266,34 +266,3 @@ def send_officer_notification(event, content, editor_url, webhook_url=None):
     
     # Send to Discord
     return send_discord_webhook(webhook_url, message, event.get("name", "SoDA Event"))
-
-# if __name__ == "__main__":
-#     # Test sending a message
-#     test_event = {
-#         "id": "test-event",
-#         "name": "Amazon ML Specialist Guest Lecture",
-#         "date": "2025-05-21T18:00:00",
-#         "location": "PSH 150",
-#         "info": "Learn about the latest in machine learning and AI technologies at Amazon"
-#     }
-    
-#     test_content = {
-#         "discord": """
-# # 🚨 Amazon ML Specialist Guest Lecture
-
-# Hey SoDA members! We're excited to announce a special guest lecture from Amazon's ML team!
-
-# Join us to learn about cutting-edge machine learning technologies and career opportunities at Amazon.
-
-# 📅 **Wednesday, May 21, 2025**
-# 📍 **PSH 150**
-# ⏰ **6:00 PM - 7:30 PM**
-
-# Don't miss this incredible opportunity to connect with industry professionals!
-# """
-#     }
-    
-#     test_url = "http://localhost:5000"
-    
-#     result = send_officer_notification(test_event, test_content, test_url)
-#     print(json.dumps(result, indent=2))
