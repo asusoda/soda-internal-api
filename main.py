@@ -129,7 +129,7 @@ def initialize_app():
     auth_thread.daemon = True
     auth_thread.start()
     logger.info("Auth bot thread initiated")
-s
+
     scheduler.add_job(sync_job, 'interval', minutes=15, id='notion_google_sync_job')
     scheduler.add_job(ocp_sync_job, 'interval', minutes=15, id='notion_ocp_sync_job')
     scheduler.start()
