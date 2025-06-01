@@ -1,6 +1,10 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';  // Axios instance for making API requests
+import Orb from '../components/ui/Orb'; // Import the Orb component
+import StarBorder from '../components/ui/StarBorder'; // Import the StarBorder component
+import Logo from '../assets/logo-dark.svg'; // Updated import path for the logo
+import { FaDiscord } from 'react-icons/fa'; // Import Discord icon
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -38,17 +42,34 @@ const LoginPage = () => {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
-            <div className="max-w-md w-full p-6 bg-gray-800 rounded-lg shadow-lg">
-                <h1 className="text-3xl font-bold mb-6 text-center">SoDA at ASU</h1>
-                <p className="mb-6 text-center">Log in with your Discord account to continue</p>
-                <div className="flex justify-center">
-                    <button
+        <div className="relative min-h-screen flex flex-col items-center justify-center bg-soda-black text-soda-white overflow-hidden">
+            {/* Sticky Logo */}
+            <div className="absolute top-0 left-0 p-4 md:p-6 z-20">
+                <img src={Logo} alt="SoDA Admin Logo" className="w-32 md:w-40" />
+            </div>
+
+            <div className="absolute inset-0 z-0">
+                <Orb hue={300} forceHoverState={true} hoverIntensity={0.1} /> {/* Blue hue for the Orb */}
+            </div>
+
+            {/* Login Content */}
+            <div className="relative z-10 max-w-md w-full p-8 bg-soda-black bg-opacity-80 rounded-lg shadow-2xl flex flex-col items-center mt-16 md:mt-0">
+                <h1 className="text-3xl md:text-4xl font-bold mb-3 text-soda-white text-center">
+                    SoDA Admin Panel
+                </h1>
+                <p className="mb-8 text-center text-gray-300 text-sm md:text-base">Admin dashboard for SoDA management. Please log in to continue.</p>
+                <div className="flex justify-center w-full">
+                    <StarBorder
                         onClick={handleLogin}
-                        className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md text-center text-white font-semibold transition-colors duration-300"
+                        color="#FF3B30" // Red color for the star effect
+                        speed="5s"
+                        className="w-full max-w-xs"
                     >
-                        Login with Discord
-                    </button>
+                        <div className="flex items-center justify-center">
+                            <FaDiscord className="mr-2 h-5 w-5" />
+                            Login with Discord
+                        </div>
+                    </StarBorder>
                 </div>
             </div>
         </div>

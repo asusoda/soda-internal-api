@@ -1,0 +1,54 @@
+# Build stage
+FROM python:3.12-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files first (better caching)
+COPY pyproject.toml poetry.lock ./
+
+# Export dependencies to requirements.txt for faster installation
+RUN pip install poetry poetry-plugin-export && \
+    poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+# Install dependencies using pip (faster than poetry)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Runtime stage
+FROM python:3.12-slim
+
+# Install only runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* && \
+    useradd -m appuser && \
+    mkdir -p /app/data
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY --chown=appuser:appuser modules ./modules
+COPY --chown=appuser:appuser migrations ./migrations
+COPY --chown=appuser:appuser *.py ./
+
+# Switch to non-root user
+USER appuser
+
+# Expose the port
+EXPOSE 8000
+
+# Run the application
+CMD ["python3", "main.py"]

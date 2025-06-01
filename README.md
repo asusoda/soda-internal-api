@@ -1,33 +1,28 @@
-# soda-internal-api
-This project provides a web-based control panel for managing a Jeopardy-themed Discord bot. The control panel, built with React, allows authorized users to toggle the bot's status and schedule new Jeopardy games by uploading a JSON file. The server side, developed using Flask, handles API requests, Discord bot interactions, and game management.
+# TANAY API
+This project provides a modular internal API and Discord bots for SoDA. 
 
-## Requirements
+The server side is developed using Flask, handling API requests, Discord bot interactions, and data management across all modules.
 
-#### Server (Flask App)
-- Python 3.8 or newer
-- Dependencies as listed in `requirements.txt`
+See the READMEs for more detailed documentation on the respective modules in `./modules`
 
-
-## Server Setup
+## Development Setup
 1. Clone the repository:
    ```bash
    git clone https://github.com/asusoda/soda-internal-api.git
    ```
-2. Create a new virtual environment eihter conda or venv
-    If using conda:
-    ```bash
-    conda create --name soda-internal-api python=3.8
-    conda activate soda-internal-api
-    ```
-    if usning venv:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
-3. Install the dependencies:
-    ```bash
-      pip install -r requirements.txt
-    ```
+2. Install dependencies using Poetry:
+   ```bash
+   # Install Poetry if you don't have it yet
+   # See https://python-poetry.org/docs/#installation for more details
+   curl -sSL https://install.python-poetry.org | python3 -
+   
+   # Install project dependencies
+   poetry install
+   
+   # Activate the virtual environment
+   poetry shell
+   ```
+
 4. Edit the secret values
   Copy the .env.template to .env
       ```bash
@@ -37,20 +32,96 @@ This project provides a web-based control panel for managing a Jeopardy-themed D
 
 5. Run the program 
       ```bash
-      python3 main.py
+      poetry run python main.py
+      
+      # If using activated virtual environment
+      python main.py
       ```
+
+## Testing
+
+This project uses pytest for automated testing. To run the tests:
+
+1. Make sure you have the development dependencies installed:
+   ```bash
+   poetry install
+   ```
+
+2. Run all tests:
+   ```bash
+   pytest          # If pytest is in your PATH
+   # OR
+   poetry run pytest  # If using Poetry
+   ```
 
 ## Deployment
 
-### Deploying Flask Server
+### Using Docker Compose (Recommended)
 
-1. **Configure production settings** in the `.env` file.
-2. **Use a production-ready WSGI server** such as `gunicorn` or `uWSGI` to serve the Flask app.
+The project now uses Docker Compose for easier deployment and management.
 
-   Example with `gunicorn`:
-   ```bash
-   gunicorn --bind 0.0.0.0:8000 wsgi:app
-   ```
+#### Quick Start
+
+```bash
+# Development environment
+make dev
+
+# Production deployment
+make deploy
+
+# View logs
+make logs
+
+# Stop services
+make down
+```
+
+#### Manual Docker Compose Commands
+
+```bash
+# Build the Docker image
+docker-compose build
+
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Production deployment
+docker-compose up -d
+```
+
+#### Deployment Process
+
+The `make deploy` command automates the entire deployment:
+
+1. Pulls latest changes from git
+2. Builds the Docker image
+3. Manages container lifecycle
+4. Performs health checks
+5. Shows deployment status
+
+You can customize the deployment with environment variables:
+```bash
+# Deploy from a different directory
+make deploy PROJECT_DIR=/path/to/project
+
+# Deploy a different branch
+make deploy BRANCH=develop
+```
+
+### Docker Configuration Files
+
+- `docker-compose.yml` - Single configuration for all environments
+- `.dockerignore` - Optimizes build context
+
+### Data Persistence
+
+The application data is stored in the `./data` directory, which is mounted as a volume in the container. This ensures data persistence across container restarts.
 
 ## License
 

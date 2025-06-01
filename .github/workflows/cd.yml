@@ -1,0 +1,64 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        port: ${{ secrets.VPS_SSH_PORT }}
+        password: ${{ secrets.VPS_SSH_PASSWORD }}
+        script: |
+          set -e  # Exit on any error
+          
+          # Configuration
+          PROJECT_DIR="${PROJECT_DIR:-/var/www/soda-internal-api}"
+          
+          # Check if project directory exists
+          if [ ! -d "$PROJECT_DIR" ]; then
+            echo "Error: Project directory $PROJECT_DIR not found"
+            exit 1
+          fi
+          
+          cd "$PROJECT_DIR"
+          
+          # Check for docker-compose
+          if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "Error: docker-compose is not installed"
+            exit 1
+          fi
+          
+          # Run deployment using make
+          echo "Starting deployment..."
+          make deploy PROJECT_DIR="$PROJECT_DIR" || {
+            echo "Deployment failed!"
+            # Show recent logs for debugging
+            make logs | tail -50
+            exit 1
+          }
+          
+          # Verify deployment health
+          echo "Verifying deployment health..."
+          sleep 10  # Give container time to fully start
+          
+          # Check container status
+          if docker compose ps | grep -q "healthy\|running"; then
+            echo "✅ Deployment completed successfully!"
+            echo "Container status:"
+            docker compose ps
+          else
+            echo "❌ Deployment verification failed!"
+            echo "Container status:"
+            docker compose ps
+            echo "Recent logs:"
+            docker compose logs --tail=50
+            exit 1
+          fi
