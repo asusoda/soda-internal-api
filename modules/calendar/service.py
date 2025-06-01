@@ -356,6 +356,48 @@ class CalendarService:
             return successful_deletions, failed_deletions
 
 
+    def _sync_ocp_database(self, transaction=None) -> Dict[str, Any]:
+        """
+        Triggers the OCP database sync by using the NotionOCPSyncService directly.
+        
+        Args:
+            transaction: Optional Sentry transaction
+            
+        Returns:
+            Dict with status and result information
+        """
+        op_name = "sync_ocp_database"
+        self.logger.info(f"Starting {op_name} after calendar sync")
+        
+        try:
+            # Import here to avoid circular imports
+            from modules.calendar.ocp.notion_sync_service import NotionOCPSyncService
+            
+            # Add Sentry context if transaction exists
+            if transaction:
+                set_context("ocp_sync", {"triggered_by": "calendar_sync"})
+            
+            # Use the NotionOCPSyncService directly instead of making an HTTP request
+            ocp_sync_service = NotionOCPSyncService(self.logger)
+            sync_result = ocp_sync_service.sync_notion_to_ocp(transaction)
+            
+            if sync_result.get("status") == "success":
+                self.logger.info(f"OCP sync completed successfully: {sync_result.get('message')}")
+            else:
+                self.logger.warning(f"OCP sync returned status {sync_result.get('status')}: {sync_result.get('message')}")
+            
+            return sync_result
+                
+        except Exception as e:
+            self.logger.error(f"Error triggering OCP sync: {str(e)}")
+            if transaction:
+                capture_exception(e)
+            
+            return {
+                "status": "error",
+                "message": f"Error triggering OCP sync: {str(e)}"
+            }
+
     def sync_notion_to_google(self, transaction=None) -> Dict[str, Any]:
         """
         Orchestrates the full sync process from Notion to Google Calendar.
@@ -439,6 +481,21 @@ class CalendarService:
                 result["message"] = f"Calendar sync complete. Processed {len(update_results)} events."
                 result["details"]["gcal_processed_count"] = len(update_results)
                 # Add counts from update_results if needed (created, updated, failed)
+
+                # 5. Trigger OCP sync to update Officer Contribution Points
+                with operation_span(transaction, op="sync_ocp", description="trigger_ocp_database_sync", logger=self.logger) as span:
+                    ocp_sync_result = self._sync_ocp_database(transaction)
+                    result["details"]["ocp_sync"] = ocp_sync_result
+                    if ocp_sync_result["status"] != "success":
+                        # OCP sync warning/error, but don't fail the whole operation
+                        self.logger.warning(f"OCP sync completed with status: {ocp_sync_result['status']}")
+                        span.set_status("error")
+                        if result["status"] == "success":
+                            result["status"] = "warning"
+                            result["message"] += f" OCP sync had issues: {ocp_sync_result['message']}"
+                    else:
+                        self.logger.info("OCP sync completed successfully")
+                        result["message"] += " OCP database sync was also successful."
 
                 self.logger.info(f"{op_name} completed successfully.")
                 set_tag("sync_status", "success")

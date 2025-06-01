@@ -8,6 +8,7 @@ import ActiveGame from './pages/ActiveGame';
 import LoginPage from './pages/LoginPage';
 import ServerError from './pages/ServerError';
 import AddPoints from './pages/AddPoints';
+import OCPDetails from './pages/OCPDetails';
 
 import React from 'react';
 import { Route, Routes, BrowserRouter } from 'react-router-dom';
@@ -34,6 +35,7 @@ function App() {
         <Route path='/500' element = {<ServerError />} />
         <Route path='/users' element={<UserPage />} />
         <Route path='/leaderboard' element={<LeaderBoard />} />
+        <Route path='/ocp' element={<OCPDetails />} />
       </Routes>
       <ToastContainer />
     </BrowserRouter>

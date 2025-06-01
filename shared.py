@@ -2,7 +2,7 @@ from flask import Flask, Blueprint, send_from_directory
 from flask_cors import CORS
 import discord
 import os
-from modules.utils.db import DBConnect
+from modules.utils.db import DBConnect, OCPDBManager
 from notion_client import Client
 import asyncio
 from modules.utils.config import Config
@@ -49,9 +49,20 @@ if config.SENTRY_DSN:
 else:
     logger.warning("SENTRY_DSN not found in environment. Sentry not initialized.")
 
-# Initialize database connection
+# Initialize database connections
 db_connect = DBConnect("sqlite:///./data/user.db")
 tokenManger = TokenManager()
+
+# Initialize OCP database manager (tables will be created automatically if they don't exist)
+try:
+    
+    # Initialize the OCP database manager
+    ocp_db_manager = OCPDBManager("sqlite:///./data/ocp.db")
+    logger.info("OCP database manager initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize OCP database manager: {str(e)}")
+    logger.warning("OCP functionality will be limited. Individual services will create their own database connections if needed.")
+    ocp_db_manager = None
 
 def create_summarizer_bot(loop: asyncio.AbstractEventLoop) -> discord.Bot:
     """Create and configure the summarizer bot instance with a specific event loop."""

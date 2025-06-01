@@ -4,6 +4,10 @@
   "private": true,
   "dependencies": {
     "@tabler/icons-react": "^3.33.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.1.0",
+    "@mui/material": "^7.1.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
@@ -25,6 +29,7 @@
     "react-toastify": "^10.0.5",
     "serve": "^14.2.4",
     "tailwind-merge": "^3.3.0",
+    "soda-admin": "file:",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

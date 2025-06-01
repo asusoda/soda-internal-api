@@ -5,7 +5,7 @@ import useAuthToken from '../hooks/userAuth';
 import Orb from '../components/ui/Orb';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
 import StarBorder from '../components/ui/StarBorder'; // For potential future use, or if styling modal buttons
-import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes } from 'react-icons/fa'; // Added FaTimes for close icon
+import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes, FaCogs } from 'react-icons/fa'; // Added FaCogs and FaTimes
 
 const LeaderboardPage = () => {
   useAuthToken();
@@ -108,6 +108,7 @@ const LeaderboardPage = () => {
     { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
     { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
     { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
+    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
   ];
 
   if (loading && !leaderboardData.length) { // Show initial loading state
@@ -166,26 +167,26 @@ const LeaderboardPage = () => {
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Name</th>
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Identifier</th>
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider text-right">Points</th>
-                  </tr>
-                </thead>
+              </tr>
+            </thead>
                 <tbody className="divide-y divide-soda-white/10">
-                  {leaderboardData.map((user, index) => (
+              {leaderboardData.map((user, index) => (
                     <tr key={user.identifier || index} className="hover:bg-soda-black/20 transition-colors duration-150">
                       <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/90 font-medium">{index + 1}</td>
                       <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
-                        <button
+                    <button
                           className="text-soda-blue hover:text-soda-red transition-colors duration-150 font-medium"
-                          onClick={() => viewUserDetails(user.identifier)}
-                        >
+                      onClick={() => viewUserDetails(user.identifier)}
+                    >
                           {user.name}
-                        </button>
-                      </td>
+                    </button>
+                  </td>
                       <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/70">{user.identifier}</td>
                       <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white text-right font-semibold">{user.points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                </tr>
+              ))}
+            </tbody>
+          </table>
             </div>
           ) : (
             !loading && <p className="text-center text-soda-white/70 py-8">No leaderboard data available yet.</p>
