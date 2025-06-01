@@ -1,158 +1,257 @@
-import React, { useState } from 'react';
-import Sidebar from '../components/SideBar';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
+import Orb from '../components/ui/Orb';
+import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
+import StarBorder from '../components/ui/StarBorder';
+import { FaSearch, FaUserEdit, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList } from 'react-icons/fa';
 
 const UserPage = () => {
   useAuthToken();
+  const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  // State for Navbar
+  const [activeNavItem, setActiveNavItem] = useState("User Management");
+
+  // State for Find/Update User
+  const [searchEmail, setSearchEmail] = useState('');
   const [userData, setUserData] = useState(null);
+  const [updateName, setUpdateName] = useState('');
+  const [updateAsuId, setUpdateAsuId] = useState('');
+  const [updateAcademicStanding, setUpdateAcademicStanding] = useState('');
+  const [updateMajor, setUpdateMajor] = useState('');
+  const [fetchError, setFetchError] = useState('');
+  const [updateSuccessMessage, setUpdateSuccessMessage] = useState('');
+  const [updateError, setUpdateError] = useState('');
+
+  // State for Create User
+  const [createEmail, setCreateEmail] = useState('');
+  const [createName, setCreateName] = useState('');
+  const [createAsuId, setCreateAsuId] = useState('');
+  const [createAcademicStanding, setCreateAcademicStanding] = useState('');
+  const [createMajor, setCreateMajor] = useState('');
+  const [createSuccessMessage, setCreateSuccessMessage] = useState('');
+  const [createError, setCreateError] = useState('');
+  
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const [name, setName] = useState('');
-  const [asuId, setAsuId] = useState('');
-  const [academicStanding, setAcademicStanding] = useState('');
-  const [major, setMajor] = useState('');
-
-  const fetchUser = async () => {
+  // Fetch User Logic
+  const handleFetchUser = async () => {
+    if (!searchEmail) {
+      setFetchError('Please enter an email to search.');
+      return;
+    }
     setLoading(true);
-    setError('');
-    setSuccessMessage('');
-
+    setFetchError('');
+    setUpdateSuccessMessage('');
+    setUpdateError('');
+    setUserData(null);
     try {
-      const response = await apiClient.get(`/users/user?email=${email}`);
+      const response = await apiClient.get(`/users/user?email=${searchEmail}`);
       setUserData(response.data);
-
-      setName(response.data.name);
-      setAsuId(response.data.asu_id);
-      setAcademicStanding(response.data.academic_standing);
-      setMajor(response.data.major);
+      setUpdateName(response.data.name || '');
+      setUpdateAsuId(response.data.asu_id || '');
+      setUpdateAcademicStanding(response.data.academic_standing || '');
+      setUpdateMajor(response.data.major || '');
     } catch (error) {
+      setUserData(null); // Clear previous user data on new error
       if (error.response && error.response.status === 404) {
-        setError('User not found. You can add new information.');
-        setUserData({});  // Setting an empty object to show the modal
+        setFetchError('User not found. You can create a new user or try a different email.');
       } else {
-        setError('An error occurred while fetching the user.');
+        setFetchError(error.response?.data?.error || 'An error occurred while fetching the user.');
       }
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
-  const updateUser = async (e) => {
+  // Update User Logic
+  const handleUpdateUser = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMessage('');
-
-    const data = {
-      name,
-      asu_id: asuId,
-      academic_standing: academicStanding,
-      major,
-    };
-
-    try {
-      const response = await apiClient.post('/users/user', { email, ...data });
-      setSuccessMessage(response.data.message);
-    } catch (error) {
-      if (error.response && error.response.data.error) {
-        setError(error.response.data.error);
-      } else {
-        setError('An error occurred while updating the user.');
-      }
-    } finally {
-      setLoading(false);
+    if (!userData || !userData.email) {
+        setUpdateError('No user selected or user email is missing.');
+        return;
     }
+    setLoading(true);
+    setUpdateError('');
+    setUpdateSuccessMessage('');
+    const dataToUpdate = {
+      email: userData.email, // Use email from fetched userData
+      name: updateName,
+      asu_id: updateAsuId,
+      academic_standing: updateAcademicStanding,
+      major: updateMajor,
+    };
+    try {
+      const response = await apiClient.post('/users/user', dataToUpdate);
+      setUpdateSuccessMessage(response.data.message || 'User updated successfully!');
+       // Optionally re-fetch user data or update UI directly
+      setUserData(prev => ({...prev, ...dataToUpdate, email: prev.email})); // Keep original email, update other fields
+    } catch (error) {
+      setUpdateError(error.response?.data?.error || 'An error occurred while updating the user.');
+    }
+    setLoading(false);
   };
+
+  // Create User Logic
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!createEmail || !createName || !createAsuId || !createAcademicStanding || !createMajor) {
+      setCreateError('All fields are required for creating a user.');
+      return;
+    }
+    setLoading(true);
+    setCreateError('');
+    setCreateSuccessMessage('');
+    const data = {
+      email: createEmail,
+      name: createName,
+      asu_id: createAsuId,
+      academic_standing: createAcademicStanding,
+      major: createMajor,
+    };
+    try {
+      const response = await apiClient.post('users/createUser', data);
+      setCreateSuccessMessage(response.data.message || 'User created successfully!');
+      setCreateEmail('');
+      setCreateName('');
+      setCreateAsuId('');
+      setCreateAcademicStanding('');
+      setCreateMajor('');
+    } catch (error) {
+      setCreateError(error.response?.data?.error || 'An error occurred while creating the user.');
+    }
+    setLoading(false);
+  };
+  
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    navigate('/');
+  };
+
+  const navItems = [
+    { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
+    { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
+    { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
+  ];
 
   return (
-    <div className="min-h-screen flex bg-gray-900 text-white">
-      <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+    <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
+      <div className="fixed inset-0 z-0">
+        <Orb hue={220} forceHoverState={true} hoverIntensity={0.05} /> {/* Adjusted Hue for UserPage */}
+        <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
+      </div>
 
-      <div className={`flex-1 p-8 ${isSidebarOpen ? 'ml-60' : 'ml-16'}`}>
-        <h1 className="text-4xl font-bold mb-8 text-center" style={{ color: '#ba3554' }}>User Management</h1>
+      <Menu setActive={setActiveNavItem}>
+        {navItems.map((item) => (
+          <MenuItem setActive={setActiveNavItem} active={activeNavItem === item.name} item={item.name} key={item.name}>
+            <HoveredLink href={item.link}>
+              <div className="flex items-center">
+                {item.icon}
+                <span className="hidden md:inline">{item.name}</span>
+              </div>
+            </HoveredLink>
+          </MenuItem>
+        ))}
+        <MenuItem setActive={setActiveNavItem} active={activeNavItem === "Account"} item="Account">
+          <div className="flex flex-col space-y-2 text-sm p-2">
+            <HoveredLink href="#" onClick={handleLogout}>
+              <div className="flex items-center">
+                <FaSignOutAlt className="h-4 w-4 mr-2" />
+                Logout
+              </div>
+            </HoveredLink>
+          </div>
+        </MenuItem>
+      </Menu>
 
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-lg mx-auto mb-8">
-          <h2 className="text-2xl font-bold mb-4">Find User by Email</h2>
-          <input
-            type="email"
-            className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
-            placeholder="Enter user email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button
-            onClick={fetchUser}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md text-white font-semibold"
-            disabled={loading}
-          >
-            {loading ? 'Loading...' : 'Fetch User'}
-          </button>
+      <div className="relative z-20 container mx-auto px-4 py-12 md:py-16 flex flex-col items-center space-y-8">
+        {/* Find User Section */}
+        <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
+            <FaSearch className="mr-3 h-7 w-7 text-soda-blue" /> Find User
+          </h2>
+          <div className="space-y-4">
+            <input
+              type="email"
+              className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
+              placeholder="Enter user email to find or update"
+              value={searchEmail}
+              onChange={(e) => setSearchEmail(e.target.value)}
+            />
+            <StarBorder onClick={handleFetchUser} disabled={loading} color="#007AFF" speed="4s" className="w-full">
+              {loading && !userData ? 'Searching...' : 'Search User'}
+            </StarBorder>
+            {fetchError && <p className="text-red-400 text-sm mt-2 text-center">{fetchError}</p>}
+          </div>
         </div>
 
-        {(userData || error) && (
-          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-lg mx-auto mb-8">
-            <h2 className="text-2xl font-bold mb-4">Update User Information</h2>
-
-            {error && <p className="text-red-500 mb-4">{error}</p>}
-            {successMessage && <p className="text-green-500 mb-4">{successMessage}</p>}
-
-            <form onSubmit={updateUser}>
-              <div className="mb-4">
-                <label className="block text-white mb-2">Name</label>
-                <input
-                  type="text"
-                  className="w-full p-2 rounded-md bg-gray-700 text-white"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+        {/* Update User Section - Appears if userData is found */}
+        {userData && (
+          <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-xl">
+            <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
+              <FaUserEdit className="mr-3 h-7 w-7 text-soda-white" /> Update User: {userData.email}
+            </h2>
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              <div>
+                <label htmlFor="updateName" className="block text-sm font-medium text-soda-white mb-1">Name</label>
+                <input id="updateName" type="text" value={updateName} onChange={(e) => setUpdateName(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" />
               </div>
-
-              <div className="mb-4">
-                <label className="block text-white mb-2">ASU ID</label>
-                <input
-                  type="text"
-                  className="w-full p-2 rounded-md bg-gray-700 text-white"
-                  value={asuId}
-                  onChange={(e) => setAsuId(e.target.value)}
-                />
+              <div>
+                <label htmlFor="updateAsuId" className="block text-sm font-medium text-soda-white mb-1">ASU ID</label>
+                <input id="updateAsuId" type="text" value={updateAsuId} onChange={(e) => setUpdateAsuId(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" />
               </div>
-
-              <div className="mb-4">
-                <label className="block text-white mb-2">Academic Standing</label>
-                <input
-                  type="text"
-                  className="w-full p-2 rounded-md bg-gray-700 text-white"
-                  value={academicStanding}
-                  onChange={(e) => setAcademicStanding(e.target.value)}
-                />
+              <div>
+                <label htmlFor="updateAcademicStanding" className="block text-sm font-medium text-soda-white mb-1">Academic Standing</label>
+                <input id="updateAcademicStanding" type="text" value={updateAcademicStanding} onChange={(e) => setUpdateAcademicStanding(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" />
               </div>
-
-              <div className="mb-4">
-                <label className="block text-white mb-2">Major</label>
-                <input
-                  type="text"
-                  className="w-full p-2 rounded-md bg-gray-700 text-white"
-                  value={major}
-                  onChange={(e) => setMajor(e.target.value)}
-                />
+              <div>
+                <label htmlFor="updateMajor" className="block text-sm font-medium text-soda-white mb-1">Major</label>
+                <input id="updateMajor" type="text" value={updateMajor} onChange={(e) => setUpdateMajor(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" />
               </div>
-
-              <button
-                type="submit"
-                className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 rounded-md text-white font-semibold"
-                disabled={loading}
-              >
-                {loading ? 'Updating...' : 'Update User'}
-              </button>
+              <StarBorder type="submit" disabled={loading} color="#34C759" speed="4s" className="w-full"> {/* Green for update */}
+                {loading ? 'Updating...' : 'Save Changes'}
+              </StarBorder>
+              {updateError && <p className="text-red-400 text-sm mt-2 text-center">{updateError}</p>}
+              {updateSuccessMessage && <p className="text-green-400 text-sm mt-2 text-center">{updateSuccessMessage}</p>}
             </form>
           </div>
         )}
+
+        {/* Create New User Section */}
+        <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
+            <FaUserPlus className="mr-3 h-7 w-7 text-soda-red" /> Create New User
+          </h2>
+          <form onSubmit={handleCreateUser} className="space-y-4">
+            <div>
+              <label htmlFor="createEmail" className="block text-sm font-medium text-soda-white mb-1">Email</label>
+              <input id="createEmail" type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" placeholder="newuser@example.com" required />
+            </div>
+            <div>
+              <label htmlFor="createName" className="block text-sm font-medium text-soda-white mb-1">Name</label>
+              <input id="createName" type="text" value={createName} onChange={(e) => setCreateName(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" placeholder="New User Name" required />
+            </div>
+            <div>
+              <label htmlFor="createAsuId" className="block text-sm font-medium text-soda-white mb-1">ASU ID</label>
+              <input id="createAsuId" type="text" value={createAsuId} onChange={(e) => setCreateAsuId(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" placeholder="1234567890" required />
+            </div>
+            <div>
+              <label htmlFor="createAcademicStanding" className="block text-sm font-medium text-soda-white mb-1">Academic Standing</label>
+              <input id="createAcademicStanding" type="text" value={createAcademicStanding} onChange={(e) => setCreateAcademicStanding(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" placeholder="Good Standing" required />
+            </div>
+            <div>
+              <label htmlFor="createMajor" className="block text-sm font-medium text-soda-white mb-1">Major</label>
+              <input id="createMajor" type="text" value={createMajor} onChange={(e) => setCreateMajor(e.target.value)} className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all" placeholder="Computer Science" required />
+            </div>
+            <StarBorder type="submit" disabled={loading} color="#FF3B30" speed="4s" className="w-full">
+              {loading ? 'Creating...' : 'Create User'}
+            </StarBorder>
+            {createError && <p className="text-red-400 text-sm mt-2 text-center">{createError}</p>}
+            {createSuccessMessage && <p className="text-green-400 text-sm mt-2 text-center">{createSuccessMessage}</p>}
+          </form>
+        </div>
       </div>
     </div>
   );

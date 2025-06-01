@@ -17,7 +17,6 @@ import TokenRetrival from './pages/TokenRetrival';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import LeaderBoard from './pages/LeaderBoard';
-import CreateUserPage from './pages/CreateUserPage';
 
 function App() {
   
@@ -35,7 +34,6 @@ function App() {
         <Route path='/500' element = {<ServerError />} />
         <Route path='/users' element={<UserPage />} />
         <Route path='/leaderboard' element={<LeaderBoard />} />
-        <Route path='/createuser' element={<CreateUserPage />} />
       </Routes>
       <ToastContainer />
     </BrowserRouter>
