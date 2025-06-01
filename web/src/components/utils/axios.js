@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useAuth } from '../auth/AuthContext';
 
 const apiClient = axios.create({
-  baseURL: 'http://api.thesoda.io', // Your Flask API base URL
+  baseURL: 'https://api.thesoda.io', // Your Flask API base URL
 });
 
 // Attach token to all requests
