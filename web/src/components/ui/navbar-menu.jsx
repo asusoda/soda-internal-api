@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, Children, cloneElement } from "react";
 import { motion } from "motion/react";
 import DotSlashLogo from '../../assets/dotSlash.svg';
+import { FaBars, FaTimes } from 'react-icons/fa';
 
 const transition = {
   type: "spring",
@@ -51,15 +52,73 @@ export const Menu = ({
   setActive,
   children
 }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Extract links for mobile menu
+  const mobileLinks = Children.map(children, child => {
+    if (child.props && child.props.item && child.props.children) {
+      // Assuming the first child of MenuItem's children is HoveredLink or similar
+      // This might need adjustment based on actual MenuItem structure
+      const linkElement = Children.toArray(child.props.children).find(
+        c => c.type === HoveredLink || (c.props && c.props.href) // Look for HoveredLink or a direct href
+      );
+      if (linkElement && linkElement.props && linkElement.props.href) {
+        return {
+          name: child.props.item,
+          href: linkElement.props.href,
+          onClick: linkElement.props.onClick // Preserve onClick for logout, etc.
+        };
+      }
+    }
+    return null;
+  }).filter(Boolean);
+
   return (
-    <nav
-      onMouseLeave={() => setActive(null)}
-      className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[60vw] max-w-4xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center px-4 py-3">
-      <img src={DotSlashLogo} alt="Logo" className="h-8 w-auto mr-6" />
-      <div className="flex-grow flex justify-center space-x-2 md:space-x-4">
-        {children}
-      </div>
-    </nav>
+    <>
+      <nav
+        onMouseLeave={() => {
+          setActive(null);
+          // Do not close mobile menu on mouse leave, only by toggle or link click
+        }}
+        className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[90vw] md:w-[60vw] max-w-4xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center justify-between px-4 py-3"
+      >
+        <img src={DotSlashLogo} alt="Logo" className="h-8 w-auto" />
+
+        {/* Desktop Menu Items */}
+        <div className="hidden md:flex flex-grow justify-center space-x-2 md:space-x-4">
+          {children}
+        </div>
+
+        {/* Mobile Menu Toggle */}
+        <div className="md:hidden">
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-black dark:text-white">
+            {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 top-16 bg-white/90 dark:bg-black/90 backdrop-blur-lg z-40 pt-10">
+          <ul className="flex flex-col items-center space-y-4 p-4">
+            {mobileLinks.map((link, index) => (
+              <li key={index} className="w-full text-center">
+                <a
+                  href={link.href}
+                  onClick={(e) => {
+                    if (link.onClick) link.onClick(e);
+                    setIsMobileMenuOpen(false); // Close menu on link click
+                  }}
+                  className="text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md"
+                >
+                  {link.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
   );
 };
 

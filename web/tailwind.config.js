@@ -1,10 +1,15 @@
 /** @type {import('tailwindcss').Config} */
+const defaultTheme = require('tailwindcss/defaultTheme'); // Import defaultTheme
+
 module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",  // This includes all JavaScript/TypeScript files in your src directory
   ],
   theme: {
     extend: {
+      fontFamily: { // Add fontFamily
+        sans: ['"JetBrains Mono"', ...defaultTheme.fontFamily.sans],
+      },
       colors: {
         'soda-red': '#FF3B30',
         'soda-blue': '#007AFF',

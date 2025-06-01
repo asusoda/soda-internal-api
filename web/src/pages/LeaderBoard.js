@@ -43,8 +43,8 @@ const LeaderboardPage = () => {
           }
         });
         await viewUserDetails(selectedUserEmail); // Refresh after delete
-        setShowConfirmModal(false);
-        setPointToDelete(null);
+      setShowConfirmModal(false);
+      setPointToDelete(null);
       } catch (error) {
         setModalError(error.response?.data?.error || 'Error deleting points');
       } finally {
@@ -113,7 +113,7 @@ const LeaderboardPage = () => {
   if (loading && !leaderboardData.length) { // Show initial loading state
     return (
       <div className="relative min-h-screen bg-soda-black text-soda-white flex items-center justify-center">
-        <div className="fixed inset-0 z-0"><Orb hue={180} forceHoverState={true} /></div>
+        <div className="fixed inset-0 z-0"><Orb hue={300} forceHoverState={true} /></div>
         <p className="text-xl">Loading Leaderboard...</p>
       </div>
     );
@@ -122,7 +122,7 @@ const LeaderboardPage = () => {
   return (
     <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
       <div className="fixed inset-0 z-0">
-        <Orb hue={180} forceHoverState={true} hoverIntensity={0.05} /> {/* Unique hue for Leaderboard */}
+        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} /> {/* Unique hue for Leaderboard */}
         <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
       </div>
 
@@ -164,7 +164,7 @@ const LeaderboardPage = () => {
                   <tr>
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Rank</th>
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Name</th>
-                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider hidden sm:table-cell">Identifier</th>
+                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Identifier</th>
                     <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider text-right">Points</th>
                   </tr>
                 </thead>
@@ -180,7 +180,7 @@ const LeaderboardPage = () => {
                           {user.name}
                         </button>
                       </td>
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/70 hidden sm:table-cell">{user.identifier}</td>
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/70">{user.identifier}</td>
                       <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white text-right font-semibold">{user.points}</td>
                     </tr>
                   ))}
@@ -203,7 +203,7 @@ const LeaderboardPage = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 min-h-0">
+              <div className="flex-1 h-0 overflow-y-auto p-5 sm:p-6 space-y-4">
                 {loadingUser ? (
                   <div className="text-soda-white/80 text-center py-10">Loading user details...</div>
                 ) : modalError ? (
@@ -219,7 +219,7 @@ const LeaderboardPage = () => {
                     <h3 className="text-lg sm:text-xl font-semibold text-soda-white pt-4 mt-4 border-t border-soda-white/10">Points History</h3>
                     {selectedUser.points_earned && selectedUser.points_earned.length > 0 ? (
                       <div className="overflow-x-auto -mx-5 sm:-mx-6 rounded-b-xl">
-                        <table className="min-w-full table-auto">
+                      <table className="min-w-full table-auto">
                           <thead className="bg-soda-black/30">
                             <tr>
                               <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left">Event</th>
@@ -227,8 +227,8 @@ const LeaderboardPage = () => {
                               <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left hidden md:table-cell">Awarded By</th>
                               <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left hidden lg:table-cell">Date</th>
                               <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-center">Action</th>
-                            </tr>
-                          </thead>
+                          </tr>
+                        </thead>
                           <tbody className="divide-y divide-soda-white/10">
                             {selectedUser.points_earned.map((point) => (
                               <tr key={point.event + point.timestamp} className="hover:bg-soda-black/20 transition-colors">
@@ -237,20 +237,20 @@ const LeaderboardPage = () => {
                                 <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/80 text-sm hidden md:table-cell">{point.awarded_by_officer}</td>
                                 <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/80 text-sm hidden lg:table-cell">{new Date(point.timestamp).toLocaleDateString()}</td>
                                 <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-center">
-                                  <button
+                                <button
                                     onClick={() => handleDeleteClick(point)} // Pass the whole point object
-                                    disabled={deleteLoading}
+                                  disabled={deleteLoading}
                                     className="text-red-500 hover:text-red-400 disabled:opacity-50 transition-colors p-1 rounded-md"
                                     title="Delete Points for this Event"
-                                  >
+                                >
                                     <FaTrashAlt className="h-4 w-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                     ) : (
                       <p className="text-soda-white/70 text-sm text-center py-5">No points history found for this user.</p>
                     )}

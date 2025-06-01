@@ -151,7 +151,7 @@ const UserPage = () => {
   return (
     <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
       <div className="fixed inset-0 z-0">
-        <Orb hue={220} forceHoverState={true} hoverIntensity={0.05} /> {/* Different hue for UserPage */}
+        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} /> {/* Different hue for UserPage */}
         <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
       </div>
 
@@ -186,18 +186,18 @@ const UserPage = () => {
           </h2>
           <div className="space-y-4 mb-6">
             <label htmlFor="searchEmail" className="block text-sm font-medium text-soda-white mb-1">User Email to Find/Update</label>
-            <input
+          <input
               id="searchEmail"
-              type="email"
+            type="email"
               className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-              placeholder="Enter user email"
+            placeholder="Enter user email"
               value={searchEmail}
               onChange={(e) => setSearchEmail(e.target.value)}
-            />
+          />
             <StarBorder onClick={fetchUser} disabled={loadingFetch} color="#007AFF" speed="4s" className="w-full">
               {loadingFetch ? 'Searching...' : 'Find User'}
             </StarBorder>
-          </div>
+        </div>
 
           {updateError && <p className="text-red-400 mb-4 text-sm text-center">{updateError}</p>}
           {updateSuccess && <p className="text-green-400 mb-4 text-sm text-center">{updateSuccess}</p>}
@@ -227,7 +227,7 @@ const UserPage = () => {
               </StarBorder>
             </form>
           )}
-        </div>
+              </div>
 
         {/* Section 2: Create New User */}
         <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-lg">
@@ -261,8 +261,8 @@ const UserPage = () => {
             <StarBorder type="submit" disabled={loadingCreate} color="#FF3B30" speed="4s" className="w-full">
               {loadingCreate ? 'Creating...' : 'Create User'}
             </StarBorder>
-          </form>
-        </div>
+            </form>
+          </div>
       </div>
     </div>
   );

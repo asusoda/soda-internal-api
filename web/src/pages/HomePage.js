@@ -71,7 +71,7 @@ const HomePage = () => {
   return (
     <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
       <div className="fixed inset-0 z-0">
-        <Orb hue={260} forceHoverState={true} hoverIntensity={0.05} />
+        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} />
         <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
       </div>
 
