@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
@@ -6,7 +6,7 @@ import Orb from '../components/ui/Orb';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
 import { FileUpload } from '../components/ui/file-upload';
 import StarBorder from '../components/ui/StarBorder';
-import { FaFileUpload, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList } from 'react-icons/fa';
+import { FaFileUpload, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList, FaCogs } from 'react-icons/fa';
 
 const HomePage = () => {
   useAuthToken();
@@ -66,6 +66,7 @@ const HomePage = () => {
     { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
     { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
     { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
+    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
   ];
 
   return (

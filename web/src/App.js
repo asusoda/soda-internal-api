@@ -35,6 +35,7 @@ function App() {
         <Route path='/500' element = {<ServerError />} />
         <Route path='/users' element={<UserPage />} />
         <Route path='/leaderboard' element={<LeaderBoard />} />
+        <Route path='/ocp' element={<OCPDetails />} />
       </Routes>
       <ToastContainer />
     </BrowserRouter>

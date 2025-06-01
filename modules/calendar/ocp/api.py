@@ -5,10 +5,10 @@ from sentry_sdk import start_transaction, capture_exception, set_tag
 from .service import OCPService
 from ..errors import APIErrorHandler
 from .utils import extract_property
+from modules.auth.decoraters import auth_required
 
 # Setup logger from shared resources
 from shared import logger, config
-
 # Initialize the error handler for routes
 route_error_handler = APIErrorHandler(logger, "OCPApi_Route")
 
@@ -151,6 +151,7 @@ def debug_sync_from_notion():
             transaction.finish()
 
 @ocp_blueprint.route("/diagnose-unknown-officers", methods=["GET", "POST"])
+@auth_required
 def diagnose_unknown_officers():
     """
     Endpoint to diagnose issues with officers missing names in the database.
@@ -184,6 +185,7 @@ def diagnose_unknown_officers():
             transaction.finish()
 
 @ocp_blueprint.route("/officers", methods=["GET"])
+@auth_required
 def get_officer_leaderboard():
     """Get all officers with their total points in leaderboard format."""
     transaction = start_transaction(op="api", name="get_officer_leaderboard")
@@ -208,6 +210,7 @@ def get_officer_leaderboard():
             transaction.finish()
 
 @ocp_blueprint.route("/officer/<email>/contributions", methods=["GET"])
+@auth_required
 def get_officer_contributions(email):
     """Get all contributions for a specific officer."""
     transaction = start_transaction(op="api", name="get_officer_contributions")
@@ -231,6 +234,7 @@ def get_officer_contributions(email):
             transaction.finish()
 
 @ocp_blueprint.route("/add-contribution", methods=["POST"])
+@auth_required
 def add_contribution():
     """
     Add a contribution record for an officer.
@@ -274,6 +278,7 @@ def add_contribution():
             transaction.finish()
 
 @ocp_blueprint.route("/contribution/<int:point_id>", methods=["PUT"])
+@auth_required
 def update_contribution(point_id):
     """
     Update an existing contribution record.
@@ -315,6 +320,7 @@ def update_contribution(point_id):
             transaction.finish()
 
 @ocp_blueprint.route("/contribution/<int:point_id>", methods=["DELETE"])
+@auth_required
 def delete_contribution(point_id):
     """Delete a contribution record."""
     transaction = start_transaction(op="api", name="delete_contribution")
@@ -341,6 +347,7 @@ def delete_contribution(point_id):
             transaction.finish()
 
 @ocp_blueprint.route("/officer/<officer_id>", methods=["GET"])
+@auth_required
 def get_officer_details(officer_id):
     """Get detailed information about a specific officer including their points and events."""
     transaction = start_transaction(op="api", name="get_officer_details")
@@ -388,6 +395,7 @@ def get_all_events():
             transaction.finish()
 
 @ocp_blueprint.route("/repair-officers", methods=["POST"])
+@auth_required
 def repair_unknown_officers():
     """
     Endpoint to repair events with officers missing names.
