@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 // Removed MUI imports as they will be replaced by Tailwind and custom components
 // import RefreshIcon from '@mui/icons-material/Refresh'; // Will use react-icons
 // import SyncIcon from '@mui/icons-material/Sync'; // Will use react-icons
+import apiClient from '../components/utils/axios'; // Added apiClient import
 
 import useAuthToken from '../hooks/userAuth';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
@@ -13,7 +14,7 @@ import {
     FaCogs, FaRedo, FaSearchDollar, FaWrench, FaExclamationTriangle, FaSync, FaFlask, FaPlusCircle, FaTimes // Added FaPlusCircle, FaTimes
 } from 'react-icons/fa'; // Removed FaChartLine, FaBug
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+// const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 // Helper functions (can be outside any component if they don't use hooks or component state)
 const formatDate = (dateString) => {
@@ -235,14 +236,9 @@ const OCPDetails = () => {
   const fetchAllEvents = useCallback(async () => {
     setEventsLoading(true);
     setError(null);
-    const token = localStorage.getItem('accessToken');
-    if (!token) { setEventsLoading(false); return; }
     try {
-      const response = await fetch(`${API_BASE_URL}/calendar/ocp/events`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
-      const data = await response.json();
+      const response = await apiClient.get('/calendar/ocp/events');
+      const data = response.data;
       if (data.status === 'success' && Array.isArray(data.events)) {
         const processedEvents = data.events.map(event => ({
           ...event,
@@ -262,15 +258,11 @@ const OCPDetails = () => {
   }, []);
 
   const fetchInitialData = useCallback(async () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
     setLeaderboardLoading(true);
     setError(null);
     try {
-      const leaderboardResponse = await fetch(`${API_BASE_URL}/calendar/ocp/officers`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const leaderboardData = await leaderboardResponse.json();
+      const leaderboardResponse = await apiClient.get('/calendar/ocp/officers');
+      const leaderboardData = leaderboardResponse.data;
       if (leaderboardData.status === 'success') {
         setLeaderboard(leaderboardData.officers || []);
       } else {
@@ -322,11 +314,9 @@ const OCPDetails = () => {
   const triggerSyncAndRefresh = useCallback(async (syncFunction, setLoadingState, successMessagePrefix) => {
     setLoadingState(true);
     setError(null);
-    const token = localStorage.getItem('accessToken');
-    if (!token) { setLoadingState(false); return; }
     try {
-      const response = await syncFunction(token);
-      const data = await response.json();
+      const response = await syncFunction();
+      const data = response.data;
       if (data.status === 'success') {
         setSyncNotification({
           open: true,
@@ -348,13 +338,13 @@ const OCPDetails = () => {
   }, [fetchInitialData]);
 
   const syncWithNotion = () => triggerSyncAndRefresh(
-    (token) => fetch(`${API_BASE_URL}/calendar/ocp/sync-from-notion`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }),
+    () => apiClient.post('/calendar/ocp/sync-from-notion'),
     setSyncing,
     "Notion Sync"
   );
 
   const debugSyncWithNotion = () => triggerSyncAndRefresh(
-    (token) => fetch(`${API_BASE_URL}/calendar/ocp/debug-sync-from-notion`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }),
+    () => apiClient.post('/calendar/ocp/debug-sync-from-notion'),
     setDebugSyncing,
     "Debug Sync"
   );
@@ -363,14 +353,15 @@ const OCPDetails = () => {
     setDiagnosingOfficers(true);
     setDiagnosticResults(null);
     setError(null);
-    const token = localStorage.getItem('accessToken');
-    if (!token) { setDiagnosingOfficers(false); return; }
     try {
-      let httpResponse = await fetch(`${API_BASE_URL}/calendar/ocp/diagnose-unknown-officers`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (httpResponse.status === 405 || httpResponse.status === 404) {
-        httpResponse = await fetch(`${API_BASE_URL}/calendar/ocp/diagnose-unknown-officers`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      }
-      const data = await httpResponse.json();
+      let response = await apiClient.get('/calendar/ocp/diagnose-unknown-officers')
+        .catch(err => {
+            if (err.response && (err.response.status === 405 || err.response.status === 404)) {
+                return apiClient.post('/calendar/ocp/diagnose-unknown-officers');
+            }
+            throw err;
+        });
+      const data = response.data;
       setDiagnosticResults({
         title: 'Officer Diagnosis Results',
         message: `Found ${data.total_issues || 0} issues. Missing UUIDs: ${data.missing_uuid_count || 0}, Unknown Names: ${data.unknown_name_count || 0}. (Department/email issues ignored by this diagnosis).`,
@@ -385,20 +376,16 @@ const OCPDetails = () => {
   };
   
   const fixUnknownOfficers = () => triggerSyncAndRefresh(
-    (token) => fetch(`${API_BASE_URL}/calendar/ocp/repair-officers`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }),
+    () => apiClient.post('/calendar/ocp/repair-officers'),
     setFixingOfficers,
     "Officer Repair"
   );
 
   const fetchOfficerContributions = async (officerIdentifier) => {
     if (!officerIdentifier) return;
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/calendar/ocp/officer/${officerIdentifier}/contributions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await apiClient.get(`/calendar/ocp/officer/${officerIdentifier}/contributions`);
+      const data = response.data;
       if (data.status === 'success') {
         setLeaderboard(prevLeaderboard => 
           prevLeaderboard.map(officer => 
@@ -420,7 +407,7 @@ const OCPDetails = () => {
     } else {
       setExpandedOfficer(officer.uuid);
       if (!officer.contributions) {
-      fetchOfficerContributions(officer.uuid);
+        fetchOfficerContributions(officer.uuid);
       }
     }
   };
@@ -477,10 +464,6 @@ const OCPDetails = () => {
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-8">
             {[ 
               {label: 'Sync Notion', action: syncWithNotion, loading: syncing, Icon: FaSync, color: "#007AFF"},
-              // Deprecated Buttons:
-              // {label: 'Debug Sync', action: debugSyncWithNotion, loading: debugSyncing, Icon: FaFlask, color: "#5856D6"},
-              // {label: 'Diagnose', action: diagnoseUnknownOfficers, loading: diagnosingOfficers, Icon: FaSearchDollar, color: "#FF9500"},
-              // {label: 'Repair', action: fixUnknownOfficers, loading: fixingOfficers, Icon: FaWrench, color: "#34C759" },
               {label: 'Log Contribution', action: () => setShowAddContributionModal(true), loading: false, Icon: FaPlusCircle, color: "#007AFF"}
             ].map(btn => (
               <StarBorder 
@@ -697,18 +680,10 @@ const OCPDetails = () => {
         isOpen={showAddContributionModal} 
         onClose={() => setShowAddContributionModal(false)}
         onAdd={async (contributionData) => {
-          const token = localStorage.getItem('accessToken');
           try {
-            const response = await fetch(`${API_BASE_URL}/calendar/ocp/add-contribution`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(contributionData)
-            });
-            const result = await response.json();
-            if (response.ok && result.status !== 'error') {
+            const response = await apiClient.post('/calendar/ocp/add-contribution', contributionData);
+            const result = response.data;
+            if (response.status >= 200 && response.status < 300 && result.status !== 'error') {
                 setSyncNotification({ open: true, message: result.message || 'Contribution added successfully!', type: 'success'});
                 setShowAddContributionModal(false);
                 fetchInitialData();
