@@ -199,6 +199,11 @@ const OCPDetails = () => {
   
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState(null); // Specific error for leaderboard
+
+  // State for timeline filters
+  const [startDate, setStartDate] = useState(''); // Format YYYY-MM
+  const [endDate, setEndDate] = useState('');     // Format YYYY-MM
   
   const [allEvents, setAllEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -257,26 +262,40 @@ const OCPDetails = () => {
     }
   }, []);
 
-  const fetchInitialData = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (sDate, eDate) => {
     setLeaderboardLoading(true);
-    setError(null);
+    setLeaderboardError(null);
+    let url = '/calendar/ocp/officers';
+    const params = new URLSearchParams();
+    if (sDate) params.append('start_date', sDate);
+    if (eDate) params.append('end_date', eDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
     try {
-      const leaderboardResponse = await apiClient.get('/calendar/ocp/officers');
-      const leaderboardData = leaderboardResponse.data;
-      if (leaderboardData.status === 'success') {
-        setLeaderboard(leaderboardData.officers || []);
+      const response = await apiClient.get(url);
+      const data = response.data;
+      if (data.status === 'success') {
+        setLeaderboard(data.officers || []);
       } else {
-        console.error('Error fetching leaderboard:', leaderboardData.message);
-        setError(leaderboardData.message || 'Failed to fetch leaderboard');
+        console.error('Error fetching leaderboard:', data.message);
+        setLeaderboardError(data.message || 'Failed to fetch leaderboard');
+        setLeaderboard([]); // Clear leaderboard on error
       }
-      fetchAllEvents();
     } catch (err) {
-      console.error('Error fetching initial data:', err);
-      setError(`Error fetching initial data: ${err.message}`);
+      console.error('Error fetching leaderboard:', err);
+      setLeaderboardError(`Error fetching leaderboard: ${err.message}`);
+      setLeaderboard([]); // Clear leaderboard on error
     } finally {
       setLeaderboardLoading(false);
     }
-  }, [fetchAllEvents]);
+  }, []);
+
+  const fetchInitialData = useCallback(async () => {
+    // Fetch leaderboard with current date filters
+    fetchLeaderboard(startDate, endDate);
+    // Fetch all events (currently not filtered by date, but could be in future)
+    fetchAllEvents();
+  }, [fetchAllEvents, fetchLeaderboard, startDate, endDate]);
 
   useEffect(() => {
     fetchInitialData();
@@ -341,13 +360,13 @@ const OCPDetails = () => {
     () => apiClient.post('/calendar/ocp/sync-from-notion'),
     setSyncing,
     "Notion Sync"
-  );
+  ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
 
   const debugSyncWithNotion = () => triggerSyncAndRefresh(
     () => apiClient.post('/calendar/ocp/debug-sync-from-notion'),
     setDebugSyncing,
     "Debug Sync"
-  );
+  ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
   
   const diagnoseUnknownOfficers = async () => {
     setDiagnosingOfficers(true);
@@ -379,12 +398,19 @@ const OCPDetails = () => {
     () => apiClient.post('/calendar/ocp/repair-officers'),
     setFixingOfficers,
     "Officer Repair"
-  );
+  ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after repair
 
   const fetchOfficerContributions = async (officerIdentifier) => {
     if (!officerIdentifier) return;
+    let url = `/calendar/ocp/officer/${officerIdentifier}/contributions`;
+    const params = new URLSearchParams();
+    // Use the global startDate and endDate for consistency when expanding
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
     try {
-      const response = await apiClient.get(`/calendar/ocp/officer/${officerIdentifier}/contributions`);
+      const response = await apiClient.get(url);
       const data = response.data;
       if (data.status === 'success') {
         setLeaderboard(prevLeaderboard => 
@@ -406,15 +432,32 @@ const OCPDetails = () => {
       setExpandedOfficer(null);
     } else {
       setExpandedOfficer(officer.uuid);
-      if (!officer.contributions) {
-        fetchOfficerContributions(officer.uuid);
-      }
+      // Fetch contributions if not already fetched or if filters might have changed
+      // The contributions fetched will now respect the timeline filters
+      fetchOfficerContributions(officer.uuid);
     }
   };
   
   const handleCloseNotification = () => setSyncNotification({ ...syncNotification, open: false });
 
-  if (leaderboardLoading) {
+  const handleFilterApply = () => {
+    fetchLeaderboard(startDate, endDate);
+    // If an officer is expanded, re-fetch their contributions with new dates
+    if (expandedOfficer) {
+      fetchOfficerContributions(expandedOfficer);
+    }
+  };
+
+  const handleFilterClear = () => {
+    setStartDate('');
+    setEndDate('');
+    fetchLeaderboard('', ''); // Fetch with no filters
+    if (expandedOfficer) {
+      fetchOfficerContributions(expandedOfficer); // Re-fetch with no filters
+    }
+  };
+
+  if (leaderboardLoading && !leaderboard.length) { // Show loading only if leaderboard is empty
     return (
       <div className="relative min-h-screen bg-soda-black text-soda-white flex items-center justify-center">
         <div className="fixed inset-0 z-0"><Orb hue={260} forceHoverState={true} /></div>
@@ -505,81 +548,128 @@ const OCPDetails = () => {
         {/* Section 1: Officers Leaderboard */}
         <div className="mb-12">
           <h2 className="text-2xl font-semibold text-soda-blue mb-4">Officers Leaderboard</h2>
-          <div className="bg-soda-gray/70 backdrop-blur-xl shadow-2xl rounded-xl overflow-hidden border border-soda-white/10">
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-auto text-left text-soda-white/90">
-                <thead className="bg-soda-black/30 text-soda-white/70 uppercase text-xs tracking-wider">
-                  <tr>
-                    {['Name', 'Email', 'Title', 'Department', 'Total Points', 'Actions'].map(header => (
-                      <th key={header} className="px-2 py-2 md:px-4 md:py-3">{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-soda-white/10">
-                {leaderboard.map((officer) => (
-                  <React.Fragment key={officer.uuid}>
-                      <tr className="hover:bg-soda-black/20 transition-colors">
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.name}</td>
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.email || 'N/A'}</td>
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.title || 'N/A'}</td>
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.department || 'N/A'}</td>
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap font-semibold">{officer.total_points}</td>
-                        <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">
-                          <button 
-                            className="text-soda-blue hover:text-soda-red transition-colors text-sm py-1 px-2 rounded-md border border-soda-blue hover:border-soda-red"
-                          onClick={() => handleOfficerClick(officer)}
-                        >
-                            {expandedOfficer === officer.uuid ? 'Hide' : 'Show'} Events
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedOfficer === officer.uuid && (
-                        <tr>
-                          <td colSpan={6} className="p-0 bg-soda-black/10">
-                            <div className="p-2 md:p-4">
-                              <h4 className="text-md font-semibold text-soda-white mb-2">Events for {officer.name}</h4>
-                              {officer.contributions && officer.contributions.length > 0 ? (
-                                <div className="overflow-x-auto rounded-md border border-soda-white/10">
-                                  <table className="min-w-full text-xs">
-                                    <thead className="bg-soda-gray/50">
-                                      <tr>
-                                        {['Event', 'Type', 'Role', 'Points', 'Date'].map(th => 
-                                          <th key={th} className="px-2 py-1.5 md:px-3 md:py-2 text-left whitespace-nowrap">{th}</th>) }
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-soda-white/5">
-                                  {officer.contributions.map((event) => (
-                                        <tr key={event.id} className="hover:bg-soda-black/30">
-                                          <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{event.event}</td>
-                                          <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getEventTypeColor(event.event_type)}`}>
-                                              {event.event_type || 'Other'}
-                                            </span>
-                                          </td>
-                                          <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{event.role || 'N/A'}</td>
-                                          <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{event.points}</td>
-                                          <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{formatDate(event.timestamp)}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              ) : (
-                                <p className="text-soda-white/60 text-sm text-center py-4">No contributions found for this officer or still loading.</p>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-                  {leaderboard.length === 0 && (
-                     <tr><td colSpan={6} className="text-center py-8 text-soda-white/70">No officers found in the leaderboard.</td></tr>
-                  )}
-                </tbody>
-              </table>
+          
+          {/* Timeline Filter UI */} 
+          <div className="bg-soda-gray/50 backdrop-blur-md p-4 rounded-lg mb-6 border border-soda-white/10 flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex-1 min-w-[150px]">
+              <label htmlFor="start-date" className="block text-sm font-medium text-soda-white/80 mb-1">Start Date (YYYY-MM)</label>
+              <input 
+                type="month" 
+                id="start-date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
+              />
+            </div>
+            <div className="flex-1 min-w-[150px]">
+              <label htmlFor="end-date" className="block text-sm font-medium text-soda-white/80 mb-1">End Date (YYYY-MM)</label>
+              <input 
+                type="month" 
+                id="end-date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
+              />
+            </div>
+            <div className="flex gap-2 mt-2 sm:mt-0 sm:self-end">
+                <StarBorder color="#007AFF" onClick={handleFilterApply} className="py-2 text-sm" as="button">
+                    Apply Filters
+                </StarBorder>
+                <StarBorder color="#FF3B30" onClick={handleFilterClear} className="py-2 text-sm" as="button">
+                    Clear Filters
+                </StarBorder>
             </div>
           </div>
+
+          {leaderboardLoading && <p className="text-center text-soda-white/70 py-4">Loading leaderboard...</p>}
+          {leaderboardError && 
+            <div className="bg-red-800/30 border border-red-700 text-red-300 px-4 py-3 rounded-md relative mb-4" role="alert">
+                <strong className="font-bold"><FaExclamationTriangle className="inline mr-2"/>Error: </strong>
+                <span className="block sm:inline">{leaderboardError}</span>
+            </div>
+          }
+
+          {!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
+            <p className="text-center text-soda-white/70 py-8">No officers found for the selected criteria.</p>
+          )}
+
+          {!leaderboardError && leaderboard.length > 0 && (
+            <div className="bg-soda-gray/70 backdrop-blur-xl shadow-2xl rounded-xl overflow-hidden border border-soda-white/10">
+              <div className="overflow-x-auto">
+                <table className="min-w-full table-auto text-left text-soda-white/90">
+                  <thead className="bg-soda-black/30 text-soda-white/70 uppercase text-xs tracking-wider">
+                    <tr>
+                      {['Name', 'Email', 'Title', 'Department', 'Total Points', 'Actions'].map(header => (
+                        <th key={header} className="px-2 py-2 md:px-4 md:py-3">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-soda-white/10">
+                  {leaderboard.map((officer) => (
+                    <React.Fragment key={officer.uuid}>
+                        <tr className="hover:bg-soda-black/20 transition-colors">
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.name}</td>
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.email || 'N/A'}</td>
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.title || 'N/A'}</td>
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">{officer.department || 'N/A'}</td>
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap font-semibold">{officer.total_points}</td>
+                          <td className="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">
+                            <button 
+                              className="text-soda-blue hover:text-soda-red transition-colors text-sm py-1 px-2 rounded-md border border-soda-blue hover:border-soda-red"
+                            onClick={() => handleOfficerClick(officer)}
+                          >
+                              {expandedOfficer === officer.uuid ? 'Hide' : 'Show'} Events
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedOfficer === officer.uuid && (
+                          <tr>
+                            <td colSpan={6} className="p-0 bg-soda-black/10">
+                              <div className="p-2 md:p-4">
+                                <h4 className="text-md font-semibold text-soda-white mb-2">Events for {officer.name}</h4>
+                                {officer.contributions && officer.contributions.length > 0 ? (
+                                  <div className="overflow-x-auto rounded-md border border-soda-white/10">
+                                    <table className="min-w-full text-xs">
+                                      <thead className="bg-soda-gray/50">
+                                        <tr>
+                                          {['Event', 'Type', 'Role', 'Points', 'Date'].map(th => 
+                                            <th key={th} className="px-2 py-1.5 md:px-3 md:py-2 text-left whitespace-nowrap">{th}</th>) }
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-soda-white/5">
+                                    {officer.contributions.map((contribution) => (
+                                          <tr key={contribution.id} className="hover:bg-soda-black/30">
+                                            <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{contribution.event}</td>
+                                            <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">
+                                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getEventTypeColor(contribution.event_type)}`}>
+                                                {contribution.event_type || 'Other'}
+                                              </span>
+                                            </td>
+                                            <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{contribution.role || 'N/A'}</td>
+                                            <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{contribution.points}</td>
+                                            <td className="px-2 py-1.5 md:px-3 md:py-2 whitespace-nowrap">{formatDate(contribution.timestamp)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="text-soda-white/60 text-sm text-center py-4">No contributions found for this officer{startDate || endDate ? ' in the selected date range' : ''} or still loading.</p>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                    {leaderboard.length === 0 && (
+                       <tr><td colSpan={6} className="text-center py-8 text-soda-white/70">No officers found in the leaderboard.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Section 2: All Events */}

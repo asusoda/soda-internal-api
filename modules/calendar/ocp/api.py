@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from sentry_sdk import start_transaction, capture_exception, set_tag
+from datetime import datetime, timedelta
+from typing import Optional
 
 # Import the service and shared resources
 from .service import OCPService
@@ -187,20 +189,41 @@ def diagnose_unknown_officers():
 @ocp_blueprint.route("/officers", methods=["GET"])
 @auth_required
 def get_officer_leaderboard():
-    """Get all officers with their total points in leaderboard format."""
+    """Get all officers with their total points in leaderboard format, with optional date filtering."""
     transaction = start_transaction(op="api", name="get_officer_leaderboard")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_leaderboard"
     logger.info("Received GET request on /calendar/ocp/officers for leaderboard")
     set_tag("request_type", "GET")
-    
+
+    start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
+    end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
+
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+
     try:
-        officers = ocp_service.get_officer_leaderboard()
+        if start_date_str:
+            start_datetime = datetime.strptime(start_date_str + "-01", "%Y-%m-%d")
+        if end_date_str:
+            # Process to get the end of the month for end_date_str
+            year, month = map(int, end_date_str.split('-'))
+            if month == 12:
+                end_datetime = datetime(year, month, 31, 23, 59, 59)
+            else:
+                end_datetime = datetime(year, month + 1, 1, 23, 59, 59) - timedelta(days=1)
+
+        officers = ocp_service.get_officer_leaderboard(start_date=start_datetime, end_date=end_datetime)
         return jsonify({
             "status": "success", 
             "officers": officers,
-            "leaderboard_description": "Officers ranked by total contribution points"
+            "leaderboard_description": "Officers ranked by total contribution points" + 
+                                     (f" from {start_date_str}" if start_date_str else "") + 
+                                     (f" to {end_date_str}" if end_date_str else "")
         }), 200
+    except ValueError as e:
+        logger.warning(f"Invalid date format provided for leaderboard: {e}")
+        return jsonify({"status": "error", "message": f"Invalid date format. Please use YYYY-MM. Error: {str(e)}"}), 400
     except Exception as e:
         route_error_handler.handle_generic_error(e)
         return jsonify({"status": "error", "message": "An unexpected error occurred fetching officer leaderboard."}), 500
@@ -209,22 +232,44 @@ def get_officer_leaderboard():
         if transaction:
             transaction.finish()
 
-@ocp_blueprint.route("/officer/<email>/contributions", methods=["GET"])
+@ocp_blueprint.route("/officer/<officer_identifier>/contributions", methods=["GET"])
 @auth_required
-def get_officer_contributions(email):
-    """Get all contributions for a specific officer."""
+def get_officer_contributions(officer_identifier):
+    """Get all contributions for a specific officer, with optional date filtering."""
     transaction = start_transaction(op="api", name="get_officer_contributions")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_contributions"
-    logger.info(f"Received GET request on /calendar/ocp/officer/{email}/contributions")
+    logger.info(f"Received GET request on /calendar/ocp/officer/{officer_identifier}/contributions")
     set_tag("request_type", "GET")
-    set_tag("officer_email", email)
+    set_tag("officer_identifier", officer_identifier)
+
+    start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
+    end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
+
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
     
     try:
-        contributions = ocp_service.get_officer_contributions(email)
-        if not contributions:
-            return jsonify({"status": "warning", "message": f"No contributions found for officer {email}", "contributions": []}), 200
+        if start_date_str:
+            start_datetime = datetime.strptime(start_date_str + "-01", "%Y-%m-%d")
+        if end_date_str:
+            year, month = map(int, end_date_str.split('-'))
+            if month == 12:
+                end_datetime = datetime(year, month, 31, 23, 59, 59)
+            else:
+                end_datetime = datetime(year, month + 1, 1, 23, 59, 59) - timedelta(days=1)
+
+        contributions = ocp_service.get_officer_contributions(officer_identifier, start_date=start_datetime, end_date=end_datetime)
+        
+        if not contributions and (start_date_str or end_date_str):
+            return jsonify({"status": "warning", "message": f"No contributions found for officer {officer_identifier} in the specified date range", "contributions": []}), 200
+        elif not contributions:
+            return jsonify({"status": "warning", "message": f"No contributions found for officer {officer_identifier}", "contributions": []}), 200
+            
         return jsonify({"status": "success", "contributions": contributions}), 200
+    except ValueError as e:
+        logger.warning(f"Invalid date format provided for officer contributions: {e}")
+        return jsonify({"status": "error", "message": f"Invalid date format. Please use YYYY-MM. Error: {str(e)}"}), 400
     except Exception as e:
         route_error_handler.handle_generic_error(e)
         return jsonify({"status": "error", "message": "An unexpected error occurred fetching officer contributions."}), 500
@@ -349,19 +394,37 @@ def delete_contribution(point_id):
 @ocp_blueprint.route("/officer/<officer_id>", methods=["GET"])
 @auth_required
 def get_officer_details(officer_id):
-    """Get detailed information about a specific officer including their points and events."""
+    """Get detailed information about a specific officer including their points and events, with optional date filtering."""
     transaction = start_transaction(op="api", name="get_officer_details")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_details"
     logger.info(f"Received GET request on /calendar/ocp/officer/{officer_id}")
     set_tag("request_type", "GET")
     set_tag("officer_id", officer_id)
-    
+
+    start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
+    end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
+
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+
     try:
-        officer_details = ocp_service.get_officer_details(officer_id)
+        if start_date_str:
+            start_datetime = datetime.strptime(start_date_str + "-01", "%Y-%m-%d")
+        if end_date_str:
+            year, month = map(int, end_date_str.split('-'))
+            if month == 12:
+                end_datetime = datetime(year, month, 31, 23, 59, 59)
+            else:
+                end_datetime = datetime(year, month + 1, 1, 23, 59, 59) - timedelta(days=1)
+
+        officer_details = ocp_service.get_officer_details(officer_id, start_date=start_datetime, end_date=end_datetime)
         if not officer_details:
             return jsonify({"status": "warning", "message": f"No officer found with identifier {officer_id}"}), 404
         return jsonify({"status": "success", "officer": officer_details}), 200
+    except ValueError as e:
+        logger.warning(f"Invalid date format provided for officer details: {e}")
+        return jsonify({"status": "error", "message": f"Invalid date format. Please use YYYY-MM. Error: {str(e)}"}), 400
     except Exception as e:
         route_error_handler.handle_generic_error(e)
         return jsonify({"status": "error", "message": "An unexpected error occurred fetching officer details."}), 500
