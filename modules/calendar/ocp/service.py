@@ -2,6 +2,8 @@ import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from sentry_sdk import capture_exception, set_context, start_transaction
+from sqlalchemy import func, case
+from sqlalchemy.orm import aliased
 
 from .models import Officer, OfficerPoints
 from shared import ocp_db_manager, logger
@@ -248,49 +250,59 @@ class OCPService:
         # Use case-insensitive matching instead of exact matching
         return db_session.query(Officer).filter(Officer.name.ilike(f"%{name}%")).first()
     
-    def get_officer_contributions(self, officer_id: str) -> List[Dict]:
-        """Get all contributions for a specific officer by ID (can be email or UUID)."""
+    def get_officer_contributions(self, officer_identifier: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """
+        Get all contributions for a specific officer (by email or UUID) with optional date filtering.
+        
+        Args:
+            officer_identifier: Officer's email or UUID
+            start_date: Optional start date for filtering (inclusive)
+            end_date: Optional end date for filtering (inclusive)
+            
+        Returns:
+            List of contribution dictionaries
+        """
         try:
             db_session = next(self.db.get_db())
-            officer = None
             
-            # Try to find by UUID first
-            officer = db_session.query(Officer).filter(Officer.uuid == officer_id).first()
+            # Determine if identifier is email or UUID
+            officer_filter = Officer.email == officer_identifier
+            if len(officer_identifier) == 36 and '-' in officer_identifier: # Basic UUID check
+                officer_filter = Officer.uuid == officer_identifier
+
+            query = db_session.query(OfficerPoints).join(Officer).filter(officer_filter)
             
-            # If not found, try by email
-            if not officer:
-                officer = self.get_officer_by_email(db_session, officer_id)
+            # Apply date filters if provided
+            if start_date:
+                query = query.filter(OfficerPoints.timestamp >= start_date)
+            if end_date:
+                # Ensure end_date includes the entire day
+                end_datetime = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+                query = query.filter(OfficerPoints.timestamp <= end_datetime)
                 
-            # If still not found, try by name
-            if not officer:
-                officer = self.get_officer_by_name(db_session, officer_id)
+            # Order by timestamp descending
+            query = query.order_by(OfficerPoints.timestamp.desc())
             
-            if not officer:
-                logger.warning(f"No officer found with identifier {officer_id}")
-                db_session.close()
-                return []
-                
-            points = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid).all()
+            contributions = query.all()
             
-            result = []
-            for point in points:
-                result.append({
-                    "id": point.id,
-                    "points": point.points,
-                    "event": point.event,
-                    "role": point.role,
-                    "event_type": point.event_type,
-                    "timestamp": point.timestamp.isoformat() if point.timestamp else None,
-                    "notion_page_id": point.notion_page_id
-                })
-                
-            db_session.close()
-            return result
+            return [{
+                'id': c.id,
+                'points': c.points,
+                'event': c.event,
+                'role': c.role,
+                'event_type': c.event_type,
+                'timestamp': c.timestamp.isoformat() if c.timestamp else None,
+                'notion_page_id': c.notion_page_id,
+                'metadata': c.event_metadata
+            } for c in contributions]
             
         except Exception as e:
-            logger.error(f"Error getting officer contributions: {str(e)}")
+            self.logger.error(f"Error fetching contributions for officer {officer_identifier}: {str(e)}")
             capture_exception(e)
             return []
+        finally:
+            if 'db_session' in locals() and db_session:
+                db_session.close()
     
     def get_all_officers(self) -> List[Dict]:
         """Get all officers with their total points for the leaderboard."""
@@ -507,90 +519,116 @@ class OCPService:
             capture_exception(e)
             return {"status": "error", "message": f"Error deleting officer points: {str(e)}"}
     
-    def get_officer_leaderboard(self) -> List[Dict]:
-        """Get a leaderboard of officers sorted by total points."""
-        return self.get_all_officers()
-    
-    def get_officer_details(self, officer_id: str) -> Dict:
-        """
-        Get detailed information about a specific officer including their points and events.
-        
-        Args:
-            officer_id: Can be UUID, email, or name of the officer
+    def get_officer_leaderboard(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get all officers with their total points, optionally filtered by date range."""
+        try:
+            db_session = next(self.db.get_db())
+
+            # Subquery to calculate points within the date range
+            points_query = db_session.query(
+                OfficerPoints.officer_uuid,
+                func.sum(OfficerPoints.points).label("total_points")
+            ).group_by(OfficerPoints.officer_uuid)
+
+            if start_date:
+                points_query = points_query.filter(OfficerPoints.timestamp >= start_date)
+            if end_date:
+                end_datetime = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+                points_query = points_query.filter(OfficerPoints.timestamp <= end_datetime)
             
-        Returns:
-            Dict containing officer details and their points history
+            points_subquery = points_query.subquery()
+
+            # Main query to get officer details and join with filtered points
+            officers_query = db_session.query(
+                Officer.uuid,
+                Officer.name,
+                Officer.email,
+                Officer.title,
+                Officer.department,
+                func.coalesce(points_subquery.c.total_points, 0).label("total_points")
+            ).outerjoin(
+                points_subquery, Officer.uuid == points_subquery.c.officer_uuid
+            ).order_by(func.coalesce(points_subquery.c.total_points, 0).desc(), Officer.name)
+            
+            officers_with_points = officers_query.all()
+
+            leaderboard = [{
+                "uuid": officer.uuid,
+                "name": officer.name,
+                "email": officer.email,
+                "title": officer.title,
+                "department": officer.department,
+                "total_points": officer.total_points
+            } for officer in officers_with_points]
+            
+            return leaderboard
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching officer leaderboard: {str(e)}")
+            capture_exception(e)
+            return []
+        finally:
+            if 'db_session' in locals() and db_session:
+                db_session.close()
+    
+    def get_officer_details(self, officer_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> Optional[Dict]:
+        """
+        Get detailed information about a specific officer, including their points and events,
+        optionally filtered by date.
         """
         try:
             db_session = next(self.db.get_db())
-            officer = None
             
-            # Try to find by UUID first
-            officer = db_session.query(Officer).filter(Officer.uuid == officer_id).first()
-            
-            # If not found, try by email
+            # Determine if identifier is email or UUID for fetching officer
+            officer_filter = Officer.email == officer_id
+            if len(officer_id) == 36 and '-' in officer_id: # Basic UUID check
+                 officer_filter = Officer.uuid == officer_id
+
+            officer = db_session.query(Officer).filter(officer_filter).first()
+
             if not officer:
-                officer = self.get_officer_by_email(db_session, officer_id)
-                
-            # If still not found, try by name
-            if not officer:
-                officer = self.get_officer_by_name(db_session, officer_id)
-            
-            if not officer:
-                logger.warning(f"No officer found with identifier {officer_id}")
-                db_session.close()
+                self.logger.warning(f"Officer not found with identifier: {officer_id}")
                 return None
-                
-            # Get all points records for this officer
-            points = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid).all()
+
+            # Fetch contributions with date filtering
+            contributions_query = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid)
+            if start_date:
+                contributions_query = contributions_query.filter(OfficerPoints.timestamp >= start_date)
+            if end_date:
+                end_datetime = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+                contributions_query = contributions_query.filter(OfficerPoints.timestamp <= end_datetime)
             
-            # Calculate total points and organize by event type
-            total_points = sum(point.points for point in points)
-            points_by_type = {}
-            for point in points:
-                event_type = point.event_type or "Other"
-                if event_type not in points_by_type:
-                    points_by_type[event_type] = {
-                        "total_points": 0,
-                        "events": []
-                    }
-                points_by_type[event_type]["total_points"] += point.points
-                points_by_type[event_type]["events"].append({
-                    "id": point.id,
-                    "points": point.points,
-                    "event": point.event,
-                    "role": point.role,
-                    "timestamp": point.timestamp.isoformat() if point.timestamp else None,
-                    "notion_page_id": point.notion_page_id
-                })
-            
-            # Prepare the response
-            result = {
+            contributions = contributions_query.order_by(OfficerPoints.timestamp.desc()).all()
+
+            total_points_in_range = sum(c.points for c in contributions)
+
+            officer_details = {
                 "uuid": officer.uuid,
-                "email": officer.email,
                 "name": officer.name,
+                "email": officer.email,
                 "title": officer.title,
                 "department": officer.department,
-                "total_points": total_points,
-                "points_by_type": points_by_type,
-                "all_events": [{
-                    "id": point.id,
-                    "points": point.points,
-                    "event": point.event,
-                    "role": point.role,
-                    "event_type": point.event_type,
-                    "timestamp": point.timestamp.isoformat() if point.timestamp else None,
-                    "notion_page_id": point.notion_page_id
-                } for point in points]
+                "total_points_in_range": total_points_in_range, # Points calculated for the given range
+                "contributions": [{
+                    'id': c.id,
+                    'points': c.points,
+                    'event': c.event,
+                    'role': c.role,
+                    'event_type': c.event_type,
+                    'timestamp': c.timestamp.isoformat() if c.timestamp else None,
+                    'notion_page_id': c.notion_page_id,
+                     'event_metadata': c.event_metadata
+                } for c in contributions]
             }
-            
-            db_session.close()
-            return result
+            return officer_details
             
         except Exception as e:
-            logger.error(f"Error getting officer details: {str(e)}")
+            self.logger.error(f"Error fetching details for officer {officer_id}: {str(e)}")
             capture_exception(e)
             return None
+        finally:
+            if 'db_session' in locals() and db_session:
+                db_session.close()
     
     def get_all_events(self) -> List[Dict]:
         """
