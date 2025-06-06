@@ -195,7 +195,7 @@ def get_officer_leaderboard():
     route_error_handler.operation_name = "get_officer_leaderboard"
     logger.info("Received GET request on /calendar/ocp/officers for leaderboard")
     set_tag("request_type", "GET")
-
+    
     start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
     end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
 
@@ -401,7 +401,7 @@ def get_officer_details(officer_id):
     logger.info(f"Received GET request on /calendar/ocp/officer/{officer_id}")
     set_tag("request_type", "GET")
     set_tag("officer_id", officer_id)
-
+    
     start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
     end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
 
