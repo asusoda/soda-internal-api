@@ -360,12 +360,13 @@ class OCPService:
     
     def add_officer_points(self, data: Dict) -> Dict[str, Any]:
         """
-        Add custom contribution points for an officer.
+        Add custom contribution points for one or more officers.
         
         Args:
             data: Dictionary containing:
+                - names: List of officer names (required) OR
+                - name: Single officer name (required)
                 - email: Officer's email (optional)
-                - name: Officer's name (required)
                 - points: Number of points (default 1)
                 - event: Event name/description
                 - role: Role (optional)
@@ -378,60 +379,111 @@ class OCPService:
         try:
             db_session = next(self.db.get_db())
             
-            # Validate required fields
-            if not data.get("name"):
+            # Handle both single name and multiple names
+            officer_names = []
+            if data.get("names") and isinstance(data["names"], list):
+                officer_names = data["names"]
+            elif data.get("name"):
+                officer_names = [data["name"]]
+            else:
                 db_session.close()
-                return {"status": "error", "message": "Officer name is required"}
+                return {"status": "error", "message": "Officer name(s) required"}
                 
             if not data.get("event"):
                 db_session.close()
                 return {"status": "error", "message": "Event name/description is required"}
             
-            # Get or create officer
-            officer = None
-            if data.get("email"):
-                officer = self.get_officer_by_email(db_session, data["email"])
+            # Process each officer
+            created_records = []
+            created_officers = []
             
-            if not officer:
-                officer = self.get_officer_by_name(db_session, data["name"])
-            
-            if not officer:
-                # Set defaults for new officer
-                officer = Officer(
-                    email=data.get("email"),  
-                    name=data["name"],
-                    title=data.get("title", "Unknown"),
-                    department=data.get("department", "Unknown")
+            for officer_name in officer_names:
+                officer_name = officer_name.strip()
+                if not officer_name:
+                    continue
+                    
+                # Get or create officer
+                officer = self.get_officer_by_name(db_session, officer_name)
+                
+                # If not found by name and email is provided, try email
+                if not officer and data.get("email"):
+                    officer = self.get_officer_by_email(db_session, data["email"])
+                
+                if not officer:
+                    # Create new officer
+                    officer = Officer(
+                        email=data.get("email") if len(officer_names) == 1 else None,  # Only set email for single officer
+                        name=officer_name,
+                        title=data.get("title", "Unknown"),
+                        department=data.get("department", "Unknown")
+                    )
+                    officer = self.db.create_officer(db_session, officer)
+                    created_officers.append(officer_name)
+                    logger.info(f"Created new officer: {officer_name}")
+                
+                # Calculate points if role or event_type is provided
+                points = data.get("points", 1)
+                if not points and data.get("role"):
+                    points = calculate_points_for_role(data["role"])
+                if not points and data.get("event_type"):
+                    points = calculate_points_for_event_type(data["event_type"])
+                
+                # Parse timestamp if provided as string
+                timestamp = data.get("timestamp")
+                if timestamp:
+                    if isinstance(timestamp, str):
+                        try:
+                            # Parse ISO format timestamp from frontend
+                            # Handle common formats: 2025-06-08T00:00:00.000Z or 2025-06-08T00:00:00Z
+                            timestamp_str = timestamp.replace('Z', '')  # Remove Z suffix
+                            if '.' in timestamp_str:
+                                # Format with milliseconds
+                                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S.%f")
+                            else:
+                                # Format without milliseconds
+                                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+                        except ValueError as e:
+                            logger.warning(f"Could not parse timestamp {timestamp}: {str(e)}, using current time")
+                            timestamp = datetime.utcnow()
+                else:
+                    timestamp = datetime.utcnow()
+                
+                # Create points record
+                points_record = OfficerPoints(
+                    points=points,
+                    event=data["event"],
+                    role=data.get("role", "Custom"),
+                    event_type=data.get("event_type", "Default"),
+                    timestamp=timestamp,
+                    officer_uuid=officer.uuid,
+                    notion_page_id=data.get("notion_page_id"),
+                    event_metadata={"source": "manual_entry"}
                 )
-                officer = self.db.create_officer(db_session, officer)
-                logger.info(f"Created new officer: {data['name']}")
+                
+                record = self.db.create_officer_points(db_session, points_record)
+                created_records.append(record.id)
             
-            # Calculate points if role or event_type is provided
-            points = data.get("points", 1)
-            if not points and data.get("role"):
-                points = calculate_points_for_role(data["role"])
-            if not points and data.get("event_type"):
-                points = calculate_points_for_event_type(data["event_type"])
-            
-            # Create points record
-            points_record = OfficerPoints(
-                points=points,
-                event=data["event"],
-                role=data.get("role", "Custom"),
-                event_type=data.get("event_type", "Default"),
-                timestamp=data.get("timestamp", datetime.utcnow()),
-                officer_uuid=officer.uuid,
-                notion_page_id=data.get("notion_page_id"),
-                event_metadata={"source": "manual_entry"}
-            )
-            
-            record = self.db.create_officer_points(db_session, points_record)
             db_session.close()
+            
+            # Prepare response message
+            officer_count = len(officer_names)
+            points_per_officer = data.get("points", 1)
+            total_points = officer_count * points_per_officer
+            
+            if officer_count == 1:
+                message = f"Added {points_per_officer} points for {officer_names[0]}"
+            else:
+                message = f"Added {points_per_officer} points each for {officer_count} officers (total: {total_points} points)"
+            
+            if created_officers:
+                message += f". Created new officers: {', '.join(created_officers)}"
             
             return {
                 "status": "success",
-                "message": f"Added {points} points for {data['name']}",
-                "record_id": record.id
+                "message": message,
+                "record_ids": created_records,
+                "officers_processed": officer_count,
+                "new_officers_created": len(created_officers)
             }
             
         except Exception as e:
