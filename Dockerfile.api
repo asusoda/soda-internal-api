@@ -15,11 +15,13 @@ WORKDIR /app
 # Copy dependency files first (better caching)
 COPY pyproject.toml poetry.lock ./
 
-# Export dependencies to requirements.txt for faster installation
-RUN pip install poetry poetry-plugin-export && \
+# Install poetry and export dependencies
+RUN pip install --no-cache-dir poetry poetry-plugin-export && \
     poetry export -f requirements.txt --output requirements.txt --without-hashes
 
-# Install dependencies using pip (faster than poetry)
+# Install dependencies in a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Runtime stage
@@ -35,9 +37,9 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY --chown=appuser:appuser modules ./modules
