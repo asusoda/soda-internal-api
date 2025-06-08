@@ -248,8 +248,8 @@ class OCPService:
         # Use case-insensitive matching instead of exact matching
         return db_session.query(Officer).filter(Officer.name.ilike(f"%{name}%")).first()
     
-    def get_officer_contributions(self, officer_id: str) -> List[Dict]:
-        """Get all contributions for a specific officer by ID (can be email or UUID)."""
+    def get_officer_contributions(self, officer_id: str, start_date=None, end_date=None) -> List[Dict]:
+        """Get all contributions for a specific officer by ID (can be email or UUID), with optional date filtering."""
         try:
             db_session = next(self.db.get_db())
             officer = None
@@ -270,7 +270,16 @@ class OCPService:
                 db_session.close()
                 return []
                 
-            points = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid).all()
+            # Build query with optional date filtering
+            points_query = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid)
+            
+            # Apply date filtering if provided
+            if start_date:
+                points_query = points_query.filter(OfficerPoints.timestamp >= start_date)
+            if end_date:
+                points_query = points_query.filter(OfficerPoints.timestamp <= end_date)
+            
+            points = points_query.all()
             
             result = []
             for point in points:
@@ -292,16 +301,24 @@ class OCPService:
             capture_exception(e)
             return []
     
-    def get_all_officers(self) -> List[Dict]:
-        """Get all officers with their total points for the leaderboard."""
+    def get_all_officers(self, start_date=None, end_date=None) -> List[Dict]:
+        """Get all officers with their total points for the leaderboard, with optional date filtering."""
         try:
             db_session = next(self.db.get_db())
             officers = db_session.query(Officer).all()
             
             result = []
             for officer in officers:
-                # Calculate total points
-                points = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid).all()
+                # Calculate total points with optional date filtering
+                points_query = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid)
+                
+                # Apply date filtering if provided
+                if start_date:
+                    points_query = points_query.filter(OfficerPoints.timestamp >= start_date)
+                if end_date:
+                    points_query = points_query.filter(OfficerPoints.timestamp <= end_date)
+                
+                points = points_query.all()
                 total_points = sum(point.points for point in points)
                 
                 # Count contributions by type
@@ -507,16 +524,18 @@ class OCPService:
             capture_exception(e)
             return {"status": "error", "message": f"Error deleting officer points: {str(e)}"}
     
-    def get_officer_leaderboard(self) -> List[Dict]:
-        """Get a leaderboard of officers sorted by total points."""
-        return self.get_all_officers()
+    def get_officer_leaderboard(self, start_date=None, end_date=None) -> List[Dict]:
+        """Get a leaderboard of officers sorted by total points, with optional date filtering."""
+        return self.get_all_officers(start_date=start_date, end_date=end_date)
     
-    def get_officer_details(self, officer_id: str) -> Dict:
+    def get_officer_details(self, officer_id: str, start_date=None, end_date=None) -> Dict:
         """
         Get detailed information about a specific officer including their points and events.
         
         Args:
             officer_id: Can be UUID, email, or name of the officer
+            start_date: Optional start date for filtering points
+            end_date: Optional end date for filtering points
             
         Returns:
             Dict containing officer details and their points history
@@ -541,8 +560,16 @@ class OCPService:
                 db_session.close()
                 return None
                 
-            # Get all points records for this officer
-            points = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid).all()
+            # Get all points records for this officer with optional date filtering
+            points_query = db_session.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer.uuid)
+            
+            # Apply date filtering if provided
+            if start_date:
+                points_query = points_query.filter(OfficerPoints.timestamp >= start_date)
+            if end_date:
+                points_query = points_query.filter(OfficerPoints.timestamp <= end_date)
+            
+            points = points_query.all()
             
             # Calculate total points and organize by event type
             total_points = sum(point.points for point in points)

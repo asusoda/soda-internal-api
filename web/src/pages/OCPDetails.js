@@ -119,10 +119,21 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
           </div>
           <div>
             <label htmlFor="eventDate" className="block text-sm font-medium text-soda-white/90 mb-1">Event Date</label>
-            <input type="date" id="eventDate" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue" />
+            <input 
+              type="date" 
+              id="eventDate" 
+              value={eventDate} 
+              onChange={e => setEventDate(e.target.value)} 
+              className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue [color-scheme:dark]"
+              style={{
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none'
+              }}
+            />
           </div>
           <div className="pt-2 flex justify-end">
-            <StarBorder type="submit" color="#34C759" disabled={isSubmitting} className="px-6 py-2.5">
+            <StarBorder type="submit" color="#007AFF" disabled={isSubmitting} className="py-2.5">
               {isSubmitting ? 'Submitting...' : 'Log Contribution'}
             </StarBorder>
           </div>
@@ -550,34 +561,68 @@ const OCPDetails = () => {
           <h2 className="text-2xl font-semibold text-soda-blue mb-4">Officers Leaderboard</h2>
           
           {/* Timeline Filter UI */} 
-          <div className="bg-soda-gray/50 backdrop-blur-md p-4 rounded-lg mb-6 border border-soda-white/10 flex flex-col sm:flex-row gap-4 items-center">
-            <div className="flex-1 min-w-[150px]">
-              <label htmlFor="start-date" className="block text-sm font-medium text-soda-white/80 mb-1">Start Date (YYYY-MM)</label>
-              <input 
-                type="month" 
-                id="start-date" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
-              />
-            </div>
-            <div className="flex-1 min-w-[150px]">
-              <label htmlFor="end-date" className="block text-sm font-medium text-soda-white/80 mb-1">End Date (YYYY-MM)</label>
-              <input 
-                type="month" 
-                id="end-date" 
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
-              />
-            </div>
-            <div className="flex gap-2 mt-2 sm:mt-0 sm:self-end">
-                <StarBorder color="#007AFF" onClick={handleFilterApply} className="py-2 text-sm" as="button">
-                    Apply Filters
+          <div className="bg-soda-gray/70 backdrop-blur-md p-6 rounded-xl mb-6 border border-soda-white/10 shadow-lg">
+            <h3 className="text-lg font-semibold text-soda-white mb-4 flex items-center">
+              <FaSearchDollar className="mr-2 text-soda-blue" />
+              Filter by Date Range
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 min-w-[180px]">
+                <label htmlFor="start-date" className="block text-sm font-medium text-soda-white/90 mb-2">
+                  Start Date (YYYY-MM)
+                </label>
+                <div className="relative">
+                  <input 
+                    type="month" 
+                    id="start-date" 
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-3 rounded-lg bg-soda-black/60 border border-soda-white/30 text-soda-white placeholder-soda-white/50 focus:ring-2 focus:ring-soda-blue focus:border-soda-blue transition-all duration-200 [color-scheme:dark]"
+                    style={{
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      appearance: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1 min-w-[180px]">
+                <label htmlFor="end-date" className="block text-sm font-medium text-soda-white/90 mb-2">
+                  End Date (YYYY-MM)
+                </label>
+                <div className="relative">
+                  <input 
+                    type="month" 
+                    id="end-date" 
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-3 rounded-lg bg-soda-black/60 border border-soda-white/30 text-soda-white placeholder-soda-white/50 focus:ring-2 focus:ring-soda-blue focus:border-soda-blue transition-all duration-200 [color-scheme:dark]"
+                    style={{
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      appearance: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-2 sm:mt-0">
+                <StarBorder 
+                  color="#007AFF" 
+                  onClick={handleFilterApply} 
+                  className="py-2.5 text-sm font-medium" 
+                  as="button"
+                >
+                  Apply Filters
                 </StarBorder>
-                <StarBorder color="#FF3B30" onClick={handleFilterClear} className="py-2 text-sm" as="button">
-                    Clear Filters
+                <StarBorder 
+                  color="#FF3B30" 
+                  onClick={handleFilterClear} 
+                  className="py-2.5 text-sm font-medium" 
+                  as="button"
+                >
+                  Clear Filters
                 </StarBorder>
+              </div>
             </div>
           </div>
 
