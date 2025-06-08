@@ -195,7 +195,7 @@ def get_officer_leaderboard():
     route_error_handler.operation_name = "get_officer_leaderboard"
     logger.info("Received GET request on /calendar/ocp/officers for leaderboard")
     set_tag("request_type", "GET")
-
+    
     start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
     end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
 
@@ -282,17 +282,18 @@ def get_officer_contributions(officer_identifier):
 @auth_required
 def add_contribution():
     """
-    Add a contribution record for an officer.
+    Add a contribution record for one or more officers.
     
     Expected JSON body:
     {
-        "email": "officer@example.com",  # Required
-        "name": "Officer Name",          # Optional, for new officers
-        "event": "Event description",    # Required
-        "points": 1,                     # Optional, default 1
-        "role": "Event Lead",            # Optional
-        "event_type": "GBM",             # Optional
-        "timestamp": "2023-10-15T12:00:00Z"  # Optional, defaults to now
+        "names": ["Officer Name 1", "Officer Name 2"],  # Required (list of names) OR
+        "name": "Officer Name",                          # Required (single name)
+        "email": "officer@example.com",                  # Optional
+        "event": "Event description",                    # Required
+        "points": 1,                                     # Optional, default 1
+        "role": "Event Lead",                            # Optional
+        "event_type": "GBM",                             # Optional
+        "timestamp": "2023-10-15T12:00:00Z"              # Optional, defaults to now
     }
     """
     transaction = start_transaction(op="api", name="add_contribution")
@@ -401,7 +402,7 @@ def get_officer_details(officer_id):
     logger.info(f"Received GET request on /calendar/ocp/officer/{officer_id}")
     set_tag("request_type", "GET")
     set_tag("officer_id", officer_id)
-
+    
     start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
     end_date_str = request.args.get('end_date')     # Expected format: YYYY-MM
 
@@ -452,6 +453,36 @@ def get_all_events():
     except Exception as e:
         route_error_handler.handle_generic_error(e)
         return jsonify({"status": "error", "message": "An unexpected error occurred fetching all events."}), 500
+    finally:
+        route_error_handler.transaction = None
+        if transaction:
+            transaction.finish()
+
+@ocp_blueprint.route("/officer-names", methods=["GET"])
+@auth_required
+def get_officer_names():
+    """Get all officer names for dropdown selection."""
+    transaction = start_transaction(op="api", name="get_officer_names")
+    route_error_handler.transaction = transaction
+    route_error_handler.operation_name = "get_officer_names"
+    logger.info("Received GET request on /calendar/ocp/officer-names")
+    set_tag("request_type", "GET")
+    
+    try:
+        officers = ocp_service.get_all_officers()
+        officer_names = [{"name": officer["name"], "uuid": officer["uuid"]} for officer in officers if officer["name"] != "Unknown"]
+        
+        # Sort by name for better UX
+        officer_names.sort(key=lambda x: x["name"].lower())
+        
+        return jsonify({
+            "status": "success", 
+            "officers": officer_names,
+            "count": len(officer_names)
+        }), 200
+    except Exception as e:
+        route_error_handler.handle_generic_error(e)
+        return jsonify({"status": "error", "message": "An unexpected error occurred fetching officer names."}), 500
     finally:
         route_error_handler.transaction = None
         if transaction:

@@ -40,8 +40,10 @@ const getEventTypeColor = (eventType) => {
 // AddContributionModal Component (Moved outside OCPDetails, hooks before early return)
 const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
   // Hooks must be called unconditionally at the top level of the component
-  const [officerEmail, setOfficerEmail] = useState('');
-  const [officerName, setOfficerName] = useState('');
+  const [selectedOfficers, setSelectedOfficers] = useState([]);
+  const [customOfficerName, setCustomOfficerName] = useState('');
+  const [availableOfficers, setAvailableOfficers] = useState([]);
+  const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [eventDescription, setEventDescription] = useState('');
   const [points, setPoints] = useState(1);
   const [role, setRole] = useState('');
@@ -50,27 +52,77 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Fetch available officers when modal opens
+  React.useEffect(() => {
+    if (isOpen && availableOfficers.length === 0) {
+      fetchAvailableOfficers();
+    }
+  }, [isOpen]);
+
+  const fetchAvailableOfficers = async () => {
+    setLoadingOfficers(true);
+    try {
+      const response = await apiClient.get('/calendar/ocp/officer-names');
+      if (response.data.status === 'success') {
+        setAvailableOfficers(response.data.officers);
+      }
+    } catch (error) {
+      console.error('Error fetching officer names:', error);
+    } finally {
+      setLoadingOfficers(false);
+    }
+  };
+
+  const handleOfficerSelect = (officer) => {
+    if (!selectedOfficers.find(o => o.uuid === officer.uuid)) {
+      setSelectedOfficers([...selectedOfficers, officer]);
+    }
+  };
+
+  const handleRemoveOfficer = (officerToRemove) => {
+    setSelectedOfficers(selectedOfficers.filter(o => o.uuid !== officerToRemove.uuid));
+  };
+
+  const handleAddCustomOfficer = () => {
+    if (customOfficerName.trim() && !selectedOfficers.find(o => o.name === customOfficerName.trim())) {
+      setSelectedOfficers([...selectedOfficers, { name: customOfficerName.trim(), uuid: 'custom_' + Date.now() }]);
+      setCustomOfficerName('');
+    }
+  };
+
   if (!isOpen) return null; // Early return after hooks
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!officerEmail || !eventDescription) {
-        setFormError('Officer Email and Event Description are required.');
+    if (selectedOfficers.length === 0 || !eventDescription) {
+        setFormError('At least one officer and event description are required.');
         return;
     }
     setIsSubmitting(true);
     setFormError('');
+    
+    const officerNames = selectedOfficers.map(officer => officer.name);
     const contributionData = {
-        email: officerEmail,
-        name: officerName || undefined,
+        names: officerNames,
         event: eventDescription,
         points: parseInt(points, 10) || 1,
         role: role || undefined,
         event_type: eventType || undefined,
         timestamp: eventDate ? new Date(eventDate).toISOString() : undefined
     };
-    await onAdd(contributionData);
+    const success = await onAdd(contributionData);
     setIsSubmitting(false);
+    
+    // Clear form only on success
+    if (success) {
+      setSelectedOfficers([]);
+      setCustomOfficerName('');
+      setEventDescription('');
+      setPoints(1);
+      setRole('');
+      setEventType('Other');
+      setEventDate(new Date().toISOString().split('T')[0]);
+    }
   };
 
   return (
@@ -84,13 +136,88 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {formError && <p className="text-red-400 text-sm">{formError}</p>}
+          
+          {/* Officer Selection Section */}
           <div>
-            <label htmlFor="officerEmail" className="block text-sm font-medium text-soda-white/90 mb-1">Officer Email <span className="text-soda-red">*</span></label>
-            <input type="email" id="officerEmail" value={officerEmail} onChange={e => setOfficerEmail(e.target.value)} required className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue" />
-          </div>
-          <div>
-            <label htmlFor="officerName" className="block text-sm font-medium text-soda-white/90 mb-1">Officer Name (Optional)</label>
-            <input type="text" id="officerName" value={officerName} onChange={e => setOfficerName(e.target.value)} className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue" />
+            <label className="block text-sm font-medium text-soda-white/90 mb-2">Select Officers <span className="text-soda-red">*</span></label>
+            
+            {/* Available Officers Dropdown */}
+            <div className="mb-3">
+              <label htmlFor="existingOfficers" className="block text-xs text-soda-white/70 mb-1">Choose from existing officers:</label>
+              {loadingOfficers ? (
+                <p className="text-soda-white/60 text-sm">Loading officers...</p>
+              ) : (
+                <select 
+                  id="existingOfficers" 
+                  onChange={(e) => {
+                    const selectedUuid = e.target.value;
+                    if (selectedUuid) {
+                      const officer = availableOfficers.find(o => o.uuid === selectedUuid);
+                      if (officer) {
+                        handleOfficerSelect(officer);
+                        e.target.value = ''; // Reset dropdown
+                      }
+                    }
+                  }}
+                  className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
+                >
+                  <option value="">-- Select an existing officer --</option>
+                  {availableOfficers.map((officer) => (
+                    <option key={officer.uuid} value={officer.uuid}>
+                      {officer.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Add Custom Officer */}
+            <div className="mb-3">
+              <label htmlFor="customOfficer" className="block text-xs text-soda-white/70 mb-1">Or add a new officer:</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  id="customOfficer" 
+                  value={customOfficerName} 
+                  onChange={(e) => setCustomOfficerName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && e.preventDefault()}
+                  placeholder="Enter new officer name"
+                  className="flex-1 p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue" 
+                />
+                <button 
+                  type="button" 
+                  onClick={handleAddCustomOfficer}
+                  disabled={!customOfficerName.trim()}
+                  className="px-4 py-2.5 bg-soda-blue hover:bg-soda-blue/80 disabled:bg-soda-gray/50 disabled:text-soda-white/50 text-white rounded-md transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Officers Display */}
+            {selectedOfficers.length > 0 && (
+              <div>
+                <label className="block text-xs text-soda-white/70 mb-2">Selected officers ({selectedOfficers.length}):</label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedOfficers.map((officer) => (
+                    <div 
+                      key={officer.uuid} 
+                      className="flex items-center bg-soda-blue/20 text-soda-blue border border-soda-blue/30 rounded-md px-3 py-1 text-sm"
+                    >
+                      <span>{officer.name}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveOfficer(officer)}
+                        className="ml-2 text-soda-blue hover:text-soda-red transition-colors"
+                      >
+                        <FaTimes className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="eventDescription" className="block text-sm font-medium text-soda-white/90 mb-1">Event Description <span className="text-soda-red">*</span></label>
@@ -119,10 +246,21 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
           </div>
           <div>
             <label htmlFor="eventDate" className="block text-sm font-medium text-soda-white/90 mb-1">Event Date</label>
-            <input type="date" id="eventDate" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue" />
+            <input 
+              type="date" 
+              id="eventDate" 
+              value={eventDate} 
+              onChange={e => setEventDate(e.target.value)} 
+              className="w-full p-2.5 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue [color-scheme:dark]"
+              style={{
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none'
+              }}
+            />
           </div>
           <div className="pt-2 flex justify-end">
-            <StarBorder type="submit" color="#34C759" disabled={isSubmitting} className="px-6 py-2.5">
+            <StarBorder type="submit" color="#007AFF" disabled={isSubmitting} className="py-2.5">
               {isSubmitting ? 'Submitting...' : 'Log Contribution'}
             </StarBorder>
           </div>
@@ -550,34 +688,68 @@ const OCPDetails = () => {
           <h2 className="text-2xl font-semibold text-soda-blue mb-4">Officers Leaderboard</h2>
           
           {/* Timeline Filter UI */} 
-          <div className="bg-soda-gray/50 backdrop-blur-md p-4 rounded-lg mb-6 border border-soda-white/10 flex flex-col sm:flex-row gap-4 items-center">
-            <div className="flex-1 min-w-[150px]">
-              <label htmlFor="start-date" className="block text-sm font-medium text-soda-white/80 mb-1">Start Date (YYYY-MM)</label>
-              <input 
-                type="month" 
-                id="start-date" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
-              />
-            </div>
-            <div className="flex-1 min-w-[150px]">
-              <label htmlFor="end-date" className="block text-sm font-medium text-soda-white/80 mb-1">End Date (YYYY-MM)</label>
-              <input 
-                type="month" 
-                id="end-date" 
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue"
-              />
-            </div>
-            <div className="flex gap-2 mt-2 sm:mt-0 sm:self-end">
-                <StarBorder color="#007AFF" onClick={handleFilterApply} className="py-2 text-sm" as="button">
-                    Apply Filters
+          <div className="bg-soda-gray/70 backdrop-blur-md p-6 rounded-xl mb-6 border border-soda-white/10 shadow-lg">
+            <h3 className="text-lg font-semibold text-soda-white mb-4 flex items-center">
+              <FaSearchDollar className="mr-2 text-soda-blue" />
+              Filter by Date Range
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 min-w-[180px]">
+                <label htmlFor="start-date" className="block text-sm font-medium text-soda-white/90 mb-2">
+                  Start Date (YYYY-MM)
+                </label>
+                <div className="relative">
+                  <input 
+                    type="month" 
+                    id="start-date" 
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-3 rounded-lg bg-soda-black/60 border border-soda-white/30 text-soda-white placeholder-soda-white/50 focus:ring-2 focus:ring-soda-blue focus:border-soda-blue transition-all duration-200 [color-scheme:dark]"
+                    style={{
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      appearance: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1 min-w-[180px]">
+                <label htmlFor="end-date" className="block text-sm font-medium text-soda-white/90 mb-2">
+                  End Date (YYYY-MM)
+                </label>
+                <div className="relative">
+                  <input 
+                    type="month" 
+                    id="end-date" 
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-3 rounded-lg bg-soda-black/60 border border-soda-white/30 text-soda-white placeholder-soda-white/50 focus:ring-2 focus:ring-soda-blue focus:border-soda-blue transition-all duration-200 [color-scheme:dark]"
+                    style={{
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      appearance: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-2 sm:mt-0">
+                <StarBorder 
+                  color="#007AFF" 
+                  onClick={handleFilterApply} 
+                  className="py-2.5 text-sm font-medium" 
+                  as="button"
+                >
+                  Apply Filters
                 </StarBorder>
-                <StarBorder color="#FF3B30" onClick={handleFilterClear} className="py-2 text-sm" as="button">
-                    Clear Filters
+                <StarBorder 
+                  color="#FF3B30" 
+                  onClick={handleFilterClear} 
+                  className="py-2.5 text-sm font-medium" 
+                  as="button"
+                >
+                  Clear Filters
                 </StarBorder>
+              </div>
             </div>
           </div>
 
@@ -768,20 +940,37 @@ const OCPDetails = () => {
       
       <AddContributionModal 
         isOpen={showAddContributionModal} 
-        onClose={() => setShowAddContributionModal(false)}
+        onClose={() => {
+          setShowAddContributionModal(false);
+        }}
         onAdd={async (contributionData) => {
           try {
             const response = await apiClient.post('/calendar/ocp/add-contribution', contributionData);
             const result = response.data;
             if (response.status >= 200 && response.status < 300 && result.status !== 'error') {
-                setSyncNotification({ open: true, message: result.message || 'Contribution added successfully!', type: 'success'});
+                setSyncNotification({ 
+                  open: true, 
+                  message: result.message || 'Contribution(s) added successfully!', 
+                  type: 'success'
+                });
                 setShowAddContributionModal(false);
                 fetchInitialData();
+                return true; // Indicate success to modal
             } else {
-                setSyncNotification({ open: true, message: result.message || 'Failed to add contribution.', type: 'error'});
+                setSyncNotification({ 
+                  open: true, 
+                  message: result.message || 'Failed to add contribution.', 
+                  type: 'error'
+                });
+                return false;
             }
           } catch (err) {
-            setSyncNotification({ open: true, message: err.message || 'An error occurred.', type: 'error'});
+            setSyncNotification({ 
+              open: true, 
+              message: err.response?.data?.message || err.message || 'An error occurred.', 
+              type: 'error'
+            });
+            return false;
           }
         }}
       />
