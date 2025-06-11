@@ -1,42 +1,108 @@
-import React from 'react';
-import { FaUser, FaChartLine, FaDiscord, FaHome, FaPlus } from 'react-icons/fa'; 
-import { useNavigate } from 'react-router-dom';
-import './SideBar.css'; 
+// import React from 'react';
+// import { FaUser, FaChartLine, FaDiscord, FaHome, FaPlus } from 'react-icons/fa';
+// import { useNavigate } from 'react-router-dom';
+// import './SideBar.css';
+
+// const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
+//     const navigate = useNavigate();
+
+//     return (
+//         <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`} style={{ backgroundColor: '#ba3554' }}>
+//             <button className="close-btn" onClick={toggleSidebar}>
+//                 {isSidebarOpen ? '✖' : '☰'}
+//             </button>
+//             <div className={`sidebar-links ${isSidebarOpen ? 'visible' : 'hidden'}`}>
+//                 <button onClick={() => navigate('/home')}>
+//                     <FaHome className="icon" />
+//                     {isSidebarOpen && <span>Home</span>}
+//                 </button>
+//                 <button onClick={() => navigate('/users')}>
+//                     <FaUser className="icon" />
+//                     {isSidebarOpen && <span>Users</span>}
+//                 </button>
+//                 <button onClick={() => navigate('/leaderboard')}>
+//                     <FaChartLine className="icon" />
+//                     {isSidebarOpen && <span>Points</span>}
+//                 </button>
+//                 <button onClick={() => navigate('/createuser')}>
+//                     <FaPlus className="icon" />
+//                     {isSidebarOpen && <span>Create User</span>}
+//                 </button>
+//                 {/* Uncomment this if needed
+//                 <button onClick={() => navigate('/discord')}>
+//                     <FaDiscord className="icon" />
+//                     {isSidebarOpen && <span>Discord</span>}
+//                 </button>
+//                 */}
+//             </div>
+//         </div>
+//     );
+// };
+
+// export default Sidebar;
+
+import React from "react";
+import {
+  FaUser,
+  FaChartLine,
+  FaDiscord,
+  FaHome,
+  FaPlus,
+  FaTshirt,
+  FaExchangeAlt,
+} from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import "./SideBar.css";
 
 const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    return (
-        <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`} style={{ backgroundColor: '#ba3554' }}>
-            <button className="close-btn" onClick={toggleSidebar}>
-                {isSidebarOpen ? '✖' : '☰'}
-            </button>
-            <div className={`sidebar-links ${isSidebarOpen ? 'visible' : 'hidden'}`}>
-                <button onClick={() => navigate('/home')}>
-                    <FaHome className="icon" />
-                    {isSidebarOpen && <span>Home</span>}
-                </button>
-                <button onClick={() => navigate('/users')}>
-                    <FaUser className="icon" />
-                    {isSidebarOpen && <span>Users</span>}
-                </button>
-                <button onClick={() => navigate('/leaderboard')}>
-                    <FaChartLine className="icon" />
-                    {isSidebarOpen && <span>Points</span>}
-                </button>
-                <button onClick={() => navigate('/createuser')}>
-                    <FaPlus className="icon" />
-                    {isSidebarOpen && <span>Create User</span>}
-                </button>
-                {/* Uncomment this if needed
+  return (
+    <div
+      className={`sidebar ${isSidebarOpen ? "open" : ""}`}
+      style={{ backgroundColor: "#ba3554" }}
+    >
+      <button className="close-btn" onClick={toggleSidebar}>
+        {isSidebarOpen ? "✖" : "☰"}
+      </button>
+      <div className={`sidebar-links ${isSidebarOpen ? "visible" : "hidden"}`}>
+        <button onClick={() => navigate("/home")}>
+          <FaHome className="icon" />
+          {isSidebarOpen && <span>Home</span>}
+        </button>
+        <button onClick={() => navigate("/users")}>
+          <FaUser className="icon" />
+          {isSidebarOpen && <span>Users</span>}
+        </button>
+        <button onClick={() => navigate("/leaderboard")}>
+          <FaChartLine className="icon" />
+          {isSidebarOpen && <span>Points</span>}
+        </button>
+        <button onClick={() => navigate("/createuser")}>
+          <FaPlus className="icon" />
+          {isSidebarOpen && <span>Create User</span>}
+        </button>
+        <button onClick={() => navigate("/merchandise")}>
+          <FaTshirt className="icon" />
+          {isSidebarOpen && <span>Merchandise</span>}
+        </button>
+        <button onClick={() => navigate("/add-merchandise")}>
+          <FaPlus className="icon" />
+          {isSidebarOpen && <span>Add Merchandise</span>}
+        </button>
+        <button onClick={() => navigate("/transactions")}>
+          <FaExchangeAlt className="icon" />
+          {isSidebarOpen && <span>Transactions</span>}
+        </button>
+        {/* Uncomment if needed
                 <button onClick={() => navigate('/discord')}>
                     <FaDiscord className="icon" />
                     {isSidebarOpen && <span>Discord</span>}
                 </button>
                 */}
-            </div>
-        </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default Sidebar;
