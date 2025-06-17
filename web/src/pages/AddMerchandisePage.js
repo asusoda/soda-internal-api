@@ -20,19 +20,24 @@ const AddMerchandisePage = () => {
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
       <div
-        className={`flex-1 p-8 ${
+        className={`flex-1 p-8 transition-all duration-300 ${
           isSidebarOpen ? "ml-60" : "ml-16"
-        } bg-white text-black`}
+        }`}
       >
-        <h1 className="text-4xl font-bold mb-6">Add Merchandise</h1>
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-md">
+        <h1 className="text-4xl font-bold mb-6 text-center text-[#ba3554]">
+          Add Merchandise
+        </h1>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-lg"
+        >
           <div>
             <label className="block text-lg font-semibold mb-2">Image</label>
             <input
               type="file"
               accept="image/*"
               onChange={(e) => setImageFile(e.target.files[0])}
-              className="border border-gray-300 rounded p-2 w-full"
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
             />
           </div>
           <div>
@@ -41,7 +46,7 @@ const AddMerchandisePage = () => {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="border border-gray-300 rounded p-2 w-full"
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
               placeholder="Enter item name"
               required
             />
@@ -52,7 +57,7 @@ const AddMerchandisePage = () => {
               type="number"
               value={cost}
               onChange={(e) => setCost(e.target.value)}
-              className="border border-gray-300 rounded p-2 w-full"
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
               placeholder="e.g. 100"
               required
             />
@@ -64,13 +69,13 @@ const AddMerchandisePage = () => {
             <select
               value={visibility}
               onChange={(e) => setVisibility(e.target.value)}
-              className="border border-gray-300 rounded p-2 w-full"
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
             >
               <option>Shown</option>
               <option>Hidden</option>
             </select>
           </div>
-          <div className="flex space-x-4">
+          <div className="flex space-x-4 justify-end pt-4">
             <button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
