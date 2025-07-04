@@ -1,4 +1,4 @@
-name: CI
+name: Pytest
 
 on:
   push:
@@ -12,7 +12,6 @@ env:
 
 jobs:
   test:
-    name: Run Tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
