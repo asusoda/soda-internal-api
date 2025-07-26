@@ -43,7 +43,7 @@ def get_product(product_id):
     finally:
         db.close()
 
-@merch_blueprint.route("/products", methods=["POST"])
+@merch_blueprint.route("/products/add", methods=["POST"])
 @auth_required
 @error_handler
 def create_product():

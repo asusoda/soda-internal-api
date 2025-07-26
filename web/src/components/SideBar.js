@@ -82,11 +82,11 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
           <FaPlus className="icon" />
           {isSidebarOpen && <span>Create User</span>}
         </button>
-        <button onClick={() => navigate("/merchandise")}>
+        <button onClick={() => navigate("/merch/products")}>
           <FaTshirt className="icon" />
           {isSidebarOpen && <span>Merchandise</span>}
         </button>
-        <button onClick={() => navigate("/add-merchandise")}>
+        <button onClick={() => navigate("/merch/products/add")}>
           <FaPlus className="icon" />
           {isSidebarOpen && <span>Add Merchandise</span>}
         </button>

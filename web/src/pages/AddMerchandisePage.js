@@ -1,16 +1,39 @@
 import React, { useState } from "react";
 import Sidebar from "../components/SideBar";
+import apiClient from "../components/utils/axios";
 
 const AddMerchandisePage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
   const [name, setName] = useState("");
-  const [cost, setCost] = useState("");
-  const [visibility, setVisibility] = useState("Shown");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState(1);
+  const [description, setDescription] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: send to API
+
+    const productData = {
+      name,
+      description,
+      price: parseInt(price),
+      stock: parseInt(stock),
+      image_url: imageUrl,
+    };
+
+    try {
+      const response = await apiClient.post("/merch/products/add", productData);
+      alert("Product added successfully!");
+      // Reset form
+      setImageUrl("");
+      setName("");
+      setPrice("");
+      setStock(1);
+      setDescription("");
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      alert("Something went wrong while adding the product.");
+    }
   };
 
   return (
@@ -25,19 +48,22 @@ const AddMerchandisePage = () => {
         }`}
       >
         <h1 className="text-4xl font-bold mb-6 text-center text-[#ba3554]">
-          Add Merchandise
+          Add Product
         </h1>
         <form
           onSubmit={handleSubmit}
           className="space-y-6 max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-lg"
         >
           <div>
-            <label className="block text-lg font-semibold mb-2">Image</label>
+            <label className="block text-lg font-semibold mb-2">
+              Image URL
+            </label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setImageFile(e.target.files[0])}
+              type="text"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
               className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
+              placeholder="Enter image URL"
             />
           </div>
           <div>
@@ -47,40 +73,50 @@ const AddMerchandisePage = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="Enter item name"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-semibold mb-2">Cost</label>
-            <input
-              type="number"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="e.g. 100"
+              placeholder="Enter product name"
               required
             />
           </div>
           <div>
             <label className="block text-lg font-semibold mb-2">
-              Visibility
+              Description
             </label>
-            <select
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value)}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-            >
-              <option>Shown</option>
-              <option>Hidden</option>
-            </select>
+              placeholder="Enter product description"
+            />
+          </div>
+          <div>
+            <label className="block text-lg font-semibold mb-2">Price</label>
+            <input
+              type="number"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
+              placeholder="e.g. 19.99"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-lg font-semibold mb-2">Stock</label>
+            <input
+              type="number"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
+              placeholder="e.g. 100"
+              required
+            />
           </div>
           <div className="flex space-x-4 justify-end pt-4">
             <button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
             >
-              Add Item
+              Add Product
             </button>
             <button
               type="button"

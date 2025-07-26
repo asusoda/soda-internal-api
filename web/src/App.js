@@ -39,8 +39,8 @@ function App() {
         <Route path="/users" element={<UserPage />} />
         <Route path="/leaderboard" element={<LeaderBoard />} />
         <Route path="/createuser" element={<CreateUserPage />} />
-        <Route path="/merchandise" element={<MerchandiseListPage />} />
-        <Route path="/add-merchandise" element={<AddMerchandisePage />} />
+        <Route path="/merch/products" element={<MerchandiseListPage />} />
+        <Route path="/merch/products/add" element={<AddMerchandisePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/metrics" element={<MetricsPage />} />
       </Routes>

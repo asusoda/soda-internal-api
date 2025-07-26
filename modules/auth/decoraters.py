@@ -20,12 +20,15 @@ def auth_required(f):
             ]  # Extract the token from the Authorization header
 
         if not token:
+            print("Token is missing")
             return jsonify({"message": "Token is missing!"}), 401
 
         try:
             if not tokenManger.is_token_valid(token):
+                print("Token is invalid")
                 return jsonify({"message": "Token is invalid!"}), 401
             elif tokenManger.is_token_expired(token):
+                print("Token is expired")
                 return jsonify({"message": "Token is expired!"}), 403
             else:
                 return f(*args, **kwargs)
