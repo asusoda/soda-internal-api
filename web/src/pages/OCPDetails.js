@@ -13,7 +13,7 @@ import {
     FaCogs, FaRedo, FaSearchDollar, FaWrench, FaExclamationTriangle, FaSync, FaFlask, FaPlusCircle, FaTimes
 } from 'react-icons/fa';
 
-// const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+// (Line removed)
 
 // Helper functions (can be outside any component if they don't use hooks or component state)
 const formatDate = (dateString) => {
