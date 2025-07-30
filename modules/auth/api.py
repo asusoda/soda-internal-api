@@ -1,4 +1,4 @@
-from flask import request, jsonify, Blueprint, redirect, current_app, session, url_for, make_response
+from flask import request, jsonify, Blueprint, redirect, current_app, session, make_response
 from shared import config, bot, tokenManger
 from modules.auth.decoraters import auth_required, error_handler
 import requests
@@ -21,7 +21,7 @@ def login():
 def validToken():
     token = request.headers.get("Authorization").split(" ")[
         1
-    ]  # Extract the token from the Authorization header
+    ]
     if tokenManger.is_token_valid(token):
         return jsonify({"status": "success", "valid": True, "expired": False}), 200
     else:
@@ -58,18 +58,24 @@ def callback():
         user_id = user_info["id"]
         if bot.check_officer(user_id):
             name = bot.get_name(user_id)
-            code = tokenManger.generate_token(username=name)
+            # Generate token pair with both access and refresh tokens
+            access_token, refresh_token = tokenManger.generate_token_pair(
+                username=name, 
+                discord_id=user_id, 
+                access_exp_minutes=30, 
+                refresh_exp_days=7
+            )
             # Store user info in session
             session['user'] = {
                 'username': name,
                 'discord_id': user_id,
                 'role': 'admin'  # Set role as admin for officers
             }
-            session['token'] = code
-            # Redirect to SuperAdmin dashboard and set token as cookie
-            resp = make_response(redirect(url_for('superadmin_views.dashboard')))
-            resp.set_cookie('soda_session_token', code, httponly=True, samesite='Lax')
-            return resp
+            session['token'] = access_token
+            session['refresh_token'] = refresh_token
+            # Redirect to React frontend with both tokens
+            frontend_url = f"{config.CLIENT_URL}/auth/?access_token={access_token}&refresh_token={refresh_token}"
+            return redirect(frontend_url)
         else:
             full_url = f"{config.CLIENT_URL}/auth/?error=Unauthorized Access"
             return redirect(full_url)
@@ -77,11 +83,66 @@ def callback():
         return jsonify({"error": "Failed to retrieve access token"}), 400
 
 
+@auth_blueprint.route("/refresh", methods=["POST"])
+def refresh_token():
+    """
+    Refresh access token using refresh token.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'refresh_token' not in data:
+            return jsonify({"error": "Refresh token required"}), 400
+        
+        refresh_token = data['refresh_token']
+        
+        # Generate new access token
+        new_access_token = tokenManger.refresh_access_token(refresh_token)
+        
+        if new_access_token:
+            return jsonify({
+                "access_token": new_access_token,
+                "token_type": "Bearer",
+                "expires_in": 1800  # 30 minutes in seconds
+            }), 200
+        else:
+            return jsonify({"error": "Invalid or expired refresh token"}), 401
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@auth_blueprint.route("/revoke", methods=["POST"])
+@auth_required
+def revoke_token():
+    """
+    Revoke refresh token (logout).
+    """
+    try:
+        data = request.get_json()
+        if not data or 'refresh_token' not in data:
+            return jsonify({"error": "Refresh token required"}), 400
+        
+        refresh_token = data['refresh_token']
+        
+        # Revoke the refresh token
+        if tokenManger.revoke_refresh_token(refresh_token):
+            # Also blacklist the current access token
+            current_token = request.headers.get("Authorization").split(" ")[1]
+            tokenManger.delete_token(current_token)
+            
+            return jsonify({"message": "Token revoked successfully"}), 200
+        else:
+            return jsonify({"error": "Invalid refresh token"}), 400
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @auth_blueprint.route("/validateToken", methods=["GET"])
 def valid_token():
     token = request.headers.get("Authorization").split(" ")[
         1
-    ]  # Extract the token from the Authorization header
+    ]
     if tokenManger.is_token_valid(token):
         if tokenManger.is_token_expired(token):
             return jsonify(
@@ -108,42 +169,10 @@ def valid_token():
         ), 401
 
 
-@auth_blueprint.route("/refresh", methods=["GET"])
-def refresh_token():
-    token = request.headers.get("Authorization").split(" ")[
-        1
-    ]  # Extract the token from the Authorization header
-    if tokenManger.is_token_valid(token):
-        if tokenManger.is_token_expired(token):
-            new_token = tokenManger.refresh_token(token)
-            return jsonify(
-                {
-                    "status": "success",
-                    "valid": True,
-                    "expired": True,
-                    "token": new_token,
-                }
-            ), 200
-        else:
-            return jsonify(
-                {
-                    "status": "success",
-                    "valid": True,
-                    "expired": False,
-                    "token": token,
-                    "error": "Token is not expired",
-                }
-            ), 400
-    else:
-        return jsonify(
-            {"status": "error", "valid": False, "error": "Invalid token"}
-        ), 401
-
-
 @auth_blueprint.route("/appToken", methods=["GET"])
 @auth_required
 @error_handler
-def generate_app_token():
+def get_app_token():
     token = request.headers.get("Authorization").split(" ")[1]
     appname = request.args.get("appname")
     app_token = tokenManger.generate_app_token(
@@ -155,20 +184,33 @@ def generate_app_token():
 @auth_blueprint.route("/name", methods=["GET"])
 @auth_required
 def get_name():
-    autorisation = request.headers.get("Authorization").split(" ")[
-        1
-    ]  # Extract the token from the Authorization header
+    autorisation = request.headers.get("Authorization").split(" ")[1]
+
     return jsonify({"name": tokenManger.retrieve_username(autorisation)}), 200
 
 
-@auth_blueprint.route("/logout", methods=["GET"])
-@auth_required
+@auth_blueprint.route("/logout", methods=["POST"])
 def logout():
-    token = request.headers.get("Authorization").split(" ")[
-        1
-    ]  # Extract the token from the Authorization header
-    tokenManger.delete_token(token)
-    return jsonify({"message": "Logged out"}), 200
+    """
+    Logout endpoint that revokes refresh token.
+    """
+    try:
+        data = request.get_json()
+        if data and 'refresh_token' in data:
+            # Revoke refresh token
+            tokenManger.revoke_refresh_token(data['refresh_token'])
+        
+        # Also blacklist current access token if provided
+        if "Authorization" in request.headers:
+            token = request.headers["Authorization"].split(" ")[1]
+            tokenManger.delete_token(token)
+        
+        # Clear session
+        session.clear()
+        
+        return jsonify({"message": "Logged out successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @auth_blueprint.route("/success")

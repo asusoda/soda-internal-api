@@ -6,10 +6,20 @@ from shared import db_connect
 from sqlalchemy import func
 from modules.auth.decoraters import error_handler
 
+# Update the blueprint to include the static folder
 public_blueprint = Blueprint(
-    "public", __name__, template_folder=None, static_folder=None
+    "public", __name__,
+    template_folder=None,
+    static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+    static_url_path='/static/public'
 )
 
+@public_blueprint.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(public_blueprint.root_path, 'static'),
+        'favicon.ico', mimetype='image/vnd.microsoft.icon'
+    )
 
 
 

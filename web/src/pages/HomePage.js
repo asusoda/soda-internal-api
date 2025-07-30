@@ -1,192 +1,260 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
+import useOrgNavigation from '../hooks/useOrgNavigation';
+import { useAuth } from '../components/auth/AuthContext';
 import Orb from '../components/ui/Orb';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
-import { FileUpload } from '../components/ui/file-upload';
-import StarBorder from '../components/ui/StarBorder';
-import { FaFileUpload, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList, FaCogs } from 'react-icons/fa';
+import OrganizationSwitcher from '../components/OrganizationSwitcher';
+import { 
+  FaUsers, 
+  FaChartLine, 
+  FaPlus, 
+  FaClipboardList, 
+  FaCogs, 
+  FaGamepad,
+  FaPlay,
+  FaTrophy,
+  FaSignOutAlt,
+  FaTachometerAlt,
+  FaCalendarAlt,
+  FaRobot
+} from 'react-icons/fa';
 
 const HomePage = () => {
   useAuthToken();
-  const navigate = useNavigate();
+  const { logout, currentOrg } = useAuth();
+  const { 
+    goToUsers, 
+    goToLeaderboard, 
+    goToAddPoints,
+    goToOCP,
+    goToPanel,
+    goToJeopardy,
+    goToGamePanel,
+    goToActiveGame
+  } = useOrgNavigation();
 
-  const [eventFile, setEventFile] = useState(null);
-  const [eventName, setEventName] = useState('');
-  const [eventPoints, setEventPoints] = useState('');
-  const [userIdentifier, setUserIdentifier] = useState('');
-  const [userPoints, setUserPoints] = useState('');
-  const [event, setEvent] = useState('');
-  const [awardedByOfficer, setAwardedByOfficer] = useState('');
   const [activeNavItem, setActiveNavItem] = useState(null);
 
-  const handleFileUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!eventFile || !eventName || !eventPoints) {
-      alert('Please fill all fields and select a file for event CSV upload.');
-      return;
+  // Dashboard feature cards
+  const dashboardFeatures = [
+    {
+      title: "User Management",
+      description: "Manage users, view profiles, and handle user data",
+      icon: FaUsers,
+      color: "from-blue-500 to-blue-600",
+      action: goToUsers
+    },
+    {
+      title: "Leaderboard",
+      description: "View points rankings and user statistics",
+      icon: FaChartLine,
+      color: "from-green-500 to-green-600",
+      action: goToLeaderboard
+    },
+    {
+      title: "Add Points",
+      description: "Award points to users for events and activities",
+      icon: FaPlus,
+      color: "from-purple-500 to-purple-600",
+      action: goToAddPoints
+    },
+    {
+      title: "OCP System",
+      description: "Officer Contribution Points tracking and management",
+      icon: FaClipboardList,
+      color: "from-indigo-500 to-indigo-600",
+      action: goToOCP
+    },
+    {
+      title: "Bot Control Panel",
+      description: "Manage Discord bot settings and configurations",
+      icon: FaRobot,
+      color: "from-red-500 to-red-600",
+      action: goToPanel
+    },
+    {
+      title: "Jeopardy Game",
+      description: "Host and manage Jeopardy game sessions",
+      icon: FaTrophy,
+      color: "from-yellow-500 to-yellow-600",
+      action: goToJeopardy
+    },
+    {
+      title: "Game Panel",
+      description: "Manage game settings and configurations",
+      icon: FaGamepad,
+      color: "from-pink-500 to-pink-600",
+      action: goToGamePanel
+    },
+    {
+      title: "Active Game",
+      description: "View and control currently running games",
+      icon: FaPlay,
+      color: "from-teal-500 to-teal-600",
+      action: goToActiveGame
     }
-    const formData = new FormData();
-    formData.append('file', eventFile);
-    formData.append('event_name', eventName);
-    formData.append('event_points', eventPoints);
-    try {
-      const response = await apiClient.post('points/uploadEventCSV', formData);
-      alert(response.data.message || 'File uploaded successfully!');
-      setEventFile(null); setEventName(''); setEventPoints('');
-    } catch (error) {
-      alert(error.response?.data?.error || 'Error uploading file.');
-    }
-  };
-
-  const handleAssignPointsSubmit = async (e) => {
-    e.preventDefault();
-    if (!userIdentifier || !userPoints || !event || !awardedByOfficer) {
-      alert('Please fill all fields for assigning points.');
-      return;
-    }
-    const data = { user_identifier: userIdentifier, points: userPoints, event, awarded_by_officer: awardedByOfficer };
-    try {
-      const response = await apiClient.post('points/assignPoints', data);
-      alert(response.data.message || 'Points assigned successfully!');
-      setUserIdentifier(''); setUserPoints(''); setEvent(''); setAwardedByOfficer('');
-    } catch (error) {
-      alert(error.response?.data?.error || 'Error assigning points.');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    navigate('/');
-  };
-
-  const navItems = [
-    { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
-    { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
-    { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
-    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
   ];
 
   return (
-    <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
-      <div className="fixed inset-0 z-0">
-        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} />
-        <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
+    <div className="relative min-h-screen bg-black text-white overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0">
+        <Orb />
       </div>
 
-      <Menu setActive={setActiveNavItem}>
-        {navItems.map((item) => (
-          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item={item.name} key={item.name}>
-            <HoveredLink href={item.link}>
-              <div className="flex items-center">
-                {item.icon}
-                <span className="hidden md:inline">{item.name}</span>
-              </div>
-            </HoveredLink>
-          </MenuItem>
-        ))}
-        <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Account">
-          <div className="flex flex-col space-y-2 text-sm p-2">
-            <HoveredLink href="#" onClick={handleLogout}>
-              <div className="flex items-center">
-                <FaSignOutAlt className="h-4 w-4 mr-2" />
-                Logout
-              </div>
-            </HoveredLink>
+      {/* Navigation */}
+      <div className="relative z-20 w-full">
+        <Menu setActive={setActiveNavItem}>
+          <div className="flex items-center justify-between w-full px-4 py-4">
+            {/* Left side - Organization info */}
+            <div className="flex items-center space-x-4">
+              {currentOrg && (
+                <div className="flex items-center space-x-2">
+                  {currentOrg.icon_url && (
+                    <img 
+                      src={currentOrg.icon_url} 
+                      alt={currentOrg.name}
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <h1 className="text-xl font-bold">{currentOrg.name}</h1>
+                    <p className="text-sm text-gray-400">Dashboard • /{currentOrg.prefix}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Center - Quick Navigation */}
+            <div className="flex items-center space-x-6">
+              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Quick Access">
+                <div className="flex flex-col space-y-4 text-sm">
+                  <HoveredLink onClick={goToUsers}>
+                    <FaUsers className="inline mr-2" />User Management
+                  </HoveredLink>
+                  <HoveredLink onClick={goToLeaderboard}>
+                    <FaChartLine className="inline mr-2" />Leaderboard
+                  </HoveredLink>
+                  <HoveredLink onClick={goToAddPoints}>
+                    <FaPlus className="inline mr-2" />Add Points
+                  </HoveredLink>
+                  <HoveredLink onClick={goToOCP}>
+                    <FaClipboardList className="inline mr-2" />OCP Details
+                  </HoveredLink>
+                </div>
+              </MenuItem>
+
+              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
+                <div className="flex flex-col space-y-4 text-sm">
+                  <HoveredLink onClick={goToJeopardy}>
+                    <FaTrophy className="inline mr-2" />Jeopardy
+                  </HoveredLink>
+                  <HoveredLink onClick={goToGamePanel}>
+                    <FaGamepad className="inline mr-2" />Game Panel
+                  </HoveredLink>
+                  <HoveredLink onClick={goToActiveGame}>
+                    <FaPlay className="inline mr-2" />Active Game
+                  </HoveredLink>
+                  <HoveredLink onClick={goToPanel}>
+                    <FaRobot className="inline mr-2" />Bot Panel
+                  </HoveredLink>
+                </div>
+              </MenuItem>
+            </div>
+
+            {/* Right side - Organization switcher and logout */}
+            <div className="flex items-center space-x-4">
+              <OrganizationSwitcher />
+              <button 
+                onClick={logout}
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+              >
+                <FaSignOutAlt />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
-        </MenuItem>
-      </Menu>
+        </Menu>
+      </div>
 
-      <div className="relative z-20 container mx-auto px-4 py-12 md:py-16 flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0 items-start justify-center">
-        <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-lg">
-          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
-            <FaFileUpload className="mr-3 h-7 w-7 text-soda-blue" /> Upload Event CSV
-          </h2>
-          <form onSubmit={handleFileUploadSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="eventNameCsv" className="block text-sm font-medium text-soda-white mb-1">Event Name</label>
-              <input
-                id="eventNameCsv"
-                type="text"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={eventName}
-                onChange={(e) => setEventName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="eventPointsCsv" className="block text-sm font-medium text-soda-white mb-1">Event Points</label>
-              <input
-                id="eventPointsCsv"
-                type="number"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={eventPoints}
-                onChange={(e) => setEventPoints(e.target.value)}
-                required
-              />
-            </div>
-            <FileUpload onChange={(files) => setEventFile(files[0])} />
-            <StarBorder type="submit" color="#007AFF" speed="4s" className="w-full">
-              Upload CSV
-            </StarBorder>
-          </form>
-        </div>
+      {/* Main Dashboard Content */}
+      <div className="relative z-10 px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Welcome Section */}
+          <div className="text-center mb-12">
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Your central hub for managing users, tracking points, running games, and organizing events.
+            </p>
+          </div>
 
-        <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-lg">
-          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
-            <FaUserPlus className="mr-3 h-7 w-7 text-soda-red" /> Assign Points Manually
-          </h2>
-          <form onSubmit={handleAssignPointsSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="userIdentifier" className="block text-sm font-medium text-soda-white mb-1">User Identifier (Email/UUID)</label>
-              <input
-                id="userIdentifier"
-                type="text"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={userIdentifier}
-                onChange={(e) => setUserIdentifier(e.target.value)}
-                required
-              />
+          {/* Feature Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {dashboardFeatures.map((feature, index) => {
+              const IconComponent = feature.icon;
+              return (
+                <div
+                  key={index}
+                  onClick={feature.action}
+                  className="group relative overflow-hidden rounded-xl bg-gray-900/50 backdrop-blur-sm border border-gray-700 hover:border-gray-500 transition-all duration-300 cursor-pointer transform hover:scale-105"
+                >
+                  {/* Gradient Background */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+                  
+                  {/* Card Content */}
+                  <div className="relative p-6">
+                    <div className="flex items-center mb-4">
+                      <div className={`p-3 rounded-lg bg-gradient-to-br ${feature.color} text-white`}>
+                        <IconComponent className="w-6 h-6" />
+                      </div>
+                    </div>
+                    
+                    <h3 className="text-lg font-semibold mb-2 group-hover:text-white transition-colors">
+                      {feature.title}
+                    </h3>
+                    
+                    <p className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+                      {feature.description}
+                    </p>
+                    
+                    {/* Arrow indicator */}
+                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Quick Stats Section */}
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <FaUsers className="w-8 h-8 text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-bold mb-1">Active Users</h3>
+              <p className="text-gray-400">Manage your community</p>
             </div>
-            <div>
-              <label htmlFor="userPoints" className="block text-sm font-medium text-soda-white mb-1">Points</label>
-              <input
-                id="userPoints"
-                type="number"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={userPoints}
-                onChange={(e) => setUserPoints(e.target.value)}
-                required
-              />
+            
+            <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <FaTrophy className="w-8 h-8 text-yellow-400" />
+              </div>
+              <h3 className="text-2xl font-bold mb-1">Points System</h3>
+              <p className="text-gray-400">Track achievements</p>
             </div>
-            <div>
-              <label htmlFor="eventManual" className="block text-sm font-medium text-soda-white mb-1">Event</label>
-              <input
-                id="eventManual"
-                type="text"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={event}
-                onChange={(e) => setEvent(e.target.value)}
-                required
-              />
+            
+            <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <FaGamepad className="w-8 h-8 text-purple-400" />
+              </div>
+              <h3 className="text-2xl font-bold mb-1">Interactive Games</h3>
+              <p className="text-gray-400">Engage your members</p>
             </div>
-            <div>
-              <label htmlFor="awardedBy" className="block text-sm font-medium text-soda-white mb-1">Awarded by Officer</label>
-              <input
-                id="awardedBy"
-                type="text"
-                className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-blue focus:border-soda-blue transition-all"
-                value={awardedByOfficer}
-                onChange={(e) => setAwardedByOfficer(e.target.value)}
-                required
-              />
-            </div>
-            <StarBorder type="submit" color="#FF3B30" speed="4s" className="w-full">
-              Assign Points
-            </StarBorder>
-          </form>
+          </div>
         </div>
       </div>
     </div>

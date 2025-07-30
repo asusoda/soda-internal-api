@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-// Removed MUI imports as they will be replaced by Tailwind and custom components
-// import RefreshIcon from '@mui/icons-material/Refresh'; // Will use react-icons
-// import SyncIcon from '@mui/icons-material/Sync'; // Will use react-icons
-import apiClient from '../components/utils/axios'; // Added apiClient import
+import apiClient from '../components/utils/axios';
 
 import useAuthToken from '../hooks/userAuth';
+import useOrgNavigation from '../hooks/useOrgNavigation';
+import { useAuth } from '../components/auth/AuthContext';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
 import Orb from '../components/ui/Orb';
-import StarBorder from '../components/ui/StarBorder'; // If you want to use StarBorder for some buttons
+import StarBorder from '../components/ui/StarBorder';
+import OrganizationSwitcher from '../components/OrganizationSwitcher';
 import {
     FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, 
-    FaCogs, FaRedo, FaSearchDollar, FaWrench, FaExclamationTriangle, FaSync, FaFlask, FaPlusCircle, FaTimes // Added FaPlusCircle, FaTimes
-} from 'react-icons/fa'; // Removed FaChartLine, FaBug
+    FaCogs, FaRedo, FaSearchDollar, FaWrench, FaExclamationTriangle, FaSync, FaFlask, FaPlusCircle, FaTimes
+} from 'react-icons/fa';
 
 // const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -331,7 +330,15 @@ const EventParticipantsModal = ({ isOpen, onClose, eventData }) => {
 
 const OCPDetails = () => {
   useAuthToken();
-  const navigate = useNavigate();
+  const { logout, currentOrg } = useAuth();
+  const { 
+    goToDashboard,
+    goToUsers, 
+    goToLeaderboard,
+    goToAddPoints,
+    goToPanel,
+    goToJeopardy 
+  } = useOrgNavigation();
   const [activeNavItem, setActiveNavItem] = useState(null);
   const [expandedOfficer, setExpandedOfficer] = useState(null);
   
@@ -363,24 +370,13 @@ const OCPDetails = () => {
   const [showEventParticipantsModal, setShowEventParticipantsModal] = useState(false);
   const [selectedEventForModal, setSelectedEventForModal] = useState(null);
 
-  const navItems = [
-    { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
-    { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
-    { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
-    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
-  ];
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    navigate('/');
-  };
 
   const fetchAllEvents = useCallback(async () => {
     setEventsLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/calendar/ocp/events');
+      const response = await apiClient.get('/api/calendar/ocp/events');
       const data = response.data;
       if (data.status === 'success' && Array.isArray(data.events)) {
         const processedEvents = data.events.map(event => ({
@@ -605,34 +601,85 @@ const OCPDetails = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
-      <div className="fixed inset-0 z-0">
-        <Orb hue={260} forceHoverState={true} hoverIntensity={0.05} />
-        <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
+    <div className="relative min-h-screen bg-black text-white overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0">
+        <Orb />
       </div>
 
-      <Menu setActive={setActiveNavItem}>
-        {navItems.map((item) => (
-          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item={item.name} key={item.name}>
-            <HoveredLink href={item.link}>
-              <div className="flex items-center">
-                {item.icon}
-                <span className="hidden md:inline">{item.name}</span>
-              </div>
-            </HoveredLink>
-          </MenuItem>
-        ))}
-        <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Account">
-          <div className="flex flex-col space-y-2 text-sm p-2">
-            <HoveredLink href="#" onClick={handleLogout}>
-              <div className="flex items-center">
-                <FaSignOutAlt className="h-4 w-4 mr-2" />
-                Logout
-              </div>
-            </HoveredLink>
+      {/* Navigation */}
+      <div className="relative z-20 w-full">
+        <Menu setActive={setActiveNavItem}>
+          <div className="flex items-center justify-between w-full px-4 py-4">
+            {/* Left side - Organization info */}
+            <div className="flex items-center space-x-4">
+              {currentOrg && (
+                <div className="flex items-center space-x-2">
+                  {currentOrg.icon_url && (
+                    <img 
+                      src={currentOrg.icon_url} 
+                      alt={currentOrg.name}
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <h1 className="text-xl font-bold">{currentOrg.name} OCP System</h1>
+                    <p className="text-sm text-gray-400">/{currentOrg.prefix}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Center - Navigation Menu */}
+            <div className="flex items-center space-x-6">
+              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Dashboard">
+                <div className="flex flex-col space-y-4 text-sm">
+                  <HoveredLink onClick={goToDashboard}>
+                    <FaTachometerAlt className="inline mr-2" />Dashboard
+                  </HoveredLink>
+                  <HoveredLink onClick={goToUsers}>
+                    <FaUsers className="inline mr-2" />User Management
+                  </HoveredLink>
+                  <HoveredLink onClick={goToLeaderboard}>
+                    <FaClipboardList className="inline mr-2" />Leaderboard
+                  </HoveredLink>
+                </div>
+              </MenuItem>
+
+              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Points">
+                <div className="flex flex-col space-y-4 text-sm">
+                  <HoveredLink onClick={goToAddPoints}>
+                    <FaUsers className="inline mr-2" />Add Points
+                  </HoveredLink>
+                </div>
+              </MenuItem>
+
+              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
+                <div className="flex flex-col space-y-4 text-sm">
+                  <HoveredLink onClick={goToJeopardy}>
+                    <FaTachometerAlt className="inline mr-2" />Jeopardy
+                  </HoveredLink>
+                  <HoveredLink onClick={goToPanel}>
+                    <FaCogs className="inline mr-2" />Bot Panel
+                  </HoveredLink>
+                </div>
+              </MenuItem>
+            </div>
+
+            {/* Right side - Organization switcher and logout */}
+            <div className="flex items-center space-x-4">
+              <OrganizationSwitcher />
+              <button 
+                onClick={logout}
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700"
+              >
+                <FaSignOutAlt />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
-        </MenuItem>
-      </Menu>
+        </Menu>
+      </div>
 
       <div className="relative z-20 container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">

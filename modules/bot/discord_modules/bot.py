@@ -2,18 +2,10 @@ import discord
 from discord.ext import commands
 import inspect
 import asyncio
-import threading
+import nest_asyncio
 from modules.bot.discord_modules.cogs.HelperCog import HelperCog
 from modules.bot.discord_modules.cogs.GameCog import GameCog
 from modules.bot.discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
-
-
-import discord
-import threading
-import asyncio
-import nest_asyncio
-import inspect
-from discord.ext import commands
 
 
 class BotFork(commands.Bot):
@@ -36,7 +28,6 @@ class BotFork(commands.Bot):
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
         """
-        self.setup = False
         self.active_game = None
         super().__init__(*args, **kwargs, guild_ids=[])
         # super().add_cog(HelperCog(self))
@@ -54,16 +45,18 @@ class BotFork(commands.Bot):
     
 
     
-    def run(self):
+    def run(self, token=None):
         """
-        Starts the bot. If the bot is already set up, changes the bot's presence to online.
+        Starts the bot with the provided token.
         """
         print("Running bot")
-        if not self.setup:
-            self.setup = True
-            threading.Thread(target=super().run, args=(self.token,)).start()
-        else:
-            asyncio.run_coroutine_threadsafe(self.change_presence(status=discord.Status.online))
+        if token:
+            self.token = token
+        if not self.token:
+            raise ValueError("Bot token is required")
+        
+        # Use the parent class run method directly
+        super().run(self.token)
 
     async def stop(self):
         """

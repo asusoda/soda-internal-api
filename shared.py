@@ -25,7 +25,12 @@ app = Flask("SoDA internal API",
     template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "web/build"),  # Path to built frontend files
 )
 CORS(app, 
-     resources={r"/*": {"origins": "*"}},
+     resources={r"/*": {
+         "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Organization-ID", "X-Organization-Prefix"],
+         "supports_credentials": True
+     }},
 )
 
 # Initialize configuration
@@ -50,9 +55,43 @@ if config.SENTRY_DSN:
 else:
     logger.warning("SENTRY_DSN not found in environment. Sentry not initialized.")
 
-# Initialize database connection
-db_connect = DBConnect("sqlite:///./data/user.db")
+# Initialize token manager
 tokenManger = TokenManager()
+
+# Initialize database connection
+db_connect = DBConnect()
+
+# Initialize Discord bot
+bot = BotFork(command_prefix="!", intents=discord.Intents.all())
+
+# Initialize Notion client
+notion = Client(auth=config.NOTION_API_KEY)
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# Periodic cleanup of expired refresh tokens
+def cleanup_expired_tokens():
+    """Clean up expired refresh tokens periodically"""
+    try:
+        tokenManger.cleanup_expired_refresh_tokens()
+        logger.info("Cleaned up expired refresh tokens")
+    except Exception as e:
+        logger.error(f"Error cleaning up expired tokens: {e}")
+
+# Schedule cleanup every hour
+import threading
+import time
+
+def run_cleanup_scheduler():
+    """Run the cleanup scheduler in a separate thread"""
+    while True:
+        cleanup_expired_tokens()
+        time.sleep(3600)  # Run every hour
+
+# Start cleanup scheduler in background thread
+cleanup_thread = threading.Thread(target=run_cleanup_scheduler, daemon=True)
+cleanup_thread.start()
 
 # Ensure all tables are created after all models are imported
 Base.metadata.create_all(bind=db_connect.engine)
