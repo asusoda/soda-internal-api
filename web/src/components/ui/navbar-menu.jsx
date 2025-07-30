@@ -55,24 +55,30 @@ export const Menu = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Extract links for mobile menu
-  const mobileLinks = Children.map(children, child => {
-    if (child.props && child.props.item && child.props.children) {
-      // Assuming the first child of MenuItem's children is HoveredLink or similar
-      // This might need adjustment based on actual MenuItem structure
-      const linkElement = Children.toArray(child.props.children).find(
-        c => c.type === HoveredLink || (c.props && c.props.href) // Look for HoveredLink or a direct href
-      );
+  // Helper function to extract a link element from a MenuItem's children
+  const extractLinkElement = (menuItemChildren) => {
+    return Children.toArray(menuItemChildren).find(
+      child => child.type === HoveredLink || (child.props && child.props.href) // Look for HoveredLink or a direct href
+    );
+  };
+
+  // Helper function to extract a mobile link from a MenuItem
+  const extractMobileLink = (menuItem) => {
+    if (menuItem.props && menuItem.props.item && menuItem.props.children) {
+      const linkElement = extractLinkElement(menuItem.props.children);
       if (linkElement && linkElement.props && linkElement.props.href) {
         return {
-          name: child.props.item,
+          name: menuItem.props.item,
           href: linkElement.props.href,
           onClick: linkElement.props.onClick // Preserve onClick for logout, etc.
         };
       }
     }
     return null;
-  }).filter(Boolean);
+  };
 
+  // Extract links for the mobile menu
+  const mobileLinks = Children.map(children, extractMobileLink).filter(Boolean);
   return (
     <>
       <nav
