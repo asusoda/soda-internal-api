@@ -124,7 +124,7 @@ const UserPage = () => {
     const data = { email: createEmail, name, asu_id: asuId, academic_standing: academicStanding, major };
 
     try {
-      const response = await apiClient.post('users/createUser', data);
+      const response = await apiClient.post('/api/users/createUser', data);
       setCreateSuccess(response.data.message || 'User created successfully!');
       resetCreateFormFields(); // Clear create form
       // also clear shared fields if they were used for creation
