@@ -4,8 +4,8 @@ class directly. It redirects to the centralized database manager in modules.util
 """
 
 import logging
-from shared import ocp_db_manager
-from modules.utils.db import OCPDBManager
+import shared
+from modules.utils.db import DBConnect
 
 # Set up a module logger
 module_logger = logging.getLogger(__name__)
@@ -13,17 +13,17 @@ module_logger.info("OCP DB compatibility module loaded, using centralized databa
 
 class OCPDBConnect:
     """
-    Compatibility class that redirects to the centralized OCPDBManager.
+    Compatibility class that redirects to the centralized DBConnect.
     This class exists to maintain backward compatibility with code that
     might still import OCPDBConnect directly.
     """
     
-    def __init__(self, db_url="sqlite:///./data/ocp.db"):
+    def __init__(self, db_url="sqlite:///./data/user.db"):
         """
         Initialize by logging a warning that we're using the compatibility layer.
         """
         module_logger.warning(
-            "OCPDBConnect is deprecated, please use ocp_db_manager from shared.py instead"
+            "OCPDBConnect is deprecated, please use db_connect from shared.py instead"
         )
         # Nothing to do here, we'll delegate all methods to the centralized manager
         
@@ -32,14 +32,14 @@ class OCPDBConnect:
         Delegate all method calls to the centralized database manager.
         This allows us to maintain backward compatibility without duplicating code.
         """
-        if not ocp_db_manager:
-            raise ValueError("Centralized OCP database manager is not initialized")
+        if not shared.db_connect:
+            raise ValueError("Centralized database manager is not initialized")
             
-        if hasattr(ocp_db_manager, name):
+        if hasattr(shared.db_connect, name):
             module_logger.debug(f"Redirecting {name} call to centralized database manager")
-            return getattr(ocp_db_manager, name)
+            return getattr(shared.db_connect, name)
         else:
-            raise AttributeError(f"Neither OCPDBConnect nor OCPDBManager has attribute '{name}'")
+            raise AttributeError(f"Neither OCPDBConnect nor DBConnect has attribute '{name}'")
 
 # For direct imports of objects from this module
-get_db = ocp_db_manager.get_db if ocp_db_manager else None 
+get_db = shared.db_connect.get_db if shared.db_connect else None 

@@ -4,11 +4,12 @@ from datetime import datetime
 from sentry_sdk import capture_exception, set_context, start_transaction
 
 from .models import Officer, OfficerPoints
-from shared import ocp_db_manager, logger
+import shared
+from shared import logger
 from .utils import parse_notion_event_for_officers, calculate_points_for_role, calculate_points_for_event_type, normalize_name
-from ..clients import NotionCalendarClient
-from ..utils import operation_span
-from modules.utils.db import OCPDBManager
+from modules.calendar.clients import NotionCalendarClient
+from modules.calendar.utils import operation_span
+from modules.utils.db import DBConnect
 
 # Remove duplicate logger initialization
 # logger = logging.getLogger(__name__)
@@ -18,17 +19,17 @@ class OCPService:
     
     def __init__(self, db_connect=None, notion_client=None):
         """Initialize the OCP service with database connection and Notion client."""
-        # If db_connect is None and the shared ocp_db_manager is None, create a new one
-        if db_connect is None and ocp_db_manager is None:
-            logger.warning("Shared OCP database manager is None. Creating a new instance.")
+        # If db_connect is None and the shared db_connect is None, create a new one
+        if db_connect is None and shared.db_connect is None:
+            logger.warning("Shared database manager is None. Creating a new instance.")
             try:
-                self.db = OCPDBManager("sqlite:///./data/ocp.db")
-                logger.info("Created new OCP database manager instance for service")
+                self.db = DBConnect("sqlite:///./data/user.db")
+                logger.info("Created new database manager instance for service")
             except Exception as e:
-                logger.error(f"Failed to create OCP database manager: {str(e)}")
+                logger.error(f"Failed to create database manager: {str(e)}")
                 self.db = None
         else:
-            self.db = db_connect or ocp_db_manager
+            self.db = db_connect or shared.db_connect
             
         self.notion_client = notion_client or NotionCalendarClient()
         

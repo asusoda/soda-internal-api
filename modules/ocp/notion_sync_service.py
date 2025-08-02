@@ -5,7 +5,7 @@ from sentry_sdk import capture_exception, set_context, start_transaction
 
 from shared import config, logger
 from .service import OCPService
-from ..utils import operation_span
+from modules.calendar.utils import operation_span
 
 class NotionOCPSyncService:
     """Service for syncing Notion database with Officer Contribution Points (OCP) system."""

@@ -1,7 +1,7 @@
 from flask import Flask, send_from_directory, current_app # Import current_app
 from shared import app, logger, config, create_summarizer_bot, create_auth_bot
 from modules.calendar.service import CalendarService
-from modules.calendar.ocp.notion_sync_service import NotionOCPSyncService # Import NotionOCPSyncService
+from modules.ocp.notion_sync_service import NotionOCPSyncService # Import NotionOCPSyncService
 
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint

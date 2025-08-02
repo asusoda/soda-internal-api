@@ -9,7 +9,7 @@ from sentry_sdk import start_transaction, capture_exception, set_tag
 from .errors import APIErrorHandler
 
 # Import the OCP blueprint
-from .ocp import ocp_blueprint
+from modules.ocp.api import ocp_blueprint
 
 # Initialize the service and a top-level error handler for routes
 # calendar_service is now imported from shared.py

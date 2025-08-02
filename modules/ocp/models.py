@@ -1,10 +1,8 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, JSON
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
-
-Base = declarative_base()
+from modules.utils.db import Base
 
 
 class Officer(Base):

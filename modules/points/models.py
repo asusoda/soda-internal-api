@@ -1,9 +1,8 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
-
-Base = declarative_base()
+from modules.utils.db import Base
 
 
 # User model for the database

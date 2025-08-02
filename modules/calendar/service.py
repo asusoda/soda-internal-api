@@ -371,7 +371,7 @@ class CalendarService:
         
         try:
             # Import here to avoid circular imports
-            from modules.calendar.ocp.notion_sync_service import NotionOCPSyncService
+            from modules.ocp.notion_sync_service import NotionOCPSyncService
             
             # Add Sentry context if transaction exists
             if transaction:

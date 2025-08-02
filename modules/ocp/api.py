@@ -5,7 +5,7 @@ from typing import Optional
 
 # Import the service and shared resources
 from .service import OCPService
-from ..errors import APIErrorHandler
+from modules.calendar.errors import APIErrorHandler
 from .utils import extract_property
 from modules.auth.decoraters import auth_required
 
