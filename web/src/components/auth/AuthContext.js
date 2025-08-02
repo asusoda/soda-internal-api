@@ -39,7 +39,9 @@ export const AuthProvider = ({ children }) => {
   // Function to refresh the token
   const refreshToken = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/auth/refresh', {
+      
+      //use auth refresh endpoint
+      const response = await axios.get('https://api.thesoda.io/auth/refresh', {
         headers: { Authorization: token },
       });
       const data = response.data;

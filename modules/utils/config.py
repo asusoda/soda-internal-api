@@ -37,6 +37,7 @@ class Config:
                 
                 self.NOTION_API_KEY = os.environ.get("NOTION_API_KEY", "test-notion-key")
                 self.NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID", "test-db-id")
+                self.NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "test-notion-token")
                 self.GOOGLE_CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "test@calendar.google.com")
                 self.GOOGLE_USER_EMAIL = os.environ.get("GOOGLE_USER_EMAIL", "test@example.com")
                 self.SERVER_PORT = 5000
@@ -97,6 +98,7 @@ class Config:
 
                 # AI Service Keys
                 self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # Google Gemini API key
+                self.NOTION_TOKEN = os.environ.get("NOTION_TOKEN") # Notion API token
 
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e

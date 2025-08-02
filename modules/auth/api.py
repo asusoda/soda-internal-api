@@ -13,7 +13,7 @@ logger.info(f"Auth API using CLIENT_ID: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_
 
 @auth_blueprint.route("/login", methods=["GET"])
 def login():
-    logger.info(f"Redirecting to Discord OAuth login for client_id: {CLIENT_ID}")
+    logger.info(f"Redirecting to Discord OAuth login for client_id: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_URI}")
     return redirect(
         f"https://discord.com/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
     )
@@ -23,7 +23,7 @@ def login():
 def validToken():
     token = request.headers.get("Authorization").split(" ")[
         1
-    ]  # Extract the token from the Authorization header
+    ]  # Extract the token from the Authorization header    
     if tokenManger.is_token_valid(token):
         return jsonify({"status": "success", "valid": True, "expired": False}), 200
     else:

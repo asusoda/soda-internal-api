@@ -62,7 +62,7 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
   const fetchAvailableOfficers = async () => {
     setLoadingOfficers(true);
     try {
-      const response = await apiClient.get('/calendar/ocp/officer-names');
+      const response = await apiClient.get('/ocp/officer-names');
       if (response.data.status === 'success') {
         setAvailableOfficers(response.data.officers);
       }
@@ -380,7 +380,7 @@ const OCPDetails = () => {
     setEventsLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/calendar/ocp/events');
+      const response = await apiClient.get('/ocp/events');
       const data = response.data;
       if (data.status === 'success' && Array.isArray(data.events)) {
         const processedEvents = data.events.map(event => ({
@@ -403,7 +403,7 @@ const OCPDetails = () => {
   const fetchLeaderboard = useCallback(async (sDate, eDate) => {
     setLeaderboardLoading(true);
     setLeaderboardError(null);
-    let url = '/calendar/ocp/officers';
+    let url = '/ocp/officers';
     const params = new URLSearchParams();
     if (sDate) params.append('start_date', sDate);
     if (eDate) params.append('end_date', eDate);
@@ -495,13 +495,13 @@ const OCPDetails = () => {
   }, [fetchInitialData]);
 
   const syncWithNotion = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/sync-from-notion'),
+    () => apiClient.post('/ocp/sync-from-notion'),
     setSyncing,
     "Notion Sync"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
 
   const debugSyncWithNotion = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/debug-sync-from-notion'),
+    () => apiClient.post('/ocp/debug-sync-from-notion'),
     setDebugSyncing,
     "Debug Sync"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
@@ -511,10 +511,10 @@ const OCPDetails = () => {
     setDiagnosticResults(null);
     setError(null);
     try {
-      let response = await apiClient.get('/calendar/ocp/diagnose-unknown-officers')
+      let response = await apiClient.get('/ocp/diagnose-unknown-officers')
         .catch(err => {
             if (err.response && (err.response.status === 405 || err.response.status === 404)) {
-                return apiClient.post('/calendar/ocp/diagnose-unknown-officers');
+                return apiClient.post('/ocp/diagnose-unknown-officers');
             }
             throw err;
         });
@@ -533,14 +533,14 @@ const OCPDetails = () => {
   };
   
   const fixUnknownOfficers = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/repair-officers'),
+    () => apiClient.post('/ocp/repair-officers'),
     setFixingOfficers,
     "Officer Repair"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after repair
 
   const fetchOfficerContributions = async (officerIdentifier) => {
     if (!officerIdentifier) return;
-    let url = `/calendar/ocp/officer/${officerIdentifier}/contributions`;
+    let url = `/ocp/officer/${officerIdentifier}/contributions`;
     const params = new URLSearchParams();
     // Use the global startDate and endDate for consistency when expanding
     if (startDate) params.append('start_date', startDate);
@@ -945,7 +945,7 @@ const OCPDetails = () => {
         }}
         onAdd={async (contributionData) => {
           try {
-            const response = await apiClient.post('/calendar/ocp/add-contribution', contributionData);
+            const response = await apiClient.post('/ocp/add-contribution', contributionData);
             const result = response.data;
             if (response.status >= 200 && response.status < 300 && result.status !== 'error') {
                 setSyncNotification({ 
