@@ -40,14 +40,14 @@ app.unified_sync_service = unified_sync_service
 
 # Register Blueprints
 app.register_blueprint(public_blueprint, url_prefix="/")
-app.register_blueprint(points_blueprint, url_prefix="/points")
-app.register_blueprint(users_blueprint, url_prefix="/users")
-app.register_blueprint(auth_blueprint, url_prefix="/auth")
-app.register_blueprint(calendar_blueprint, url_prefix="/calendar")
-app.register_blueprint(summarizer_blueprint, url_prefix="/summarizer")
-app.register_blueprint(game_blueprint, url_prefix="/bot")
-app.register_blueprint(storefront_blueprint, url_prefix="/storefront")
-app.register_blueprint(ocp_blueprint, url_prefix="/ocp")
+app.register_blueprint(points_blueprint, url_prefix="/api/points")
+app.register_blueprint(users_blueprint, url_prefix="/api/users")
+app.register_blueprint(auth_blueprint, url_prefix="/api/auth")
+app.register_blueprint(calendar_blueprint, url_prefix="/api/calendar")
+app.register_blueprint(summarizer_blueprint, url_prefix="/api/summarizer")
+app.register_blueprint(game_blueprint, url_prefix="/api/bot")
+app.register_blueprint(storefront_blueprint, url_prefix="/api/storefront")
+app.register_blueprint(ocp_blueprint, url_prefix="/api/ocp")
 app.register_blueprint(organizations_blueprint, url_prefix="/api/organizations")
 app.register_blueprint(superadmin_blueprint, url_prefix="/api/superadmin")
 
