@@ -2,6 +2,7 @@ from flask import request, jsonify, Blueprint, redirect, current_app, session, m
 from shared import config, bot, tokenManger
 from modules.auth.decoraters import auth_required, error_handler
 import requests
+from modules.utils.logging_config import logger, get_logger
 
 auth_blueprint = Blueprint("auth", __name__, template_folder=None, static_folder=None)
 CLIENT_ID = config.CLIENT_ID

@@ -35,17 +35,6 @@ const LeaderboardPage = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pointToDelete, setPointToDelete] = useState(null);
 
-  const [activeNavItem, setActiveNavItem] = useState(null);
-
-  const [showModal, setShowModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedUserEmail, setSelectedUserEmail] = useState('');
-  const [loadingUser, setLoadingUser] = useState(false);
-  const [modalError, setModalError] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pointToDelete, setPointToDelete] = useState(null);
-
   const handleDeleteClick = (event) => {
     setPointToDelete(event);
     setShowConfirmModal(true);
@@ -347,5 +336,4 @@ const LeaderboardPage = () => {
   );
 };
 
-export default LeaderboardPage;
 export default LeaderboardPage;

@@ -46,7 +46,7 @@ def add_missing_tables():
         
         # Check which tables are missing
         expected_tables = {
-            'users', 'points', 'officers', 'officer_points', 
+            'users', 'points', 'officers', 'ocp_officers', 'ocp_officer_points', 
             'calendar_event_links', 'jeopardy_game', 'active_game'
         }
         
@@ -115,7 +115,7 @@ def verify_database_structure():
         print()
         
         expected_tables = {
-            'users', 'points', 'officers', 'officer_points', 
+            'users', 'points', 'officers', 'ocp_officers', 'ocp_officer_points', 
             'calendar_event_links', 'jeopardy_game', 'active_game'
         }
         

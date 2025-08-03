@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import useAuthToken from '../hooks/userAuth';
 import useOrgNavigation from '../hooks/useOrgNavigation';
 import { useAuth } from '../components/auth/AuthContext';
-import Orb from '../components/ui/Orb';
 import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
 import OrganizationSwitcher from '../components/OrganizationSwitcher';
 import { 
@@ -17,14 +16,13 @@ import {
   FaSignOutAlt,
   FaTachometerAlt,
   FaCalendarAlt,
+  FaUserPlus,
+  FaFileUpload,
   FaRobot
 } from 'react-icons/fa';
 import Orb from '../components/ui/Orb';
-import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
 import { FileUpload } from '../components/ui/file-upload';
 import StarBorder from '../components/ui/StarBorder';
-import { FaFileUpload, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList, FaCogs } from 'react-icons/fa';
-
 const HomePage = () => {
   useAuthToken();
   const { logout, currentOrg } = useAuth();
