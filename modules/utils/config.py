@@ -71,19 +71,19 @@ class Config:
                 self.DB_PORT = os.environ["DB_PORT"]
                 # Calendar Integration
 
-                try:
-                    with open("google-secret.json", "r") as file:
-                        print("Loading Google service account credentials")
-                        self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
-                        print("Google service account credentials loaded successfully")
-                        # Redact sensitive information
-                        masked_credentials = {
-                            **self.GOOGLE_SERVICE_ACCOUNT,
-                            "private_key": "[REDACTED]"
-                        } if self.GOOGLE_SERVICE_ACCOUNT else None
-                        print("Google service account credentials loaded")
-                except Exception as e:
-                    raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
+                # try:
+                #     with open("google-secret.json", "r") as file:
+                #         print("Loading Google service account credentials")
+                #         self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
+                #         print("Google service account credentials loaded successfully")
+                #         # Redact sensitive information
+                #         masked_credentials = {
+                #             **self.GOOGLE_SERVICE_ACCOUNT,
+                #             "private_key": "[REDACTED]"
+                #         } if self.GOOGLE_SERVICE_ACCOUNT else None
+                #         print("Google service account credentials loaded")
+                # except Exception as e:
+                #     raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
                     
                 self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
                 self.NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
@@ -94,11 +94,11 @@ class Config:
                 self.TIMEZONE = os.environ.get("TIMEZONE", "America/Phoenix")
 
                 # Monitoring Configuration (Optional)
-                self.SENTRY_DSN = os.environ.get("SENTRY_DSN") # Optional: Used for Sentry error/performance monitoring
-            self.SYS_ADMIN = os.environ.get("ADMIN_USER_ID")
+                self.SENTRY_DSN = os.environ.get("SENTRY_DSN")
+                self.SYS_ADMIN = os.environ.get("ADMIN_USER_ID")
                 # AI Service Keys
-                self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # Google Gemini API key
-                self.NOTION_TOKEN = os.environ.get("NOTION_TOKEN") # Notion API token
+                self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+                self.NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e
