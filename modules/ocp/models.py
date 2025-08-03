@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
-from modules.utils.db import Base
+from modules.utils.base import Base
 
 
 class Officer(Base):

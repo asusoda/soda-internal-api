@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, JSON, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from modules.utils.db import Base
+from modules.utils.base import Base
 
 class Organization(Base):
     """Model representing a Discord organization/guild."""
