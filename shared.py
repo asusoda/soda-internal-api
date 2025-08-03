@@ -8,16 +8,16 @@ import asyncio
 from modules.utils.config import Config
 # from modules.utils.db import DBManager
 import logging
+# Import the logger from our dedicated logging module
+from modules.utils.logging_config import logger, get_logger
 from modules.utils.db import DBConnect, Base
 from modules.utils.TokenManager import TokenManager
-from modules.bot.discord_modules.bot import BotFork
 import sentry_sdk # Added for Sentry
 from sentry_sdk.integrations.flask import FlaskIntegration # Added for Sentry
 from modules.organizations.models import Organization, OrganizationConfig
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Import custom BotFork class
+from modules.bot.discord_modules.bot import BotFork
 
 # Initialize Flask app
 app = Flask("SoDA internal API", 
@@ -96,6 +96,83 @@ cleanup_thread.start()
 # Ensure all tables are created after all models are imported
 Base.metadata.create_all(bind=db_connect.engine)
 
+# Initialize database connection
+db_connect = DBConnect()
+
+# Initialize Discord bot
+bot = BotFork(command_prefix="!", intents=discord.Intents.all())
+
+# Initialize Notion client
+notion = Client(auth=config.NOTION_API_KEY)
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# Periodic cleanup of expired refresh tokens
+def cleanup_expired_tokens():
+    """Clean up expired refresh tokens periodically"""
+    try:
+        tokenManger.cleanup_expired_refresh_tokens()
+        logger.info("Cleaned up expired refresh tokens")
+    except Exception as e:
+        logger.error(f"Error cleaning up expired tokens: {e}")
+
+# Schedule cleanup every hour
+import threading
+import time
+
+def run_cleanup_scheduler():
+    """Run the cleanup scheduler in a separate thread"""
+    while True:
+        cleanup_expired_tokens()
+        time.sleep(3600)  # Run every hour
+
+# Start cleanup scheduler in background thread
+cleanup_thread = threading.Thread(target=run_cleanup_scheduler, daemon=True)
+cleanup_thread.start()
+
+# Ensure all tables are created after all models are imported
+Base.metadata.create_all(bind=db_connect.engine)
+
+def create_summarizer_bot(loop: asyncio.AbstractEventLoop) -> discord.Bot:
+    """Create and configure the summarizer bot instance with a specific event loop."""
+    logger.info("Creating summarizer bot instance (standard discord.Bot)...")
+    intents = discord.Intents.default()
+    intents.message_content = True
+    intents.guild_messages = True
+
+    # Summarizer bot can remain a standard discord.Bot if it doesn't need BotFork features
+    summarizer_bot_instance = discord.Bot(intents=intents, loop=loop)
+    try:
+        from modules.summarizer.discord_modules.setup import setup_summarizer_cog
+        setup_summarizer_cog(summarizer_bot_instance)
+        logger.info("Summarizer cog registered with summarizer_bot_instance.")
+    except Exception as e:
+        logger.error(f"Error registering summarizer cog: {e}", exc_info=True)
+    return summarizer_bot_instance
+
+def create_auth_bot(loop: asyncio.AbstractEventLoop) -> BotFork: 
+    """Create and configure the auth bot (BotFork) instance with a specific event loop."""
+    logger.info("Creating auth bot instance (BotFork)...")
+    intents = discord.Intents.default()
+    intents.members = True
+    intents.guilds = True
+
+    # Use BotFork for the auth_bot_instance
+    auth_bot_instance = BotFork(intents=intents, loop=loop) 
+    try:
+        from modules.bot.discord_modules.cogs.HelperCog import HelperCog
+        from modules.bot.discord_modules.cogs.GameCog import GameCog
+        auth_bot_instance.add_cog(HelperCog(auth_bot_instance))
+        auth_bot_instance.add_cog(GameCog(auth_bot_instance))
+        logger.info("Auth bot cogs (HelperCog, GameCog) registered with BotFork instance.")
+    except Exception as e:
+        logger.error(f"Error registering auth bot cogs: {e}", exc_info=True)
+    return auth_bot_instance
+
+# Initialize Notion client
+notion = Client(auth=config.NOTION_API_KEY)
+
 def init_discord_bot():
     intents = discord.Intents.all()
     bot = BotFork(command_prefix="!", intents=intents)
@@ -105,3 +182,7 @@ def init_discord_bot():
 
 # Initialize Discord bot and Notion client
 bot, notion = init_discord_bot()
+summarizer_bot = create_summarizer_bot(asyncio.get_event_loop())
+
+# Note: The global 'bot' variable that was previously an alias for auth_bot
+# is removed. API endpoints will need to access the auth_bot via Flask's app context.

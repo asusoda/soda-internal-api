@@ -1,0 +1,71 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      cache_from:
+        - soda-internal-api:latest
+    image: soda-internal-api:latest
+    container_name: soda-internal-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+      - ./google-secret.json:/app/google-secret.json:ro
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    user: "1000:1000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - soda-network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      cache_from:
+        - soda-web:latest
+    image: soda-web:latest
+    container_name: soda-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      - api
+    environment:
+      - REACT_APP_API_URL=http://api:8000
+      - NODE_ENV=production
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - soda-network
+
+volumes:
+  data:
+    driver: local
+
+networks:
+  soda-network:
+    driver: bridge

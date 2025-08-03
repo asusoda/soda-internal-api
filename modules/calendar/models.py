@@ -6,16 +6,7 @@ from typing import Dict, Optional, Any
 
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
-# Assuming Base is defined in shared.database or similar
-# from shared.database import Base
-# If Base is not available, define a placeholder or adjust imports
-try:
-    from shared.database import Base
-except ImportError:
-    from sqlalchemy.ext.declarative import declarative_base
-    Base = declarative_base()
-    logging.warning("SQLAlchemy Base not found in shared.database, using a placeholder.")
-
+from modules.utils.db import Base
 
 # Import helpers from the new utils module
 from .utils import DateParser, extract_property, logger # Added logger import

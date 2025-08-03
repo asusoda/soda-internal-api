@@ -4,7 +4,10 @@ from discord import Interaction # Explicitly import Interaction
 from typing import Optional, List, Dict, Any, Union, Tuple, Callable, Awaitable
 import random
 import asyncio
+from modules.utils.logging_config import get_logger
 
+# Get module logger
+logger = get_logger("bot.helpercog")
 
 class HelperCog(commands.Cog):
     """
@@ -27,6 +30,7 @@ class HelperCog(commands.Cog):
         self.bot = bot
         self.announcement_channel = None
         self.message_listen_for = []
+        logger.info("HelperCog initialized")
 
     async def create_category(
         self, guild: discord.Guild, name: str, position: Optional[int] = 0
@@ -44,6 +48,7 @@ class HelperCog(commands.Cog):
         """
         category = asyncio.run(guild.create_category(name=name))
         await category.edit(position=position)
+        logger.debug(f"Created category '{name}' in guild {guild.name}")
         return category
 
     async def create_text_channel(
@@ -64,11 +69,13 @@ class HelperCog(commands.Cog):
         """
         if overwrites is None:
             channel = await guild.create_text_channel(name, category=category)
+            logger.debug(f"Created text channel '{name}' in guild {guild.name}")
             return channel
         else:
             channel = await guild.create_text_channel(
                 name, category=category, overwrites=overwrites
             )
+            logger.debug(f"Created text channel '{name}' with custom overwrites in guild {guild.name}")
             return channel
 
     async def create_voice_channel(
@@ -90,6 +97,7 @@ class HelperCog(commands.Cog):
         channel = await guild.create_voice_channel(
             name, category=category, overwrites=overwrites
         )
+        logger.debug(f"Created voice channel '{name}' in guild {guild.name}")
         return channel
 
     async def create_role(
@@ -104,6 +112,7 @@ class HelperCog(commands.Cog):
         colour (discord.Colour, optional): The colour of the role.
         """
         role = await guild.create_role(name=name, colour=colour)
+        logger.debug(f"Created role '{name}' in guild {guild.name}")
         return role
 
     async def delete_category(self, category: discord.CategoryChannel):
@@ -114,6 +123,7 @@ class HelperCog(commands.Cog):
         category (discord.CategoryChannel): The category to be deleted.
         """
         await category.delete()
+        logger.debug(f"Deleted category '{category.name}'")
 
     async def delete_text_channel(self, channel: discord.TextChannel):
         """
@@ -123,6 +133,7 @@ class HelperCog(commands.Cog):
         channel (discord.TextChannel): The text channel to be deleted.
         """
         await channel.delete()
+        logger.debug(f"Deleted text channel '{channel.name}'")
 
     async def delete_voice_channel(self, channel: discord.VoiceChannel):
         """
@@ -132,6 +143,7 @@ class HelperCog(commands.Cog):
         channel (discord.VoiceChannel): The voice channel to be deleted.
         """
         await channel.delete()
+        logger.debug(f"Deleted voice channel '{channel.name}'")
 
     async def delete_role(self, role: discord.Role):
         """
@@ -141,6 +153,7 @@ class HelperCog(commands.Cog):
         role (discord.Role): The role to be deleted.
         """
         await role.delete()
+        logger.debug(f"Deleted role '{role.name}'")
 
     async def send_message(
         self,
@@ -165,6 +178,7 @@ class HelperCog(commands.Cog):
                 message = self.bot.loop.create_task(channel.send(embed=embed))
             else:
                 raise Exception("Both embed and content cannot be None.")
+            logger.debug(f"Message sent to channel '{channel.name}'")
             return message
         else:
             if embed is None:
@@ -175,6 +189,7 @@ class HelperCog(commands.Cog):
                 )
             else:
                 raise Exception("Both embed and content cannot be None.")
+            logger.debug(f"Message with view sent to channel '{channel.name}'")
             return message
 
     async def edit_message(
@@ -208,6 +223,7 @@ class HelperCog(commands.Cog):
                 await message.edit(embed=embed, view=view)
             else:
                 raise Exception("Both embed and content cannot be None.")
+        logger.debug(f"Message {message.id} edited in channel '{message.channel.name}'")
         return message
 
     async def add_reaction(self, message: discord.Message, emoji: str):
@@ -219,6 +235,7 @@ class HelperCog(commands.Cog):
         emoji (str): The emoji to add.
         """
         await message.add_reaction(emoji)
+        logger.debug(f"Added reaction {emoji} to message {message.id}")
         return message
 
     def add_to_listner(self, message: discord.Message, emoji: str):
@@ -230,6 +247,7 @@ class HelperCog(commands.Cog):
         emoji (str): The emoji to listen for.
         """
         self.message_listen_for.append({"message": message, "emoji": emoji})
+        logger.debug(f"Added message {message.id} to reaction listener with emoji {emoji}")
 
     def remove_from_listner(self, message: discord.Message, emoji: str):
         """
@@ -242,6 +260,7 @@ class HelperCog(commands.Cog):
         for msg_info in self.message_listen_for: # Renamed loop variable
             if msg_info["message"] == message and msg_info["emoji"] == emoji:
                 self.message_listen_for.remove(msg_info)
+                logger.debug(f"Removed message {message.id} from reaction listener with emoji {emoji}")
                 return True
         return False
 
@@ -254,7 +273,7 @@ class HelperCog(commands.Cog):
         reaction (discord.Reaction): The reaction that was added.
         user (discord.User): The user that added the reaction.
         """
-        print(f"Reaction added by {user.name}")
+        logger.info(f"Reaction {reaction.emoji} added by {user.name} to message {reaction.message.id}")
         for message in self.message_listen_for:
             if reaction.message.id == message["message"].id:
                 if reaction.emoji == message["emoji"]:
@@ -269,7 +288,7 @@ class HelperCog(commands.Cog):
         reaction (discord.Reaction): The reaction that was removed.
         user (discord.User): The user that removed the reaction.
         """
-        print("Reaction removed")
+        logger.info(f"Reaction {reaction.emoji} removed by {user.name} from message {reaction.message.id}")
         for message in self.message_listen_for:
             if reaction.message.id == message["message"].id:
                 if reaction.emoji == message["emoji"]:
@@ -297,4 +316,5 @@ class HelperCog(commands.Cog):
             if role.name.startswith("Team"):
                 await role.delete()
 
+        logger.info(f"Game environment cleared by {interaction.user.name}")
         await interaction.followup.send("Cleared the game environment.")

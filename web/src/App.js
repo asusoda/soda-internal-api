@@ -11,6 +11,7 @@ import AddPoints from './pages/AddPoints';
 import OCPDetails from './pages/OCPDetails';
 import OrganizationSelector from './pages/OrganizationSelector';
 import SuperAdmin from './pages/SuperAdmin';
+import OCPDetails from './pages/OCPDetails';
 
 import React from 'react';
 import { Route, Routes, BrowserRouter } from 'react-router-dom';

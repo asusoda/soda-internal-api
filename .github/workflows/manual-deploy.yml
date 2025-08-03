@@ -1,0 +1,85 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        default: 'main'
+      rollback:
+        description: 'Rollback to previous version'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    name: Manual Deployment
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+    - name: Validate inputs
+      run: |
+        echo "🚀 Deploying to: ${{ github.event.inputs.environment }}"
+        echo "📌 Branch: ${{ github.event.inputs.branch }}"
+        echo "↩️  Rollback: ${{ github.event.inputs.rollback }}"
+
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        port: ${{ secrets.VPS_SSH_PORT }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          set -e
+          
+          # Configuration based on environment
+          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            PROJECT_DIR="/var/web/soda-internal-api"
+          else
+            PROJECT_DIR="/var/web/soda-internal-api-staging"
+          fi
+          
+          cd "$PROJECT_DIR"
+          
+          # Handle rollback
+          if [ "${{ github.event.inputs.rollback }}" = "true" ]; then
+            echo "🔄 Rolling back to previous version..."
+            
+            # Tag current version before rollback
+            docker tag soda-internal-api:latest soda-internal-api:rollback-$(date +%Y%m%d-%H%M%S)
+            
+            # Restore previous version
+            if docker images | grep -q "soda-internal-api:previous"; then
+              docker tag soda-internal-api:previous soda-internal-api:latest
+              docker compose up -d
+              echo "✅ Rollback completed!"
+            else
+              echo "❌ No previous version found for rollback"
+              exit 1
+            fi
+          else
+            # Normal deployment
+            echo "🚀 Deploying branch: ${{ github.event.inputs.branch }}"
+            
+            # Tag current as previous before updating
+            docker tag soda-internal-api:latest soda-internal-api:previous || true
+            
+            # Deploy specified branch
+            make deploy PROJECT_DIR="$PROJECT_DIR" BRANCH="${{ github.event.inputs.branch }}"
+          fi
+          
+          # Show final status
+          echo "📊 Deployment status:"
+          docker compose ps
+          docker compose logs --tail=20

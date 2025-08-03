@@ -5,13 +5,15 @@ import requests
 
 auth_blueprint = Blueprint("auth", __name__, template_folder=None, static_folder=None)
 CLIENT_ID = config.CLIENT_ID
-SECRET_KEY = config.CLIENT_SECRET
+CLIENT_SECRET = config.CLIENT_SECRET
 REDIRECT_URI = config.REDIRECT_URI
 GUILD_ID = 762811961238618122
 
+logger.info(f"Auth API using CLIENT_ID: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_URI}")
 
 @auth_blueprint.route("/login", methods=["GET"])
 def login():
+    logger.info(f"Redirecting to Discord OAuth login for client_id: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_URI}")
     return redirect(
         f"https://discord.com/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
     )
@@ -29,14 +31,22 @@ def validToken():
 
 @auth_blueprint.route("/callback", methods=["GET"])
 def callback():
+    bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+    if not bot or not bot.is_ready():
+        logger.error("Auth bot is not available or not ready for /callback")
+        return jsonify({"error": "Authentication service temporarily unavailable. Bot not ready."}), 503
+
     code = request.args.get("code")
     if not code:
+        logger.warning("No authorization code provided in /callback")
         return jsonify({"error": "No authorization code provided"}), 400
+    
+    logger.info("Received authorization code, exchanging for token.")
     token_response = requests.post(
         "https://discord.com/api/v10/oauth2/token",
         data={
             "client_id": CLIENT_ID,
-            "client_secret": SECRET_KEY,
+            "client_secret": CLIENT_SECRET,
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": REDIRECT_URI,
@@ -44,9 +54,10 @@ def callback():
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     token_response_data = token_response.json()
+
     if "access_token" in token_response_data:
         access_token = token_response_data["access_token"]
-
+        logger.info("Access token received, fetching user info.")
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
@@ -80,6 +91,7 @@ def callback():
             full_url = f"{config.CLIENT_URL}/auth/?error=Unauthorized Access"
             return redirect(full_url)
     else:
+        logger.error(f"Failed to retrieve access token from Discord: {token_response_data}")
         return jsonify({"error": "Failed to retrieve access token"}), 400
 
 
@@ -145,27 +157,19 @@ def valid_token():
     ]
     if tokenManger.is_token_valid(token):
         if tokenManger.is_token_expired(token):
+            logger.info(f"Token is valid but expired.")
             return jsonify(
-                {
-                    "status": "success",
-                    "valid": True,
-                    "expired": True,
-                }
-            ), 403
+                {"status": "success", "valid": True, "expired": True}
+            ), 200
         else:
+            logger.info(f"Token is valid and not expired.")
             return jsonify(
-                {
-                    "status": "success",
-                    "valid": True,
-                    "expired": False,
-                }
+                {"status": "success", "valid": True, "expired": False}
             ), 200
     else:
+        logger.warning(f"Token validation failed (invalid).")
         return jsonify(
-            {
-                "status": "error",
-                "valid": False,
-            }
+            {"status": "error", "valid": False, "message": "Token is invalid"}
         ), 401
 
 
@@ -175,10 +179,16 @@ def valid_token():
 def get_app_token():
     token = request.headers.get("Authorization").split(" ")[1]
     appname = request.args.get("appname")
-    app_token = tokenManger.generate_app_token(
-        tokenManger.retrieve_username(token), appname
-    )
-    return jsonify({"app_token": app_token}), 200
+    if not appname:
+        return jsonify({"error": "appname query parameter is required"}), 400
+    
+    username = tokenManger.retrieve_username(token)
+    if not username:
+         return jsonify({"error": "Invalid user token"}), 401
+
+    logger.info(f"Generating app token for user {username}, app: {appname}")
+    app_token_value = tokenManger.genreate_app_token(username, appname)
+    return jsonify({"app_token": app_token_value}), 200
 
 
 @auth_blueprint.route("/name", methods=["GET"])
@@ -215,4 +225,4 @@ def logout():
 
 @auth_blueprint.route("/success")
 def success():
-    return "You have successfully logged in with Discord!"
+    return "You have successfully logged in with Discord! (This is a generic success page)"

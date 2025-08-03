@@ -4,6 +4,10 @@ import Orb from '../components/ui/Orb'; // Import the Orb component
 import StarBorder from '../components/ui/StarBorder'; // Import the StarBorder component
 import Logo from '../assets/logo-dark.svg'; // Updated import path for the logo
 import { FaDiscord, FaRocket, FaUsers, FaCog } from 'react-icons/fa'; // Import icons
+import Orb from '../components/ui/Orb'; // Import the Orb component
+import StarBorder from '../components/ui/StarBorder'; // Import the StarBorder component
+import Logo from '../assets/logo-dark.svg'; // Updated import path for the logo
+import { FaDiscord } from 'react-icons/fa'; // Import Discord icon
 
 const LoginPage = () => {
     const navigate = useNavigate();

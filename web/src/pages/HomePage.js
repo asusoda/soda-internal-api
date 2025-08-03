@@ -19,6 +19,11 @@ import {
   FaCalendarAlt,
   FaRobot
 } from 'react-icons/fa';
+import Orb from '../components/ui/Orb';
+import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
+import { FileUpload } from '../components/ui/file-upload';
+import StarBorder from '../components/ui/StarBorder';
+import { FaFileUpload, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList, FaCogs } from 'react-icons/fa';
 
 const HomePage = () => {
   useAuthToken();
