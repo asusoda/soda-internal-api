@@ -47,6 +47,9 @@ class Config:
                 # Optional configs
                 self.SENTRY_DSN = None
                 self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "test-gemini-key")
+
+                # Superadmin config
+                self.SUPERADMIN_USER_ID = os.environ.get("SYS_ADMIN", "test-superadmin-id")
             else:
                 # Core Application Config
                 self.SECRET_KEY = os.environ["SECRET_KEY"]
@@ -99,6 +102,9 @@ class Config:
                 # AI Service Keys
                 self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
                 self.NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
+
+                # Superadmin config
+                self.SUPERADMIN_USER_ID = os.environ.get("SYS_ADMIN")
 
         except (KeyError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Configuration error: {str(e)}") from e

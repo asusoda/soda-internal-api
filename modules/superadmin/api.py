@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session, current_app
-from shared import db_connect
+from shared import db_connect, config
 from modules.organizations.models import Organization
 from modules.organizations.config import OrganizationSettings
 from modules.auth.decoraters import superadmin_required
@@ -10,7 +10,16 @@ superadmin_blueprint = Blueprint("superadmin", __name__)
 @superadmin_required
 def check_superadmin():
     """Check if user has superadmin privileges"""
-    return jsonify({"is_superadmin": True}), 200
+    # Get user's Discord ID from session
+    user_discord_id = session.get('user', {}).get('discord_id')
+    
+    superadmin_id = config.SUPERADMIN_USER_ID
+    
+    # Check if user's ID matches the superadmin ID
+    if user_discord_id and str(user_discord_id) == str(superadmin_id):
+        return jsonify({"is_superadmin": True}), 200
+    else:
+        return jsonify({"is_superadmin": False}), 403
 
 @superadmin_blueprint.route("/dashboard", methods=["GET"])
 @superadmin_required
