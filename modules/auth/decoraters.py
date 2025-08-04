@@ -106,7 +106,8 @@ def superadmin_required(f):
                     if not auth_bot or not auth_bot.is_ready():
                         return jsonify({"message": "Bot not available for verification!"}), 503
                     
-                    if not auth_bot.check_officer(str(discord_id)):
+                    officer_guilds = auth_bot.check_officer(str(discord_id))
+                    if not officer_guilds:  # If user is not officer in any organization
                         return jsonify({"message": "Superadmin access required!"}), 403
                 except Exception as e:
                     return jsonify({"message": f"Error verifying superadmin status: {str(e)}"}), 401
@@ -138,7 +139,8 @@ def superadmin_required(f):
                         return jsonify({"message": "User not found in Discord!"}), 401
                     
                     # Check if user is still an officer using the bot's check_officer method
-                    if not auth_bot.check_officer(str(user_discord_id)):
+                    officer_guilds = auth_bot.check_officer(str(user_discord_id))
+                    if not officer_guilds:  # If user is not officer in any organization
                         return jsonify({"message": "Superadmin access required!"}), 403
                         
                 except Exception as e:

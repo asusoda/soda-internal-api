@@ -69,7 +69,8 @@ def callback():
         )
         user_info = user_response.json()
         user_id = user_info["id"]
-        if auth_bot.check_officer(user_id):
+        officer_guilds = auth_bot.check_officer(user_id)
+        if officer_guilds:  # If user is officer in at least one organization
             name = auth_bot.get_name(user_id)
             # Generate token pair with both access and refresh tokens
             access_token, refresh_token = tokenManger.generate_token_pair(
@@ -78,11 +79,12 @@ def callback():
                 access_exp_minutes=30, 
                 refresh_exp_days=7
             )
-            # Store user info in session
+            # Store user info in session with officer guilds
             session['user'] = {
                 'username': name,
                 'discord_id': user_id,
-                'role': 'admin'  # Set role as admin for officers
+                'role': 'officer',
+                'officer_guilds': officer_guilds  # Store the list of guild IDs where user is officer
             }
             session['token'] = access_token
             session['refresh_token'] = refresh_token
