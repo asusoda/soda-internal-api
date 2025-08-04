@@ -1,5 +1,5 @@
-from flask import Blueprint, jsonify, request, session
-from shared import db_connect, bot
+from flask import Blueprint, jsonify, request, session, current_app
+from shared import db_connect
 from modules.organizations.models import Organization
 from modules.organizations.config import OrganizationSettings
 from modules.auth.decoraters import superadmin_required
@@ -17,8 +17,13 @@ def check_superadmin():
 def get_dashboard():
     """Get SuperAdmin dashboard data"""
     try:
+        # Get the auth bot from Flask app context
+        auth_bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+        if not auth_bot or not auth_bot.is_ready():
+            return jsonify({"error": "Bot not available"}), 503
+        
         # Get all guilds where the bot is a member
-        guilds = bot.guilds
+        guilds = auth_bot.guilds
         
         # Get existing organizations from the database
         db = next(db_connect.get_db())
@@ -43,7 +48,7 @@ def get_dashboard():
         if officer_id:
             for org in existing_orgs:
                 try:
-                    guild = bot.get_guild(int(org.guild_id))
+                    guild = auth_bot.get_guild(int(org.guild_id))
                     if guild and guild.get_member(int(officer_id)):
                         officer_orgs.append(org)
                 except (ValueError, AttributeError):
@@ -65,8 +70,13 @@ def get_dashboard():
 def add_organization(guild_id):
     """Add a new organization to the system"""
     try:
+        # Get the auth bot from Flask app context
+        auth_bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+        if not auth_bot or not auth_bot.is_ready():
+            return jsonify({"error": "Bot not available"}), 503
+        
         # Find the guild
-        guild = next((g for g in bot.guilds if g.id == guild_id), None)
+        guild = next((g for g in auth_bot.guilds if g.id == guild_id), None)
         if not guild:
             return jsonify({"error": "Guild not found"}), 404
         

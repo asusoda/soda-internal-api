@@ -1,5 +1,5 @@
 from flask import request, jsonify, Blueprint, redirect, current_app, session, make_response
-from shared import config, bot, tokenManger
+from shared import config, tokenManger
 from modules.auth.decoraters import auth_required, error_handler
 import requests
 from modules.utils.logging_config import logger, get_logger
@@ -32,8 +32,9 @@ def validToken():
 
 @auth_blueprint.route("/callback", methods=["GET"])
 def callback():
-    bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
-    if not bot or not bot.is_ready():
+    # Get the auth bot from Flask app context (the one actually running in thread)
+    auth_bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+    if not auth_bot or not auth_bot.is_ready():
         logger.error("Auth bot is not available or not ready for /callback")
         return jsonify({"error": "Authentication service temporarily unavailable. Bot not ready."}), 503
 
@@ -68,8 +69,8 @@ def callback():
         )
         user_info = user_response.json()
         user_id = user_info["id"]
-        if bot.check_officer(user_id):
-            name = bot.get_name(user_id)
+        if auth_bot.check_officer(user_id):
+            name = auth_bot.get_name(user_id)
             # Generate token pair with both access and refresh tokens
             access_token, refresh_token = tokenManger.generate_token_pair(
                 username=name, 

@@ -1,6 +1,6 @@
 from shared import tokenManger
-from flask import request, jsonify, session
-from shared import bot, db_connect
+from flask import request, jsonify, session, current_app
+from shared import db_connect
 from dotenv import load_dotenv
 import functools
 import os
@@ -101,7 +101,12 @@ def superadmin_required(f):
             if discord_id:
                 # Direct lookup using discord_id (secure and efficient)
                 try:
-                    if not bot.check_officer(str(discord_id)):
+                    # Get the auth bot from Flask app context
+                    auth_bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+                    if not auth_bot or not auth_bot.is_ready():
+                        return jsonify({"message": "Bot not available for verification!"}), 503
+                    
+                    if not auth_bot.check_officer(str(discord_id)):
                         return jsonify({"message": "Superadmin access required!"}), 403
                 except Exception as e:
                     return jsonify({"message": f"Error verifying superadmin status: {str(e)}"}), 401
@@ -115,7 +120,12 @@ def superadmin_required(f):
                 # This is a reverse lookup: username -> discord_id (less secure)
                 user_discord_id = None
                 try:
-                    for guild in bot.guilds:
+                    # Get the auth bot from Flask app context
+                    auth_bot = current_app.auth_bot if hasattr(current_app, 'auth_bot') else None
+                    if not auth_bot or not auth_bot.is_ready():
+                        return jsonify({"message": "Bot not available for verification!"}), 503
+                    
+                    for guild in auth_bot.guilds:
                         for member in guild.members:
                             display_name = member.nick if member.nick else member.name
                             if display_name == username:
@@ -128,7 +138,7 @@ def superadmin_required(f):
                         return jsonify({"message": "User not found in Discord!"}), 401
                     
                     # Check if user is still an officer using the bot's check_officer method
-                    if not bot.check_officer(str(user_discord_id)):
+                    if not auth_bot.check_officer(str(user_discord_id)):
                         return jsonify({"message": "Superadmin access required!"}), 403
                         
                 except Exception as e:

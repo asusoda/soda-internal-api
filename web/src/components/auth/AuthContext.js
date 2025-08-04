@@ -275,6 +275,7 @@ export const AuthProvider = ({ children }) => {
     getApiClient,
     makeAuthenticatedRequest,
     refreshAccessToken,
+    validateToken,
     setToken,
     setRefreshToken,
     setUser,
