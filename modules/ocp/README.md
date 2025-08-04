@@ -81,12 +81,12 @@ The system automatically syncs OCP data from Notion on a regular basis:
 
 The module provides the following API endpoints (as an extension of the calendar module):
 
-- **POST /calendar/ocp/sync-from-notion**: Triggers a sync from Notion to update officer points
-- **GET /calendar/ocp/officers**: Leaderboard of officers ranked by total points
-- **GET /calendar/ocp/officer/{email}/contributions**: Gets detailed contribution history for a specific officer
-- **POST /calendar/ocp/add-contribution**: Manually add contribution points for an officer
-- **PUT /calendar/ocp/contribution/{id}**: Update an existing contribution record
-- **DELETE /calendar/ocp/contribution/{id}**: Delete a contribution record
+- **POST /ocp/sync-from-notion**: Triggers a sync from Notion to update officer points
+- **GET /ocp/officers**: Leaderboard of officers ranked by total points
+- **GET /ocp/officer/{email}/contributions**: Gets detailed contribution history for a specific officer
+- **POST /ocp/add-contribution**: Manually add contribution points for an officer
+- **PUT /ocp/contribution/{id}**: Update an existing contribution record
+- **DELETE /ocp/contribution/{id}**: Delete a contribution record
 
 ## How It Works
 
@@ -118,13 +118,13 @@ The OCP module integrates with:
 ### Triggering a Sync Manually
 
 ```
-POST /calendar/ocp/sync-from-notion
+POST /ocp/sync-from-notion
 ```
 
 ### Getting the Officer Leaderboard
 
 ```
-GET /calendar/ocp/officers
+GET /ocp/officers
 ```
 
 Response:
@@ -168,7 +168,7 @@ Response:
 ### Getting Contributions for a Specific Officer
 
 ```
-GET /calendar/ocp/officer/officer1@example.com/contributions
+GET /ocp/officer/officer1@example.com/contributions
 ```
 
 Response:
@@ -210,7 +210,7 @@ Response:
 ### Adding a Custom Contribution
 
 ```
-POST /calendar/ocp/add-contribution
+POST /ocp/add-contribution
 Content-Type: application/json
 
 {
@@ -235,7 +235,7 @@ Response:
 ### Updating a Contribution
 
 ```
-PUT /calendar/ocp/contribution/4
+PUT /ocp/contribution/4
 Content-Type: application/json
 
 {
@@ -255,7 +255,7 @@ Response:
 ### Deleting a Contribution
 
 ```
-DELETE /calendar/ocp/contribution/4
+DELETE /ocp/contribution/4
 ```
 
 Response:

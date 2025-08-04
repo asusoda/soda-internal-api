@@ -84,18 +84,16 @@ export const Menu = ({
       <nav
         onMouseLeave={() => {
           setActive(null);
-          // Do not close mobile menu on mouse leave, only by toggle or link click
         }}
-        className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[95vw] max-w-8xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center justify-between px-6 py-4"
+        className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[98vw] max-w-9xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center justify-between px-8 py-4"
       >
-        <img src={DotSlashLogo} alt="Logo" className="h-8 w-auto flex-shrink-0" />
-
-        {/* Desktop Menu Items */}
-        <div className="hidden md:flex items-center justify-center flex-1 space-x-4 lg:space-x-6 mx-6">
-          {children}
-        </div>
-
-        {/* Mobile Menu Toggle */}
+        {/* Left section: org logo/name (children[0]) */}
+        <div className="flex items-center min-w-0">{children[0]}</div>
+        {/* Center section: menu items (children[1]) */}
+        <div className="hidden md:flex items-center justify-center flex-1 space-x-6 lg:space-x-8 mx-8 min-w-0">{children[1]}</div>
+        {/* Right section: org switcher/logout (children[2]) */}
+        <div className="flex items-center min-w-0">{children[2]}</div>
+        {/* Mobile menu toggle */}
         <div className="md:hidden flex-shrink-0">
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-black dark:text-white">
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}

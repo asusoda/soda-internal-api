@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
-import Orb from '../components/ui/Orb';
-import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
+import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import StarBorder from '../components/ui/StarBorder';
-import { FaSearch, FaUserPlus, FaSignOutAlt, FaTachometerAlt, FaUsers, FaClipboardList, FaCogs } from 'react-icons/fa';
+import { FaSearch, FaUserPlus } from 'react-icons/fa';
 
 const UserPage = () => {
   useAuthToken();
@@ -31,8 +30,6 @@ const UserPage = () => {
   const [loadingCreate, setLoadingCreate] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
-
-  const [activeNavItem, setActiveNavItem] = useState(null);
 
   const resetUpdateFormFields = () => {
     setName('');
@@ -142,44 +139,9 @@ const UserPage = () => {
     navigate('/');
   };
 
-  const navItems = [
-    { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
-    { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
-    { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
-    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
-  ];
-
   return (
-    <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
-      <div className="fixed inset-0 z-0">
-        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} /> {/* Different hue for UserPage */}
-        <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
-      </div>
-
-      <Menu setActive={setActiveNavItem}>
-        {navItems.map((item) => (
-          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item={item.name} key={item.name}>
-            <HoveredLink href={item.link}>
-              <div className="flex items-center">
-                {item.icon}
-                <span className="hidden md:inline">{item.name}</span>
-              </div>
-            </HoveredLink>
-          </MenuItem>
-        ))}
-        <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Account">
-          <div className="flex flex-col space-y-2 text-sm p-2">
-            <HoveredLink href="#" onClick={handleLogout}>
-              <div className="flex items-center">
-                <FaSignOutAlt className="h-4 w-4 mr-2" />
-                Logout
-              </div>
-            </HoveredLink>
-          </div>
-        </MenuItem>
-      </Menu>
-
-      <div className="relative z-20 container mx-auto px-4 py-12 md:py-16 flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0 items-start justify-center">
+    <OrganizationNavbar>
+      <div className="container mx-auto px-4 py-12 md:py-16 flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0 items-start justify-center">
         {/* Section 1: Find and Update User */}
         <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-lg">
           <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">
@@ -265,7 +227,7 @@ const UserPage = () => {
             </form>
           </div>
       </div>
-    </div>
+    </OrganizationNavbar>
   );
 };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import ThemedLoading from '../ui/ThemedLoading';
 
 const PrivateRoute = ({ children }) => {
   const { token, currentOrg, organizations, loading } = useAuth();
@@ -18,14 +19,7 @@ const PrivateRoute = ({ children }) => {
   // Show loading while authentication is in progress
   if (loading) {
     console.log('PrivateRoute: Still loading, showing loading screen');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <ThemedLoading message="Authenticating..." />;
   }
   
   // Redirect to login if no token

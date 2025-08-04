@@ -39,7 +39,7 @@ unified_sync_service = UnifiedSyncService(logger)
 app.unified_sync_service = unified_sync_service
 
 # Register Blueprints
-app.register_blueprint(public_blueprint, url_prefix="/")
+app.register_blueprint(public_blueprint, url_prefix="/api/public")
 app.register_blueprint(points_blueprint, url_prefix="/api/points")
 app.register_blueprint(users_blueprint, url_prefix="/api/users")
 app.register_blueprint(auth_blueprint, url_prefix="/api/auth")

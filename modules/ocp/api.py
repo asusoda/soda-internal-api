@@ -36,12 +36,12 @@ def sync_from_notion():
     transaction = start_transaction(op="webhook", name="ocp_notion_sync")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "ocp_notion_sync"
-    logger.info("Received POST request on /calendar/ocp/sync-from-notion, triggering Notion->OCP sync.")
+    logger.info("Received POST request on /ocp/sync-from-notion, triggering Notion->OCP sync.")
     set_tag("request_type", "POST")
     
     # Check if Notion database ID is configured
     if not config.NOTION_DATABASE_ID:
-        logger.error("Required configuration NOTION_DATABASE_ID is missing in .env for /calendar/ocp/sync-from-notion endpoint.")
+        logger.error("Required configuration NOTION_DATABASE_ID is missing in .env for /ocp/sync-from-notion endpoint.")
         set_tag("config_error", "missing_database_id")
         transaction.set_status("failed_precondition")
         return jsonify({"status": "error", "message": "Notion database ID not configured on server."}), 500
@@ -79,7 +79,7 @@ def debug_sync_from_notion():
     transaction = start_transaction(op="debug", name="ocp_notion_sync_debug")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "ocp_notion_sync_debug"
-    logger.info("Received POST request on /calendar/ocp/debug-sync-from-notion, triggering Notion->OCP sync with debug output.")
+    logger.info("Received POST request on /ocp/debug-sync-from-notion, triggering Notion->OCP sync with debug output.")
     set_tag("request_type", "POST")
     
     # Check if Notion database ID is configured
@@ -164,7 +164,7 @@ def diagnose_unknown_officers():
     transaction = start_transaction(op="admin", name="diagnose_unknown_officers")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "diagnose_unknown_officers"
-    logger.info(f"Received {request.method} request on /calendar/ocp/diagnose-unknown-officers")
+    logger.info(f"Received {request.method} request on /ocp/diagnose-unknown-officers")
     set_tag("request_type", request.method)
     
     try:
@@ -193,7 +193,7 @@ def get_officer_leaderboard():
     transaction = start_transaction(op="api", name="get_officer_leaderboard")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_leaderboard"
-    logger.info("Received GET request on /calendar/ocp/officers for leaderboard")
+    logger.info("Received GET request on /ocp/officers for leaderboard")
     set_tag("request_type", "GET")
     
     start_date_str = request.args.get('start_date') # Expected format: YYYY-MM
@@ -239,7 +239,7 @@ def get_officer_contributions(officer_identifier):
     transaction = start_transaction(op="api", name="get_officer_contributions")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_contributions"
-    logger.info(f"Received GET request on /calendar/ocp/officer/{officer_identifier}/contributions")
+    logger.info(f"Received GET request on /ocp/officer/{officer_identifier}/contributions")
     set_tag("request_type", "GET")
     set_tag("officer_identifier", officer_identifier)
 
@@ -299,7 +299,7 @@ def add_contribution():
     transaction = start_transaction(op="api", name="add_contribution")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "add_contribution"
-    logger.info("Received POST request on /calendar/ocp/add-contribution")
+    logger.info("Received POST request on /ocp/add-contribution")
     set_tag("request_type", "POST")
     
     try:
@@ -340,7 +340,7 @@ def update_contribution(point_id):
     transaction = start_transaction(op="api", name="update_contribution")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "update_contribution"
-    logger.info(f"Received PUT request on /calendar/ocp/contribution/{point_id}")
+    logger.info(f"Received PUT request on /ocp/contribution/{point_id}")
     set_tag("request_type", "PUT")
     set_tag("point_id", point_id)
     
@@ -372,7 +372,7 @@ def delete_contribution(point_id):
     transaction = start_transaction(op="api", name="delete_contribution")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "delete_contribution"
-    logger.info(f"Received DELETE request on /calendar/ocp/contribution/{point_id}")
+    logger.info(f"Received DELETE request on /ocp/contribution/{point_id}")
     set_tag("request_type", "DELETE")
     set_tag("point_id", point_id)
     
@@ -399,7 +399,7 @@ def get_officer_details(officer_id):
     transaction = start_transaction(op="api", name="get_officer_details")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_details"
-    logger.info(f"Received GET request on /calendar/ocp/officer/{officer_id}")
+    logger.info(f"Received GET request on /ocp/officer/{officer_id}")
     set_tag("request_type", "GET")
     set_tag("officer_id", officer_id)
     
@@ -440,7 +440,7 @@ def get_all_events():
     transaction = start_transaction(op="api", name="get_all_events")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_all_events"
-    logger.info("Received GET request on /calendar/ocp/events")
+    logger.info("Received GET request on /ocp/events")
     set_tag("request_type", "GET")
     
     try:
@@ -465,7 +465,7 @@ def get_officer_names():
     transaction = start_transaction(op="api", name="get_officer_names")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "get_officer_names"
-    logger.info("Received GET request on /calendar/ocp/officer-names")
+    logger.info("Received GET request on /ocp/officer-names")
     set_tag("request_type", "GET")
     
     try:
@@ -499,7 +499,7 @@ def repair_unknown_officers():
     transaction = start_transaction(op="admin", name="repair_unknown_officers")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "repair_unknown_officers"
-    logger.info("Received POST request on /calendar/ocp/repair-officers")
+    logger.info("Received POST request on /ocp/repair-officers")
     set_tag("request_type", "POST")
     
     try:

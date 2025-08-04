@@ -13,7 +13,7 @@ import OrganizationSelector from './pages/OrganizationSelector';
 import SuperAdmin from './pages/SuperAdmin';
 
 import React from 'react';
-import { Route, Routes, BrowserRouter } from 'react-router-dom';
+import { Route, Routes, BrowserRouter, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import TokenRetrival from './pages/TokenRetrival';
@@ -36,7 +36,7 @@ function App() {
           <Route path='/auth' element={<TokenRetrival />} />
           <Route path='/500' element={<ServerError />} />
           
-          {/* Organization selection */}
+          {/* Organization selection - landing page for authenticated users */}
           <Route 
             path='/select-organization' 
             element={
@@ -52,80 +52,6 @@ function App() {
             element={
               <PrivateRoute>
                 <SuperAdmin />
-              </PrivateRoute>
-            } 
-          />
-          
-          {/* Legacy routes (for backward compatibility) */}
-          <Route 
-            path='/panel' 
-            element={
-              <PrivateRoute>
-                <BotControlPanel />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/addpoints' 
-            element={
-              <PrivateRoute>
-                <AddPoints />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/gamepanel' 
-            element={
-              <PrivateRoute>
-                <GamePanel />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/activegame' 
-            element={
-              <PrivateRoute>
-                <ActiveGame />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/jeopardy' 
-            element={
-              <PrivateRoute>
-                <Jeopardy />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/home' 
-            element={
-              <PrivateRoute>
-                <HomePage/>
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/users' 
-            element={
-              <PrivateRoute>
-                <UserPage />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/leaderboard' 
-            element={
-              <PrivateRoute>
-                <LeaderBoard />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path='/ocp' 
-            element={
-              <PrivateRoute>
-                <OCPDetails />
               </PrivateRoute>
             } 
           />
@@ -202,6 +128,44 @@ function App() {
                 <OCPDetails />
               </PrivateRoute>
             } 
+          />
+          
+          {/* Legacy routes (for backward compatibility) - redirect to select-organization */}
+          <Route 
+            path='/panel' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/addpoints' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/gamepanel' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/activegame' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/jeopardy' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/home' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/users' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/leaderboard' 
+            element={<Navigate to="/select-organization" />} 
+          />
+          <Route 
+            path='/ocp' 
+            element={<Navigate to="/select-organization" />} 
           />
         </Routes>
         <ToastContainer />

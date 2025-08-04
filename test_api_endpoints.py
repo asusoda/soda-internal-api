@@ -175,8 +175,8 @@ def test_calendar_endpoints():
     # Destructive operation - call with caution or ensure ALLOW_DELETE_ALL is false for safety in prod/staging
     make_request("POST", "/calendar/delete-all-events", headers=NO_AUTH_HEADERS, data={}, description="Calendar Delete All Events (Potentially Destructive - expect error if not configured/allowed)")
 
-    # OCP Endpoints (prefixed with /calendar/ocp)
-    ocp_prefix = "/calendar/ocp"
+    # OCP Endpoints (prefixed with /ocp)
+    ocp_prefix = "/ocp"
     make_request("POST", f"{ocp_prefix}/sync-from-notion", headers=NO_AUTH_HEADERS, data={}, description="OCP Sync from Notion")
     make_request("POST", f"{ocp_prefix}/debug-sync-from-notion", headers=NO_AUTH_HEADERS, data={}, description="OCP Debug Sync from Notion")
     make_request("GET", f"{ocp_prefix}/diagnose-unknown-officers", headers=NO_AUTH_HEADERS, description="OCP Diagnose Unknown Officers (GET)")

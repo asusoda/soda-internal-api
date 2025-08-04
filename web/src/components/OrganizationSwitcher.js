@@ -48,18 +48,18 @@ const OrganizationSwitcher = ({ className = '' }) => {
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white transition-all duration-200"
+        className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 transition-all duration-200 backdrop-blur-sm"
       >
         {currentOrg.icon_url && (
           <img
             src={currentOrg.icon_url}
             alt={`${currentOrg.name} icon`}
-            className="w-6 h-6 rounded-full"
+            className="w-6 h-6 rounded-full flex-shrink-0"
           />
         )}
-        <span className="truncate max-w-32">{currentOrg.name}</span>
+        <span className="truncate max-w-32 text-white">{currentOrg.name}</span>
         <svg
-          className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 transition-transform duration-200 text-gray-300 ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -75,9 +75,9 @@ const OrganizationSwitcher = ({ className = '' }) => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50 animate-in fade-in-0 zoom-in-95 duration-200">
-          <div className="py-1">
-            <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl bg-gray-900/95 backdrop-blur-md border border-gray-700/50 ring-1 ring-black/20 z-50 animate-in fade-in-0 zoom-in-95 duration-200">
+          <div className="py-2">
+            <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-700/50">
               Switch Organization
             </div>
             
@@ -87,29 +87,29 @@ const OrganizationSwitcher = ({ className = '' }) => {
                 <button
                   key={org.id}
                   onClick={() => handleOrgSwitch(org)}
-                  className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:bg-gray-700 transition-colors duration-150"
+                  className="flex items-center w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-800/80 focus:outline-none focus:bg-gray-800/80 transition-colors duration-150"
                 >
                   {org.icon_url && (
                     <img
                       src={org.icon_url}
                       alt={`${org.name} icon`}
-                      className="w-5 h-5 rounded-full mr-3"
+                      className="w-6 h-6 rounded-full mr-3 flex-shrink-0"
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="truncate font-medium">{org.name}</div>
+                    <div className="truncate font-medium text-white">{org.name}</div>
                     <div className="text-xs text-gray-400">/{org.prefix}</div>
                   </div>
                 </button>
               ))}
             
-            <div className="border-t border-gray-700 mt-1">
+            <div className="border-t border-gray-700/50 mt-2">
               <button
                 onClick={handleViewAllOrgs}
-                className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:bg-gray-700 transition-colors duration-150"
+                className="flex items-center w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-800/80 focus:outline-none focus:bg-gray-800/80 transition-colors duration-150"
               >
                 <svg
-                  className="w-5 h-5 mr-3"
+                  className="w-5 h-5 mr-3 text-blue-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -128,10 +128,10 @@ const OrganizationSwitcher = ({ className = '' }) => {
               {isSuperAdmin && (
                 <button
                   onClick={handleSuperAdmin}
-                  className="flex items-center w-full px-4 py-2 text-left text-sm text-yellow-300 hover:text-yellow-200 hover:bg-gray-700 focus:outline-none focus:bg-gray-700 transition-colors duration-150"
+                  className="flex items-center w-full px-4 py-3 text-left text-sm text-yellow-300 hover:text-yellow-200 hover:bg-gray-800/80 focus:outline-none focus:bg-gray-800/80 transition-colors duration-150"
                 >
                   <svg
-                    className="w-5 h-5 mr-3"
+                    className="w-5 h-5 mr-3 text-yellow-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

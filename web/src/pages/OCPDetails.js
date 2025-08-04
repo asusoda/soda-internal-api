@@ -4,10 +4,8 @@ import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
 import useOrgNavigation from '../hooks/useOrgNavigation';
 import { useAuth } from '../components/auth/AuthContext';
-import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
-import Orb from '../components/ui/Orb';
+import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import StarBorder from '../components/ui/StarBorder';
-import OrganizationSwitcher from '../components/OrganizationSwitcher';
 import {
     FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, 
     FaCogs, FaRedo, FaSearchDollar, FaWrench, FaExclamationTriangle, FaSync, FaFlask, FaPlusCircle, FaTimes
@@ -61,7 +59,7 @@ const AddContributionModal = ({ isOpen, onClose, onAdd }) => {
   const fetchAvailableOfficers = async () => {
     setLoadingOfficers(true);
     try {
-      const response = await apiClient.get('/calendar/ocp/officer-names');
+      const response = await apiClient.get('/api/ocp/officer-names');
       if (response.data.status === 'success') {
         setAvailableOfficers(response.data.officers);
       }
@@ -330,7 +328,7 @@ const EventParticipantsModal = ({ isOpen, onClose, eventData }) => {
 
 const OCPDetails = () => {
   useAuthToken();
-  const { logout, currentOrg } = useAuth();
+  const { currentOrg } = useAuth();
   const { 
     goToDashboard,
     goToUsers, 
@@ -339,7 +337,6 @@ const OCPDetails = () => {
     goToPanel,
     goToJeopardy 
   } = useOrgNavigation();
-  const [activeNavItem, setActiveNavItem] = useState(null);
   const [expandedOfficer, setExpandedOfficer] = useState(null);
   
   const [leaderboard, setLeaderboard] = useState([]);
@@ -376,7 +373,7 @@ const OCPDetails = () => {
     setEventsLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/api/calendar/ocp/events');
+      const response = await apiClient.get('/api/ocp/events');
       const data = response.data;
       if (data.status === 'success' && Array.isArray(data.events)) {
         const processedEvents = data.events.map(event => ({
@@ -399,7 +396,7 @@ const OCPDetails = () => {
   const fetchLeaderboard = useCallback(async (sDate, eDate) => {
     setLeaderboardLoading(true);
     setLeaderboardError(null);
-    let url = '/calendar/ocp/officers';
+    let url = '/api/ocp/officers';
     const params = new URLSearchParams();
     if (sDate) params.append('start_date', sDate);
     if (eDate) params.append('end_date', eDate);
@@ -491,13 +488,13 @@ const OCPDetails = () => {
   }, [fetchInitialData]);
 
   const syncWithNotion = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/sync-from-notion'),
+    () => apiClient.post('/api/ocp/sync-from-notion'),
     setSyncing,
     "Notion Sync"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
 
   const debugSyncWithNotion = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/debug-sync-from-notion'),
+    () => apiClient.post('/api/ocp/debug-sync-from-notion'),
     setDebugSyncing,
     "Debug Sync"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
@@ -507,10 +504,10 @@ const OCPDetails = () => {
     setDiagnosticResults(null);
     setError(null);
     try {
-      let response = await apiClient.get('/calendar/ocp/diagnose-unknown-officers')
+      let response = await apiClient.get('/api/ocp/diagnose-unknown-officers')
         .catch(err => {
             if (err.response && (err.response.status === 405 || err.response.status === 404)) {
-                return apiClient.post('/calendar/ocp/diagnose-unknown-officers');
+                return apiClient.post('/api/ocp/diagnose-unknown-officers');
             }
             throw err;
         });
@@ -529,14 +526,14 @@ const OCPDetails = () => {
   };
   
   const fixUnknownOfficers = () => triggerSyncAndRefresh(
-    () => apiClient.post('/calendar/ocp/repair-officers'),
+    () => apiClient.post('/api/ocp/repair-officers'),
     setFixingOfficers,
     "Officer Repair"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after repair
 
   const fetchOfficerContributions = async (officerIdentifier) => {
     if (!officerIdentifier) return;
-    let url = `/calendar/ocp/officer/${officerIdentifier}/contributions`;
+    let url = `/api/ocp/officer/${officerIdentifier}/contributions`;
     const params = new URLSearchParams();
     // Use the global startDate and endDate for consistency when expanding
     if (startDate) params.append('start_date', startDate);
@@ -593,95 +590,20 @@ const OCPDetails = () => {
 
   if (leaderboardLoading && !leaderboard.length) { // Show loading only if leaderboard is empty
     return (
-      <div className="relative min-h-screen bg-soda-black text-soda-white flex items-center justify-center">
-        <div className="fixed inset-0 z-0"><Orb hue={260} forceHoverState={true} /></div>
-        <p className="text-xl z-10">Loading OCP System...</p>
-      </div>
+      <OrganizationNavbar>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading OCP System...</p>
+          </div>
+        </div>
+      </OrganizationNavbar>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-black text-white overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0">
-        <Orb />
-      </div>
-
-      {/* Navigation */}
-      <div className="relative z-20 w-full">
-        <Menu setActive={setActiveNavItem}>
-          <div className="flex items-center justify-between w-full px-4 py-4">
-            {/* Left side - Organization info */}
-            <div className="flex items-center space-x-4">
-              {currentOrg && (
-                <div className="flex items-center space-x-2">
-                  {currentOrg.icon_url && (
-                    <img 
-                      src={currentOrg.icon_url} 
-                      alt={currentOrg.name}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  )}
-                  <div>
-                    <h1 className="text-xl font-bold">{currentOrg.name} OCP System</h1>
-                    <p className="text-sm text-gray-400">/{currentOrg.prefix}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Center - Navigation Menu */}
-            <div className="flex items-center space-x-6">
-              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Dashboard">
-                <div className="flex flex-col space-y-4 text-sm">
-                  <HoveredLink onClick={goToDashboard}>
-                    <FaTachometerAlt className="inline mr-2" />Dashboard
-                  </HoveredLink>
-                  <HoveredLink onClick={goToUsers}>
-                    <FaUsers className="inline mr-2" />User Management
-                  </HoveredLink>
-                  <HoveredLink onClick={goToLeaderboard}>
-                    <FaClipboardList className="inline mr-2" />Leaderboard
-                  </HoveredLink>
-                </div>
-              </MenuItem>
-
-              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Points">
-                <div className="flex flex-col space-y-4 text-sm">
-                  <HoveredLink onClick={goToAddPoints}>
-                    <FaUsers className="inline mr-2" />Add Points
-                  </HoveredLink>
-                </div>
-              </MenuItem>
-
-              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
-                <div className="flex flex-col space-y-4 text-sm">
-                  <HoveredLink onClick={goToJeopardy}>
-                    <FaTachometerAlt className="inline mr-2" />Jeopardy
-                  </HoveredLink>
-                  <HoveredLink onClick={goToPanel}>
-                    <FaCogs className="inline mr-2" />Bot Panel
-                  </HoveredLink>
-                </div>
-              </MenuItem>
-            </div>
-
-            {/* Right side - Organization switcher and logout */}
-            <div className="flex items-center space-x-4">
-              <OrganizationSwitcher />
-              <button 
-                onClick={logout}
-                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700"
-              >
-                <FaSignOutAlt />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </Menu>
-      </div>
-
-      <div className="relative z-20 container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+    <OrganizationNavbar>
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
           <h1 className="text-3xl sm:text-4xl font-bold text-soda-white tracking-tight mb-4 sm:mb-0">
             OCP System
@@ -992,7 +914,7 @@ const OCPDetails = () => {
         }}
         onAdd={async (contributionData) => {
           try {
-            const response = await apiClient.post('/calendar/ocp/add-contribution', contributionData);
+            const response = await apiClient.post('/api/ocp/add-contribution', contributionData);
             const result = response.data;
             if (response.status >= 200 && response.status < 300 && result.status !== 'error') {
                 setSyncNotification({ 
@@ -1027,7 +949,7 @@ const OCPDetails = () => {
         onClose={() => setShowEventParticipantsModal(false)} 
         eventData={selectedEventForModal} 
       />
-    </div>
+    </OrganizationNavbar>
   );
 };
 
