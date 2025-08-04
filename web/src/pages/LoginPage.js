@@ -31,10 +31,10 @@ const LoginPage = () => {
             </div>
 
             {/* Main Content Container */}
-            <div className="relative z-10 max-w-4xl w-full px-4 flex flex-col lg:flex-row items-center justify-center gap-8 mt-16 md:mt-0">
+            <div className="relative z-10 max-w-5xl w-full border border-soda-white/20 rounded-xl backdrop-blur-xl flex flex-col lg:flex-row items-center justify-center gap-8 mt-16 md:mt-0">
                 
                 {/* Login Section */}
-                <div className="max-w-md w-full p-8 bg-soda-black bg-opacity-80 rounded-lg shadow-2xl flex flex-col items-center">
+                <div className="max-w-md w-full p-8 rounded-lg flex flex-col items-center">
                     <h1 className="text-3xl md:text-4xl font-bold mb-3 text-soda-white text-center">
                         SoDA Admin Panel
                     </h1>
@@ -55,7 +55,7 @@ const LoginPage = () => {
                 </div>
 
                 {/* Bot Invitation Section */}
-                <div className="max-w-md w-full p-8 bg-gradient-to-br from-purple-900/80 to-blue-900/80 rounded-lg shadow-2xl flex flex-col items-center border border-purple-500/30">
+                <div className="max-w-xl w-full p-8 bg-gradient-to-br from-purple-900/80 to-blue-900/80 rounded-lg shadow-2xl flex flex-col items-center border border-purple-500/30">
                     <div className="flex items-center justify-center w-16 h-16 bg-purple-600 rounded-full mb-4">
                         <FaRocket className="h-8 w-8 text-white" />
                     </div>
