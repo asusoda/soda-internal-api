@@ -6,6 +6,11 @@ const OrganizationSelector = () => {
   const { organizations, selectOrganization, user, logout, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const handleOrganizationSelect = (org) => {
+    selectOrganization(org);
+    navigate(`/${org.prefix}/dashboard`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="max-w-md w-full space-y-8">
@@ -74,7 +79,7 @@ const OrganizationSelector = () => {
               {organizations.map((org) => (
                 <div
                   key={org.id}
-                  onClick={() => selectOrganization(org)}
+                  onClick={() => handleOrganizationSelect(org)}
                   className="relative block w-full border-2 border-gray-600 border-dashed rounded-lg p-6 text-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer transition-colors bg-gray-800 hover:bg-gray-700"
                 >
                   <div className="flex items-center justify-center space-x-3">
@@ -118,4 +123,4 @@ const OrganizationSelector = () => {
   );
 };
 
-export default OrganizationSelector; 
+export default OrganizationSelector;

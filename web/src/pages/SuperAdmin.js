@@ -3,7 +3,7 @@ import { useAuth } from '../components/auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const SuperAdmin = () => {
-  const { getApiClient, isSuperAdmin, loading } = useAuth();
+  const { getApiClient, isSuperAdmin, loading, selectOrganization } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,6 +65,11 @@ const SuperAdmin = () => {
     }
   };
 
+  const handleViewOrganization = (org) => {
+    selectOrganization(org);
+    navigate(`/${org.prefix}/dashboard`);
+  };
+
   if (loading || dashboardLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -110,7 +115,7 @@ const SuperAdmin = () => {
               {dashboardData.officer_orgs.map((org) => (
                 <div
                   key={org.id}
-                  onClick={() => navigate(`/${org.prefix}/dashboard`)}
+                  onClick={() => handleViewOrganization(org)}
                   className="bg-gray-800 p-4 rounded-lg border border-blue-600 cursor-pointer hover:bg-gray-750 transition-colors"
                 >
                   <div className="flex items-center space-x-3 mb-3">
@@ -259,7 +264,7 @@ const SuperAdmin = () => {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => navigate(`/${org.prefix}/dashboard`)}
+                      onClick={() => handleViewOrganization(org)}
                       className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
                     >
                       View Dashboard
@@ -283,4 +288,4 @@ const SuperAdmin = () => {
   );
 };
 
-export default SuperAdmin; 
+export default SuperAdmin;

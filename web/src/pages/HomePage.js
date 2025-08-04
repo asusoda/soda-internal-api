@@ -105,84 +105,83 @@ const HomePage = () => {
       <div className="absolute inset-0">
         <Orb />
       </div>
-
+  
       {/* Navigation */}
       <div className="relative z-20 w-full">
         <Menu setActive={setActiveNavItem}>
-          <div className="flex items-center justify-between w-full px-4 py-4">
-            {/* Left side - Organization info */}
-            <div className="flex items-center space-x-4">
-              {currentOrg && (
-                <div className="flex items-center space-x-2">
-                  {currentOrg.icon_url && (
-                    <img 
-                      src={currentOrg.icon_url} 
-                      alt={currentOrg.name}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  )}
-                  <div>
-                    <h1 className="text-xl font-bold">{currentOrg.name}</h1>
-                    <p className="text-sm text-gray-400">Dashboard • /{currentOrg.prefix}</p>
-                  </div>
+          {/* Left side - Organization info */}
+          <div className="flex items-center space-x-3 lg:space-x-4 flex-shrink-0">
+            {currentOrg && (
+              <div className="flex items-center space-x-2">
+                {currentOrg.icon_url && (
+                  <img 
+                    src={currentOrg.icon_url} 
+                    alt={currentOrg.name}
+                    className="w-6 h-6 lg:w-8 lg:h-8 rounded-full flex-shrink-0"
+                  />
+                )}
+                <div className="min-w-0">
+                  <h1 className="text-sm lg:text-xl font-bold truncate max-w-48 lg:max-w-64">{currentOrg.name}</h1>
+                  <p className="text-xs lg:text-sm text-gray-400 truncate">Dashboard • /{currentOrg.prefix}</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+  
 
             {/* Center - Quick Navigation */}
-            <div className="flex items-center space-x-6">
-              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Quick Access">
-                <div className="flex flex-col space-y-4 text-sm">
-                  <HoveredLink onClick={goToUsers}>
-                    <FaUsers className="inline mr-2" />User Management
-                  </HoveredLink>
-                  <HoveredLink onClick={goToLeaderboard}>
-                    <FaChartLine className="inline mr-2" />Leaderboard
-                  </HoveredLink>
-                  <HoveredLink onClick={goToAddPoints}>
-                    <FaPlus className="inline mr-2" />Add Points
-                  </HoveredLink>
-                  <HoveredLink onClick={goToOCP}>
-                    <FaClipboardList className="inline mr-2" />OCP Details
-                  </HoveredLink>
-                </div>
-              </MenuItem>
-
-              <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
-                <div className="flex flex-col space-y-4 text-sm">
-                  <HoveredLink onClick={goToJeopardy}>
-                    <FaTrophy className="inline mr-2" />Jeopardy
-                  </HoveredLink>
-                  <HoveredLink onClick={goToGamePanel}>
-                    <FaGamepad className="inline mr-2" />Game Panel
-                  </HoveredLink>
-                  <HoveredLink onClick={goToActiveGame}>
-                    <FaPlay className="inline mr-2" />Active Game
-                  </HoveredLink>
-                  <HoveredLink onClick={goToPanel}>
-                    <FaRobot className="inline mr-2" />Bot Panel
-                  </HoveredLink>
-                </div>
-              </MenuItem>
+        <div className="flex items-center space-x-4 lg:space-x-6 flex-shrink-0">
+          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Quick Access">
+            <div className="flex flex-col space-y-4 text-sm">
+              <HoveredLink onClick={goToUsers}>
+                <FaUsers className="inline mr-2" />User Management
+              </HoveredLink>
+              <HoveredLink onClick={goToLeaderboard}>
+                <FaChartLine className="inline mr-2" />Leaderboard
+              </HoveredLink>
+              <HoveredLink onClick={goToAddPoints}>
+                <FaPlus className="inline mr-2" />Add Points
+              </HoveredLink>
+              <HoveredLink onClick={goToOCP}>
+                <FaClipboardList className="inline mr-2" />OCP Details
+              </HoveredLink>
             </div>
+          </MenuItem>
 
-            {/* Right side - Organization switcher and logout */}
-            <div className="flex items-center space-x-4">
-              <OrganizationSwitcher />
-              <button 
-                onClick={logout}
-                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-              >
-                <FaSignOutAlt />
-                <span>Logout</span>
-              </button>
+          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
+            <div className="flex flex-col space-y-4 text-sm">
+              <HoveredLink onClick={goToJeopardy}>
+                <FaTrophy className="inline mr-2" />Jeopardy
+              </HoveredLink>
+              <HoveredLink onClick={goToGamePanel}>
+                <FaGamepad className="inline mr-2" />Game Panel
+              </HoveredLink>
+              <HoveredLink onClick={goToActiveGame}>
+                <FaPlay className="inline mr-2" />Active Game
+              </HoveredLink>
+              <HoveredLink onClick={goToPanel}>
+                <FaRobot className="inline mr-2" />Bot Panel
+              </HoveredLink>
             </div>
-          </div>
-        </Menu>
-      </div>
+          </MenuItem>
+        </div>
 
-      {/* Main Dashboard Content */}
-      <div className="relative z-10 px-4 py-8">
+             {/* Right side - Organization switcher and logout */}
+        <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
+          <OrganizationSwitcher />
+          <button 
+            onClick={logout}
+            className="flex items-center space-x-1 lg:space-x-2 px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            <FaSignOutAlt className="w-3 h-3 lg:w-4 lg:h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </Menu>
+    </div>
+
+    {/* Main Dashboard Content */}
+    <div className="relative z-10 px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Welcome Section */}
           <div className="text-center mb-12">
