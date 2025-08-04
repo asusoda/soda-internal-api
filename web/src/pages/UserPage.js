@@ -133,15 +133,10 @@ const UserPage = () => {
     }
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    navigate('/');
-  };
 
   return (
     <OrganizationNavbar>
-      <div className="container mx-auto px-4 py-12 md:py-16 flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0 items-start justify-center">
+      <div className="container mt-10 mx-auto px-4 py-12 md:py-16 flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0 items-start justify-center">
         {/* Section 1: Find and Update User */}
         <div className="bg-soda-gray/70 backdrop-blur-xl p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-lg">
           <h2 className="text-2xl md:text-3xl font-bold mb-6 text-soda-white text-center flex items-center justify-center">

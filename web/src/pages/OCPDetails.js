@@ -493,44 +493,6 @@ const OCPDetails = () => {
     "Notion Sync"
   ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
 
-  const debugSyncWithNotion = () => triggerSyncAndRefresh(
-    () => apiClient.post('/api/ocp/debug-sync-from-notion'),
-    setDebugSyncing,
-    "Debug Sync"
-  ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after sync
-  
-  const diagnoseUnknownOfficers = async () => {
-    setDiagnosingOfficers(true);
-    setDiagnosticResults(null);
-    setError(null);
-    try {
-      let response = await apiClient.get('/api/ocp/diagnose-unknown-officers')
-        .catch(err => {
-            if (err.response && (err.response.status === 405 || err.response.status === 404)) {
-                return apiClient.post('/api/ocp/diagnose-unknown-officers');
-            }
-            throw err;
-        });
-      const data = response.data;
-      setDiagnosticResults({
-        title: 'Officer Diagnosis Results',
-        message: `Found ${data.total_issues || 0} issues. Missing UUIDs: ${data.missing_uuid_count || 0}, Unknown Names: ${data.unknown_name_count || 0}. (Department/email issues ignored by this diagnosis).`,
-        details: data
-      });
-      setSyncNotification({ open: true, message: `Officer diagnosis complete. Found ${data.total_issues || 0} issues.`, type: 'info' });
-    } catch (err) {
-      setSyncNotification({ open: true, message: 'Error diagnosing officers.', type: 'error' });
-    } finally {
-      setDiagnosingOfficers(false);
-    }
-  };
-  
-  const fixUnknownOfficers = () => triggerSyncAndRefresh(
-    () => apiClient.post('/api/ocp/repair-officers'),
-    setFixingOfficers,
-    "Officer Repair"
-  ).then(() => fetchLeaderboard(startDate, endDate)); // Refresh leaderboard after repair
-
   const fetchOfficerContributions = async (officerIdentifier) => {
     if (!officerIdentifier) return;
     let url = `/api/ocp/officer/${officerIdentifier}/contributions`;
@@ -604,7 +566,8 @@ const OCPDetails = () => {
   return (
     <OrganizationNavbar>
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+        
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-10 mt-20">
           <h1 className="text-3xl sm:text-4xl font-bold text-soda-white tracking-tight mb-4 sm:mb-0">
             OCP System
           </h1>
