@@ -39,7 +39,8 @@ const SuperAdmin = () => {
   const addOrganization = async (guildId) => {
     try {
       const client = getApiClient();
-      await client.post(`/api/superadmin/add_org/${guildId}`);
+      // Ensure guildId is passed as a string to preserve precision
+      await client.post(`/api/superadmin/add_org/${String(guildId)}`);
       // Refresh dashboard data
       await fetchDashboardData();
     } catch (error) {
@@ -123,7 +124,7 @@ const SuperAdmin = () => {
                     <div className="flex-1">
                       <h3 className="font-medium text-blue-300">{org.name}</h3>
                       <p className="text-sm text-gray-400">/{org.prefix}</p>
-                      <p className="text-xs text-gray-500">Guild ID: {org.guild_id}</p>
+                      <p className="text-xs text-gray-500">Guild ID: {String(org.guild_id)}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -215,7 +216,7 @@ const SuperAdmin = () => {
                     )}
                     <div>
                       <h3 className="font-medium">{guild.name}</h3>
-                      <p className="text-sm text-gray-400">ID: {guild.id}</p>
+                      <p className="text-sm text-gray-400">ID: {String(guild.id)}</p>
                     </div>
                   </div>
                   <button
@@ -253,7 +254,7 @@ const SuperAdmin = () => {
                     <div className="flex-1">
                       <h3 className="font-medium">{org.name}</h3>
                       <p className="text-sm text-gray-400">/{org.prefix}</p>
-                      <p className="text-xs text-gray-500">Guild ID: {org.guild_id}</p>
+                      <p className="text-xs text-gray-500">Guild ID: {String(org.guild_id)}</p>
                     </div>
                   </div>
                   <div className="flex space-x-2">

@@ -35,7 +35,7 @@ def get_dashboard():
         for guild in guilds:
             if str(guild.id) not in existing_guild_ids:
                 available_guilds.append({
-                    "id": guild.id,
+                    "id": str(guild.id),
                     "name": guild.name,
                     "icon": {
                         "url": str(guild.icon.url) if guild.icon else None
@@ -65,7 +65,7 @@ def get_dashboard():
     finally:
         db.close()
 
-@superadmin_blueprint.route("/add_org/<int:guild_id>", methods=["POST"])
+@superadmin_blueprint.route("/add_org/<guild_id>", methods=["POST"])
 @superadmin_required
 def add_organization(guild_id):
     """Add a new organization to the system"""
@@ -75,8 +75,14 @@ def add_organization(guild_id):
         if not auth_bot or not auth_bot.is_ready():
             return jsonify({"error": "Bot not available"}), 503
         
+        # Convert guild_id to int for comparison with guild.id
+        try:
+            guild_id_int = int(guild_id)
+        except ValueError:
+            return jsonify({"error": "Invalid guild ID format"}), 400
+        
         # Find the guild
-        guild = next((g for g in auth_bot.guilds if g.id == guild_id), None)
+        guild = next((g for g in auth_bot.guilds if g.id == guild_id_int), None)
         if not guild:
             return jsonify({"error": "Guild not found"}), 404
         
