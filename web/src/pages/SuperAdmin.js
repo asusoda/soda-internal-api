@@ -9,6 +9,12 @@ const SuperAdmin = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [roles, setRoles] = useState({});
+  const [loadingRoles, setLoadingRoles] = useState({});
+  const [configuringOrg, setConfiguringOrg] = useState(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [updatingRole, setUpdatingRole] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,6 +41,55 @@ const SuperAdmin = () => {
       setError('Failed to load dashboard data: ' + error.message);
     } finally {
       setDashboardLoading(false);
+    }
+  };
+
+  const fetchGuildRoles = async (guildId) => {
+    if (roles[guildId]) return roles[guildId]; // Return cached roles
+    
+    try {
+      setLoadingRoles(prev => ({ ...prev, [guildId]: true }));
+      const client = getApiClient();
+      const response = await client.get(`/api/superadmin/guild_roles/${guildId}`);
+      const newRoles = { ...roles, [guildId]: response.data.roles };
+      setRoles(newRoles);
+      return response.data.roles;
+    } catch (error) {
+      console.error('Error fetching guild roles:', error);
+      setError('Failed to load roles for guild: ' + error.message);
+      return [];
+    } finally {
+      setLoadingRoles(prev => ({ ...prev, [guildId]: false }));
+    }
+  };
+
+  const openRoleConfig = async (org) => {
+    setConfiguringOrg(org);
+    setSelectedRoleId(org.officer_role_id || '');
+    await fetchGuildRoles(org.guild_id);
+    setShowRoleModal(true);
+  };
+
+  const updateOfficerRole = async () => {
+    if (!configuringOrg) return;
+    
+    try {
+      setUpdatingRole(true);
+      const client = getApiClient();
+      await client.put(`/api/superadmin/update_officer_role/${configuringOrg.id}`, {
+        officer_role_id: selectedRoleId || null
+      });
+      
+      // Refresh dashboard data to get updated organization info
+      await fetchDashboardData();
+      setShowRoleModal(false);
+      setConfiguringOrg(null);
+      setSelectedRoleId('');
+    } catch (error) {
+      console.error('Error updating officer role:', error);
+      setError('Failed to update officer role: ' + error.message);
+    } finally {
+      setUpdatingRole(false);
     }
   };
 
@@ -132,8 +187,7 @@ const SuperAdmin = () => {
               {dashboardData.officer_orgs.map((org) => (
                 <div
                   key={org.id}
-                  onClick={() => handleViewOrganization(org)}
-                  className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-lg border border-blue-600/50 cursor-pointer hover:bg-gray-700/50 transition-colors"
+                  className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-lg border border-blue-600/50"
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     {org.icon_url && (
@@ -147,10 +201,24 @@ const SuperAdmin = () => {
                       <h3 className="font-medium text-blue-300">{org.name}</h3>
                       <p className="text-sm text-gray-400">/{org.prefix}</p>
                       <p className="text-xs text-gray-500">Guild ID: {String(org.guild_id)}</p>
+                      {org.officer_role_id && (
+                        <p className="text-xs text-green-400">Officer Role: {org.officer_role_id}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-blue-400 text-sm">View Organization →</span>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleViewOrganization(org)}
+                      className="flex-1 px-3 py-2 bg-blue-600/50 hover:bg-blue-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-blue-500/50"
+                    >
+                      View Dashboard
+                    </button>
+                    <button
+                      onClick={() => openRoleConfig(org)}
+                      className="px-3 py-2 bg-yellow-600/50 hover:bg-yellow-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-yellow-500/50"
+                    >
+                      Configure
+                    </button>
                   </div>
                 </div>
               ))}
@@ -277,6 +345,9 @@ const SuperAdmin = () => {
                       <h3 className="font-medium">{org.name}</h3>
                       <p className="text-sm text-gray-400">/{org.prefix}</p>
                       <p className="text-xs text-gray-500">Guild ID: {String(org.guild_id)}</p>
+                      {org.officer_role_id && (
+                        <p className="text-xs text-green-400">Officer Role: {org.officer_role_id}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex space-x-2">
@@ -285,6 +356,12 @@ const SuperAdmin = () => {
                       className="flex-1 px-3 py-2 bg-blue-600/50 hover:bg-blue-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-blue-500/50"
                     >
                       View Dashboard
+                    </button>
+                    <button
+                      onClick={() => openRoleConfig(org)}
+                      className="px-3 py-2 bg-yellow-600/50 hover:bg-yellow-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-yellow-500/50"
+                    >
+                      Configure
                     </button>
                     <button
                       onClick={() => removeOrganization(org.id)}
@@ -301,6 +378,63 @@ const SuperAdmin = () => {
           )}
         </div>
       </div>
+
+      {/* Role Configuration Modal */}
+      {showRoleModal && configuringOrg && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800/90 backdrop-blur-sm rounded-xl border border-gray-600/50 p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">Configure Officer Role</h2>
+            <p className="text-gray-300 mb-4">
+              Select the officer role for <span className="text-blue-400">{configuringOrg.name}</span>
+            </p>
+            
+            {loadingRoles[configuringOrg.guild_id] ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
+                <p className="text-gray-400 mt-2">Loading roles...</p>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Officer Role
+                </label>
+                <select
+                  value={selectedRoleId}
+                  onChange={(e) => setSelectedRoleId(e.target.value)}
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No Officer Role</option>
+                  {roles[configuringOrg.guild_id]?.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowRoleModal(false);
+                  setConfiguringOrg(null);
+                  setSelectedRoleId('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-600/50 hover:bg-gray-500/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-gray-500/50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updateOfficerRole}
+                disabled={updatingRole}
+                className="flex-1 px-4 py-2 bg-blue-600/50 hover:bg-blue-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updatingRole ? 'Updating...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

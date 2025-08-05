@@ -47,7 +47,7 @@ def add_missing_tables():
         # Check which tables are missing
         expected_tables = {
             'users', 'points', 'officers', 'ocp_officers', 'ocp_officer_points', 
-            'calendar_event_links', 'jeopardy_game', 'active_game'
+            'calendar_event_links', 'jeopardy_game', 'active_game', 'organizations'
         }
         
         missing_tables = expected_tables - set(existing_tables)
@@ -67,6 +67,7 @@ def add_missing_tables():
         from modules.ocp.models import Officer, OfficerPoints
         from modules.calendar.models import CalendarEventLink
         from modules.bot.models import JeopardyGame, ActiveGame
+        from modules.organizations.models import Organization
         
         # Create only the missing tables
         for table_name in missing_tables:
@@ -116,7 +117,7 @@ def verify_database_structure():
         
         expected_tables = {
             'users', 'points', 'officers', 'ocp_officers', 'ocp_officer_points', 
-            'calendar_event_links', 'jeopardy_game', 'active_game'
+            'calendar_event_links', 'jeopardy_game', 'active_game', 'organizations'
         }
         
         print("Expected tables:")
@@ -138,6 +139,20 @@ def verify_database_structure():
             print(f"\n⚠️  Extra tables: {extra}")
         if not missing and not extra:
             print("\n✅ Database structure is correct!")
+        
+        # Check organizations table structure
+        if 'organizations' in tables:
+            print("\n🔍 Organizations table structure:")
+            columns = inspector.get_columns('organizations')
+            for column in columns:
+                print(f"  📋 {column['name']}: {column['type']}")
+            
+            # Check if officer_role_id column exists
+            column_names = [col['name'] for col in columns]
+            if 'officer_role_id' in column_names:
+                print("  ✅ officer_role_id column exists")
+            else:
+                print("  ❌ officer_role_id column missing")
         
         engine.dispose()
         

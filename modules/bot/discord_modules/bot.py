@@ -7,7 +7,6 @@ from modules.bot.discord_modules.cogs.HelperCog import HelperCog
 from modules.bot.discord_modules.cogs.GameCog import GameCog
 from modules.bot.discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
 
-
 class BotFork(commands.Bot):
     """
     An extended version of the discord.ext.commands.Bot class. This class
@@ -105,7 +104,7 @@ class BotFork(commands.Bot):
         """
         return super().guilds
 
-    def check_officer(self, user_id):
+    def check_officer(self, user_id, superadmin_user_id) -> list[int]:
         """
         Checks if a user has the 'Officer' role in any organization.
         Returns a list of guild IDs where the user has the officer role.
@@ -113,56 +112,98 @@ class BotFork(commands.Bot):
         from shared import db_connect
         from modules.organizations.models import Organization
         
+        print(f"🔍 [DEBUG] check_officer called for user_id: {user_id}, superadmin_user_id: {superadmin_user_id}")
         guild_ids_with_officer_role = []
         
         try:
+            # Check if the user is a superadmin first (with proper type conversion)
+            if str(user_id) == str(superadmin_user_id):
+                print(f"👑 [DEBUG] User is superadmin, returning all guild IDs")
+                all_guild_ids = [guild.id for guild in self.get_guilds()]
+                print(f"�� [DEBUG] Superadmin guild IDs: {all_guild_ids}")
+                return all_guild_ids
+            
             # Get database connection
+            print(f"📊 [DEBUG] Getting database connection...")
             db = next(db_connect.get_db())
+            print(f"✅ [DEBUG] Database connection established")
             
             # Get all organizations from the database
+            print(f"🏢 [DEBUG] Querying active organizations...")
             organizations = db.query(Organization).filter_by(is_active=True).all()
+            print(f"�� [DEBUG] Found {len(organizations)} active organizations")
             
-            for org in organizations:
+            for i, org in enumerate(organizations):
+                print(f"\n�� [DEBUG] Processing organization {i+1}/{len(organizations)}: {org.name}")
+                print(f"   📊 [DEBUG] Organization details:")
+                print(f"      - Guild ID: {org.guild_id}")
+                print(f"      - Officer Role ID: {org.officer_role_id}")
+                print(f"      - Is Active: {org.is_active}")
+                
                 # Skip organizations without officer role configured
                 if not org.officer_role_id:
+                    print(f"   ⚠️  [DEBUG] Skipping {org.name} - no officer role configured")
                     continue
                 
                 try:
                     # Get the guild
+                    print(f"   🏛️  [DEBUG] Getting guild with ID: {org.guild_id}")
                     guild = super().get_guild(int(org.guild_id))
                     if not guild:
+                        print(f"   ❌ [DEBUG] Guild not found for ID: {org.guild_id}")
                         continue
+                    print(f"   ✅ [DEBUG] Found guild: {guild.name}")
                     
                     # Get the officer role
+                    print(f"   👑 [DEBUG] Getting officer role with ID: {org.officer_role_id}")
                     officer_role = guild.get_role(int(org.officer_role_id))
                     if not officer_role:
+                        print(f"   ❌ [DEBUG] Officer role not found for ID: {org.officer_role_id}")
                         continue
+                    print(f"   ✅ [DEBUG] Found officer role: {officer_role.name}")
                     
                     # Check if the user has the officer role
+                    print(f"   👤 [DEBUG] Getting member with user_id: {user_id}")
                     member = guild.get_member(int(user_id))
-                    if member and officer_role in member.roles:
+                    if not member:
+                        print(f"   ❌ [DEBUG] Member not found in guild for user_id: {user_id}")
+                        continue
+                    print(f"   ✅ [DEBUG] Found member: {member.display_name}")
+                    
+                    # Check if user has the officer role
+                    has_officer_role = officer_role in member.roles
+                    print(f"   🔍 [DEBUG] Checking if member has officer role: {has_officer_role}")
+                    
+                    if has_officer_role:
+                        print(f"   🎉 [DEBUG] User has officer role! Adding guild_id: {org.guild_id}")
                         guild_ids_with_officer_role.append(org.guild_id)
+                    else:
+                        print(f"   ❌ [DEBUG] User does not have officer role")
+                        # Debug: show all roles the user has
+                        user_roles = [role.name for role in member.roles]
+                        print(f"   📋 [DEBUG] User's roles: {user_roles}")
                         
                 except (ValueError, AttributeError) as e:
                     # Skip if guild_id or role_id is invalid
-                    print(f"Error checking organization {org.name}: {e}")
+                    print(f"   ❌ [DEBUG] Error checking organization {org.name}: {e}")
+                    print(f"   �� [DEBUG] Error type: {type(e).__name__}")
                     continue
                     
         except Exception as e:
-            print(f"Error in check_officer: {e}")
+            print(f"❌ [DEBUG] Error in check_officer: {e}")
+            print(f"�� [DEBUG] Error type: {type(e).__name__}")
+            import traceback
+            print(f"�� [DEBUG] Full traceback:")
+            traceback.print_exc()
         finally:
-            db.close()
+            if 'db' in locals():
+                print(f"🔒 [DEBUG] Closing database connection...")
+                db.close()
+                print(f"✅ [DEBUG] Database connection closed")
         
+        print(f"🎯 [DEBUG] Final result - Guild IDs with officer role: {guild_ids_with_officer_role}")
         return guild_ids_with_officer_role
-
-    def is_officer_in_organization(self, user_id, guild_id):
-        """
-        Checks if a user has the 'Officer' role in a specific organization.
-        Returns True if the user is an officer in the specified guild, False otherwise.
-        """
-        officer_guilds = self.check_officer(user_id)
-        return str(guild_id) in officer_guilds
-
+    
     def get_name(self, user_id):
         guild = super().get_guild(762811961238618122)
         member = guild.get_member(int(user_id))
