@@ -1,8 +1,8 @@
-from shared import base
+from modules.utils.base import Base
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, JSON
 
 
-class JeopardyGame(base):
+class JeopardyGame(Base):
     __tablename__ = "jeopardy_game"
 
     id = Column(Integer, primary_key=True)
@@ -10,7 +10,7 @@ class JeopardyGame(base):
     data = Column(JSON)
 
 
-class ActiveGame(base):
+class ActiveGame(Base):
     __tablename__ = "active_game"
 
     id = Column(Integer, primary_key=True)

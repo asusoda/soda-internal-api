@@ -8,10 +8,20 @@ from modules.auth.decoraters import error_handler
 from datetime import datetime
 
 
+# Update the blueprint to include the static folder
 public_blueprint = Blueprint(
-    "public", __name__, template_folder=None, static_folder=None
+    "public", __name__,
+    template_folder=None,
+    static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+    static_url_path='/static/public'
 )
 
+@public_blueprint.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(public_blueprint.root_path, 'static'),
+        'favicon.ico', mimetype='image/vnd.microsoft.icon'
+    )
 
 
 
@@ -89,13 +99,3 @@ def get_leaderboard():
         for name, total_points, uuid, curr_sem_points in leaderboard
     ]), 200
 
-# Catch-all route for static files - must be last to not interfere with API routes
-@public_blueprint.route('/', defaults={'path': ''})
-@public_blueprint.route('/<path:path>')
-def serve_static(path):
-    if path == "":
-        return send_from_directory('web/build', 'index.html')
-    elif os.path.exists(os.path.join('web/build', path)):
-        return send_from_directory('web/build', path)
-    else:
-        return send_from_directory('web/build', 'index.html')

@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../components/utils/axios';  // Update the path as necessary
+import { useAuth } from '../components/auth/AuthContext';
 
 const useAuthToken = () => {
   const navigate = useNavigate();
+  const { validateToken, logout } = useAuth();
 
-  // Function to validate and refresh the token
+  // Function to validate and refresh the token using the auth context
   const validateAndRefreshToken = async () => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
@@ -14,32 +15,13 @@ const useAuthToken = () => {
     }
 
     try {
-      const response = await apiClient.get('/auth/validateToken', {
-        headers: {
-          Authorization: token,
-        },
-      });
-
-      if (response.data.valid && response.data.expired) {
-        // Token expired, attempt to refresh it
-        const refreshResponse = await apiClient.get('/auth/refresh', {
-          headers: {
-            Authorization: token,
-          },
-        });
-
-        if (refreshResponse.data.valid && refreshResponse.data.token) {
-          // Save the new token and continue
-          const newToken = `Bearer ${refreshResponse.data.token}`;
-          localStorage.setItem('accessToken', newToken);
-        } else {
-          navigate('/');  // Redirect if token refresh fails
-        }
-      } else if (!response.data.valid) {
-        navigate('/');  // Redirect if token is invalid
+      const isValid = await validateToken();
+      if (!isValid) {
+        logout(); // This will handle cleanup and redirect
       }
     } catch (error) {
-      navigate('/');  // Redirect on error
+      console.error('Error validating token:', error);
+      logout(); // This will handle cleanup and redirect
     }
   };
 
@@ -50,6 +32,8 @@ const useAuthToken = () => {
 
     return () => clearInterval(intervalId);  // Clear interval on unmount
   }, []);  // Runs only once when the component mounts
+
+  return { validateAndRefreshToken };
 };
 
 export default useAuthToken;

@@ -36,7 +36,7 @@ TIME_PHRASES = [
 # Get logger
 logger = logging.getLogger(__name__)
 # Get app config
-config = AppConfig()
+config = AppConfig(testing=os.environ.get("TESTING", "false").lower() == "true")
 
 class SummarizerService:
     """

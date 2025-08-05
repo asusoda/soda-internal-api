@@ -31,6 +31,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 100%;
   }
   
   .sidebar-links button {
@@ -49,15 +50,43 @@
     background-color: #5b6edc; /* Slightly lighter blue for hover effect */
   }
   
-  .sidebar-links button .icon {
+  .sidebar-links .icon {
     margin-right: 10px;
+    width: 20px;
+    height: 20px;
   }
   
-  .sidebar-links button span {
-    display: none; /* Hide the text when the sidebar is collapsed */
+  .sidebar-links.hidden button span {
+    display: none;
   }
   
-  .sidebar.open .sidebar-links button span {
-    display: inline; /* Show the text when the sidebar is expanded */
+  .sidebar-links.visible button {
+    justify-content: flex-start;
+  }
+  
+  .sidebar-links.hidden button {
+    justify-content: center;
+    padding: 10px;
+    margin: 5px;
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Organization indicator styles */
+  .org-indicator {
+    margin-top: auto;
+    margin-bottom: 20px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .org-indicator:hover {
+    background-color: rgba(255, 255, 255, 0.2);
   }
   

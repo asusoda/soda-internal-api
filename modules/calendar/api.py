@@ -8,6 +8,8 @@ from sentry_sdk import start_transaction, capture_exception, set_tag
 # Import the new service and error handler
 from .errors import APIErrorHandler
 
+
+
 # Initialize the service and a top-level error handler for routes
 # calendar_service is now imported from shared.py
 route_error_handler = APIErrorHandler(logger, "CalendarAPI_Route")
@@ -156,3 +158,5 @@ def delete_all_calendar_events():
 # update_google_calendar, create_event, update_event, batch_delete_events, clear_synced_events,
 # get_all_gcal_events_for_sync, extract_property, parse_single_date_string, etc.
 # have been moved to the service, client, utils, or models modules.
+
+

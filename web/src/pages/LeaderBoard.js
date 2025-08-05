@@ -1,240 +1,269 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Sidebar from '../components/SideBar';  // Import the Sidebar component
-import apiClient from '../components/utils/axios';  // Axios instance for API requests
-import useAuthToken from '../hooks/userAuth';  // Import custom hook for token validation
+import apiClient from '../components/utils/axios';
+import useAuthToken from '../hooks/userAuth';
+import useOrgNavigation from '../hooks/useOrgNavigation';
+import { useAuth } from '../components/auth/AuthContext';
+import OrganizationNavbar from '../components/shared/OrganizationNavbar';
+import StarBorder from '../components/ui/StarBorder';
+import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes, FaCogs } from 'react-icons/fa';
 
-const Leaderboard = () => {
-  useAuthToken();  // Call the custom hook for token validation and refresh
+const LeaderboardPage = () => {
+  useAuthToken();
+  const { currentOrg } = useAuth();
+  const { 
+    goToDashboard,
+    goToUsers, 
+    goToAddPoints,
+    goToOCP,
+    goToPanel,
+    goToJeopardy 
+  } = useOrgNavigation();
 
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);  // Sidebar state
-  const [showModal, setShowModal] = useState(false);  // Modal state
-  const [selectedUser, setSelectedUser] = useState(null);  // Store selected user data for modal
-  const [selectedUserEmail, setSelectedUserEmail] = useState('');  // Store selected user's email
-  const [loadingUser, setLoadingUser] = useState(false);  // Loading state for modal content
-  const [modalError, setModalError] = useState('');  // Error state for modal
-  const [deleteLoading, setDeleteLoading] = useState(false);  // Loading state for delete operation
-  const [showConfirmModal, setShowConfirmModal] = useState(false);  // State for confirmation modal
-  const [pointToDelete, setPointToDelete] = useState(null);  // Store point to be deleted
 
-  // Function to handle delete confirmation
+  const [showModal, setShowModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUserEmail, setSelectedUserEmail] = useState('');
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pointToDelete, setPointToDelete] = useState(null);
+
   const handleDeleteClick = (event) => {
     setPointToDelete(event);
     setShowConfirmModal(true);
   };
 
-  // Function to handle confirmed deletion
   const handleConfirmedDelete = async () => {
-    if (pointToDelete) {
-      await deletePoints(selectedUserEmail, pointToDelete);
-      setShowConfirmModal(false);
-      setPointToDelete(null);
+    if (pointToDelete && selectedUserEmail) {
+      setDeleteLoading(true);
+      try {
+        await apiClient.request({
+          method: 'DELETE',
+          url: '/api/points/delete_points',
+          data: {
+            user_email: selectedUserEmail,
+            event: pointToDelete.event
+          }
+        });
+        await viewUserDetails(selectedUserEmail);
+        setShowConfirmModal(false);
+        setPointToDelete(null);
+      } catch (error) {
+        setModalError(error.response?.data?.error || 'Error deleting points');
+      } finally {
+        setDeleteLoading(false);
+      }
     }
   };
 
-  // Function to cancel deletion
-  const handleCancelDelete = () => {
-    setShowConfirmModal(false);
-    setPointToDelete(null);
-  };
-
-  // Function to fetch and display the user details in the modal
-  const viewUserDetails = async (identifier) => {
+  const viewUserDetails = async (userEmail) => {
     setLoadingUser(true);
     setModalError('');
-    setShowModal(true);  // Show modal
-    setSelectedUserEmail(identifier);  // Store the identifier (email)
     try {
-      const response = await apiClient.get(`/users/viewUser?user_identifier=${identifier}`);
+      const response = await apiClient.get(`/api/users/user?email=${encodeURIComponent(userEmail)}`);
       setSelectedUser(response.data);
-      setLoadingUser(false);
+      setSelectedUserEmail(userEmail);
+      setShowModal(true);
     } catch (error) {
-      setLoadingUser(false);
-      if (error.response && error.response.data.error) {
-        setModalError(error.response.data.error);
-      } else {
-        setModalError('An error occurred while fetching the user details.');
-      }
-    }
-  };
-
-  // Function to close the modal
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedUser(null);
-    setSelectedUserEmail('');  // Clear the email when closing modal
-  };
-
-  // Function to delete points
-  const deletePoints = async (userEmail, event) => {
-    setDeleteLoading(true);
-    try {
-      await apiClient.request({
-        method: 'DELETE',
-        url: '/points/delete_points',
-        data: {
-          user_email: selectedUserEmail,  // Use the stored email
-          event: event
-        }
-      });
-      // Refresh user details after deletion
-      viewUserDetails(selectedUserEmail);
-    } catch (error) {
-      setModalError(error.response?.data?.error || 'Error deleting points');
+      setModalError(error.response?.data?.error || 'Failed to fetch user details');
     } finally {
-      setDeleteLoading(false);
+      setLoadingUser(false);
     }
   };
 
-  // Fetch the leaderboard data
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const response = await apiClient.get('/points/leaderboard');
-        setLeaderboardData(response.data);
-        setLoading(false);
-      } catch (error) {
-        setError('Error fetching leaderboard data.');
-        setLoading(false);
-      }
-    };
+  const fetchLeaderboard = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/api/public/leaderboard');
+      setLeaderboardData(response.data);
+    } catch (error) {
+      setError('Failed to fetch leaderboard data');
+      console.error('Error fetching leaderboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchLeaderboard();
   }, []);
 
-  if (loading) {
-    return <div className="text-center text-white">Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center text-red-500">{error}</div>;
-  }
-
   return (
-    <div className="min-h-screen flex bg-gray-900 text-white">
-      {/* Sidebar */}
-      <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-
-      {/* Main Content */}
-      <div className={`flex-1 p-8 ${isSidebarOpen ? 'ml-60' : 'ml-16'}`}>
-        <h1 className="text-4xl font-bold mb-8 text-center" style={{ color: '#ba3554' }}>Leaderboard</h1>
-
-        {/* Leaderboard Table */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-4xl mx-auto">
-          <table className="table-auto w-full text-left">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Identifier (Email/UUID)</th>
-                <th className="px-4 py-2">Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboardData.map((user, index) => (
-                <tr key={index} className="border-t border-gray-700">
-                  <td className="px-4 py-2">{user.name}</td>
-                  <td className="px-4 py-2">
-                    <button
-                      className="text-blue-400 hover:text-blue-500 underline"
-                      onClick={() => viewUserDetails(user.identifier)}
-                    >
-                      {user.identifier}
-                    </button>
-                  </td>
-                  <td className="px-4 py-2">{user.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <OrganizationNavbar>
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
+          <p className="text-gray-400">View points rankings and user statistics</p>
         </div>
 
-        {/* Modal for viewing user details */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-400">Loading leaderboard...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-400">{error}</p>
+          </div>
+        ) : (
+          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Rank</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">User</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Email</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Points</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardData.map((user, index) => (
+                    <tr key={user.email} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center">
+                          <span className={`text-lg font-bold ${
+                            index === 0 ? 'text-yellow-400' : 
+                            index === 1 ? 'text-gray-300' : 
+                            index === 2 ? 'text-amber-600' : 'text-gray-400'
+                          }`}>
+                            #{index + 1}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <div className="ml-3">
+                            <div className="text-white font-medium">{user.name || 'Unknown User'}</div>
+                            <div className="text-sm text-gray-400">{user.asu_id || 'No ASU ID'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-gray-300">{user.email}</td>
+                      <td className="py-4 px-4">
+                        <span className="text-lg font-bold text-green-400">{user.total_points || 0}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          onClick={() => viewUserDetails(user.email)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* User Details Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl mx-auto relative max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-700">
-                <button 
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white text-xl"
-                  onClick={closeModal}
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">User Details</h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-white"
                 >
-                  ✖
+                  <FaTimes size={24} />
                 </button>
-                <h2 className="text-2xl font-bold mb-4">{selectedUser?.name}</h2>
-                <p><strong>UUID:</strong> {selectedUser?.uuid}</p>
-                <p><strong>Academic Standing:</strong> {selectedUser?.academic_standing}</p>
-                <p><strong>Major:</strong> {selectedUser?.major}</p>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6">
-                {loadingUser ? (
-                  <div className="text-white">Loading user details...</div>
-                ) : modalError ? (
-                  <div className="text-red-500">{modalError}</div>
-                ) : selectedUser && (
-                  <>
-                    <h3 className="text-xl font-bold mb-4">Points History</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full table-auto">
-                        <thead>
-                          <tr className="bg-gray-700">
-                            <th className="px-4 py-2">Event</th>
-                            <th className="px-4 py-2">Points</th>
-                            <th className="px-4 py-2">Awarded By</th>
-                            <th className="px-4 py-2">Date</th>
-                            <th className="px-4 py-2">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedUser.points_earned.map((point, index) => (
-                            <tr key={index} className="border-t border-gray-600">
-                              <td className="px-4 py-2">{point.event}</td>
-                              <td className="px-4 py-2">{point.points}</td>
-                              <td className="px-4 py-2">{point.awarded_by_officer}</td>
-                              <td className="px-4 py-2">{point.timestamp}</td>
-                              <td className="px-4 py-2">
-                                <button
-                                  onClick={() => handleDeleteClick(point.event)}
-                                  disabled={deleteLoading}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded disabled:opacity-50"
-                                >
-                                  {deleteLoading ? 'Deleting...' : 'Delete'}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+              {loadingUser ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading user details...</p>
+                </div>
+              ) : modalError ? (
+                <div className="text-red-400 text-center py-4">{modalError}</div>
+              ) : selectedUser ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                      <p className="text-white">{selectedUser.name || 'N/A'}</p>
                     </div>
-                  </>
-                )}
-              </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                      <p className="text-white">{selectedUser.email}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">ASU ID</label>
+                      <p className="text-white">{selectedUser.asu_id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Major</label>
+                      <p className="text-white">{selectedUser.major || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Points History</label>
+                    <div className="space-y-2">
+                      {selectedUser.points && selectedUser.points.length > 0 ? (
+                        selectedUser.points.map((point, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                            <div>
+                              <div className="text-white font-medium">{point.event}</div>
+                              <div className="text-sm text-gray-400">{point.date}</div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-green-400 font-bold">+{point.points}</span>
+                              <button
+                                onClick={() => handleDeleteClick(point)}
+                                className="text-red-400 hover:text-red-300"
+                                title="Delete this point entry"
+                              >
+                                <FaTrashAlt size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-400 text-center py-4">No points history available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
 
         {/* Confirmation Modal */}
         {showConfirmModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
-            <div className="bg-gray-800 rounded-lg shadow-lg w-full max-w-md mx-auto p-6 relative">
-              <h3 className="text-xl font-bold mb-4 text-white">Confirm Deletion</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-bold text-white mb-4">Confirm Deletion</h3>
               <p className="text-gray-300 mb-6">
-                Are you sure you want to delete points for the event "{pointToDelete}"?
+                Are you sure you want to delete the points for "{pointToDelete?.event}"?
                 This action cannot be undone.
               </p>
-              <div className="flex justify-end space-x-4">
+              <div className="flex space-x-3">
                 <button
-                  onClick={handleCancelDelete}
-                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmedDelete}
                   disabled={deleteLoading}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white rounded-md transition-colors"
                 >
                   {deleteLoading ? 'Deleting...' : 'Delete'}
                 </button>
@@ -243,8 +272,8 @@ const Leaderboard = () => {
           </div>
         )}
       </div>
-    </div>
+    </OrganizationNavbar>
   );
 };
 
-export default Leaderboard;
+export default LeaderboardPage;

@@ -1,0 +1,20 @@
+name: Static Analysis
+
+on: 
+  push:
+  pull_request:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - run: pip install ruff mypy bandit
+    - run: ruff check .
+    - run: ruff format --check .
+    - run: mypy .
+    - run: bandit -r . -f json
+

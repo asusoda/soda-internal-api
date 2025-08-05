@@ -2,6 +2,7 @@
   "dependencies": {
     "discord.js": "^14.21.0",
     "dotenv": "^17.2.0",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "react-icons": "^5.5.0"
   }
 }
