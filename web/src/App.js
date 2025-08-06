@@ -37,9 +37,30 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth" element={<TokenRetrival />} />
           <Route path="/500" element={<ServerError />} />
-          <Route path="/merch/products" element={<MerchandiseListPage />} />
-          <Route path="/merch/products/add" element={<AddMerchandisePage />} />
-          <Route path="/transactions" element={<TransactionsPage />} />
+          <Route
+            path="/:orgPrefix/merch/products"
+            element={
+              <PrivateRoute>
+                <MerchandiseListPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/:orgPrefix/merch/products/add"
+            element={
+              <PrivateRoute>
+                <AddMerchandisePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/:orgPrefix/transactions"
+            element={
+              <PrivateRoute>
+                <TransactionsPage />
+              </PrivateRoute>
+            }
+          />
           <Route path="/metrics" element={<MetricsPage />} />
           {/* Organization selection - landing page for authenticated users */}
           <Route

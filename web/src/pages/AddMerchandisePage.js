@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import Sidebar from "../components/SideBar";
 import apiClient from "../components/utils/axios";
+import OrganizationNavbar from "../components/shared/OrganizationNavbar";
+import { FaBox, FaPlus } from "react-icons/fa";
 
 const AddMerchandisePage = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -16,12 +16,13 @@ const AddMerchandisePage = () => {
     const productData = {
       name,
       description,
-      price: parseInt(price),
+      price: parseFloat(price), // Use parseFloat for decimal prices
       stock: parseInt(stock),
       image_url: imageUrl,
     };
 
     try {
+      // Corrected API endpoint to match the backend blueprint
       const response = await apiClient.post("/merch/products/add", productData);
       alert("Product added successfully!");
       // Reset form
@@ -32,103 +33,120 @@ const AddMerchandisePage = () => {
       setDescription("");
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("Something went wrong while adding the product.");
+      alert(
+        error.response?.data?.message ||
+          "Something went wrong while adding the product."
+      );
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-900 text-white">
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-      />
-      <div
-        className={`flex-1 p-8 transition-all duration-300 ${
-          isSidebarOpen ? "ml-60" : "ml-16"
-        }`}
-      >
-        <h1 className="text-4xl font-bold mb-6 text-center text-[#ba3554]">
-          Add Product
-        </h1>
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-6 max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-lg"
-        >
-          <div>
-            <label className="block text-lg font-semibold mb-2">
-              Image URL
-            </label>
-            <input
-              type="text"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="Enter image URL"
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-semibold mb-2">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="Enter product name"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-semibold mb-2">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="Enter product description"
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-semibold mb-2">Price</label>
-            <input
-              type="number"
-              step="0.01"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="e.g. 19.99"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-semibold mb-2">Stock</label>
-            <input
-              type="number"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded p-2 w-full text-white"
-              placeholder="e.g. 100"
-              required
-            />
-          </div>
-          <div className="flex space-x-4 justify-end pt-4">
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
-            >
-              Add Product
-            </button>
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+    <OrganizationNavbar>
+      <div className="max-w-xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Add New Product</h1>
+          <p className="text-gray-400">
+            Add a new item to your merchandise store
+          </p>
+        </div>
+
+        <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-white">
+            <FaPlus className="mr-2 text-green-400" />
+            Product Details
+          </h2>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Product Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-green-500"
+                placeholder="e.g., Club T-Shirt"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-green-500"
+                placeholder="A brief description of the product."
+                rows="3"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Price <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-green-500"
+                  placeholder="e.g., 20.00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Stock <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-green-500"
+                  placeholder="e.g., 50"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Image URL
+              </label>
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-green-500"
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+
+            <div className="flex space-x-4 pt-4">
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md text-white font-medium transition-colors flex items-center justify-center"
+              >
+                <FaPlus className="mr-2" /> Add Product
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-md text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </OrganizationNavbar>
   );
 };
 

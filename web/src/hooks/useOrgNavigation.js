@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../components/auth/AuthContext';
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../components/auth/AuthContext";
 
 const useOrgNavigation = () => {
   const navigate = useNavigate();
@@ -11,10 +11,10 @@ const useOrgNavigation = () => {
       // Fallback to legacy paths if no org context
       return path;
     }
-    
+
     // Remove leading slash if present
-    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    
+    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+
     // Return org-prefixed path
     return `/${currentOrg.prefix}/${cleanPath}`;
   };
@@ -26,15 +26,18 @@ const useOrgNavigation = () => {
   };
 
   // Common navigation functions
-  const goToDashboard = () => navigateToOrg('dashboard');
-  const goToUsers = () => navigateToOrg('users');
-  const goToLeaderboard = () => navigateToOrg('leaderboard');
-  const goToAddPoints = () => navigateToOrg('addpoints');
-  const goToPanel = () => navigateToOrg('panel');
-  const goToOCP = () => navigateToOrg('ocp');
-  const goToJeopardy = () => navigateToOrg('jeopardy');
-  const goToGamePanel = () => navigateToOrg('gamepanel');
-  const goToActiveGame = () => navigateToOrg('activegame');
+  const goToDashboard = () => navigateToOrg("dashboard");
+  const goToUsers = () => navigateToOrg("users");
+  const goToLeaderboard = () => navigateToOrg("leaderboard");
+  const goToAddPoints = () => navigateToOrg("addpoints");
+  const goToPanel = () => navigateToOrg("panel");
+  const goToOCP = () => navigateToOrg("ocp");
+  const goToJeopardy = () => navigateToOrg("jeopardy");
+  const goToGamePanel = () => navigateToOrg("gamepanel");
+  const goToActiveGame = () => navigateToOrg("activegame");
+  const goToMerchProducts = () => navigateToOrg("merch/products");
+  const goToAddProducts = () => navigateToOrg("merch/products/add");
+  const goToOrders = () => navigateToOrg("/transactions");
 
   return {
     navigateToOrg,
@@ -50,7 +53,9 @@ const useOrgNavigation = () => {
     goToJeopardy,
     goToGamePanel,
     goToActiveGame,
+    goToMerchProducts,
+    goToAddProducts,
   };
 };
 
-export default useOrgNavigation; 
+export default useOrgNavigation;
