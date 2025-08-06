@@ -55,6 +55,7 @@ const useOrgNavigation = () => {
     goToActiveGame,
     goToMerchProducts,
     goToAddProducts,
+    goToOrders,
   };
 };
 
