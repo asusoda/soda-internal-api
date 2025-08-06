@@ -9,6 +9,7 @@ from modules.utils.db import DBConnect
 from modules.auth.api import auth_blueprint
 from modules.ocp.api import ocp_blueprint
 from modules.summarizer.api import summarizer_blueprint
+from modules.merch.api import merch_blueprint
 from modules.bot.api import game_blueprint
 from modules.storefront.api import storefront_blueprint
 from modules.calendar.api import calendar_blueprint

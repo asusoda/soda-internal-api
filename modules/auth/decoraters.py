@@ -42,8 +42,10 @@ def auth_required(f):
 
         try:
             if not tokenManger.is_token_valid(token):
+                print("Token is invalid")
                 return jsonify({"message": "Token is invalid!"}), 401
             elif tokenManger.is_token_expired(token):
+                print("Token is expired")
                 return jsonify({"message": "Token is expired!"}), 403
             return f(*args, **kwargs)
         except Exception as e:

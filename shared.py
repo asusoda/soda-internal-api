@@ -3,6 +3,7 @@ from flask_cors import CORS
 import discord
 import os
 from modules.utils.db import DBConnect
+from modules.merch.db import StoreConnector
 from notion_client import Client
 import asyncio
 from modules.utils.config import Config
@@ -56,7 +57,11 @@ if config.SENTRY_DSN:
 else:
     logger.warning("SENTRY_DSN not found in environment. Sentry not initialized.")
 
-# Initialize token manager
+# Initialize database connections
+db_connect = DBConnect("sqlite:///./data/user.db")
+store_db = StoreConnector("sqlite:///./data/storefront.db")
+
+# Intialize TokenManager
 tokenManger = TokenManager()
 
 # Initialize database connection
