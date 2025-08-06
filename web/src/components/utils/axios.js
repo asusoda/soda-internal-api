@@ -1,6 +1,5 @@
 import axios from "axios";
 import { useAuth } from "../auth/AuthContext";
-import axios from "axios";
 
 // Get API base URL from environment or default to localhost for development
 const getApiBaseUrl = () => {

@@ -7,7 +7,10 @@ import {
   FaPlus,
   FaCogs,
   FaClipboardList,
+  FaTshirt,
+  FaExchangeAlt,
 } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import useOrgNavigation from "../hooks/useOrgNavigation";
 import OrganizationSwitcher from "./OrganizationSwitcher";
 import { debounce } from "../utils/resizeObserverFix";
@@ -22,6 +25,8 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
     goToOCP,
     currentOrg,
   } = useOrgNavigation();
+
+  const navigate = useNavigate();
 
   // Debounce the sidebar toggle to prevent rapid state changes
   const debouncedToggle = useCallback(
@@ -66,10 +71,6 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
         <button onClick={goToAddPoints}>
           <FaPlus className="icon" />
           {isSidebarOpen && <span>Add Points</span>}
-        </button>
-        <button onClick={() => navigate("/createuser")}>
-          <FaPlus className="icon" />
-          {isSidebarOpen && <span>Create User</span>}
         </button>
         <button onClick={() => navigate("/merch/products")}>
           <FaTshirt className="icon" />

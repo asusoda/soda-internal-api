@@ -20,7 +20,6 @@ import TokenRetrival from "./pages/TokenRetrival";
 import HomePage from "./pages/HomePage";
 import UserPage from "./pages/UserPage";
 import LeaderBoard from "./pages/LeaderBoard";
-import CreateUserPage from "./pages/CreateUserPage";
 import MerchandiseListPage from "./pages/MerchandiseListPage";
 import AddMerchandisePage from "./pages/AddMerchandisePage";
 import TransactionsPage from "./pages/TransactionsPage";
@@ -38,7 +37,6 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth" element={<TokenRetrival />} />
           <Route path="/500" element={<ServerError />} />
-          <Route path="/createuser" element={<CreateUserPage />} />
           <Route path="/merch/products" element={<MerchandiseListPage />} />
           <Route path="/merch/products/add" element={<AddMerchandisePage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
