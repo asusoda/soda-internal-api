@@ -85,8 +85,12 @@ class Config:
                             "private_key": "[REDACTED]"
                         } if self.GOOGLE_SERVICE_ACCOUNT else None
                         print("Google service account credentials loaded")
+                except FileNotFoundError:
+                    print("Warning: google-secret.json not found. Google Calendar features will be disabled.")
+                    self.GOOGLE_SERVICE_ACCOUNT = None
                 except Exception as e:
-                    raise RuntimeError(f"Google service account credentials file not found. Please create 'google-secret.json'. {e}")
+                    print(f"Warning: Error loading Google credentials: {e}. Google Calendar features will be disabled.")
+                    self.GOOGLE_SERVICE_ACCOUNT = None
                     
                 self.NOTION_API_KEY = os.environ["NOTION_API_KEY"]
                 self.NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]

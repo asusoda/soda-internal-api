@@ -18,6 +18,15 @@ const SuperAdmin = () => {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [updatingRole, setUpdatingRole] = useState(false);
   const [updatingPrefix, setUpdatingPrefix] = useState({});
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarSettings, setCalendarSettings] = useState({
+    notion_database_id: '',
+    calendar_sync_enabled: false,
+    google_calendar_id: ''
+  });
+  const [updatingCalendar, setUpdatingCalendar] = useState(false);
+  const [ocpSyncEnabled, setOcpSyncEnabled] = useState(false);
+  const [updatingOcpSync, setUpdatingOcpSync] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,6 +82,17 @@ const SuperAdmin = () => {
     setShowRoleModal(true);
   };
 
+  const openCalendarConfig = async (org) => {
+    setConfiguringOrg(org);
+    setCalendarSettings({
+      notion_database_id: org.notion_database_id || '',
+      calendar_sync_enabled: org.calendar_sync_enabled || false,
+      google_calendar_id: org.google_calendar_id || ''
+    });
+    setOcpSyncEnabled(org.ocp_sync_enabled || false);
+    setShowCalendarModal(true);
+  };
+
   const updateOfficerRole = async () => {
     if (!configuringOrg) return;
     
@@ -93,6 +113,49 @@ const SuperAdmin = () => {
       setError('Failed to update officer role: ' + error.message);
     } finally {
       setUpdatingRole(false);
+    }
+  };
+
+  const updateCalendarSettings = async () => {
+    if (!configuringOrg) return;
+    
+    try {
+      setUpdatingCalendar(true);
+      const client = getApiClient();
+      await client.put(`/api/organizations/${configuringOrg.id}/calendar`, calendarSettings);
+      
+      // Refresh dashboard data to get updated organization info
+      await fetchDashboardData();
+      setShowCalendarModal(false);
+      setConfiguringOrg(null);
+      setCalendarSettings({
+        notion_database_id: '',
+        calendar_sync_enabled: false,
+        google_calendar_id: ''
+      });
+      toast.success('Calendar settings updated successfully');
+    } catch (error) {
+      console.error('Error updating calendar settings:', error);
+      setError('Failed to update calendar settings: ' + error.message);
+    } finally {
+      setUpdatingCalendar(false);
+    }
+  };
+
+  const updateOcpSync = async (enabled) => {
+    if (!configuringOrg) return;
+    try {
+      setUpdatingOcpSync(true);
+      const client = getApiClient();
+      await client.put(`/api/organizations/${configuringOrg.id}/ocp-sync`, { ocp_sync_enabled: enabled });
+      setOcpSyncEnabled(enabled);
+      await fetchDashboardData();
+      toast.success(`OCP sync ${enabled ? 'enabled' : 'disabled'} successfully`);
+    } catch (error) {
+      console.error('Error updating OCP sync:', error);
+      setError('Failed to update OCP sync: ' + error.message);
+    } finally {
+      setUpdatingOcpSync(false);
     }
   };
 
@@ -264,6 +327,7 @@ const SuperAdmin = () => {
                   variant="officer"
                   onViewDashboard={handleViewOrganization}
                   onConfigure={openRoleConfig}
+                  onCalendarConfig={openCalendarConfig}
                   onPrefixUpdate={(newPrefix) => updateOrganizationPrefix(org.id, newPrefix)}
                   validatePrefix={validatePrefix}
                 />
@@ -407,6 +471,7 @@ const SuperAdmin = () => {
                   variant="existing"
                   onViewDashboard={handleViewOrganization}
                   onConfigure={openRoleConfig}
+                  onCalendarConfig={openCalendarConfig}
                   onRemove={removeOrganization}
                   onPrefixUpdate={(newPrefix) => updateOrganizationPrefix(org.id, newPrefix)}
                   validatePrefix={validatePrefix}
@@ -479,6 +544,95 @@ const SuperAdmin = () => {
                 className="flex-1 px-4 py-2 bg-blue-600/50 hover:bg-blue-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {updatingRole ? 'Updating...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Configuration Modal */}
+      {showCalendarModal && configuringOrg && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800/90 backdrop-blur-sm rounded-xl border border-gray-600/50 p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">Configure Calendar & OCP Settings</h2>
+            <p className="text-gray-300 mb-4">
+              Configure calendar and OCP sync settings for <span className="text-blue-400">{configuringOrg.name}</span>
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Notion Database ID
+                </label>
+                <input
+                  type="text"
+                  value={calendarSettings.notion_database_id}
+                  onChange={(e) => setCalendarSettings(prev => ({ ...prev, notion_database_id: e.target.value }))}
+                  placeholder="Enter Notion database ID"
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={calendarSettings.calendar_sync_enabled}
+                    onChange={(e) => setCalendarSettings(prev => ({ ...prev, calendar_sync_enabled: e.target.checked }))}
+                    className="rounded border-gray-600/50 bg-gray-700/50 text-blue-500 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-300">Enable Calendar Sync</span>
+                </label>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Calendar ID (Auto-generated)
+                </label>
+                <input
+                  type="text"
+                  value={calendarSettings.google_calendar_id}
+                  onChange={(e) => setCalendarSettings(prev => ({ ...prev, google_calendar_id: e.target.value }))}
+                  placeholder="Leave empty for auto-generation"
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={ocpSyncEnabled}
+                    onChange={e => updateOcpSync(e.target.checked)}
+                    disabled={updatingOcpSync}
+                    className="rounded border-gray-600/50 bg-gray-700/50 text-green-500 focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-gray-300">Enable OCP Sync (Officer Points)</span>
+                  {updatingOcpSync && <span className="ml-2 text-xs text-gray-400">Updating...</span>}
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCalendarModal(false);
+                  setConfiguringOrg(null);
+                  setCalendarSettings({
+                    notion_database_id: '',
+                    calendar_sync_enabled: false,
+                    google_calendar_id: ''
+                  });
+                  setOcpSyncEnabled(false);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-600/50 hover:bg-gray-500/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-gray-500/50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updateCalendarSettings}
+                disabled={updatingCalendar}
+                className="flex-1 px-4 py-2 bg-blue-600/50 hover:bg-blue-700/50 backdrop-blur-sm rounded-md text-sm font-medium transition-colors border border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updatingCalendar ? 'Updating...' : 'Save Changes'}
               </button>
             </div>
           </div>

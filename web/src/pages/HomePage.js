@@ -46,6 +46,7 @@ const HomePage = () => {
     storeFront: true,
     ocp: true,
     discordBots: true,
+    calendar: true,
   });
 
   // Toggle dropdown visibility
@@ -135,17 +136,40 @@ const HomePage = () => {
       ],
     },
     {
+      id: "calendar",
+      title: "Calendar System",
+      icon: FaCalendarAlt,
+      color: "from-red-500 to-red-600",
+      description: "Manage events and calendar synchronization",
+      features: [
+        {
+          title: "Calendar View",
+          description: "View and manage organization events",
+          icon: FaCalendarAlt,
+          color: "from-red-500 to-red-600",
+          action: () => window.location.href = `/${currentOrg?.prefix}/calendar`,
+        },
+        {
+          title: "Sync Settings",
+          description: "Configure Notion and Google Calendar sync",
+          icon: FaCogs,
+          color: "from-yellow-500 to-yellow-600",
+          action: () => window.location.href = `/${currentOrg?.prefix}/calendar/settings`,
+        },
+      ],
+    },
+    {
       id: "discordBots",
       title: "Discord Bots",
       icon: FaRobot,
-      color: "from-red-500 to-red-600",
+      color: "from-purple-500 to-purple-600",
       description: "Manage Discord bot settings and game systems",
       features: [
         {
           title: "Bot Control Panel",
           description: "Manage Discord bot settings and configurations",
           icon: FaRobot,
-          color: "from-red-500 to-red-600",
+          color: "from-purple-500 to-purple-600",
           action: goToPanel,
         },
         {
@@ -295,7 +319,7 @@ const HomePage = () => {
         </div>
 
         {/* Quick Stats Section */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-5 gap-6">
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
             <div className="flex items-center justify-center mb-2">
               <FaUsers className="w-8 h-8 text-blue-400" />
@@ -322,7 +346,15 @@ const HomePage = () => {
 
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
             <div className="flex items-center justify-center mb-2">
-              <FaRobot className="w-8 h-8 text-red-400" />
+              <FaCalendarAlt className="w-8 h-8 text-red-400" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2 text-white">Calendar</h3>
+            <p className="text-gray-400 text-sm">Manage events</p>
+          </div>
+
+          <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
+            <div className="flex items-center justify-center mb-2">
+              <FaRobot className="w-8 h-8 text-purple-400" />
             </div>
             <h3 className="text-lg font-semibold mb-2 text-white">Discord Bots</h3>
             <p className="text-gray-400 text-sm">Manage bot systems</p>

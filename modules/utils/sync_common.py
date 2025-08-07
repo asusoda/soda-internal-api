@@ -18,25 +18,23 @@ class SyncCommonUtils:
         """Initialize the sync common utilities."""
         self.logger = logger_instance or logger
         
-    def validate_notion_config(self) -> Dict[str, Any]:
+    def validate_notion_config(self, database_id: str = None) -> Dict[str, Any]:
         """
         Validate that required Notion configuration is available.
-        
+        If database_id is provided, check it; otherwise, skip database ID check (for multi-org calendar sync).
         Returns:
             Dict with validation status and any error messages.
         """
         errors = []
-        
-        if not config.NOTION_DATABASE_ID:
-            errors.append("NOTION_DATABASE_ID is not configured")
-            
+        # Only check NOTION_DATABASE_ID if a specific one is provided (OCP sync)
+        if database_id is not None and not database_id:
+            errors.append("NOTION_DATABASE_ID is not configured for this operation")
         if not hasattr(config, 'NOTION_TOKEN') or not config.NOTION_TOKEN:
             errors.append("NOTION_TOKEN is not configured")
-            
         return {
             "valid": len(errors) == 0,
             "errors": errors,
-            "database_id": config.NOTION_DATABASE_ID if hasattr(config, 'NOTION_DATABASE_ID') else None
+            "database_id": database_id
         }
     
     def create_sync_transaction(self, operation_name: str, transaction=None):
@@ -157,10 +155,10 @@ class SyncCommonUtils:
             
         return result
     
-    def validate_sync_prerequisites(self) -> Dict[str, Any]:
+    def validate_sync_prerequisites(self, require_database_id: bool = False, database_id: str = None) -> Dict[str, Any]:
         """
         Validate all prerequisites for sync operations.
-        
+        If require_database_id is True, check for a specific database_id (OCP sync); otherwise, skip (calendar multi-org sync).
         Returns:
             Dict with validation status and any issues found.
         """
@@ -169,15 +167,12 @@ class SyncCommonUtils:
             "issues": [],
             "config": {}
         }
-        
         # Check Notion configuration
-        notion_config = self.validate_notion_config()
+        notion_config = self.validate_notion_config(database_id if require_database_id else None)
         validation["config"]["notion"] = notion_config
-        
         if not notion_config["valid"]:
             validation["valid"] = False
             validation["issues"].extend(notion_config["errors"])
-        
         # Check database connectivity (if applicable)
         try:
             from modules.utils.db import DBConnect
@@ -187,5 +182,4 @@ class SyncCommonUtils:
             validation["valid"] = False
             validation["issues"].append(f"Database connectivity issue: {str(e)}")
             validation["config"]["database"] = {"available": False, "error": str(e)}
-        
         return validation 

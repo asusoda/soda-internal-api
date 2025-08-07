@@ -120,58 +120,42 @@ class CalendarEventDTO:
         return {k: v for k, v in frontend_event.items() if v is not None}
 
 
-# --- SQLAlchemy Database Models (Existing - Adjusted) ---
+# --- SQLAlchemy Database Models (Updated for Multi-Org Support) ---
 
-class CalendarEventLink(Base): # Renamed from CalendarEvent to avoid clash with DTO
+class CalendarEventLink(Base):
     """Base model linking Notion and Google Calendar events in the DB."""
-    __tablename__ = 'calendar_event_links' # Changed table name
+    __tablename__ = 'calendar_event_links'
 
     id = Column(Integer, primary_key=True)
-    # Removed redundant fields, assuming details are fetched from source APIs
-    # title = Column(String(255), nullable=False)
-    # description = Column(Text)
-    # location = Column(String(255))
-    # start_time = Column(DateTime, nullable=False)
-    # end_time = Column(DateTime, nullable=False)
-    # timezone = Column(String(50), default='UTC')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    # is_published = Column(Boolean, default=True) # Publishing status is in Notion
-    # guests = Column(JSON)
     event_metadata = Column(JSON)  # Store additional metadata if needed
 
+    # Organization relationship
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    organization = relationship("Organization", backref="calendar_events")
+
     # Foreign keys to link with Notion and Google Calendar specific data
-    notion_page_id = Column(String(255), unique=True, nullable=False, index=True) # Added index
-    google_calendar_event_id = Column(String(255), unique=True, nullable=True, index=True) # Allow null, Added index
+    notion_page_id = Column(String(255), nullable=False, index=True)
+    google_calendar_event_id = Column(String(255), nullable=True, index=True)
+    
+    # Calendar identifiers
+    notion_database_id = Column(String(255), nullable=False)  # Which Notion database this event came from
+    google_calendar_id = Column(String(255), nullable=False)  # Which Google Calendar this event is in
 
-    # Relationships (Optional, depending on whether you store separate Notion/Google event details)
-    # notion_event = relationship("NotionEvent", back_populates="calendar_event_link", uselist=False)
-    # google_event = relationship("GoogleEvent", back_populates="calendar_event_link", uselist=False)
+    def __repr__(self):
+        return f"<CalendarEventLink(org_id={self.organization_id}, notion_id={self.notion_page_id})>"
 
-# Optional: Keep NotionEvent and GoogleEvent if you need to store specific details
-# or sync history, otherwise they might be redundant if CalendarEventLink is sufficient.
-# I've commented them out for now as the DTO handles the data transfer aspect.
-
-# class NotionEvent(Base):
-#     """Model for Notion-specific event data (Optional)"""
-#     __tablename__ = 'notion_events'
-#     id = Column(Integer, primary_key=True)
-#     notion_page_id = Column(String(255), unique=True, nullable=False)
-#     notion_database_id = Column(String(255), nullable=False)
-#     last_edited_time = Column(DateTime)
-#     properties = Column(JSON)
-#     # Link back to the main link table
-#     calendar_link_id = Column(Integer, ForeignKey('calendar_event_links.id'))
-#     calendar_event_link = relationship("CalendarEventLink", back_populates="notion_event")
-
-# class GoogleEvent(Base):
-#     """Model for Google Calendar-specific event data (Optional)"""
-#     __tablename__ = 'google_events'
-#     id = Column(Integer, primary_key=True)
-#     google_event_id = Column(String(255), unique=True, nullable=False)
-#     calendar_id = Column(String(255), nullable=False) # Google Calendar ID (e.g., primary)
-#     etag = Column(String(255))
-#     html_link = Column(String(255))
-#     # Link back to the main link table
-#     calendar_link_id = Column(Integer, ForeignKey('calendar_event_links.id'))
-#     calendar_event_link = relationship("CalendarEventLink", back_populates="google_event")
+    def to_dict(self):
+        """Convert to dictionary."""
+        return {
+            "id": self.id,
+            "organization_id": self.organization_id,
+            "notion_page_id": self.notion_page_id,
+            "google_calendar_event_id": self.google_calendar_event_id,
+            "notion_database_id": self.notion_database_id,
+            "google_calendar_id": self.google_calendar_id,
+            "event_metadata": self.event_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }

@@ -1,6 +1,7 @@
 from flask import Flask, current_app # Import current_app
 from shared import app, logger, config, create_summarizer_bot, create_auth_bot
 from modules.utils.sync_utility import UnifiedSyncService
+from modules.calendar.service import MultiOrgCalendarService
 
 from modules.public.api import public_blueprint
 from modules.points.api import points_blueprint
@@ -35,6 +36,10 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 
 # Configure Jinja2 to output template path during rendering (helps debug template issues)
 app.config['EXPLAIN_TEMPLATE_LOADING'] = True
+
+# Initialize multi-organization calendar service
+multi_org_calendar_service = MultiOrgCalendarService(logger)
+app.multi_org_calendar_service = multi_org_calendar_service
 
 # Instantiate and attach UnifiedSyncService after app is defined
 unified_sync_service = UnifiedSyncService(logger)
@@ -71,15 +76,19 @@ def unified_sync_job():
         logger.info("Running scheduled unified Notion sync (Calendar + OCP)...")
         try:
             # Use the unified sync service to run both syncs
+            logger.info("Starting unified sync: calling unified_sync_service.sync_notion_to_all()")
             sync_result = unified_sync_service.sync_notion_to_all()
-            
+            logger.info(f"Unified sync result: {sync_result}")
+            # Log OCP sync details if present
+            ocp_details = sync_result.get('ocp', sync_result.get('details', None))
+            if ocp_details:
+                logger.info(f"OCP sync details: {ocp_details}")
             if sync_result.get("status") == "success":
                 logger.info(f"Scheduled unified sync completed successfully: {sync_result.get('message')}")
             elif sync_result.get("status") == "warning":
                 logger.warning(f"Scheduled unified sync completed with warnings: {sync_result.get('message')}")
             else:
                 logger.error(f"Scheduled unified sync failed: {sync_result.get('message')}")
-                
         except Exception as e:
             logger.error(f"Error during scheduled unified sync: {e}", exc_info=True)
 
@@ -149,7 +158,7 @@ def initialize_app():
     auth_thread.start()
     logger.info("Auth bot thread initiated")
 
-    scheduler.add_job(unified_sync_job, 'interval', minutes=15, id='unified_notion_sync_job')
+    scheduler.add_job(unified_sync_job, 'interval', minutes=2, id='unified_notion_sync_job')
     scheduler.start()
     logger.info("APScheduler started for Notion-Google Calendar sync.")
     

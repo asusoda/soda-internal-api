@@ -89,80 +89,72 @@ class DBConnect:
         return point
 
     # OCP-related methods moved from OCPDBManager
-    def create_officer(self, db, officer):
-        """Create a new officer record"""
+    def create_officer(self, db, officer, organization_id):
+        """Create a new officer record for a specific organization"""
         try:
+            officer.organization_id = organization_id
             db.add(officer)
             db.commit()
             db.refresh(officer)
-            if officer.email:
-                logger.info(f"Created officer: {officer.name} ({officer.email})")
-            else:
-                logger.info(f"Created officer: {officer.name}")
             return officer
         except Exception as e:
             logger.error(f"Error creating officer: {str(e)}")
             db.rollback()
             raise
 
-    def create_officer_points(self, db, points):
-        """Create a new officer points record"""
+    def create_officer_points(self, db, points, organization_id):
+        """Create a new officer points record for a specific organization"""
         try:
+            points.organization_id = organization_id
             db.add(points)
             db.commit()
             db.refresh(points)
-            logger.info(f"Created points record: {points.id} for officer UUID {points.officer_uuid}")
             return points
         except Exception as e:
             logger.error(f"Error creating officer points: {str(e)}")
             db.rollback()
             raise
         
-    def get_officer_by_email(self, db, email):
-        """Get an officer by email"""
+    def get_officer_by_email(self, db, email, organization_id):
         try:
             from modules.ocp.models import Officer
             if not email:
                 return None
-            return db.query(Officer).filter(Officer.email == email).first()
+            return db.query(Officer).filter(Officer.email == email, Officer.organization_id == organization_id).first()
         except Exception as e:
             logger.error(f"Error getting officer by email: {str(e)}")
             return None
     
-    def get_officer_by_name(self, db, name):
-        """Get an officer by name"""
+    def get_officer_by_name(self, db, name, organization_id):
         try:
             from modules.ocp.models import Officer
             if not name:
                 return None
-            return db.query(Officer).filter(Officer.name == name).first()
+            return db.query(Officer).filter(Officer.name == name, Officer.organization_id == organization_id).first()
         except Exception as e:
             logger.error(f"Error getting officer by name: {str(e)}")
             return None
         
-    def get_officer_points(self, db, officer_uuid):
-        """Get all points for an officer by UUID"""
+    def get_officer_points(self, db, officer_uuid, organization_id):
         try:
             from modules.ocp.models import OfficerPoints
-            return db.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer_uuid).all()
+            return db.query(OfficerPoints).filter(OfficerPoints.officer_uuid == officer_uuid, OfficerPoints.organization_id == organization_id).all()
         except Exception as e:
             logger.error(f"Error getting officer points: {str(e)}")
             return []
     
-    def get_all_officers(self, db):
-        """Get all officers"""
+    def get_all_officers(self, db, organization_id):
         try:
             from modules.ocp.models import Officer
-            return db.query(Officer).all()
+            return db.query(Officer).filter(Officer.organization_id == organization_id).all()
         except Exception as e:
             logger.error(f"Error getting all officers: {str(e)}")
             return []
         
-    def get_points_by_event(self, db, notion_page_id):
-        """Get points by event"""
+    def get_points_by_event(self, db, notion_page_id, organization_id):
         try:
             from modules.ocp.models import OfficerPoints
-            return db.query(OfficerPoints).filter(OfficerPoints.notion_page_id == notion_page_id).all()
+            return db.query(OfficerPoints).filter(OfficerPoints.notion_page_id == notion_page_id, OfficerPoints.organization_id == organization_id).all()
         except Exception as e:
             logger.error(f"Error getting points by event: {str(e)}")
             return []

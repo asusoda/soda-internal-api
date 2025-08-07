@@ -143,6 +143,57 @@ def update_organization_settings(org_id):
     finally:
         db.close()
 
+@organizations_blueprint.route("/<int:org_id>/calendar", methods=["PUT"])
+@auth_required
+def update_organization_calendar_settings(org_id):
+    """Update organization calendar settings"""
+    try:
+        data = request.get_json()
+        db = next(db_connect.get_db())
+        org = db.query(Organization).filter_by(id=org_id, is_active=True).first()
+        
+        if not org:
+            return jsonify({"error": "Organization not found"}), 404
+            
+        # Update calendar-related settings
+        if 'notion_database_id' in data:
+            org.notion_database_id = data['notion_database_id'].strip() if data['notion_database_id'] else None
+        if 'calendar_sync_enabled' in data:
+            org.calendar_sync_enabled = bool(data['calendar_sync_enabled'])
+        if 'google_calendar_id' in data:
+            org.google_calendar_id = data['google_calendar_id'].strip() if data['google_calendar_id'] else None
+            
+        db.commit()
+        return jsonify({"message": "Calendar settings updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+@organizations_blueprint.route("/<int:org_id>/calendar", methods=["GET"])
+@auth_required
+def get_organization_calendar_settings(org_id):
+    """Get organization calendar settings"""
+    try:
+        db = next(db_connect.get_db())
+        org = db.query(Organization).filter_by(id=org_id, is_active=True).first()
+        
+        if not org:
+            return jsonify({"error": "Organization not found"}), 404
+            
+        calendar_settings = {
+            "notion_database_id": org.notion_database_id,
+            "calendar_sync_enabled": org.calendar_sync_enabled,
+            "google_calendar_id": org.google_calendar_id,
+            "last_sync_at": org.last_sync_at.isoformat() if org.last_sync_at else None
+        }
+        
+        return jsonify(calendar_settings)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
 @organizations_blueprint.route("/<int:org_id>/roles", methods=["GET"])
 @auth_required
 def get_organization_roles(org_id):
@@ -158,3 +209,22 @@ def get_organization_roles(org_id):
         return jsonify(roles)
     except Exception as e:
         return jsonify({"error": str(e)}), 500 
+
+@organizations_blueprint.route("/<int:org_id>/ocp-sync", methods=["PUT"])
+@auth_required
+def update_organization_ocp_sync(org_id):
+    """Update OCP sync enabled status for an organization."""
+    try:
+        data = request.get_json()
+        db = next(db_connect.get_db())
+        org = db.query(Organization).filter_by(id=org_id, is_active=True).first()
+        if not org:
+            return jsonify({"error": "Organization not found"}), 404
+        if 'ocp_sync_enabled' in data:
+            org.ocp_sync_enabled = bool(data['ocp_sync_enabled'])
+        db.commit()
+        return jsonify({"message": "OCP sync setting updated successfully", "ocp_sync_enabled": org.ocp_sync_enabled})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close() 

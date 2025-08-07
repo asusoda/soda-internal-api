@@ -21,6 +21,13 @@ class Organization(Base):
     officer_role_id = Column(String(50), nullable=True)  # Changed to String since Discord role IDs are strings
     points_per_message = Column(Integer, default=1)  # Default points per message
     points_cooldown = Column(Integer, default=60)  # Default cooldown in seconds
+    ocp_sync_enabled = Column(Boolean, default=False)  # Added for OCP multi-org sync
+    
+    # Calendar-related fields
+    google_calendar_id = Column(String(255), nullable=True)  # Google Calendar ID for this org
+    notion_database_id = Column(String(255), nullable=True)  # Notion database ID for this org
+    calendar_sync_enabled = Column(Boolean, default=False)  # Whether calendar sync is enabled
+    last_sync_at = Column(DateTime, nullable=True)  # Last successful sync timestamp
 
     def __repr__(self):
         return f"<Organization(name='{self.name}', guild_id='{self.guild_id}')>"
@@ -40,7 +47,11 @@ class Organization(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "officer_role_id": self.officer_role_id,
             "points_per_message": self.points_per_message,
-            "points_cooldown": self.points_cooldown
+            "points_cooldown": self.points_cooldown,
+            "google_calendar_id": self.google_calendar_id,
+            "notion_database_id": self.notion_database_id,
+            "calendar_sync_enabled": self.calendar_sync_enabled,
+            "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None
         }
 
 class OrganizationConfig(Base):

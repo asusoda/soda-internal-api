@@ -11,6 +11,7 @@ import AddPoints from "./pages/AddPoints";
 import OCPDetails from "./pages/OCPDetails";
 import OrganizationSelector from "./pages/OrganizationSelector";
 import SuperAdmin from "./pages/SuperAdmin";
+import Calendar from "./pages/Calendar";
 
 import React from "react";
 import { Route, Routes, BrowserRouter, Navigate } from "react-router-dom";
@@ -96,6 +97,14 @@ function App() {
             element={
               <PrivateRoute>
                 <BotControlPanel />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/:orgPrefix/calendar"
+            element={
+              <PrivateRoute>
+                <Calendar />
               </PrivateRoute>
             }
           />

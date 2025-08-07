@@ -27,42 +27,26 @@ except Exception as e:
     # Still set to avoid repeated initialization attempts
     ocp_service = OCPService(db_connect=None, notion_client=None)
 
-@ocp_blueprint.route("/sync-from-notion", methods=["POST"])
-def sync_from_notion():
-    """
-    Endpoint to sync officer contribution points from Notion events.
-    Fetches events from the configured Notion database and updates the OCP database.
-    """
+@ocp_blueprint.route("/<org_prefix>/sync-from-notion", methods=["POST"])
+def sync_from_notion(org_prefix):
+    from modules.organizations.models import Organization
+    from shared import db_connect
+    db = next(db_connect.get_db())
+    org = db.query(Organization).filter(Organization.prefix == org_prefix, Organization.is_active == True).first()
+    if not org or not org.notion_database_id:
+        return jsonify({"status": "error", "message": "Organization or Notion database ID not found."}), 404
     transaction = start_transaction(op="webhook", name="ocp_notion_sync")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "ocp_notion_sync"
-    logger.info("Received POST request on /ocp/sync-from-notion, triggering Notion->OCP sync.")
-    set_tag("request_type", "POST")
-    
-    # Check if Notion database ID is configured
-    if not config.NOTION_DATABASE_ID:
-        logger.error("Required configuration NOTION_DATABASE_ID is missing in .env for /ocp/sync-from-notion endpoint.")
-        set_tag("config_error", "missing_database_id")
-        transaction.set_status("failed_precondition")
-        return jsonify({"status": "error", "message": "Notion database ID not configured on server."}), 500
-    
     try:
-        # Delegate sync to the OCP service
-        sync_result = ocp_service.sync_notion_to_ocp(config.NOTION_DATABASE_ID, transaction)
-        
-        # Return response based on service result
+        sync_result = ocp_service.sync_notion_to_ocp(org.notion_database_id, org.id, transaction)
         if sync_result.get("status") == "error":
-            logger.error(f"OCP sync via webhook finished with error: {sync_result.get('message')}")
             return jsonify(sync_result), 500
         elif sync_result.get("status") == "warning":
-            logger.warning(f"OCP sync via webhook finished with warning: {sync_result.get('message')}")
             return jsonify(sync_result), 207
         else:
-            logger.info(f"OCP sync via webhook completed successfully: {sync_result.get('message')}")
             return jsonify(sync_result), 200
-            
     except Exception as e:
-        # Catch unexpected errors at the route level
         route_error_handler.handle_generic_error(e)
         return jsonify({"status": "error", "message": "An unexpected error occurred processing the webhook."}), 500
     finally:
