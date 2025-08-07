@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from shared import db_connect
 from modules.organizations.models import Organization
 from modules.auth.decoraters import auth_required
+import re
 
 organizations_blueprint = Blueprint("organizations", __name__)
 
@@ -110,7 +111,22 @@ def update_organization_settings(org_id):
         if 'config' in data:
             org.config = data['config']
         if 'prefix' in data:
-            org.prefix = data['prefix']
+            new_prefix = data['prefix'].strip()
+            
+            # Validate prefix format
+            if not new_prefix or len(new_prefix) < 2:
+                return jsonify({"error": "Prefix must be at least 2 characters"}), 400
+            if len(new_prefix) > 20:
+                return jsonify({"error": "Prefix must be 20 characters or less"}), 400
+            if not re.match(r'^[a-z0-9_-]+$', new_prefix):
+                return jsonify({"error": "Prefix can only contain lowercase letters, numbers, hyphens, and underscores"}), 400
+            
+            # Check if prefix is already taken by another organization
+            existing_org = db.query(Organization).filter_by(prefix=new_prefix).first()
+            if existing_org and existing_org.id != org_id:
+                return jsonify({"error": "Prefix is already taken by another organization"}), 400
+            
+            org.prefix = new_prefix
         if 'description' in data:
             org.description = data['description']
         if 'officer_role_id' in data:
