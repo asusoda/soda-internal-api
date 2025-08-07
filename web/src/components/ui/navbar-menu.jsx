@@ -95,7 +95,7 @@ export const Menu = ({
         <div className="flex items-center min-w-0">{children[2]}</div>
         {/* Mobile menu toggle */}
         <div className="md:hidden flex-shrink-0">
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-black dark:text-white">
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="cursor-pointer text-black dark:text-white hover:opacity-80 transition-opacity duration-200">
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
         </div>
@@ -113,7 +113,7 @@ export const Menu = ({
                     if (link.onClick) link.onClick(e);
                     setIsMobileMenuOpen(false); // Close menu on link click
                   }}
-                  className="text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md"
+                  className="cursor-pointer text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md transition-colors duration-200"
                 >
                   {link.name}
                 </a>
@@ -157,7 +157,7 @@ export const HoveredLink = ({
   ...rest
 }) => {
   return (
-    <a {...rest} className="text-neutral-700 dark:text-neutral-200 hover:text-black dark:hover:text-soda-blue p-2 rounded-md">
+    <a {...rest} className="cursor-pointer text-neutral-700 dark:text-neutral-200 hover:text-black dark:hover:text-soda-blue p-2 rounded-md transition-colors duration-200">
       {children}
     </a>
   );

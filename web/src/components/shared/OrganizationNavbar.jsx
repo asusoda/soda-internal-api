@@ -105,7 +105,7 @@ const OrganizationNavbar = ({ children }) => {
             <OrganizationSwitcher />
             <button 
               onClick={logout}
-              className="flex items-center space-x-1 lg:space-x-2 px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+              className="cursor-pointer flex items-center space-x-1 lg:space-x-2 px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-200"
             >
               <FaSignOutAlt className="w-3 h-3 lg:w-4 lg:h-4" />
               <span className="hidden sm:inline">Logout</span>
