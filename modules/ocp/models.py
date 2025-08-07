@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -24,6 +24,9 @@ class Officer(Base):
 
 class OfficerPoints(Base):
     __tablename__ = "ocp_officer_points"  # Changed to avoid conflict
+    __table_args__ = (
+        UniqueConstraint('officer_uuid', 'notion_page_id', 'role', name='uq_officer_event_role'),
+    )
     id = Column(Integer, primary_key=True, autoincrement=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     points = Column(Integer, nullable=False)

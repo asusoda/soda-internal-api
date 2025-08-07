@@ -5,6 +5,7 @@ from typing import Optional
 
 # Import the service and shared resources
 from .service import OCPService
+from .notion_sync_service import NotionOCPSyncService
 from modules.calendar.errors import APIErrorHandler
 from .utils import extract_property
 from modules.auth.decoraters import auth_required
@@ -262,39 +263,29 @@ def get_officer_contributions(officer_identifier):
         if transaction:
             transaction.finish()
 
-@ocp_blueprint.route("/add-contribution", methods=["POST"])
+@ocp_blueprint.route("/<org_prefix>/add-contribution", methods=["POST"])
 @auth_required
-def add_contribution():
+def add_contribution(org_prefix):
     """
-    Add a contribution record for one or more officers.
-    
-    Expected JSON body:
-    {
-        "names": ["Officer Name 1", "Officer Name 2"],  # Required (list of names) OR
-        "name": "Officer Name",                          # Required (single name)
-        "email": "officer@example.com",                  # Optional
-        "event": "Event description",                    # Required
-        "points": 1,                                     # Optional, default 1
-        "role": "Event Lead",                            # Optional
-        "event_type": "GBM",                             # Optional
-        "timestamp": "2023-10-15T12:00:00Z"              # Optional, defaults to now
-    }
+    Add a contribution record for one or more officers for a specific org.
     """
+    from modules.organizations.models import Organization
+    from shared import db_connect
+    db = next(db_connect.get_db())
+    org = db.query(Organization).filter(Organization.prefix == org_prefix, Organization.is_active == True).first()
+    if not org:
+        return jsonify({"status": "error", "message": "Organization not found."}), 404
     transaction = start_transaction(op="api", name="add_contribution")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "add_contribution"
-    logger.info("Received POST request on /ocp/add-contribution")
+    logger.info(f"Received POST request on /ocp/{org_prefix}/add-contribution")
     set_tag("request_type", "POST")
-    
     try:
-        # Get request data
         data = request.json
         if not data:
             return jsonify({"status": "error", "message": "Request body must be JSON"}), 400
-            
-        # Add contribution through service
-        result = ocp_service.add_officer_points(data)
-        
+        # Pass organization_id to the service
+        result = ocp_service.add_officer_points(data, organization_id=org.id)
         if result.get("status") == "error":
             return jsonify(result), 400
         else:
@@ -310,17 +301,7 @@ def add_contribution():
 @ocp_blueprint.route("/contribution/<int:point_id>", methods=["PUT"])
 @auth_required
 def update_contribution(point_id):
-    """
-    Update an existing contribution record.
-    
-    Expected JSON body contains fields to update:
-    {
-        "points": 2,                    # Optional
-        "event": "Updated description", # Optional
-        "role": "New role",             # Optional
-        "event_type": "Special Event"   # Optional
-    }
-    """
+
     transaction = start_transaction(op="api", name="update_contribution")
     route_error_handler.transaction = transaction
     route_error_handler.operation_name = "update_contribution"
@@ -471,36 +452,3 @@ def get_officer_names():
         route_error_handler.transaction = None
         if transaction:
             transaction.finish()
-
-@ocp_blueprint.route("/repair-officers", methods=["POST"])
-@auth_required
-def repair_unknown_officers():
-    """
-    Endpoint to repair events with officers missing names.
-    This runs a repair process to match events with correct officers based on names.
-    Focuses only on officers with missing names and ignores issues with missing emails or departments.
-    """
-    transaction = start_transaction(op="admin", name="repair_unknown_officers")
-    route_error_handler.transaction = transaction
-    route_error_handler.operation_name = "repair_unknown_officers"
-    logger.info("Received POST request on /ocp/repair-officers")
-    set_tag("request_type", "POST")
-    
-    try:
-        # Call the repair function from the service
-        repair_result = ocp_service.repair_unknown_officers()
-        
-        # Return appropriate response based on repair result
-        if repair_result.get("status") == "error":
-            logger.error(f"Officer repair failed: {repair_result.get('message')}")
-            return jsonify(repair_result), 500
-        else:
-            logger.info(f"Officer repair completed: {repair_result.get('message')}")
-            return jsonify(repair_result), 200
-    except Exception as e:
-        route_error_handler.handle_generic_error(e)
-        return jsonify({"status": "error", "message": "An unexpected error occurred during officer repair."}), 500
-    finally:
-        route_error_handler.transaction = None
-        if transaction:
-            transaction.finish() 

@@ -6,10 +6,25 @@ class directly. It redirects to the centralized database manager in modules.util
 import logging
 import shared
 from modules.utils.db import DBConnect
+from modules.ocp.models import Officer, OfficerPoints
 
 # Set up a module logger
 module_logger = logging.getLogger(__name__)
 module_logger.info("OCP DB compatibility module loaded, using centralized database manager")
+
+def create_ocp_tables():
+    """Create OCP tables if they do not exist."""
+    from modules.utils.db import DBConnect
+    db_connect = shared.db_connect or DBConnect()
+    Officer.__table__.create(db_connect.engine, checkfirst=True)
+    OfficerPoints.__table__.create(db_connect.engine, checkfirst=True)
+
+# Automatically create OCP tables on import
+try:
+    create_ocp_tables()
+    module_logger.info("OCP tables checked/created successfully.")
+except Exception as e:
+    module_logger.error(f"Error creating OCP tables: {e}")
 
 class OCPDBConnect:
     """

@@ -113,6 +113,10 @@ class DBConnect:
         except Exception as e:
             logger.error(f"Error creating officer points: {str(e)}")
             db.rollback()
+            # Check if this is a unique constraint violation
+            if "UNIQUE constraint failed" in str(e) or "uq_officer_event_role" in str(e):
+                logger.warning(f"Duplicate points record detected for officer {points.officer_uuid}, event {points.event}, role {points.role}. Skipping creation.")
+                return None
             raise
         
     def get_officer_by_email(self, db, email, organization_id):

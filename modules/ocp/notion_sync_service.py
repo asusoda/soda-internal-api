@@ -30,22 +30,27 @@ class NotionOCPSyncService:
         try:
             from modules.organizations.models import Organization
             from shared import db_connect
+            self.logger.info(f"[NotionOCPSyncService] Starting multi-org OCP sync...")
             db = next(db_connect.get_db())
+            self.logger.info(f"[NotionOCPSyncService] Querying organizations with OCP sync enabled...")
             organizations = db.query(Organization).filter(
                 Organization.is_active == True,
                 Organization.notion_database_id != None,
                 Organization.notion_database_id != "",
-                Organization.ocp_sync_enabled == True  # You may need to add this field
+                Organization.ocp_sync_enabled == True
             ).all()
-            summary = []
-            self.logger.info(f"Found {len(organizations)} organizations with OCP sync enabled")
+            self.logger.info(f"[NotionOCPSyncService] Found {len(organizations)} organizations with OCP sync enabled")
             for org in organizations:
-                self.logger.info(f"Starting OCP sync for organization: {org.name} (ID: {org.id})")
+                self.logger.info(f"[NotionOCPSyncService] Organization: {org.name} (ID: {org.id}, DB: {org.notion_database_id})")
+            summary = []
+            for org in organizations:
+                self.logger.info(f"[NotionOCPSyncService] Starting OCP sync for organization: {org.name} (ID: {org.id})")
                 try:
+                    self.logger.info(f"[NotionOCPSyncService] Calling ocp_service.sync_notion_to_ocp for {org.name}")
                     sync_result = self.ocp_service.sync_notion_to_ocp(org.notion_database_id, org.id, transaction)
-                    self.logger.info(f"OCP sync result for {org.name} (ID: {org.id}): {sync_result}")
+                    self.logger.info(f"[NotionOCPSyncService] OCP sync result for {org.name} (ID: {org.id}): {sync_result}")
                 except Exception as e:
-                    self.logger.error(f"Exception during OCP sync for {org.name} (ID: {org.id}): {e}")
+                    self.logger.error(f"[NotionOCPSyncService] Exception during OCP sync for {org.name} (ID: {org.id}): {e}", exc_info=True)
                     sync_result = {"status": "error", "message": str(e)}
                 summary.append({
                     "organization_id": org.id,
@@ -54,18 +59,20 @@ class NotionOCPSyncService:
                     "message": sync_result.get("message")
                 })
             result["details"] = summary
-            self.logger.info(f"OCP sync summary: {summary}")
+            self.logger.info(f"[NotionOCPSyncService] OCP sync summary: {summary}")
             if any(r["status"] != "success" for r in summary):
                 result["status"] = "warning"
                 result["message"] = "Some organizations failed to sync."
+                self.logger.warning(f"[NotionOCPSyncService] Some organizations failed to sync: {[r for r in summary if r['status'] != 'success']}")
             else:
                 result["message"] = "All organizations synced successfully."
+                self.logger.info(f"[NotionOCPSyncService] All organizations synced successfully")
             return result
         except Exception as e:
-            self.logger.error(f"Exception in NotionOCPSyncService.sync_notion_to_ocp: {e}")
+            self.logger.error(f"[NotionOCPSyncService] Exception in sync_notion_to_ocp: {e}", exc_info=True)
             result["status"] = "error"
             result["message"] = str(e)
-            return result
+            return result 
         finally:
             if own_transaction and transaction:
                 transaction.finish() 
