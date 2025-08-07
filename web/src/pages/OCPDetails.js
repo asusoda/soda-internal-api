@@ -567,7 +567,7 @@ const OCPDetails = () => {
     <OrganizationNavbar>
       <div className="max-w-7xl mx-auto">
         
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-10 mt-20">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-10">
           <h1 className="text-3xl sm:text-4xl font-bold text-soda-white tracking-tight mb-4 sm:mb-0">
             OCP System
           </h1>

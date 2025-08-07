@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
 import { FaReceipt, FaPlus, FaTimes, FaSpinner, FaTrash } from "react-icons/fa";
+import { toast } from "react-toastify";
 
 const TransactionsPage = () => {
   const [transactions, setTransactions] = useState([]);
@@ -21,14 +22,14 @@ const TransactionsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get("/merch/orders");
+      const response = await apiClient.get("/api/merch/orders");
       setTransactions(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
-      setError(
-        `Failed to fetch transactions. ${
-          err.response?.data?.message || err.message
-        }`
-      );
+      const errorMessage = `Failed to fetch transactions. ${
+        err.response?.data?.message || err.message
+      }`;
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error("Error fetching transactions:", err.response || err);
     } finally {
       setLoading(false);
@@ -83,7 +84,9 @@ const TransactionsPage = () => {
     );
 
     if (validItems.length === 0) {
-      setAddTransactionError("Please add at least one valid item.");
+      const errorMessage = "Please add at least one valid item.";
+      setAddTransactionError(errorMessage);
+      toast.error(errorMessage);
       setAddTransactionLoading(false);
       return;
     }
@@ -95,8 +98,8 @@ const TransactionsPage = () => {
     };
 
     try {
-      await apiClient.post("/merch/orders", payload);
-      alert("Transaction added successfully!");
+      await apiClient.post("/api/merch/orders", payload);
+      toast.success("Transaction added successfully!");
       setShowAddForm(false);
       setNewOrderData({
         user_id: "",
@@ -105,11 +108,11 @@ const TransactionsPage = () => {
       });
       fetchTransactions();
     } catch (err) {
-      setAddTransactionError(
-        `Failed to add transaction: ${
-          err.response?.data?.message || err.message
-        }`
-      );
+      const errorMessage = `Failed to add transaction: ${
+        err.response?.data?.message || err.message
+      }`;
+      setAddTransactionError(errorMessage);
+      toast.error(errorMessage);
       console.error("Error adding transaction:", err.response || err);
     } finally {
       setAddTransactionLoading(false);

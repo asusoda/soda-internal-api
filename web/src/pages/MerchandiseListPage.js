@@ -3,11 +3,14 @@ import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
 import EditProductModal from "../components/editProductModal";
 import { FaBox, FaPlus } from "react-icons/fa"; // Import relevant icons
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 const MerchListPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -15,11 +18,13 @@ const MerchListPage = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get("api/merch/products");
+      const response = await apiClient.get("/api/merch/products");
       setProducts(response.data || []);
       setError(null);
     } catch (err) {
-      setError("Failed to fetch products: Network Error");
+      const errorMessage = "Failed to fetch products: Network Error";
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error("Failed to fetch products:", err);
     } finally {
       setLoading(false);
@@ -35,12 +40,12 @@ const MerchListPage = () => {
       return;
 
     try {
-      await apiClient.delete(`api/merch/products/${productId}`);
+      await apiClient.delete(`/api/merch/products/${productId}`);
       setProducts(products.filter((product) => product.id !== productId));
-      alert("Product deleted successfully");
+      toast.success("Product deleted successfully");
     } catch (err) {
       console.error("Failed to delete product:", err);
-      alert("Failed to delete product");
+      toast.error("Failed to delete product");
     }
   };
 
@@ -56,6 +61,10 @@ const MerchListPage = () => {
 
   const handleProductUpdated = () => {
     fetchProducts();
+  };
+
+  const handleAddNewProduct = () => {
+    navigate("/merch/products/add");
   };
 
   return (
@@ -91,7 +100,7 @@ const MerchListPage = () => {
             <div className="text-center py-12">
               <p className="text-gray-400">No products found</p>
               <button
-                onClick={() => (window.location.href = "/merch/products/add")}
+                onClick={handleAddNewProduct}
                 className="mt-4 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-md transition-colors flex items-center justify-center mx-auto"
               >
                 <FaPlus className="mr-2" /> Add New Product

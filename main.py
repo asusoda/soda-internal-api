@@ -15,6 +15,7 @@ from modules.storefront.api import storefront_blueprint
 from modules.calendar.api import calendar_blueprint
 from modules.organizations.api import organizations_blueprint
 from modules.superadmin.api import superadmin_blueprint
+from modules.merch.api import merch_blueprint
 # Removed all view blueprint imports - keeping only API blueprints
 
 from shared import config # logger is imported above, calendar_service removed
@@ -51,7 +52,7 @@ app.register_blueprint(storefront_blueprint, url_prefix="/api/storefront")
 app.register_blueprint(ocp_blueprint, url_prefix="/api/ocp")
 app.register_blueprint(organizations_blueprint, url_prefix="/api/organizations")
 app.register_blueprint(superadmin_blueprint, url_prefix="/api/superadmin")
-
+app.register_blueprint(merch_blueprint, url_prefix="/api/merch")
 # # Configure static file serving
 # @app.route('/', defaults={'path': ''})
 # @app.route('/<path:path>')

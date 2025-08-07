@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import apiClient from "./utils/axios"; // Adjust path if necessary
+import { toast } from "react-toastify";
 
 const EditProductModal = ({ product, onClose, onProductUpdated }) => {
   const [formData, setFormData] = useState({
@@ -38,17 +39,16 @@ const EditProductModal = ({ product, onClose, onProductUpdated }) => {
     setLoading(true);
     setError(null);
     try {
-      await apiClient.put(`/merch/products/${product.id}`, formData);
-      alert("Product updated successfully!");
+      await apiClient.put(`/api/merch/products/${product.id}`, formData);
+      toast.success("Product updated successfully!");
       onProductUpdated(); // Notify parent component to refresh products
       onClose(); // Close the modal
     } catch (err) {
-      setError(
-        "Failed to update product. " +
-          (err.response?.data?.error || err.message)
-      );
+      const errorMessage = "Failed to update product. " +
+        (err.response?.data?.error || err.message);
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error("Failed to update product:", err);
-      alert("Failed to update product.");
     } finally {
       setLoading(false);
     }

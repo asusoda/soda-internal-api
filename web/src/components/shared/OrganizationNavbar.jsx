@@ -115,7 +115,7 @@ const OrganizationNavbar = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 px-4 py-8">
+      <div className="relative z-10 px-4 py-10 mt-20">
         {children}
       </div>
     </div>

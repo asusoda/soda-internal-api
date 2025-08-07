@@ -6,7 +6,7 @@ from modules.merch.models import Product, Order, OrderItem
 merch_blueprint = Blueprint("merch", __name__)
 
 # API Endpoints
-@merch_blueprint.route("/merch/products", methods=["GET"])
+@merch_blueprint.route("/products", methods=["GET"])
 @error_handler
 def get_products():
     db = next(store_db.get_db())
@@ -23,7 +23,7 @@ def get_products():
     finally:
         db.close()
 
-@merch_blueprint.route("/merch/products/<int:product_id>", methods=["GET"])
+@merch_blueprint.route("/products/<int:product_id>", methods=["GET"])
 @error_handler
 def get_product(product_id):
     db = next(store_db.get_db())
@@ -43,7 +43,7 @@ def get_product(product_id):
     finally:
         db.close()
 
-@merch_blueprint.route("/merch/products/add", methods=["POST"])
+@merch_blueprint.route("/products", methods=["POST"])
 @auth_required
 @error_handler
 def create_product():
@@ -63,7 +63,7 @@ def create_product():
     finally:
         db.close()
 
-@merch_blueprint.route("/merch/products/<int:product_id>", methods=["PUT"])
+@merch_blueprint.route("/products/<int:product_id>", methods=["PUT"])
 @auth_required
 @error_handler
 def update_product(product_id):
@@ -86,7 +86,7 @@ def update_product(product_id):
     finally:
         db.close()
 
-@merch_blueprint.route("/api/products/<int:product_id>", methods=["DELETE"])
+@merch_blueprint.route("/products/<int:product_id>", methods=["DELETE"])
 @auth_required
 @error_handler
 def delete_product(product_id):

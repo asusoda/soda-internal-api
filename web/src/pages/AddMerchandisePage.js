@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
 import { FaBox, FaPlus } from "react-icons/fa";
+import { toast } from "react-toastify";
 
 const AddMerchandisePage = () => {
   const [imageUrl, setImageUrl] = useState("");
@@ -22,9 +23,9 @@ const AddMerchandisePage = () => {
     };
 
     try {
-      // Corrected API endpoint to match the backend blueprint
-      const response = await apiClient.post("/merch/products/add", productData);
-      alert("Product added successfully!");
+      // Updated API endpoint to match the new structure
+      const response = await apiClient.post("/api/merch/products", productData);
+      toast.success("Product added successfully!");
       // Reset form
       setImageUrl("");
       setName("");
@@ -33,10 +34,9 @@ const AddMerchandisePage = () => {
       setDescription("");
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert(
-        error.response?.data?.message ||
-          "Something went wrong while adding the product."
-      );
+      const errorMessage = error.response?.data?.message ||
+        "Something went wrong while adding the product.";
+      toast.error(errorMessage);
     }
   };
 

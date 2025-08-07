@@ -96,7 +96,7 @@ const HomePage = () => {
       action: goToActiveGame,
     },
     {
-      title: "Merchandise", // ✅ New feature
+      title: "Merchandise", // ✅   New feature
       description: "Manage merchandise and product listings",
       icon: FaFileUpload,
       color: "from-orange-500 to-orange-600",
