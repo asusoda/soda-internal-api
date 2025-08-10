@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import apiClient from "./utils/axios"; // Adjust path if necessary
 import { toast } from "react-toastify";
 
-const EditProductModal = ({ product, onClose, onProductUpdated }) => {
+const EditProductModal = ({ product, onClose, onProductUpdated, organizationPrefix }) => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -36,10 +36,16 @@ const EditProductModal = ({ product, onClose, onProductUpdated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!organizationPrefix) {
+      toast.error("No organization selected");
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     try {
-      await apiClient.put(`/api/merch/products/${product.id}`, formData);
+      await apiClient.put(`/api/merch/${organizationPrefix}/products/${product.id}`, formData);
       toast.success("Product updated successfully!");
       onProductUpdated(); // Notify parent component to refresh products
       onClose(); // Close the modal

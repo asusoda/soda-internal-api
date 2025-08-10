@@ -3,8 +3,10 @@ import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
 import { FaBox, FaPlus } from "react-icons/fa";
 import { toast } from "react-toastify";
+import { useAuth } from "../components/auth/AuthContext";
 
 const AddMerchandisePage = () => {
+  const { currentOrg } = useAuth();
   const [imageUrl, setImageUrl] = useState("");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -13,6 +15,11 @@ const AddMerchandisePage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!currentOrg?.prefix) {
+      toast.error("No organization selected");
+      return;
+    }
 
     const productData = {
       name,
@@ -23,8 +30,8 @@ const AddMerchandisePage = () => {
     };
 
     try {
-      // Updated API endpoint to match the new structure
-      const response = await apiClient.post("/api/merch/products", productData);
+      // Updated API endpoint to include organization prefix
+      const response = await apiClient.post(`/api/merch/${currentOrg.prefix}/products`, productData);
       toast.success("Product added successfully!");
       // Reset form
       setImageUrl("");
@@ -40,13 +47,23 @@ const AddMerchandisePage = () => {
     }
   };
 
+  if (!currentOrg) {
+    return (
+      <OrganizationNavbar>
+        <div className="text-center">
+          <p className="text-gray-400">Please select an organization to continue.</p>
+        </div>
+      </OrganizationNavbar>
+    );
+  }
+
   return (
     <OrganizationNavbar>
       <div className="max-w-xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Add New Product</h1>
           <p className="text-gray-400">
-            Add a new item to your merchandise store
+            Add a new item to {currentOrg.name}'s merchandise store
           </p>
         </div>
 

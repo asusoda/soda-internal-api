@@ -60,6 +60,8 @@ class DBConnect:
                 from modules.ocp.models import Officer, OfficerPoints
                 from modules.calendar.models import CalendarEventLink
                 from modules.bot.models import JeopardyGame, ActiveGame
+                from modules.merch.models import Product, Order, OrderItem
+                from modules.organizations.models import Organization, OrganizationConfig, Officer as OrgOfficer
                 
                 Base.metadata.create_all(bind=self.engine)
                 logger.info("Database tables created successfully")
@@ -177,5 +179,117 @@ class DBConnect:
             return False
         except Exception as e:
             logger.error(f"Error deleting officer points: {str(e)}")
+            db.rollback()
+            return False
+
+    # Merchandise-related methods
+    def create_merch_product(self, db, product, organization_id):
+        """Create a new merchandise product for a specific organization"""
+        try:
+            from modules.merch.models import Product
+            product.organization_id = organization_id
+            db.add(product)
+            db.commit()
+            db.refresh(product)
+            logger.info(f"Created merch product '{product.name}' for organization {organization_id}")
+            return product
+        except Exception as e:
+            logger.error(f"Error creating merch product: {str(e)}")
+            db.rollback()
+            raise
+
+    def create_merch_order(self, db, order, order_items, organization_id):
+        """Create a new merchandise order with items for a specific organization"""
+        try:
+            from modules.merch.models import Order, OrderItem
+            order.organization_id = organization_id
+            db.add(order)
+            db.flush()  # Flush to get the order ID
+            
+            for item in order_items:
+                item.organization_id = organization_id
+                item.order_id = order.id
+                db.add(item)
+                
+            db.commit()
+            db.refresh(order)
+            logger.info(f"Created merch order {order.id} for organization {organization_id}")
+            return order
+        except Exception as e:
+            logger.error(f"Error creating merch order: {str(e)}")
+            db.rollback()
+            raise
+
+    def get_merch_products(self, db, organization_id):
+        """Get all merchandise products for a specific organization"""
+        try:
+            from modules.merch.models import Product
+            return db.query(Product).filter(Product.organization_id == organization_id).all()
+        except Exception as e:
+            logger.error(f"Error getting merch products: {str(e)}")
+            return []
+
+    def get_merch_product(self, db, product_id, organization_id):
+        """Get a merchandise product by ID for a specific organization"""
+        try:
+            from modules.merch.models import Product
+            return db.query(Product).filter(
+                Product.id == product_id, 
+                Product.organization_id == organization_id
+            ).first()
+        except Exception as e:
+            logger.error(f"Error getting merch product: {str(e)}")
+            return None
+
+    def get_merch_orders(self, db, organization_id):
+        """Get all merchandise orders for a specific organization"""
+        try:
+            from modules.merch.models import Order
+            return db.query(Order).filter(Order.organization_id == organization_id).all()
+        except Exception as e:
+            logger.error(f"Error getting merch orders: {str(e)}")
+            return []
+
+    def get_merch_order(self, db, order_id, organization_id):
+        """Get a merchandise order by ID for a specific organization"""
+        try:
+            from modules.merch.models import Order
+            return db.query(Order).filter(
+                Order.id == order_id, 
+                Order.organization_id == organization_id
+            ).first()
+        except Exception as e:
+            logger.error(f"Error getting merch order: {str(e)}")
+            return None
+
+    def update_merch_product_stock(self, db, product_id, organization_id, new_stock):
+        """Update merchandise product stock for a specific organization"""
+        try:
+            from modules.merch.models import Product
+            product = self.get_merch_product(db, product_id, organization_id)
+            if product:
+                product.stock = new_stock
+                db.commit()
+                logger.info(f"Updated stock for merch product {product_id} to {new_stock}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error updating merch product stock: {str(e)}")
+            db.rollback()
+            return False
+
+    def delete_merch_product(self, db, product_id, organization_id):
+        """Delete a merchandise product for a specific organization"""
+        try:
+            from modules.merch.models import Product
+            product = self.get_merch_product(db, product_id, organization_id)
+            if product:
+                db.delete(product)
+                db.commit()
+                logger.info(f"Deleted merch product {product_id} for organization {organization_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting merch product: {str(e)}")
             db.rollback()
             return False

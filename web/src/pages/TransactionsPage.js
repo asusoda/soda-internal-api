@@ -3,8 +3,10 @@ import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
 import { FaReceipt, FaPlus, FaTimes, FaSpinner, FaTrash } from "react-icons/fa";
 import { toast } from "react-toastify";
+import { useAuth } from "../components/auth/AuthContext";
 
 const TransactionsPage = () => {
+  const { currentOrg } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,10 +21,16 @@ const TransactionsPage = () => {
   const [addTransactionError, setAddTransactionError] = useState(null);
 
   const fetchTransactions = useCallback(async () => {
+    if (!currentOrg?.prefix) {
+      setError("No organization selected");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get("/api/merch/orders");
+      const response = await apiClient.get(`/api/merch/${currentOrg.prefix}/orders`);
       setTransactions(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       const errorMessage = `Failed to fetch transactions. ${
@@ -34,7 +42,7 @@ const TransactionsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentOrg?.prefix]);
 
   useEffect(() => {
     fetchTransactions();
@@ -76,6 +84,12 @@ const TransactionsPage = () => {
 
   const handleAddTransactionSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!currentOrg?.prefix) {
+      toast.error("No organization selected");
+      return;
+    }
+    
     setAddTransactionLoading(true);
     setAddTransactionError(null);
 
@@ -98,7 +112,7 @@ const TransactionsPage = () => {
     };
 
     try {
-      await apiClient.post("/api/merch/orders", payload);
+      await apiClient.post(`/api/merch/${currentOrg.prefix}/orders`, payload);
       toast.success("Transaction added successfully!");
       setShowAddForm(false);
       setNewOrderData({
@@ -119,13 +133,23 @@ const TransactionsPage = () => {
     }
   };
 
+  if (!currentOrg) {
+    return (
+      <OrganizationNavbar>
+        <div className="text-center">
+          <p className="text-gray-400">Please select an organization to continue.</p>
+        </div>
+      </OrganizationNavbar>
+    );
+  }
+
   return (
     <OrganizationNavbar>
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Transactions</h1>
           <p className="text-gray-400">
-            Manage all merchandise orders and transactions
+            Manage all merchandise orders and transactions for {currentOrg.name}
           </p>
         </div>
 

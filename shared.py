@@ -3,7 +3,7 @@ from flask_cors import CORS
 import discord
 import os
 from modules.utils.db import DBConnect
-from modules.merch.db import StoreConnector
+# StoreConnector is now integrated into the centralized database
 from notion_client import Client
 import asyncio
 from modules.utils.config import Config
@@ -59,7 +59,6 @@ else:
 
 # Initialize database connections
 db_connect = DBConnect("sqlite:///./data/user.db")
-store_db = StoreConnector("sqlite:///./data/storefront.db")
 
 # Intialize TokenManager
 tokenManger = TokenManager()
