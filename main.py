@@ -158,7 +158,8 @@ def initialize_app():
     auth_thread.start()
     logger.info("Auth bot thread initiated")
 
-    scheduler.add_job(unified_sync_job, 'interval', minutes=2, id='unified_notion_sync_job')
+    # Run sync job every 60 minutes
+    scheduler.add_job(unified_sync_job, 'interval', minutes=60, id='unified_notion_sync_job')
     scheduler.start()
     logger.info("APScheduler started for Notion-Google Calendar sync.")
     
