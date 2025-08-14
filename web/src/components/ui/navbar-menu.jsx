@@ -22,7 +22,7 @@ export const MenuItem = ({
     <div onMouseEnter={() => setActive(item)} className="relative">
       <motion.p
         transition={{ duration: 0.3 }}
-        className="cursor-pointer text-black hover:opacity-[0.9] dark:text-white px-3 py-2 rounded-md text-sm font-medium">
+        className="cursor-pointer text-black hover:opacity-[0.9] dark:text-white px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap">
         {item}
       </motion.p>
       {active !== null && (
@@ -55,43 +55,47 @@ export const Menu = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Extract links for mobile menu
-  const mobileLinks = Children.map(children, child => {
-    if (child.props && child.props.item && child.props.children) {
-      // Assuming the first child of MenuItem's children is HoveredLink or similar
-      // This might need adjustment based on actual MenuItem structure
-      const linkElement = Children.toArray(child.props.children).find(
-        c => c.type === HoveredLink || (c.props && c.props.href) // Look for HoveredLink or a direct href
-      );
+  // Helper function to extract a link element from a MenuItem's children
+  const extractLinkElement = (menuItemChildren) => {
+    return Children.toArray(menuItemChildren).find(
+      child => child.type === HoveredLink || (child.props && child.props.href) // Look for HoveredLink or a direct href
+    );
+  };
+
+  // Helper function to extract a mobile link from a MenuItem
+  const extractMobileLink = (menuItem) => {
+    if (menuItem.props && menuItem.props.item && menuItem.props.children) {
+      const linkElement = extractLinkElement(menuItem.props.children);
       if (linkElement && linkElement.props && linkElement.props.href) {
         return {
-          name: child.props.item,
+          name: menuItem.props.item,
           href: linkElement.props.href,
           onClick: linkElement.props.onClick // Preserve onClick for logout, etc.
         };
       }
     }
     return null;
-  }).filter(Boolean);
+  };
 
+  // Extract links for the mobile menu
+  const mobileLinks = Children.map(children, extractMobileLink).filter(Boolean);
   return (
     <>
       <nav
         onMouseLeave={() => {
           setActive(null);
-          // Do not close mobile menu on mouse leave, only by toggle or link click
         }}
-        className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[90vw] md:w-[60vw] max-w-4xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center justify-between px-4 py-3"
+        className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[98vw] max-w-9xl z-50 rounded-full border border-transparent dark:border-white/[0.2] bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-input flex items-center justify-between px-8 py-4"
       >
-        <img src={DotSlashLogo} alt="Logo" className="h-8 w-auto" />
-
-        {/* Desktop Menu Items */}
-        <div className="hidden md:flex flex-grow justify-center space-x-2 md:space-x-4">
-          {children}
-        </div>
-
-        {/* Mobile Menu Toggle */}
-        <div className="md:hidden">
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-black dark:text-white">
+        {/* Left section: org logo/name (children[0]) */}
+        <div className="flex items-center min-w-0">{children[0]}</div>
+        {/* Center section: menu items (children[1]) */}
+        <div className="hidden md:flex items-center justify-center flex-1 space-x-6 lg:space-x-8 mx-8 min-w-0">{children[1]}</div>
+        {/* Right section: org switcher/logout (children[2]) */}
+        <div className="flex items-center min-w-0">{children[2]}</div>
+        {/* Mobile menu toggle */}
+        <div className="md:hidden flex-shrink-0">
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="cursor-pointer text-black dark:text-white hover:opacity-80 transition-opacity duration-200">
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
         </div>
@@ -109,7 +113,7 @@ export const Menu = ({
                     if (link.onClick) link.onClick(e);
                     setIsMobileMenuOpen(false); // Close menu on link click
                   }}
-                  className="text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md"
+                  className="cursor-pointer text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md transition-colors duration-200"
                 >
                   {link.name}
                 </a>
@@ -153,7 +157,7 @@ export const HoveredLink = ({
   ...rest
 }) => {
   return (
-    <a {...rest} className="text-neutral-700 dark:text-neutral-200 hover:text-black dark:hover:text-soda-blue p-2 rounded-md">
+    <a {...rest} className="cursor-pointer text-neutral-700 dark:text-neutral-200 hover:text-black dark:hover:text-soda-blue p-2 rounded-md transition-colors duration-200">
       {children}
     </a>
   );

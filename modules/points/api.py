@@ -60,43 +60,36 @@ def add_points():
     data = request.json
     db = next(db_connect.get_db())
     try:
-        # Check if the user exists by email
-        user = db.query(User).filter_by(email=data["user_email"]).first()
+        # Validate required fields
+        if not data.get("organization_id"):
+            return jsonify({"error": "organization_id is required"}), 400
+        
+        # Check if the user exists by discord_id
+        user = db.query(User).filter_by(discord_id=data["user_discord_id"]).first()
         if not user:
-            # If user doesn't exist, create the user first
-            # user = User(
-            #     name=data["user_name"],
-            #     email=data["user_email"],
-            #     academic_standing=data["user_academic_standing"],
-            #     asu_id=data["asu_id"],  # Ensure asu_id is provided when creating new user
-            #     major=data["major"]
-            # )
-            # db_user = db_connect.create_user(db, user)
-            # user_id = db_user.uuid
-            return jsonify({"error": "User does not exist"}), 301
-        else:
-            user_id = user.uuid
+            return jsonify({"error": "User does not exist"}), 404
 
         # Add points to the user
         point = Points(
             points=data["points"],
-            event=data["event"],
-            awarded_by_officer=data["awarded_by_officer"],
-            user_id=user_id,
+            user_id=user.id,
+            organization_id=data["organization_id"],
         )
-        db_point = db_connect.create_point(db, point)
+        db.add(point)
+        db.commit()
+        db.refresh(point)
     except Exception as e:
+        db.rollback()
         return jsonify({"error": str(e)}), 400
     finally:
         db.close()
     return jsonify(
         {
-            "id": db_point.id,
-            "points": db_point.points,
-            "event": db_point.event,
-            "timestamp": db_point.timestamp,
-            "awarded_by_officer": db_point.awarded_by_officer,
-            "user_id": db_point.user_id,
+            "id": point.id,
+            "points": point.points,
+            "user_id": point.user_id,
+            "organization_id": point.organization_id,
+            "last_updated": point.last_updated.isoformat() if point.last_updated else None,
         }
     ), 201
 
@@ -132,7 +125,14 @@ def get_users():
 def get_points():
     db = next(db_connect.get_db())
     try:
-        points = db.query(Points).all()
+        # Get organization_id from query parameters
+        organization_id = request.args.get('organization_id')
+        
+        if not organization_id:
+            return jsonify({"error": "organization_id parameter is required"}), 400
+        
+        # Filter points by organization
+        points = db.query(Points).filter_by(organization_id=organization_id).all()
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     finally:
@@ -142,10 +142,9 @@ def get_points():
             {
                 "id": point.id,
                 "points": point.points,
-                "event": point.event,
-                "timestamp": point.timestamp,
-                "awarded_by_officer": point.awarded_by_officer,
+                "last_updated": point.last_updated.isoformat() if point.last_updated else None,
                 "user_id": point.user_id,
+                "organization_id": point.organization_id,
             }
             for point in points
         ]
@@ -173,6 +172,11 @@ def get_leaderboard():
         except Exception as e:
             return jsonify({"message": str(e)}), 401  # Token is invalid or some error occurred
 
+    # Get organization_id from query parameters
+    organization_id = request.args.get('organization_id')
+    if not organization_id:
+        return jsonify({"error": "organization_id parameter is required"}), 400
+
     db = next(db_connect.get_db())
     try:
         leaderboard = (
@@ -183,6 +187,7 @@ def get_leaderboard():
                 func.coalesce(func.sum(Points.points), 0).label("total_points"),
             )
             .outerjoin(Points)
+            .filter(Points.organization_id == organization_id)  # Filter by organization
             .group_by(User.email, User.uuid, User.name)  # Group by email and UUID for uniqueness
             .order_by(
                 func.sum(Points.points).desc(), User.name.asc()
@@ -235,23 +240,30 @@ def upload_event_csv():
 @points_blueprint.route("/getUserPoints", methods=["GET"])
 @auth_required
 def get_user_points():
-    email = request.args.get('email')
+    discord_id = request.args.get('discord_id')
+    organization_id = request.args.get('organization_id')
     
-    if not email:
-        return jsonify({"error": "Email parameter is missing"}), 400
+    if not discord_id:
+        return jsonify({"error": "discord_id parameter is missing"}), 400
+    
+    if not organization_id:
+        return jsonify({"error": "organization_id parameter is missing"}), 400
 
     db = next(db_connect.get_db())
     try:
         # Check if the user exists
-        user = db.query(User).filter_by(email=email).first()
+        user = db.query(User).filter_by(discord_id=discord_id).first()
         if not user:
             return jsonify({"error": "User does not exist"}), 404  # Not Found status code
 
-        # Query all points earned by the user
-        points_records = db.query(Points).filter_by(user_email=user.email).all()
+        # Query all points earned by the user in the specific organization
+        points_records = db.query(Points).filter_by(
+            user_id=user.id, 
+            organization_id=organization_id
+        ).all()
         
         if not points_records:
-            return jsonify({"message": "No points earned by this user"}), 200
+            return jsonify({"message": "No points earned by this user in this organization"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -261,14 +273,53 @@ def get_user_points():
     return jsonify(
         [
             {
+                "id": record.id,
                 "points": record.points,
-                "event": record.event,
-                "timestamp": record.timestamp.strftime("%Y-%m-%d %H:%M:%S"),  # Format the timestamp
-                "awarded_by_officer": record.awarded_by_officer
+                "organization_id": record.organization_id,
+                "last_updated": record.last_updated.isoformat() if record.last_updated else None
             }
             for record in points_records
         ]
     ), 200
+
+
+@points_blueprint.route("/getUserTotalPoints", methods=["GET"])
+@auth_required
+def get_user_total_points():
+    discord_id = request.args.get('discord_id')
+    organization_id = request.args.get('organization_id')
+    
+    if not discord_id:
+        return jsonify({"error": "discord_id parameter is missing"}), 400
+    
+    if not organization_id:
+        return jsonify({"error": "organization_id parameter is missing"}), 400
+
+    db = next(db_connect.get_db())
+    try:
+        # Check if the user exists
+        user = db.query(User).filter_by(discord_id=discord_id).first()
+        if not user:
+            return jsonify({"error": "User does not exist"}), 404
+
+        # Calculate total points for the user in the specific organization
+        total_points = db.query(func.sum(Points.points)).filter_by(
+            user_id=user.id, 
+            organization_id=organization_id
+        ).scalar() or 0.0
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db.close()
+
+    return jsonify({
+        "user_id": user.id,
+        "discord_id": user.discord_id,
+        "username": user.username,
+        "organization_id": organization_id,
+        "total_points": total_points
+    }), 200
 
     
 @points_blueprint.route("/assignPoints", methods=["POST"])

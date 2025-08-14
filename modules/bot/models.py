@@ -1,4 +1,4 @@
-from modules.utils.db import Base
+from modules.utils.base import Base
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, JSON
 
 

@@ -11,8 +11,6 @@ from modules.calendar.clients import NotionCalendarClient
 from modules.calendar.utils import operation_span
 from modules.utils.db import DBConnect
 
-# Remove duplicate logger initialization
-# logger = logging.getLogger(__name__)
 
 class OCPService:
     """Service for Officer Contribution Points (OCP) management."""
@@ -38,203 +36,121 @@ class OCPService:
             logger.error("OCP service initialized with no database manager")
         else:
             logger.info("OCP service initialized with database manager")
-        
-    def sync_notion_to_ocp(self, database_id: str, transaction=None) -> Dict[str, Any]:
+    
+    def sync_notion_to_ocp(self, database_id: str, organization_id: int, transaction=None) -> Dict[str, Any]:
         """
-        Sync officers and contribution points from Notion events.
-        
-        Fetches events from the specified Notion database, extracts officer
-        assignments, and updates the OCP database accordingly.
-        
+        Sync officers and contribution points from Notion events for a specific organization.
         Args:
             database_id: Notion database ID to fetch events from
+            organization_id: Organization ID to scope the sync
             transaction: Optional Sentry transaction for performance monitoring
-            
         Returns:
             Dict with status and result information
         """
+        logger.info(f"[OCPService] sync_notion_to_ocp called for org_id={organization_id}, db_id={database_id}")
         current_transaction = transaction or start_transaction(op="sync", name="sync_notion_to_ocp")
-        
         with operation_span(current_transaction, op="sync", description="sync_notion_to_ocp", logger=logger) as span:
             try:
                 # Check if database is available
-                if self.db is None:
-                    logger.error("Cannot sync to OCP: No database manager available")
-                    return {"status": "error", "message": "No database manager available"}
+                if not database_id or not organization_id:
+                    logger.error(f"[OCPService] Missing Notion database ID or organization ID (db_id={database_id}, org_id={organization_id})")
+                    return {"status": "error", "message": "Missing Notion database ID or organization ID"}
                 
-                # Fetch events from Notion
-                notion_events = self.notion_client.fetch_events(database_id, parent_transaction=current_transaction)
+                logger.info(f"[OCPService] Fetching Notion events for org_id={organization_id}")
+                notion_events = self.notion_client.fetch_events(database_id)
+                logger.info(f"[OCPService] Fetched {len(notion_events) if notion_events else 0} events from Notion for org_id={organization_id}")
+                
                 if not notion_events:
-                    logger.warning("No events found in Notion database")
+                    logger.warning(f"[OCPService] No events found in Notion database {database_id}")
                     return {"status": "warning", "message": "No events found in Notion database"}
                 
-                span.set_data("fetched_events_count", len(notion_events))
-                logger.info(f"Fetched {len(notion_events)} events from Notion")
+                # Process each event and extract officers
+                total_officers_processed = 0
+                total_points_created = 0
+                officers_created = 0
                 
-                # Debug: Print raw Notion event data
-                for i, event in enumerate(notion_events[:6]):  # Show first 3 events as examples
-                    print(f"\n========= RAW NOTION EVENT #{i+1} =========")
-                    print(f"Event ID: {event.get('id')}")
-                    print(f"Event URL: {event.get('url')}")
-                    print("Properties:")
-                    for prop_name, prop_value in event.get('properties', {}).items():
-                        print(f"  {prop_name}: {type(prop_value).__name__}")
-                        # Print a sample of the property if it's not too complex
-                        if prop_name == "Name" and "title" in prop_value:
-                            title_text = " ".join([t.get("plain_text", "") for t in prop_value.get("title", [])])
-                            print(f"    Value: {title_text}")
-                        elif "people" in prop_value:
-                            people = prop_value.get("people", [])
-                            if people:
-                                print(f"    People count: {len(people)}")
-                                for i, person in enumerate(people):  # Show ALL people
-                                    print(f"      Person #{i+1}: {person.get('name', 'Unknown')}, Email: {person.get('email', 'Not provided')}")
-                                    # Also show any other data in the person object that might be useful
-                                    if "person" in person:
-                                        person_obj = person.get("person", {})
-                                        print(f"        Person Object Keys: {list(person_obj.keys())}")
-                                        if "name" in person_obj:
-                                            print(f"        Name from Person Object: {person_obj.get('name')}")
-                                        if "email" in person_obj:
-                                            print(f"        Email from Person Object: {person_obj.get('email')}")
-                    print("=========================================\n")
-                
-                # Also show how officer contributions are extracted
-                for i, event in enumerate(notion_events[:1]):  # Just for the first event
-                    officer_contributions = parse_notion_event_for_officers(event, debug=True)
-                    print(f"\n========= EXTRACTED OFFICER CONTRIBUTIONS FOR EVENT #{i+1} =========")
-                    print(f"Total contributions found: {len(officer_contributions)}")
-                    for j, contribution in enumerate(officer_contributions[:3]):  # Show first 3 contributions
-                        print(f"  Contribution #{j+1}:")
-                        print(f"    Officer Name: {contribution.get('name')}")
-                        print(f"    Officer Email: {contribution.get('email')}")
-                        print(f"    Role: {contribution.get('role')}")
-                        print(f"    Points: {contribution.get('points')}")
-                        print(f"    Event: {contribution.get('event')}")
-                        print(f"    Event Type: {contribution.get('event_type')}")
-                        print(f"    Department: {contribution.get('department')}")
-                        print(f"    Title: {contribution.get('title')}")
-                    print("=================================================================\n")
-                
-                # Process events, get officer contributions
-                total_points_records = 0
-                added_officers = set()
-                updated_points = 0
-                
-                # Get DB session
-                try:
-                    db_session = next(self.db.get_db())
-                except Exception as e:
-                    logger.error(f"Failed to get database session: {str(e)}")
-                    return {"status": "error", "message": f"Database session error: {str(e)}"}
-                
-                # Process each event
-                for event in notion_events:
-                    officer_contributions = parse_notion_event_for_officers(event)
+                for i, event in enumerate(notion_events):
+                    logger.info(f"[OCPService] Processing event {i+1}/{len(notion_events)}: {event.get('id', 'unknown')}")
                     
-                    if not officer_contributions:
-                        continue
+                    # Parse officers from this event
+                    officers_from_event = parse_notion_event_for_officers(event, debug=True)
+                    logger.info(f"[OCPService] Extracted {len(officers_from_event)} officers from event {i+1}")
+                    
+                    for j, officer_data in enumerate(officers_from_event):
+                        logger.info(f"[OCPService] Processing officer {j+1}/{len(officers_from_event)}: {officer_data.get('name', 'Unknown')}")
                         
-                    for contribution in officer_contributions:
-                        # First ensure the officer exists
-                        officer_name = contribution.get("name")
-                        officer_email = contribution.get("email")
-                        
-                        if not officer_name or officer_name == "Unknown":
-                            logger.warning(f"Skipping contribution with missing or Unknown officer name: {contribution}")
-                            continue
-                            
-                        # Find officer primarily by name, then by email if available
-                        officer = self.get_officer_by_name(db_session, officer_name)
-                        
-                        # If not found by name, try email
-                        if not officer and officer_email:
-                            officer = self.get_officer_by_email(db_session, officer_email)
-                        
-                        if not officer:
-                            # Extract department and title from Notion if available
-                            department = contribution.get("department", "Unknown")
-                            title = contribution.get("title", "Unknown")
-                            
-                            # Create new officer record with better defaults
-                            new_officer = Officer(
-                                name=officer_name,
-                                email=officer_email,
-                                title=title,
-                                department=department
-                            )
-                            try:
-                                officer = self.db.create_officer(db_session, new_officer)
-                                added_officers.add(officer.uuid)
-                                logger.info(f"Created new officer: {officer_name}, Email: {officer_email if officer_email else 'Not provided'}")
-                            except Exception as e:
-                                logger.error(f"Failed to create officer {officer_name}: {str(e)}")
-                                continue
-                        elif officer_email and not officer.email:
-                            # Update officer record with email if it's missing
-                            officer.email = officer_email
-                            db_session.commit()
-                            logger.info(f"Updated officer {officer_name} with email {officer_email}")
-                        
-                        # Now add the points record
-                        # Check if points for this event already exist for this officer
                         try:
+                            # Get or create officer in database
+                            db_session = next(self.db.get_db())
+                            
+                            # Check if officer already exists
+                            existing_officer = self.get_officer_by_name(db_session, officer_data['name'])
+                            if existing_officer:
+                                logger.info(f"[OCPService] Found existing officer: {existing_officer.name} (UUID: {existing_officer.uuid})")
+                                officer = existing_officer
+                            else:
+                                logger.info(f"[OCPService] Creating new officer: {officer_data['name']}")
+                                officer = Officer(
+                                    organization_id=organization_id,
+                                    email=officer_data.get('email'),
+                                    name=officer_data['name'],
+                                    title=officer_data.get('title', 'Unknown'),
+                                    department=officer_data.get('department', 'Unknown')
+                                )
+                                officer = self.db.create_officer(db_session, officer, organization_id)
+                                officers_created += 1
+                                logger.info(f"[OCPService] Created officer: {officer.name} (UUID: {officer.uuid})")
+                            
+                            # Create points record
+                            # Check if points record already exists for this officer, event, and role
                             existing_points = db_session.query(OfficerPoints).filter(
                                 OfficerPoints.officer_uuid == officer.uuid,
-                                OfficerPoints.notion_page_id == contribution.get("notion_page_id"),
-                                OfficerPoints.role == contribution.get("role")
+                                OfficerPoints.notion_page_id == officer_data.get('notion_page_id'),
+                                OfficerPoints.role == officer_data.get('role', 'Unknown'),
+                                OfficerPoints.organization_id == organization_id
                             ).first()
                             
                             if existing_points:
-                                # Update existing record
-                                existing_points.points = contribution.get("points")
-                                existing_points.event = contribution.get("event")
-                                existing_points.event_type = contribution.get("event_type", "Default")
-                                db_session.commit()
-                                updated_points += 1
-                            else:
-                                # Create new points record
-                                points_record = OfficerPoints(
-                                    points=contribution.get("points"),
-                                    event=contribution.get("event"),
-                                    role=contribution.get("role"),
-                                    event_type=contribution.get("event_type", "Default"),
-                                    timestamp=contribution.get("event_date") or datetime.utcnow(),
-                                    officer_uuid=officer.uuid,
-                                    notion_page_id=contribution.get("notion_page_id"),
-                                    event_metadata={"source": "notion_sync"}
-                                )
-                                self.db.create_officer_points(db_session, points_record)
-                                total_points_records += 1
+                                logger.info(f"[OCPService] Points record already exists for officer {officer.name} in event {officer_data.get('event', 'Unknown Event')} with role {officer_data.get('role', 'Unknown')}. Skipping creation.")
+                                total_officers_processed += 1
+                                db_session.close()
+                                continue
+                            
+                            points_record = OfficerPoints(
+                                organization_id=organization_id,
+                                points=officer_data.get('points', 1),
+                                event=officer_data.get('event', 'Unknown Event'),
+                                role=officer_data.get('role', 'Unknown'),
+                                event_type=officer_data.get('event_type', 'Default'),
+                                timestamp=officer_data.get('event_date', datetime.utcnow()),
+                                officer_uuid=officer.uuid,
+                                notion_page_id=officer_data.get('notion_page_id'),
+                                event_metadata={"source": "notion_sync"}
+                            )
+                            
+                            created_points = self.db.create_officer_points(db_session, points_record, organization_id)
+                            total_points_created += 1
+                            logger.info(f"[OCPService] Created points record: {created_points.id} for officer {officer.name}")
+                            
+                            total_officers_processed += 1
+                            db_session.close()
+                        
                         except Exception as e:
-                            logger.error(f"Error processing points for {officer_name}: {str(e)}")
-                            continue
+                            logger.error(f"[OCPService] Error processing officer {officer_data.get('name', 'Unknown')}: {str(e)}")
+                            if 'db_session' in locals():
+                                db_session.close()
                 
-                # Close the DB session
-                db_session.close()
-                
-                # Update span with results
-                span.set_data("results", {
-                    "total_points_records_added": total_points_records,
-                    "officers_added": len(added_officers),
-                    "points_records_updated": updated_points
-                })
-                
-                logger.info(f"Added {total_points_records} new points records, updated {updated_points} existing records")
-                logger.info(f"Added {len(added_officers)} new officers")
-                
+                logger.info(f"[OCPService] Sync completed for org {organization_id}: {total_officers_processed} officers processed, {officers_created} new officers created, {total_points_created} points records created")
                 return {
                     "status": "success", 
-                    "message": f"Sync completed. Added {total_points_records} new points records, updated {updated_points} existing records",
-                    "added_officers_count": len(added_officers),
-                    "added_points_count": total_points_records,
-                    "updated_points_count": updated_points
+                    "message": f"Synced OCP data for org {organization_id}: {total_officers_processed} officers, {total_points_created} points",
+                    "officers_processed": total_officers_processed,
+                    "officers_created": officers_created,
+                    "points_created": total_points_created
                 }
-                
             except Exception as e:
-                logger.error(f"Error syncing Notion to OCP: {str(e)}")
-                capture_exception(e)
-                return {"status": "error", "message": f"Error syncing Notion to OCP: {str(e)}"}
+                logger.error(f"[OCPService] Error syncing OCP for org {organization_id}: {e}", exc_info=True)
+                return {"status": "error", "message": str(e)}
     
     def get_officer_by_email(self, db_session, email):
         """Get an officer by email."""
@@ -359,10 +275,9 @@ class OCPService:
             capture_exception(e)
             return []
     
-    def add_officer_points(self, data: Dict) -> Dict[str, Any]:
+    def add_officer_points(self, data: Dict, organization_id=None) -> Dict[str, Any]:
         """
         Add custom contribution points for one or more officers.
-        
         Args:
             data: Dictionary containing:
                 - names: List of officer names (required) OR
@@ -373,14 +288,12 @@ class OCPService:
                 - role: Role (optional)
                 - event_type: Type of event (optional)
                 - timestamp: When it occurred (optional, defaults to now)
-                
+            organization_id: The organization to which the contribution belongs
         Returns:
             Dict with status and result information
         """
         try:
             db_session = next(self.db.get_db())
-            
-            # Handle both single name and multiple names
             officer_names = []
             if data.get("names") and isinstance(data["names"], list):
                 officer_names = data["names"]
@@ -394,7 +307,6 @@ class OCPService:
                 db_session.close()
                 return {"status": "error", "message": "Event name/description is required"}
             
-            # Process each officer
             created_records = []
             created_officers = []
             
@@ -402,46 +314,38 @@ class OCPService:
                 officer_name = officer_name.strip()
                 if not officer_name:
                     continue
-                    
-                # Get or create officer
-                officer = self.get_officer_by_name(db_session, officer_name)
                 
-                # If not found by name and email is provided, try email
+                # Get or create officer (org-aware)
+                officer = self.db.get_officer_by_name(db_session, officer_name, organization_id)
                 if not officer and data.get("email"):
-                    officer = self.get_officer_by_email(db_session, data["email"])
+                    officer = self.db.get_officer_by_email(db_session, data["email"], organization_id)
                 
                 if not officer:
-                    # Create new officer
                     officer = Officer(
-                        email=data.get("email") if len(officer_names) == 1 else None,  # Only set email for single officer
+                        organization_id=organization_id,
+                        email=data.get("email") if len(officer_names) == 1 else None,
                         name=officer_name,
                         title=data.get("title", "Unknown"),
                         department=data.get("department", "Unknown")
                     )
-                    officer = self.db.create_officer(db_session, officer)
+                    officer = self.db.create_officer(db_session, officer, organization_id)
                     created_officers.append(officer_name)
                     logger.info(f"Created new officer: {officer_name}")
                 
-                # Calculate points if role or event_type is provided
                 points = data.get("points", 1)
                 if not points and data.get("role"):
                     points = calculate_points_for_role(data["role"])
                 if not points and data.get("event_type"):
                     points = calculate_points_for_event_type(data["event_type"])
                 
-                # Parse timestamp if provided as string
                 timestamp = data.get("timestamp")
                 if timestamp:
                     if isinstance(timestamp, str):
                         try:
-                            # Parse ISO format timestamp from frontend
-                            # Handle common formats: 2025-06-08T00:00:00.000Z or 2025-06-08T00:00:00Z
-                            timestamp_str = timestamp.replace('Z', '')  # Remove Z suffix
+                            timestamp_str = timestamp.replace('Z', '')
                             if '.' in timestamp_str:
-                                # Format with milliseconds
                                 timestamp = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S.%f")
                             else:
-                                # Format without milliseconds
                                 timestamp = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
                         except ValueError as e:
                             logger.warning(f"Could not parse timestamp {timestamp}: {str(e)}, using current time")
@@ -449,8 +353,20 @@ class OCPService:
                 else:
                     timestamp = datetime.utcnow()
                 
-                # Create points record
+                # Check for duplicate
+                existing_points = db_session.query(OfficerPoints).filter(
+                    OfficerPoints.officer_uuid == officer.uuid,
+                    OfficerPoints.event == data["event"],
+                    OfficerPoints.role == data.get("role", "Custom"),
+                    OfficerPoints.organization_id == organization_id
+                ).first()
+                
+                if existing_points:
+                    logger.info(f"Points record already exists for officer {officer.name} in event {data['event']} with role {data.get('role', 'Custom')}. Skipping creation.")
+                    continue
+                
                 points_record = OfficerPoints(
+                    organization_id=organization_id,
                     points=points,
                     event=data["event"],
                     role=data.get("role", "Custom"),
@@ -461,12 +377,12 @@ class OCPService:
                     event_metadata={"source": "manual_entry"}
                 )
                 
-                record = self.db.create_officer_points(db_session, points_record)
-                created_records.append(record.id)
+                record = self.db.create_officer_points(db_session, points_record, organization_id)
+                if record:
+                    created_records.append(record.id)
             
             db_session.close()
             
-            # Prepare response message
             officer_count = len(officer_names)
             points_per_officer = data.get("points", 1)
             total_points = officer_count * points_per_officer
@@ -729,215 +645,3 @@ class OCPService:
             logger.error(f"Error getting all events: {str(e)}")
             capture_exception(e)
             return []
-    
-    def repair_unknown_officers(self) -> Dict[str, Any]:
-        """
-        Repair events with missing or unknown officers.
-        
-        This function will:
-        1. Find events with no officer UUID
-        2. Find events with officers named "Unknown"
-        3. Attempt to fix these issues by linking to the correct officers
-        4. Ignore department information issues
-        
-        Returns:
-            Dict with repair results
-        """
-        try:
-            db_session = next(self.db.get_db())
-            
-            # Find events with orphaned officers or unknown names
-            orphaned_events = []  # Events without a valid officer UUID
-            unknown_events = []   # Events with "Unknown" officer names
-            
-            events = db_session.query(OfficerPoints).all()
-            for event in events:
-                officer = db_session.query(Officer).filter(Officer.uuid == event.officer_uuid).first()
-                if not officer:
-                    # If officer UUID doesn't exist at all
-                    orphaned_events.append(event)
-                elif officer.name == "Unknown":
-                    # If officer exists but is marked as "Unknown"
-                    unknown_events.append((event, officer))
-            
-            # Try to repair orphaned events
-            repaired_orphans = 0
-            for event in orphaned_events:
-                # Look for clues in the event name
-                event_parts = event.event.split(" - ")
-                if len(event_parts) > 1:
-                    possible_officer_name = event_parts[0].strip()
-                    
-                    # Try to find a matching officer
-                    matched_officer = self.get_officer_by_name(db_session, possible_officer_name)
-                    if matched_officer:
-                        # Update the event with the correct officer
-                        event.officer_uuid = matched_officer.uuid
-                        repaired_orphans += 1
-                        logger.info(f"Repaired orphaned event {event.id} by linking to officer {matched_officer.name}")
-            
-            # Try to repair unknown officers
-            repaired_unknowns = 0
-            for event, officer in unknown_events:
-                # Check if there's another officer with a similar name but more info
-                if "Unknown" in officer.name:
-                    # Skip truly unknown officers
-                    continue
-                    
-                # Changed to focus on finding officers with valid names only, ignoring department
-                better_officer = db_session.query(Officer).filter(
-                    Officer.name.ilike(f"%{officer.name}%"),
-                    Officer.name != "Unknown"
-                ).first()
-                
-                if better_officer and better_officer.uuid != officer.uuid:
-                    # Update event to point to the better officer
-                    event.officer_uuid = better_officer.uuid
-                    repaired_unknowns += 1
-                    logger.info(f"Repaired event {event.id} by linking to better officer {better_officer.name}")
-                    
-                    # Optionally, we could remove the "Unknown" officer, but that might cause issues
-                    # Let's just log it for now
-                    logger.info(f"Consider removing officer {officer.uuid} with name {officer.name}")
-            
-            # Commit all changes
-            db_session.commit()
-            db_session.close()
-            
-            return {
-                "status": "success",
-                "message": f"Repair completed. Fixed {repaired_orphans} orphaned events and {repaired_unknowns} events with unknown officers.",
-                "repaired_orphans": repaired_orphans,
-                "repaired_unknowns": repaired_unknowns,
-                "remaining_orphans": len(orphaned_events) - repaired_orphans,
-                "remaining_unknowns": len(unknown_events) - repaired_unknowns
-            }
-        
-        except Exception as e:
-            logger.error(f"Error repairing unknown officers: {str(e)}")
-            capture_exception(e)
-            return {
-                "status": "error",
-                "message": f"Error during repair: {str(e)}"
-            }
-    
-    def diagnose_unknown_officers(self) -> Dict[str, Any]:
-        """
-        Diagnose the "Unknown" officer issue by identifying all events with missing or unknown officers.
-        
-        This function will focus on:
-        1. Finding events with no officer UUID (missing UUID)
-        2. Finding events with officers named "Unknown"
-        3. Ignoring issues about missing emails or department information
-        
-        Returns:
-            Dict with diagnostic information
-        """
-        try:
-            db_session = next(self.db.get_db())
-            
-            # Track issues by category
-            missing_uuid_events = []
-            unknown_name_officers = []
-            # We won't track unknown_dept_officers anymore as requested
-            
-            # Get all events
-            events = db_session.query(OfficerPoints).all()
-            
-            print("\n=========== DIAGNOSING UNKNOWN OFFICER ISSUES ===========")
-            print(f"Total events in database: {len(events)}")
-            
-            # Check each event's officer
-            for event in events:
-                officer = db_session.query(Officer).filter(Officer.uuid == event.officer_uuid).first()
-                if not officer:
-                    missing_uuid_events.append({
-                        "event_id": event.id,
-                        "event_name": event.event,
-                        "missing_uuid": event.officer_uuid,
-                        "timestamp": event.timestamp.isoformat() if event.timestamp else None
-                    })
-                elif officer.name == "Unknown":
-                    unknown_name_officers.append({
-                        "event_id": event.id,
-                        "event_name": event.event,
-                        "officer_id": officer.uuid,
-                        "officer_name": officer.name,
-                        # Still include officer_email in data output but we don't consider it an issue
-                        "officer_email": officer.email
-                    })
-                # Removed the check for unknown department
-            
-            # Print summary
-            print(f"\nIssues found:")
-            print(f"- Events with missing officer UUID: {len(missing_uuid_events)}")
-            print(f"- Events with 'Unknown' officer name: {len(unknown_name_officers)}")
-            # Removed line about unknown department issues
-            
-            # Print details for each category
-            if missing_uuid_events:
-                print("\n1. Events with missing officer UUID:")
-                for i, event in enumerate(missing_uuid_events[:10]):  # Show first 10
-                    print(f"  {i+1}. Event ID: {event['event_id']}")
-                    print(f"     Event Name: {event['event_name']}")
-                    print(f"     Missing UUID: {event['missing_uuid']}")
-                    print(f"     Timestamp: {event['timestamp']}")
-                if len(missing_uuid_events) > 10:
-                    print(f"  ... and {len(missing_uuid_events) - 10} more")
-            
-            if unknown_name_officers:
-                print("\n2. Events with 'Unknown' officer name:")
-                for i, event in enumerate(unknown_name_officers[:10]):
-                    print(f"  {i+1}. Event ID: {event['event_id']}")
-                    print(f"     Event Name: {event['event_name']}")
-                    print(f"     Officer ID: {event['officer_id']}")
-                    print(f"     Officer Email: {event['officer_email']}")
-                if len(unknown_name_officers) > 10:
-                    print(f"  ... and {len(unknown_name_officers) - 10} more")
-            
-            # Removed section for unknown department officers
-            
-            # Check for name patterns in events with missing officer UUID
-            name_patterns = {}
-            for event in missing_uuid_events:
-                event_name = event['event_name']
-                if " - " in event_name:
-                    possible_name = event_name.split(" - ")[0].strip()
-                    if possible_name not in name_patterns:
-                        name_patterns[possible_name] = 0
-                    name_patterns[possible_name] += 1
-            
-            # Print potential name patterns that could be officers
-            if name_patterns:
-                print("\nPotential officer names found in event titles:")
-                for name, count in sorted(name_patterns.items(), key=lambda x: x[1], reverse=True)[:10]:
-                    print(f"  '{name}' appears in {count} events")
-                
-                # Check if these names match existing officers
-                for name in list(name_patterns.keys())[:10]:
-                    officer = self.get_officer_by_name(db_session, name)
-                    if officer:
-                        print(f"  '{name}' matches existing officer: {officer.name} (UUID: {officer.uuid})")
-            
-            print("\n==========================================================")
-            
-            db_session.close()
-            
-            # Calculate total issues - now excluding unknown departments
-            total_issues = len(missing_uuid_events) + len(unknown_name_officers)
-            
-            return {
-                "status": "success",
-                "missing_uuid_count": len(missing_uuid_events),
-                "unknown_name_count": len(unknown_name_officers),
-                "unknown_dept_count": 0,  # We're ignoring department issues, so always 0
-                "total_issues": total_issues
-            }
-            
-        except Exception as e:
-            logger.error(f"Error diagnosing unknown officers: {str(e)}")
-            capture_exception(e)
-            return {
-                "status": "error",
-                "message": f"Error during diagnosis: {str(e)}"
-            }  

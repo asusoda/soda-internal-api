@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
-import Orb from '../components/ui/Orb';
-import { Menu, MenuItem, HoveredLink } from '../components/ui/navbar-menu';
-import StarBorder from '../components/ui/StarBorder'; // For potential future use, or if styling modal buttons
-import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes, FaCogs } from 'react-icons/fa'; // Added FaCogs and FaTimes
+import useOrgNavigation from '../hooks/useOrgNavigation';
+import { useAuth } from '../components/auth/AuthContext';
+import OrganizationNavbar from '../components/shared/OrganizationNavbar';
+import StarBorder from '../components/ui/StarBorder';
+import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes, FaCogs } from 'react-icons/fa';
 
 const LeaderboardPage = () => {
   useAuthToken();
-  const navigate = useNavigate();
+  const { currentOrg } = useAuth();
+  const { 
+    goToDashboard,
+    goToUsers, 
+    goToAddPoints,
+    goToOCP,
+    goToPanel,
+    goToJeopardy 
+  } = useOrgNavigation();
 
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeNavItem, setActiveNavItem] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -31,20 +38,20 @@ const LeaderboardPage = () => {
   };
 
   const handleConfirmedDelete = async () => {
-    if (pointToDelete && selectedUserEmail) { // Ensure selectedUserEmail is available
+    if (pointToDelete && selectedUserEmail) {
       setDeleteLoading(true);
       try {
         await apiClient.request({
           method: 'DELETE',
-          url: '/points/delete_points',
+          url: '/api/points/delete_points',
           data: {
             user_email: selectedUserEmail,
-            event: pointToDelete.event // Assuming pointToDelete is an object with an event property
+            event: pointToDelete.event
           }
         });
-        await viewUserDetails(selectedUserEmail); // Refresh after delete
-      setShowConfirmModal(false);
-      setPointToDelete(null);
+        await viewUserDetails(selectedUserEmail);
+        setShowConfirmModal(false);
+        setPointToDelete(null);
       } catch (error) {
         setModalError(error.response?.data?.error || 'Error deleting points');
       } finally {
@@ -53,245 +60,219 @@ const LeaderboardPage = () => {
     }
   };
 
-  const handleCancelDelete = () => {
-    setShowConfirmModal(false);
-    setPointToDelete(null);
-  };
-
-  const viewUserDetails = async (identifier) => {
-    setSelectedUserEmail(identifier); // Set email right away for delete context
+  const viewUserDetails = async (userEmail) => {
     setLoadingUser(true);
     setModalError('');
-    setShowModal(true);
     try {
-      const response = await apiClient.get(`/users/viewUser?user_identifier=${identifier}`);
+      const response = await apiClient.get(`/api/users/user?email=${encodeURIComponent(userEmail)}`);
       setSelectedUser(response.data);
+      setSelectedUserEmail(userEmail);
+      setShowModal(true);
     } catch (error) {
-      if (error.response && error.response.data.error) {
-        setModalError(error.response.data.error);
-      } else {
-        setModalError('An error occurred while fetching user details.');
-      }
+      setModalError(error.response?.data?.error || 'Failed to fetch user details');
     } finally {
       setLoadingUser(false);
     }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedUser(null);
-    // selectedUserEmail is kept if needed for other operations or cleared if not
+  const fetchLeaderboard = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/api/public/leaderboard');
+      setLeaderboardData(response.data);
+    } catch (error) {
+      setError('Failed to fetch leaderboard data');
+      console.error('Error fetching leaderboard:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const fetchLeaderboard = async () => {
-      setLoading(true);
-      try {
-        const response = await apiClient.get('/points/leaderboard');
-        setLeaderboardData(response.data);
-      } catch (error) {
-        setError(error.response?.data?.error || 'Error fetching leaderboard data.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchLeaderboard();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    navigate('/');
-  };
-
-  const navItems = [
-    { name: "Dashboard", link: "/home", icon: <FaTachometerAlt className="h-4 w-4 md:mr-2" /> },
-    { name: "User Management", link: "/users", icon: <FaUsers className="h-4 w-4 md:mr-2" /> },
-    { name: "Leaderboard", link: "/leaderboard", icon: <FaClipboardList className="h-4 w-4 md:mr-2" /> },
-    { name: "OCP System", link: "/ocp", icon: <FaCogs className="h-4 w-4 md:mr-2" /> },
-  ];
-
-  if (loading && !leaderboardData.length) { // Show initial loading state
-    return (
-      <div className="relative min-h-screen bg-soda-black text-soda-white flex items-center justify-center">
-        <div className="fixed inset-0 z-0"><Orb hue={300} forceHoverState={true} /></div>
-        <p className="text-xl">Loading Leaderboard...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative min-h-screen bg-soda-black text-soda-white overflow-x-hidden pt-20">
-      <div className="fixed inset-0 z-0">
-        <Orb hue={300} forceHoverState={true} hoverIntensity={0.05} /> {/* Unique hue for Leaderboard */}
-        <div className="absolute inset-0 bg-soda-black/60 backdrop-blur-lg z-1"></div>
-      </div>
-
-      <Menu setActive={setActiveNavItem}>
-        {navItems.map((item) => (
-          <MenuItem setActive={setActiveNavItem} active={activeNavItem} item={item.name} key={item.name}>
-            <HoveredLink href={item.link}>
-              <div className="flex items-center">
-                {item.icon}
-                <span className="hidden md:inline">{item.name}</span>
-              </div>
-            </HoveredLink>
-          </MenuItem>
-        ))}
-        <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Account">
-          <div className="flex flex-col space-y-2 text-sm p-2">
-            <HoveredLink href="#" onClick={handleLogout}>
-              <div className="flex items-center">
-                <FaSignOutAlt className="h-4 w-4 mr-2" />
-                Logout
-              </div>
-            </HoveredLink>
-          </div>
-        </MenuItem>
-      </Menu>
-
-      <div className="relative z-20 container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-10 md:mb-12 text-soda-white text-center tracking-tight">
-          Leaderboard
-        </h1>
-
-        {error && <p className="text-center text-red-400 mb-6 text-lg">{error}</p>}
-
-        <div className="bg-soda-gray/70 backdrop-blur-xl p-4 sm:p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-5xl mx-auto">
-          {leaderboardData.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-auto text-left">
-                <thead className="border-b border-soda-white/20">
-                  <tr>
-                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Rank</th>
-                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Name</th>
-                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider">Identifier</th>
-                    <th className="px-4 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-soda-white/80 tracking-wider text-right">Points</th>
-              </tr>
-            </thead>
-                <tbody className="divide-y divide-soda-white/10">
-              {leaderboardData.map((user, index) => (
-                    <tr key={user.identifier || index} className="hover:bg-soda-black/20 transition-colors duration-150">
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/90 font-medium">{index + 1}</td>
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
-                    <button
-                          className="text-soda-blue hover:text-soda-red transition-colors duration-150 font-medium"
-                      onClick={() => viewUserDetails(user.identifier)}
-                    >
-                          {user.name}
-                    </button>
-                  </td>
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white/70">{user.identifier}</td>
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-soda-white text-right font-semibold">{user.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-            </div>
-          ) : (
-            !loading && <p className="text-center text-soda-white/70 py-8">No leaderboard data available yet.</p>
-          )}
+    <OrganizationNavbar>
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
+          <p className="text-gray-400">View points rankings and user statistics</p>
         </div>
 
-        {/* Modal for viewing user details */}
-        {showModal && (
-          <div className="fixed inset-0 bg-soda-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out">
-            <div className="bg-soda-gray/90 backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-3xl mx-auto max-h-[90vh] flex flex-col overflow-hidden border border-soda-white/10">
-              <div className="p-5 sm:p-6 border-b border-soda-white/10 flex justify-between items-center">
-                <h2 className="text-xl sm:text-2xl font-semibold text-soda-white">{selectedUser?.name || 'User Details'}</h2>
-                <button onClick={closeModal} className="text-soda-white/70 hover:text-soda-white transition-colors">
-                  <FaTimes className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="flex-1 h-0 overflow-y-auto p-5 sm:p-6 space-y-4">
-                {loadingUser ? (
-                  <div className="text-soda-white/80 text-center py-10">Loading user details...</div>
-                ) : modalError ? (
-                  <div className="text-red-400 text-center py-10">{modalError}</div>
-                ) : selectedUser && (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                      <p><strong className="text-soda-white/70">UUID:</strong> {selectedUser.uuid}</p>
-                      <p><strong className="text-soda-white/70">Email:</strong> {selectedUserEmail}</p>
-                      <p><strong className="text-soda-white/70">Academic Standing:</strong> {selectedUser.academic_standing}</p>
-                      <p><strong className="text-soda-white/70">Major:</strong> {selectedUser.major}</p>
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-semibold text-soda-white pt-4 mt-4 border-t border-soda-white/10">Points History</h3>
-                    {selectedUser.points_earned && selectedUser.points_earned.length > 0 ? (
-                      <div className="overflow-x-auto -mx-5 sm:-mx-6 rounded-b-xl">
-                      <table className="min-w-full table-auto">
-                          <thead className="bg-soda-black/30">
-                            <tr>
-                              <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left">Event</th>
-                              <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left">Points</th>
-                              <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left hidden md:table-cell">Awarded By</th>
-                              <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-left hidden lg:table-cell">Date</th>
-                              <th className="px-4 py-2 sm:px-5 text-xs font-medium text-soda-white/70 uppercase tracking-wider text-center">Action</th>
-                          </tr>
-                        </thead>
-                          <tbody className="divide-y divide-soda-white/10">
-                            {selectedUser.points_earned.map((point) => (
-                              <tr key={point.event + point.timestamp} className="hover:bg-soda-black/20 transition-colors">
-                                <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/90 text-sm">{point.event}</td>
-                                <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/90 text-sm">{point.points}</td>
-                                <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/80 text-sm hidden md:table-cell">{point.awarded_by_officer}</td>
-                                <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-soda-white/80 text-sm hidden lg:table-cell">{new Date(point.timestamp).toLocaleDateString()}</td>
-                                <td className="px-4 py-3 sm:px-5 whitespace-nowrap text-center">
-                                <button
-                                    onClick={() => handleDeleteClick(point)} // Pass the whole point object
-                                  disabled={deleteLoading}
-                                    className="text-red-500 hover:text-red-400 disabled:opacity-50 transition-colors p-1 rounded-md"
-                                    title="Delete Points for this Event"
-                                >
-                                    <FaTrashAlt className="h-4 w-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    ) : (
-                      <p className="text-soda-white/70 text-sm text-center py-5">No points history found for this user.</p>
-                    )}
-                  </>
-                )}
-              </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-400">Loading leaderboard...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-400">{error}</p>
+          </div>
+        ) : (
+          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Rank</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">User</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Email</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Points</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardData.map((user, index) => (
+                    <tr key={user.email} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center">
+                          <span className={`text-lg font-bold ${
+                            index === 0 ? 'text-yellow-400' : 
+                            index === 1 ? 'text-gray-300' : 
+                            index === 2 ? 'text-amber-600' : 'text-gray-400'
+                          }`}>
+                            #{index + 1}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <div className="ml-3">
+                            <div className="text-white font-medium">{user.name || 'Unknown User'}</div>
+                            <div className="text-sm text-gray-400">{user.asu_id || 'No ASU ID'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-gray-300">{user.email}</td>
+                      <td className="py-4 px-4">
+                        <span className="text-lg font-bold text-green-400">{user.total_points || 0}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          onClick={() => viewUserDetails(user.email)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {showConfirmModal && (
-          <div className="fixed inset-0 bg-soda-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-soda-gray/90 backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-md mx-auto p-6 border border-soda-white/10">
-              <h3 className="text-xl font-semibold mb-4 text-soda-white">Confirm Deletion</h3>
-              <p className="text-soda-white/80 mb-6">
-                Are you sure you want to delete points for the event "{pointToDelete?.event}"? This action cannot be undone.
-              </p>
-              <div className="flex justify-end space-x-3">
+        {/* User Details Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">User Details</h2>
                 <button
-                  onClick={handleCancelDelete}
-                  className="px-4 py-2 bg-soda-black/50 text-soda-white/80 rounded-md hover:bg-soda-black/70 transition-colors border border-soda-white/20"
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <FaTimes size={24} />
+                </button>
+              </div>
+
+              {loadingUser ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading user details...</p>
+                </div>
+              ) : modalError ? (
+                <div className="text-red-400 text-center py-4">{modalError}</div>
+              ) : selectedUser ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                      <p className="text-white">{selectedUser.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                      <p className="text-white">{selectedUser.email}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">ASU ID</label>
+                      <p className="text-white">{selectedUser.asu_id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Major</label>
+                      <p className="text-white">{selectedUser.major || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Points History</label>
+                    <div className="space-y-2">
+                      {selectedUser.points && selectedUser.points.length > 0 ? (
+                        selectedUser.points.map((point, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                            <div>
+                              <div className="text-white font-medium">{point.event}</div>
+                              <div className="text-sm text-gray-400">{point.date}</div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-green-400 font-bold">+{point.points}</span>
+                              <button
+                                onClick={() => handleDeleteClick(point)}
+                                className="text-red-400 hover:text-red-300"
+                                title="Delete this point entry"
+                              >
+                                <FaTrashAlt size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-400 text-center py-4">No points history available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Modal */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-bold text-white mb-4">Confirm Deletion</h3>
+              <p className="text-gray-300 mb-6">
+                Are you sure you want to delete the points for "{pointToDelete?.event}"?
+                This action cannot be undone.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors"
                 >
                   Cancel
                 </button>
-                <StarBorder
+                <button
                   onClick={handleConfirmedDelete}
                   disabled={deleteLoading}
-                  color="#FF3B30" // soda-red for delete confirmation
-                  speed="4s"
-                  className="shrink-0"
-                  as="button" // Ensure it's a button type if not default
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white rounded-md transition-colors"
                 >
                   {deleteLoading ? 'Deleting...' : 'Delete'}
-                </StarBorder>
+                </button>
               </div>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </OrganizationNavbar>
   );
 };
 

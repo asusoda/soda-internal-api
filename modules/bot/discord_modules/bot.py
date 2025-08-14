@@ -2,19 +2,10 @@ import discord
 from discord.ext import commands
 import inspect
 import asyncio
-import threading
+import nest_asyncio
 from modules.bot.discord_modules.cogs.HelperCog import HelperCog
 from modules.bot.discord_modules.cogs.GameCog import GameCog
 from modules.bot.discord_modules.cogs.jeopardy.Jeopardy import JeopardyGame
-
-
-import discord
-import threading
-import asyncio
-import nest_asyncio
-import inspect
-from discord.ext import commands
-
 
 class BotFork(commands.Bot):
     """
@@ -36,7 +27,6 @@ class BotFork(commands.Bot):
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
         """
-        self.setup = False
         self.active_game = None
         super().__init__(*args, **kwargs, guild_ids=[])
         # super().add_cog(HelperCog(self))
@@ -62,16 +52,18 @@ class BotFork(commands.Bot):
     
 
     
-    def run(self):
+    def run(self, token=None):
         """
-        Starts the bot. If the bot is already set up, changes the bot's presence to online.
+        Starts the bot with the provided token.
         """
         print("Running bot")
-        if not self.setup:
-            self.setup = True
-            threading.Thread(target=super().run, args=(self.token,)).start()
-        else:
-            asyncio.run_coroutine_threadsafe(self.change_presence(status=discord.Status.online))
+        if token:
+            self.token = token
+        if not self.token:
+            raise ValueError("Bot token is required")
+        
+        # Use the parent class run method directly
+        super().run(self.token)
 
     # py-cord handles command synchronization automatically
 
@@ -112,26 +104,106 @@ class BotFork(commands.Bot):
         """
         return super().guilds
 
-    def check_officer(self, user_id):
+    def check_officer(self, user_id, superadmin_user_id) -> list[int]:
         """
-        Checks if a user has the 'Officer' role.
+        Checks if a user has the 'Officer' role in any organization.
+        Returns a list of guild IDs where the user has the officer role.
         """
-        guild = super().get_guild(762811961238618122)
-        print ("########################")
-        print(guild)
-        print ("########################")
-        officer_role = guild.get_role(762811961238618123)
-        print ("************************")
-        print(officer_role)
-        print ("")
-        officers = [
-            member.id for member in guild.members if officer_role in member.roles
-        ]
-        print(officers)
-        if int(user_id) in officers:
-            return True
-        return False
-
+        from shared import db_connect
+        from modules.organizations.models import Organization
+        
+        print(f"🔍 [DEBUG] check_officer called for user_id: {user_id}, superadmin_user_id: {superadmin_user_id}")
+        guild_ids_with_officer_role = []
+        
+        try:
+            # Check if the user is a superadmin first (with proper type conversion)
+            if str(user_id) == str(superadmin_user_id):
+                print(f"👑 [DEBUG] User is superadmin, returning all guild IDs")
+                all_guild_ids = [guild.id for guild in self.get_guilds()]
+                print(f"�� [DEBUG] Superadmin guild IDs: {all_guild_ids}")
+                return all_guild_ids
+            
+            # Get database connection
+            print(f"📊 [DEBUG] Getting database connection...")
+            db = next(db_connect.get_db())
+            print(f"✅ [DEBUG] Database connection established")
+            
+            # Get all organizations from the database
+            print(f"🏢 [DEBUG] Querying active organizations...")
+            organizations = db.query(Organization).filter_by(is_active=True).all()
+            print(f"�� [DEBUG] Found {len(organizations)} active organizations")
+            
+            for i, org in enumerate(organizations):
+                print(f"\n�� [DEBUG] Processing organization {i+1}/{len(organizations)}: {org.name}")
+                print(f"   📊 [DEBUG] Organization details:")
+                print(f"      - Guild ID: {org.guild_id}")
+                print(f"      - Officer Role ID: {org.officer_role_id}")
+                print(f"      - Is Active: {org.is_active}")
+                
+                # Skip organizations without officer role configured
+                if not org.officer_role_id:
+                    print(f"   ⚠️  [DEBUG] Skipping {org.name} - no officer role configured")
+                    continue
+                
+                try:
+                    # Get the guild
+                    print(f"   🏛️  [DEBUG] Getting guild with ID: {org.guild_id}")
+                    guild = super().get_guild(int(org.guild_id))
+                    if not guild:
+                        print(f"   ❌ [DEBUG] Guild not found for ID: {org.guild_id}")
+                        continue
+                    print(f"   ✅ [DEBUG] Found guild: {guild.name}")
+                    
+                    # Get the officer role
+                    print(f"   👑 [DEBUG] Getting officer role with ID: {org.officer_role_id}")
+                    officer_role = guild.get_role(int(org.officer_role_id))
+                    if not officer_role:
+                        print(f"   ❌ [DEBUG] Officer role not found for ID: {org.officer_role_id}")
+                        continue
+                    print(f"   ✅ [DEBUG] Found officer role: {officer_role.name}")
+                    
+                    # Check if the user has the officer role
+                    print(f"   👤 [DEBUG] Getting member with user_id: {user_id}")
+                    member = guild.get_member(int(user_id))
+                    if not member:
+                        print(f"   ❌ [DEBUG] Member not found in guild for user_id: {user_id}")
+                        continue
+                    print(f"   ✅ [DEBUG] Found member: {member.display_name}")
+                    
+                    # Check if user has the officer role
+                    has_officer_role = officer_role in member.roles
+                    print(f"   🔍 [DEBUG] Checking if member has officer role: {has_officer_role}")
+                    
+                    if has_officer_role:
+                        print(f"   🎉 [DEBUG] User has officer role! Adding guild_id: {org.guild_id}")
+                        guild_ids_with_officer_role.append(org.guild_id)
+                    else:
+                        print(f"   ❌ [DEBUG] User does not have officer role")
+                        # Debug: show all roles the user has
+                        user_roles = [role.name for role in member.roles]
+                        print(f"   📋 [DEBUG] User's roles: {user_roles}")
+                        
+                except (ValueError, AttributeError) as e:
+                    # Skip if guild_id or role_id is invalid
+                    print(f"   ❌ [DEBUG] Error checking organization {org.name}: {e}")
+                    print(f"   �� [DEBUG] Error type: {type(e).__name__}")
+                    continue
+                    
+        except Exception as e:
+            print(f"❌ [DEBUG] Error in check_officer: {e}")
+            print(f"�� [DEBUG] Error type: {type(e).__name__}")
+            import traceback
+            print(f"�� [DEBUG] Full traceback:")
+            traceback.print_exc()
+        finally:
+            if 'db' in locals():
+                print(f"🔒 [DEBUG] Closing database connection...")
+                db.close()
+                print(f"✅ [DEBUG] Database connection closed")
+        
+        print(f"🎯 [DEBUG] Final result - Guild IDs with officer role: {guild_ids_with_officer_role}")
+        return guild_ids_with_officer_role
+    
     def get_name(self, user_id):
         guild = super().get_guild(762811961238618122)
         member = guild.get_member(int(user_id))
@@ -142,6 +214,20 @@ class BotFork(commands.Bot):
                 return member.name
         else:
             return None
+    
+    def get_guild_roles(self, guild_id : int):
+        guild = super().get_guild(guild_id)
+        return guild.roles
+
+    def check_role(self, guild_id : int, role_id : int, user_id : int):
+        guild = super().get_guild(guild_id)
+        member = guild.get_member(user_id)
+        return role_id in [role.id for role in member.roles]
+    
+    def check_user_officer_status(self, user_id : int, guild_id : int, role_id : int):
+        guild = super().get_guild(guild_id)
+        member = guild.get_member(user_id)
+        return role_id in [role.id for role in member.roles]
 
     # async def setup_game(self):
     #     """

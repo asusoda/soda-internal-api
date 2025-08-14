@@ -3,6 +3,7 @@ from flask_cors import CORS
 import discord
 import os
 from modules.utils.db import DBConnect
+# StoreConnector is now integrated into the centralized database
 from notion_client import Client
 import asyncio
 from modules.utils.config import Config
@@ -10,10 +11,12 @@ from modules.utils.config import Config
 import logging
 # Import the logger from our dedicated logging module
 from modules.utils.logging_config import logger, get_logger
-from modules.utils.db import DBConnect, Base
+from modules.utils.db import DBConnect
+from modules.utils.base import Base
 from modules.utils.TokenManager import TokenManager
 import sentry_sdk # Added for Sentry
 from sentry_sdk.integrations.flask import FlaskIntegration # Added for Sentry
+from modules.organizations.models import Organization, OrganizationConfig
 
 # Import custom BotFork class
 from modules.bot.discord_modules.bot import BotFork
@@ -24,7 +27,12 @@ app = Flask("SoDA internal API",
     template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "web/build"),  # Path to built frontend files
 )
 CORS(app, 
-     resources={r"/*": {"origins": "*"}},
+     resources={r"/*": {
+         "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Organization-ID", "X-Organization-Prefix"],
+         "supports_credentials": True
+     }},
 )
 
 # Initialize configuration
@@ -49,16 +57,40 @@ if config.SENTRY_DSN:
 else:
     logger.warning("SENTRY_DSN not found in environment. Sentry not initialized.")
 
-# Initialize database connection (consolidated for all modules)
-try:
-    db_connect = DBConnect("sqlite:///./data/user.db")
-    logger.info("Database connection initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize database connection: {str(e)}")
-    logger.warning("Database functionality will be limited.")
-    db_connect = None
+# Initialize database connections
+db_connect = DBConnect("sqlite:///./data/user.db")
 
+# Intialize TokenManager
 tokenManger = TokenManager()
+
+# Initialize database connection
+db_connect = DBConnect()
+
+# Periodic cleanup of expired refresh tokens
+def cleanup_expired_tokens():
+    """Clean up expired refresh tokens periodically"""
+    try:
+        tokenManger.cleanup_expired_refresh_tokens()
+        logger.info("Cleaned up expired refresh tokens")
+    except Exception as e:
+        logger.error(f"Error cleaning up expired tokens: {e}")
+
+# Schedule cleanup every hour
+import threading
+import time
+
+def run_cleanup_scheduler():
+    """Run the cleanup scheduler in a separate thread"""
+    while True:
+        cleanup_expired_tokens()
+        time.sleep(3600)  # Run every hour
+
+# Start cleanup scheduler in background thread
+cleanup_thread = threading.Thread(target=run_cleanup_scheduler, daemon=True)
+cleanup_thread.start()
+
+# Ensure all tables are created after all models are imported
+Base.metadata.create_all(bind=db_connect.engine)
 
 def create_summarizer_bot(loop: asyncio.AbstractEventLoop) -> discord.Bot:
     """Create and configure the summarizer bot instance with a specific event loop."""
@@ -101,7 +133,4 @@ notion = Client(auth=config.NOTION_API_KEY)
 
 # Initialize both bot instances
 summarizer_bot = create_summarizer_bot(asyncio.get_event_loop())
-auth_bot = create_auth_bot(asyncio.get_event_loop())
-
-# Note: The global 'bot' variable that was previously an alias for auth_bot
-# is removed. API endpoints will need to access the auth_bot via Flask's app context.
+bot = create_auth_bot(asyncio.get_event_loop())

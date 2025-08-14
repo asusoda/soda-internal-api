@@ -19,71 +19,60 @@ class NotionOCPSyncService:
         
     def sync_notion_to_ocp(self, transaction=None) -> Dict[str, Any]:
         """
-        Orchestrates the sync process from Notion to OCP database.
-        
-        Args:
-            transaction: Optional existing Sentry transaction.
-            
-        Returns:
-            A dictionary containing the status and results of the sync.
+        Orchestrates the sync process from Notion to OCP database for all organizations with OCP sync enabled.
+        Returns a summary of results per org.
         """
         op_name = "sync_notion_to_ocp"
-        # Start a new transaction if one isn't provided
         own_transaction = transaction is None
         if own_transaction:
             transaction = start_transaction(op="sync", name=op_name)
-            
-        result = {
-            "status": "success",
-            "message": "",
-            "details": {}
-        }
-        
+        result = {"status": "success", "message": "", "details": {}}
         try:
-            # Check if Notion database ID is configured
-            if not config.NOTION_DATABASE_ID:
-                self.logger.error(f"{op_name}: Required configuration NOTION_DATABASE_ID is missing")
-                result["status"] = "error"
-                result["message"] = "Notion database ID not configured"
-                return result
-                
-            # Perform the sync using the OCPService
-            with operation_span(transaction, op="sync", description="perform_ocp_sync", logger=self.logger) as span:
-                self.logger.info(f"Starting {op_name} with database ID: {config.NOTION_DATABASE_ID}")
-                
-                sync_result = self.ocp_service.sync_notion_to_ocp(config.NOTION_DATABASE_ID, transaction)
-                
-                # Update the result with the service response
-                result.update(sync_result)
-                
-                # Add more detailed information for logging
-                if sync_result.get("status") == "success":
-                    self.logger.info(f"{op_name} completed successfully: {sync_result.get('message')}")
-                    span.set_data("sync_success", True)
-                elif sync_result.get("status") == "warning":
-                    self.logger.warning(f"{op_name} completed with warning: {sync_result.get('message')}")
-                    span.set_data("sync_success", "partial")
-                    if result["status"] == "success":
-                        result["status"] = "warning"
-                else:
-                    self.logger.error(f"{op_name} failed: {sync_result.get('message')}")
-                    span.set_data("sync_success", False)
-                    span.set_status("internal_error")
-            
-            # Only finish the transaction if we created it
-            if own_transaction and transaction:
-                transaction.finish()
+            from modules.organizations.models import Organization
+            from shared import db_connect
+            self.logger.info(f"[NotionOCPSyncService] Starting multi-org OCP sync...")
+            db = next(db_connect.get_db())
+            self.logger.info(f"[NotionOCPSyncService] Querying organizations with OCP sync enabled...")
+            organizations = db.query(Organization).filter(
+                Organization.is_active == True,
+                Organization.notion_database_id != None,
+                Organization.notion_database_id != "",
+                Organization.ocp_sync_enabled == True
+            ).all()
+            self.logger.info(f"[NotionOCPSyncService] Found {len(organizations)} organizations with OCP sync enabled")
+            for org in organizations:
+                self.logger.info(f"[NotionOCPSyncService] Organization: {org.name} (ID: {org.id}, DB: {org.notion_database_id})")
+            summary = []
+            for org in organizations:
+                self.logger.info(f"[NotionOCPSyncService] Starting OCP sync for organization: {org.name} (ID: {org.id})")
+                try:
+                    self.logger.info(f"[NotionOCPSyncService] Calling ocp_service.sync_notion_to_ocp for {org.name}")
+                    sync_result = self.ocp_service.sync_notion_to_ocp(org.notion_database_id, org.id, transaction)
+                    self.logger.info(f"[NotionOCPSyncService] OCP sync result for {org.name} (ID: {org.id}): {sync_result}")
+                except Exception as e:
+                    self.logger.error(f"[NotionOCPSyncService] Exception during OCP sync for {org.name} (ID: {org.id}): {e}", exc_info=True)
+                    sync_result = {"status": "error", "message": str(e)}
+                summary.append({
+                    "organization_id": org.id,
+                    "organization_name": org.name,
+                    "status": sync_result.get("status"),
+                    "message": sync_result.get("message")
+                })
+            result["details"] = summary
+            self.logger.info(f"[NotionOCPSyncService] OCP sync summary: {summary}")
+            if any(r["status"] != "success" for r in summary):
+                result["status"] = "warning"
+                result["message"] = "Some organizations failed to sync."
+                self.logger.warning(f"[NotionOCPSyncService] Some organizations failed to sync: {[r for r in summary if r['status'] != 'success']}")
+            else:
+                result["message"] = "All organizations synced successfully."
+                self.logger.info(f"[NotionOCPSyncService] All organizations synced successfully")
             return result
-            
         except Exception as e:
-            capture_exception(e)
-            self.logger.exception(f"Critical error during {op_name}: {e}")
+            self.logger.error(f"[NotionOCPSyncService] Exception in sync_notion_to_ocp: {e}", exc_info=True)
             result["status"] = "error"
-            result["message"] = f"An unexpected error occurred during sync: {str(e)}"
-            
-            if transaction:
-                transaction.set_status("internal_error")
-                # Only finish the transaction if we created it
-                if own_transaction:
-                    transaction.finish(exception=e)
+            result["message"] = str(e)
             return result 
+        finally:
+            if own_transaction and transaction:
+                transaction.finish() 
