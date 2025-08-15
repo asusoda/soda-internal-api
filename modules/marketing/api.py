@@ -1,4 +1,4 @@
-from flask import render_template, request, jsonify, Blueprint
+from flask import render_template, request, jsonify, Blueprint, current_app
 import os
 import threading
 import time
@@ -13,10 +13,6 @@ from modules.marketing.claude import generate_content, generate_grapes_code
 from modules.marketing.editable_link import get_server_url
 from modules.marketing.message import send_officer_notification
 from shared import logger, config
-from modules.marketing.database import (
-    get_all_events, get_event_by_id, save_event, mark_event_completed,
-    get_all_completed_events
-)
 from modules.marketing.selenium import post_to_social_media
 
 # ==================================================================================================
@@ -39,8 +35,13 @@ editor_content = {
     'css': '.default{padding:15px;background-color:#f0f0f0;text-align:center;}'
 }
 
+# Helper function to get marketing service
+def get_marketing_service():
+    """Get the marketing service from the Flask app context"""
+    return current_app.marketing_service
+
 # Global configuration
-config = {
+marketing_config = {
     'api_url': config.TNAY_API_URL,
     'open_router_claude_api_key': config.OPEN_ROUTER_CLAUDE_API_KEY,
     'officer_webhook_url': config.DISCORD_OFFICER_WEBHOOK_URL,
@@ -58,8 +59,9 @@ config = {
 @marketing_blueprint.route('/view/<event_id>')
 def view_event(event_id):
     """Render the view-only page showing a specific event design"""
-    # Find the event in our database
-    event = get_event_by_id(event_id)
+    # Find the event in our database using the service
+    marketing_service = get_marketing_service()
+    event = marketing_service.get_event_by_id(event_id)
     
     if not event:
         return "Event not found", 404
@@ -75,8 +77,9 @@ def load_content():
     """API endpoint to load the current editor content"""
     # Check if we have a current event being edited
     if current_event_id:
-        # Find the event in our database
-        event = get_event_by_id(current_event_id)
+        # Find the event in our database using the service
+        marketing_service = get_marketing_service()
+        event = marketing_service.get_event_by_id(current_event_id)
         if event:
             return jsonify(event['grapes_code'])
     
@@ -93,82 +96,93 @@ def update_content():
         'css': data.get('css', '')
     }
     
-    # If editing a specific event, save it to the database
+    # If editing a specific event, save it to the database using the service
     if current_event_id:
-        event = get_event_by_id(current_event_id)
+        marketing_service = get_marketing_service()
+        event = marketing_service.get_event_by_id(current_event_id)
         if event:
-            event['grapes_code'] = editor_content
-            save_event(event)
-            
-    return jsonify({"status": "success"})
+            # Update the event with new grapes_code
+            update_data = {
+                'event_id': current_event_id,
+                'grapes_code': editor_content
+            }
+            marketing_service.save_event(update_data)
+    
+    return jsonify({'status': 'success'})
 
 @marketing_blueprint.route('/status', methods=['GET'])
 def get_status():
     """Get monitoring status"""
     return jsonify({
-        "monitoring_active": config['monitoring_active'],
-        "check_interval": config['check_interval'],
-        "api_url_configured": bool(config['api_url']),
-        "officer_webhook_configured": bool(config['officer_webhook_url']),
-        "post_webhook_configured": bool(config['post_webhook_url']),
-        "api_key_configured": bool(config['open_router_claude_api_key'])
+        "monitoring_active": marketing_config['monitoring_active'],
+        "check_interval": marketing_config['check_interval'],
+        "api_url_configured": bool(marketing_config['api_url']),
+        "officer_webhook_configured": bool(marketing_config['officer_webhook_url']),
+        "post_webhook_configured": bool(marketing_config['post_webhook_url']),
+        "api_key_configured": bool(marketing_config['open_router_claude_api_key'])
     })
 
 @marketing_blueprint.route('/toggle-monitoring', methods=['POST'])
 def toggle_monitoring():
     """Toggle event monitoring on/off"""
-    config['monitoring_active'] = not config['monitoring_active']
+    marketing_config['monitoring_active'] = not marketing_config['monitoring_active']
     return jsonify({
         "status": "success", 
-        "monitoring_active": config['monitoring_active']
+        "monitoring_active": marketing_config['monitoring_active']
     })
 
 @marketing_blueprint.route('/')
 def dashboard():
     """Admin dashboard showing all managed events"""
-    # Get all events from database
-    managed_events = get_all_events()
-    completed_events_dict = get_all_completed_events()
+    # Get all events from database using the service
+    marketing_service = get_marketing_service()
+    managed_events = marketing_service.get_all_events()
+    completed_events_dict = marketing_service.get_completed_events()
     
     # First, convert the events to safe HTML
     event_cards = []
     for event in managed_events:
         # Format the date nicely
         try:
-            date_obj = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
-            formatted_date = date_obj.strftime("%A, %B %d, %Y at %I:%M %p")
+            if event.get('date'):
+                if isinstance(event['date'], str):
+                    date_obj = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
+                else:
+                    date_obj = event['date']
+                formatted_date = date_obj.strftime("%A, %B %d, %Y at %I:%M %p")
+            else:
+                formatted_date = "No date specified"
         except Exception:
-            formatted_date = event['date']
+            formatted_date = str(event.get('date', 'No date'))
             
         # Create HTML for the event card
-        completed = event['status'] == 'completed' or event['id'] in completed_events_dict
+        completed = event.get('is_completed', False) or event.get('status') == 'completed'
         checked_attr = 'checked' if completed else ''
         disabled_attr = 'disabled' if completed else ''
         
         event_card = f'''
-        <div class="event-card {event['status']}">
+        <div class="event-card {event.get('status', 'pending')}">
             <div class="event-header">
-                <h3>{event['name']}</h3>
+                <h3>{event.get('name', 'Unnamed Event')}</h3>
                 <div class="event-status">
                     <input type="checkbox" {checked_attr} {disabled_attr}/>
-                    <span>{event['status'].capitalize()}</span>
+                    <span>{event.get('status', 'pending').capitalize()}</span>
                 </div>
             </div>
             <div class="event-details">
                 <p><strong>Date:</strong> {formatted_date}</p>
-                <p><strong>Location:</strong> {event['location']}</p>
+                <p><strong>Location:</strong> {event.get('location', 'TBD')}</p>
                 <div class="event-actions">
-                    <a href="/marketing/events/{event['id']}" class="btn btn-edit" target="_blank">Edit</a>
-                    <a href="/marketing/view/{event['id']}" class="btn btn-view" target="_blank">View</a>
+                    <a href="/marketing/events/{event.get('event_id', event.get('id'))}" class="btn btn-edit" target="_blank">Edit</a>
+                    <a href="/marketing/view/{event.get('event_id', event.get('id'))}" class="btn btn-view" target="_blank">View</a>
                 </div>
             </div>
         </div>
         '''
         event_cards.append(event_card)
     
-    
     # Join all event cards
-    events_html = "\n".join(event_cards) if event_cards else '<p>No events found. Use "Process Events Now" to check for new events.</p>'
+    events_html = "\\n".join(event_cards) if event_cards else '<p>No events found. Use "Process Events Now" to check for new events.</p>'
     
     return f'''
     <!DOCTYPE html>
@@ -319,8 +333,9 @@ def dashboard():
 @marketing_blueprint.route('/events/<event_id>')
 def event_editor(event_id):
     """Render the editor page for a specific event"""
-    # Find the event in our database
-    event = get_event_by_id(event_id)
+    # Find the event in our database using the service
+    marketing_service = get_marketing_service()
+    event = marketing_service.get_event_by_id(event_id)
     
     if not event:
         return "Event not found", 404
@@ -339,8 +354,9 @@ def event_editor(event_id):
 @marketing_blueprint.route('/events/<event_id>/update-content', methods=['POST'])
 def update_event_content(event_id):
     """API endpoint to update content for a specific event"""
-    # Find the event in our database
-    event = get_event_by_id(event_id)
+    # Find the event in our database using the service
+    marketing_service = get_marketing_service()
+    event = marketing_service.get_event_by_id(event_id)
     
     if not event:
         return jsonify({"status": "error", "message": "Event not found"}), 404
@@ -349,22 +365,29 @@ def update_event_content(event_id):
     html_content = data.get('html', '')
     css_content = data.get('css', '')
     
-    # Update the event's grapes_code
-    event['grapes_code'] = {
-        'html': html_content,
-        'css': css_content
+    # Update the event's grapes_code using the service
+    update_data = {
+        'event_id': event_id,
+        'grapes_code': {
+            'html': html_content,
+            'css': css_content
+        }
     }
     
     # Save the updated event
-    save_event(event)
+    success = marketing_service.save_event(update_data)
     
-    return jsonify({"status": "success"})
+    if success:
+        return jsonify({"status": "success"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to save event"}), 500
 
 @marketing_blueprint.route('/events/<event_id>/save-image', methods=['POST'])
 def save_event_image(event_id):
     """API endpoint to save the final image for an event"""
-    # Check if the event exists
-    event = get_event_by_id(event_id)
+    # Check if the event exists using the service
+    marketing_service = get_marketing_service()
+    event = marketing_service.get_event_by_id(event_id)
     
     if not event:
         return jsonify({"status": "error", "message": "Event not found"}), 404
@@ -381,16 +404,19 @@ def save_event_image(event_id):
     # file_path = os.path.join('static', 'images', f"{event_id}.png")
     # file.save(file_path)
     
-    # Mark the event as completed
-    mark_event_completed(event_id, event.get('name'))
+    # Mark the event as completed using the service
+    success = marketing_service.mark_event_completed(event_id)
     
-    return jsonify({"success": True, "message": "Event image saved successfully"})
+    if success:
+        return jsonify({"success": True, "message": "Event image saved successfully"})
+    else:
+        return jsonify({"success": False, "message": "Failed to mark event as completed"})
 
 @marketing_blueprint.route('/events/<event_id>/post-to-discord', methods=['POST'])
 def post_event_to_discord(event_id):
     """API endpoint to send banner image to Discord for a specific event"""
     try:
-        webhook_url = config['post_webhook_url']
+        webhook_url = marketing_config['post_webhook_url']
         
         if not webhook_url:
             return jsonify({"success": False, "message": "No post webhook URL configured"})
@@ -421,8 +447,10 @@ def post_event_to_discord(event_id):
         response = requests.post(webhook_url, files=files)
         
         if response.status_code == 204:  # Discord returns 204 No Content on success
-            # Mark this event as completed
-            mark_event_completed(event_id)
+            # Mark this event as completed using the service
+            marketing_service = get_marketing_service()
+            marketing_service.mark_event_completed(event_id)
+            marketing_service.log_activity(event_id, 'post_discord', 'success', 'discord')
                 
             return jsonify({
                 "success": True, 
@@ -430,28 +458,32 @@ def post_event_to_discord(event_id):
             })
         else:
             error_info = response.text if response.text else f"Status code: {response.status_code}"
+            marketing_service = get_marketing_service()
+            marketing_service.log_activity(event_id, 'post_discord', 'failed', 'discord', error_info)
             return jsonify({
                 "success": False, 
                 "message": f"Failed to send image to Discord: {error_info}"
             })
             
     except Exception as e:
+        marketing_service = get_marketing_service()
+        marketing_service.log_activity(event_id, 'post_discord', 'failed', 'discord', str(e))
         return jsonify({"success": False, "message": str(e)})
 
 @marketing_blueprint.route('/events/<event_id>/post-to-socials', methods=['POST'])
 def post_event_to_socials(event_id):
     """API endpoint to send event banner to social media platforms via OneUp"""
     try:
-        
         # Check credentials
-        oneup_email = config['oneup_email']
-        oneup_password = config['oneup_pass']
+        oneup_email = marketing_config['oneup_email']
+        oneup_password = marketing_config['oneup_pass']
         
         if not oneup_email or not oneup_password:
             return jsonify({"success": False, "message": "OneUp credentials not configured"})
         
-        # Check if the event exists
-        event = get_event_by_id(event_id)
+        # Check if the event exists using the service
+        marketing_service = get_marketing_service()
+        event = marketing_service.get_event_by_id(event_id)
         if not event:
             return jsonify({"success": False, "message": "Event not found"})
         
@@ -485,12 +517,17 @@ def post_event_to_socials(event_id):
         )
         
         if result["success"]:
-            # Mark the event as completed
-            mark_event_completed(event_id, event.get('name'))
+            # Mark the event as completed using the service
+            marketing_service.mark_event_completed(event_id)
+            marketing_service.log_activity(event_id, 'post_social', 'success', 'instagram,linkedin')
+        else:
+            marketing_service.log_activity(event_id, 'post_social', 'failed', 'instagram,linkedin', result.get("message"))
             
         return jsonify(result)
             
     except Exception as e:
+        marketing_service = get_marketing_service()
+        marketing_service.log_activity(event_id, 'post_social', 'failed', 'instagram,linkedin', str(e))
         return jsonify({"success": False, "message": f"Error posting to social media: {str(e)}"})
 
 @marketing_blueprint.route('/process-events-now', methods=['POST'])
@@ -523,68 +560,13 @@ def ensure_template_files():
             f.write(view_template_html)
 
 def process_events():
-    """Process events at the instance"""
+    """Process events using the marketing service"""
     try:
-        # PROD
-        events = get_upcoming_events(config['api_url'])
+        marketing_service = get_marketing_service()
+        marketing_service.monitor_events()
         
-        # DEV
-        # events = get_upcoming_events(config['api_url'], mock=True)
-        if events is None or len(events) == 0:
-            logger.info("No events found or error fetching events")
-            return
-        
-        for event in events:
-            # Events are already filtered to exclude existing ones in get_upcoming_events
-            logger.info(f"Processing new event: {event['name']}")
-            try:
-                # Step 1: Generate content for platforms
-                logger.info("Generating content...")
-                content = generate_content(event, config['open_router_claude_api_key'])
-                
-                # Step 2: Get HTML/CSS template
-                logger.info("Getting template...")
-                template = get_discord_template()
-                
-                # Step 3: Generate GrapesJS code
-                logger.info("Generating GrapesJS code...")
-                grapes_code = generate_grapes_code(event, template, content, config['open_router_claude_api_key'])
-                
-                # Step 4: Create an event object with all the generated content
-                event_object = {
-                    'id': event['id'],
-                    'name': event['name'],
-                    'date': event['date'],
-                    'location': event['location'],
-                    'info': event['info'],
-                    'content': content,
-                    'grapes_code': grapes_code,
-                    'created_at': datetime.now().isoformat(),
-                    'status': 'pending' # pending, completed
-                }
-                
-                # Step 5: Save the event to the database
-                save_event(event_object)
-                
-                # Step 6: Send Discord notification with the event-specific editor URL
-                logger.info("Sending Discord notification...")
-                server_url = get_server_url()
-                editor_url = f"{server_url}/marketing/events/{event['id']}"
-                
-                notification_result = send_officer_notification(event, content, editor_url, config['officer_webhook_url'])
-                if not notification_result["success"]:
-                    logger.info(f"ERROR: {notification_result['message']}")
-                    return False
-                
-                logger.info(f"✅ Successfully processed event: {event['name']}")
-                return True
-                
-            except Exception as e:
-                logger.info(f"ERROR processing event {event['name']}: {str(e)}")
-                return False
-                
     except Exception as e:
-        logger.info(f"Error processing events: {str(e)}")
+        logger.error(f"Error in process_events: {e}")
 
 def monitor_events():
     """Continuously monitor for upcoming events"""
@@ -593,29 +575,15 @@ def monitor_events():
     while True:
         try:
             # Only process events if monitoring is active
-            if config['monitoring_active']:
+            if marketing_config['monitoring_active']:
                 process_events()
-            
-            # Sleep for the specified interval
-            time.sleep(config['check_interval'])
-            
+                
+            # Sleep for the configured interval
+            time.sleep(marketing_config['check_interval'])
         except Exception as e:
-            logger.info(f"Error in monitoring loop: {str(e)}")
-            time.sleep(60)  # Sleep briefly before retrying          
+            logger.error(f"Error in monitor_events loop: {e}")
+            # Sleep briefly before retrying
+            time.sleep(60)
 
-# ==================================================================================================
-
-# main loop
-
-if __name__ == '__main__':
-    # Ensure template files exist
-    ensure_template_files()
-    
-    # Start the event monitoring in a background thread
-    monitor_thread = threading.Thread(target=monitor_events)
-    monitor_thread.daemon = True
-    monitor_thread.start()
-    
-    # Print some info
-    logger.info("SoDA Marketing Bot")
-    logger.info("=================")    
+# Ensure template files exist when the module is imported
+ensure_template_files()
