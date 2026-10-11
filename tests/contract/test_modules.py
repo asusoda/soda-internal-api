@@ -23,7 +23,6 @@ def test_modules_are_on_by_default(client, officer_headers, soda_id):
         "games": True,
         "leetcode": True,
         "godfather": True,
-        "event_webhook": True,
         "feeds": True,
         "uptime": True,
         "knowledge": True,

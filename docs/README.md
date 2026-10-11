@@ -15,7 +15,7 @@ Platform is shared infrastructure for student orgs. One deployment serves many o
 | [Writing a module](./writing-a-module.md) | Add a module and register it |
 | [Operations](./operations.md) | Deploy, roll back, move to Postgres, turn off routes |
 | [Frontends](./frontends.md) | Work on the dashboard and the member store (`dashboard/`) |
-| [Webhooks](./webhooks.md) | Send org events to Discord channels; add an event |
+| [Alerts](./webhooks.md) | Send org events and feeds to Discord destinations; add an event |
 | [Limits](./limits.md) | Read and change what each org may use; add a limit to a module |
 | [Roadmap](./roadmap.md) | See what is left to build and the known issues |
 
@@ -36,7 +36,7 @@ Each module has a `README.md` in its folder with its files, routes, jobs, tools 
 | [Points](./modules/points.md) | Members, points from events and the leaderboard |
 | [RunPod apps](./modules/runpod-apps.md) | App manifests, deploys, health checks and rollback |
 | [Store](./modules/storefront.md) | Merch store paid with points |
-| [Submodules](./modules/submodules.md) | Content that a module reads: campus pages and live queries for knowledge, such as the ASU submodule, and feeds for the webhook modules |
+| [Submodules](./modules/submodules.md) | Content that a module reads: campus pages and live queries for knowledge, such as the ASU submodule, and feeds for the Feeds module |
 | [Uptime](./modules/uptime.md) | Checks of sites and Hosting apps, with events when one goes down or up |
 
 ## Notes

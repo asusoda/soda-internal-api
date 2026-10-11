@@ -15,7 +15,6 @@ export const MODULES = [
   { name: 'games', description: "Jeopardy games in the org's Discord server", enabled: true },
   { name: 'leetcode', description: "Daily LeetCode post in the org's channel, with solve checks", enabled: true },
   { name: 'godfather', description: "GPU and CPU pods on the org's RunPod account that members SSH into", enabled: true },
-  { name: 'event_webhook', description: 'Events of the org, such as a failed job, sent to Discord webhooks', enabled: true },
   { name: 'feeds', description: 'New job listings and hackathons posted to Discord webhooks', enabled: true },
   { name: 'uptime', description: 'Checks of sites and Hosting apps, with an event when one goes down or up', enabled: true },
   { name: 'knowledge', description: 'Pages and documents that agents search', enabled: true },
@@ -34,7 +33,6 @@ const CATALOG = [
   { name: 'accounts', title: 'Member accounts', description: "Members connect Canvas, Google and Outlook, and agents read them for the member.", category: 'Storage', switchable: true, needs: [need('ACCOUNTS_BASE_URL', 'ACCOUNTS_BASE_URL setting', true, { kind: 'setting' })], submodules: [] },
   { name: 'agents', title: 'Agents', description: "Conversations, memories and pending actions of the org's agents.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
   { name: 'integrations', title: 'Integration tools', description: "Gives agents the tools of the services that the org connects.", category: 'AI and agents', switchable: true, needs: [], submodules: [] },
-  { name: 'event_webhook', title: 'Event webhooks', description: 'Sends events of the org, such as a failed job or a site that is down, to Discord webhooks.', category: 'Webhooks', switchable: true, needs: [], submodules: [] },
   { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
   { name: 'calendar', title: 'Calendar sync', description: "Copies Notion events to Google Calendar and the public events feed.", category: 'Automations', switchable: true, needs: [need('notion', 'Notion', false), need('google', 'Google service account', true)], submodules: [] },
   { name: 'uptime', title: 'Uptime', description: "Checks the org's sites and Hosting apps, with an event when one goes down or comes back.", category: 'Automations', switchable: true, needs: [], submodules: [] },
@@ -60,7 +58,7 @@ const MODULE_LIMITS = {
   godfather: [{ key: 'godfather.pods', label: 'Pods', window: null, paid_by: 'org' }],
   runpod: [{ key: 'runpod.apps', label: 'Hosting apps', window: null, paid_by: 'org' }],
   uptime: [{ key: 'uptime.monitors', label: 'Uptime monitors', window: null, paid_by: 'org' }],
-  event_webhook: [{ key: 'event_webhook.webhooks', label: 'Event webhooks', window: null, paid_by: 'org' }],
+  alerts: [{ key: 'alerts.destinations', label: 'Alert destinations', window: null, paid_by: 'org' }],
 };
 
 export function moduleCatalog(states = MODULES) {
@@ -390,6 +388,7 @@ export function fixtures(now = Date.now()) {
       config: { repo: 'example-org/summer-internships', label: 'Internship' },
       every_hours: 3,
       enabled: true,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-30 * DAY),
       last_run_at: at(-4 * MINUTE),
@@ -402,6 +401,7 @@ export function fixtures(now = Date.now()) {
       config: {},
       every_hours: 24,
       enabled: true,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-30 * DAY),
       last_run_at: at(-7 * HOUR),
@@ -414,6 +414,7 @@ export function fixtures(now = Date.now()) {
       config: { repo: 'example-org/new-grad-roles', label: 'New grad' },
       every_hours: 6,
       enabled: false,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-90 * DAY),
       last_run_at: at(-20 * DAY),
@@ -974,6 +975,7 @@ export function fixtures(now = Date.now()) {
     webhook(2, 'Infra', '9027', ['pod.started', 'pod.stopped', 'app.deployed'], true, -2 * HOUR, null, -21 * DAY, 'daniel'),
     webhook(3, 'Store desk', '3315', ['order.created', 'member.joined'], true, -5 * DAY, 'Discord refused the message with status 404', -60 * DAY, 'maya'),
     webhook(4, 'Old ops channel', '7781', ['errors'], false, -45 * DAY, null, -120 * DAY, 'ava'),
+    webhook(5, 'Careers', '6120', ['knowledge.crawl_failed'], true, -4 * MINUTE, null, -30 * DAY, 'maya'),
   ];
 
   // Uptime monitors. down lists the bar slots (0 is the oldest of 30) whose check was down.
@@ -1228,7 +1230,7 @@ export function fixtures(now = Date.now()) {
 
   // Per-org limits (core/limits.py): [key, module, label, unit, window, default, used by each org]
   const limitSpecs = [
-    ['event_webhook.webhooks', 'event_webhook', 'Event webhooks', 'webhooks', null, 20, [3, 0, 1]],
+    ['alerts.destinations', 'alerts', 'Alert destinations', 'destinations', null, 20, [5, 0, 1]],
     ['godfather.pods', 'godfather', 'Pods', 'pods', null, 10, [4, 9, 0]],
     ['knowledge.embeddings_per_day', 'knowledge', 'Texts embedded a day (knowledge and agent memory)', 'texts', 'day', 500000, [12840, 431200, 0]],
     ['knowledge.jobs_per_day', 'knowledge', 'Crawls, re-indexes and re-embeds started by hand a day', 'jobs', 'day', 200, [6, 41, 0]],
@@ -1397,7 +1399,7 @@ export function fixtures(now = Date.now()) {
       webhooks,
       events: webhookEvents,
       kinds: [{ key: 'discord', label: 'Discord', example: 'https://discord.com/api/webhooks/...' }],
-      feeds: feeds.map(({ key, kind, enabled, webhook_set, last_run_at, last_error }) => ({ key, kind, enabled, webhook_set, last_run_at, last_error })),
+      feeds: feeds.map(({ key, kind, enabled, destination_id, webhook_set, last_run_at, last_error }) => ({ key, kind, enabled, destination_id, webhook_set, last_run_at, last_error })),
       secrets_key: true,
     },
     ...Object.fromEntries(

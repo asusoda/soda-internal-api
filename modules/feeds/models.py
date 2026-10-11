@@ -7,7 +7,7 @@ from core.time import utcnow
 
 
 class AlertFeed(Base):
-    """One feed, such as a jobs list or hackathon listings, posted to one Discord webhook."""
+    """One feed, such as a jobs list or hackathon listings, posted to one Discord alert destination."""
 
     __tablename__ = "alert_feeds"
 
@@ -18,6 +18,8 @@ class AlertFeed(Base):
     config = Column(JSON, nullable=False, default=dict)
     every_hours = Column(Integer, nullable=False, default=3)
     enabled = Column(Boolean, nullable=False, default=True)
+    # The alert destination (a row of webhooks) it posts to. Null for an older feed with an alert_webhook_<key> secret
+    destination_id = Column(Integer, ForeignKey("webhooks.id"), nullable=True)
     seeded_at = Column(DateTime, nullable=True)  # first run, which records items without posting them
     last_run_at = Column(DateTime, nullable=True)
     last_error = Column(String(1000), nullable=True)

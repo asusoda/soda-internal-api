@@ -1,11 +1,11 @@
 # Feeds
 
-The Feeds module (`feeds`) posts listings to Discord channels: new internship and new grad roles from GitHub job lists, and upcoming hackathons. It is in the Webhooks category and starts off. Each feed reads one source on a schedule and posts the new items to one Discord webhook. Org events such as errors use [event webhooks](../webhooks.md), not feeds.
+The Feeds module (`feeds`) posts listings to Discord channels: new internship and new grad roles from GitHub job lists, and upcoming hackathons. It is in the Webhooks category and starts off. Each feed reads one source on a schedule and posts the new items to one Discord destination of [Alerts](../webhooks.md). Org events such as errors go through Alerts too.
 
 ```mermaid
 flowchart LR
   careers["submodule careers: presets"] --> feeds
-  feeds["feeds: github_jobs and hackathons feeds, feeds.run_due"] --> discord["Discord webhooks"]
+  feeds["feeds: github_jobs and hackathons feeds, feeds.run_due"] --> dest["Alert destination"] --> discord["Discord channel"]
 ```
 
 ## Kinds of feed
@@ -40,7 +40,7 @@ All routes are under `/api/feeds/<org>`, for officers of the org. When the Feeds
 | `GET /feeds` | Each feed with its schedule, last run, last error and number of posts |
 | `GET /feeds/<key>` | One feed |
 | `PUT /feeds/<key>` | Creates (201) or updates (200) a feed. Body below |
-| `DELETE /feeds/<key>` | Deletes the feed, its posted items and its webhook secret |
+| `DELETE /feeds/<key>` | Deletes the feed, its posted items and its older webhook secret, if any |
 | `GET /feeds/<key>/history` | The last 50 runs (time, duration, items found, new and posted, error) and the last 50 items the feed posted or recorded |
 | `POST /feeds/<key>/run` | Starts a run now and returns 202. With `{"post_existing": true}`, a first run posts the current items |
 | `GET /presets` | The feeds that the [submodules](./submodules.md) the org subscribes to offer, when Feeds is on, with `module`, the `kind` and `config` to send to `PUT /feeds/<key>`, and `added` when the org has a feed with that key |
@@ -48,7 +48,7 @@ All routes are under `/api/feeds/<org>`, for officers of the org. When the Feeds
 ```json
 {
   "kind": "github_jobs",
-  "webhook_url": "https://discord.com/api/webhooks/<id>/<token>",
+  "destination_id": 5,
   "every_hours": 3,
   "enabled": true,
   "config": {"repo": "vanshb03/Summer2026-Internships", "label": "Internship"}
@@ -56,7 +56,8 @@ All routes are under `/api/feeds/<org>`, for officers of the org. When the Feeds
 ```
 
 - The key has lowercase letters, digits and dashes, 40 characters or fewer.
-- A new feed needs `webhook_url`. Platform keeps it as the org secret `alert_webhook_<key>` and never returns it. A route shows only if it is set.
+- A new feed needs `destination_id`: the id of a Discord destination on the Alerts page. A feed made before migration `c6e8a0b2d4f6` can keep `webhook_url`, kept as the org secret `alert_webhook_<key>`; a `destination_id` replaces and deletes that secret. `webhook_set` says whether the feed has a URL to post to.
+- A destination that a feed posts to cannot be deleted. A destination that is off gets no posts, and the run fails with the reason.
 - You cannot change `kind` after you create the feed.
 - `every_hours` is 1 to 168, default 3.
 

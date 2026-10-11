@@ -1,4 +1,4 @@
-"""Event webhook tools: list, add, change, test and delete the org's outbound webhooks."""
+"""Alert tools: list, add, change, test and delete the org's alert destinations (outbound webhooks)."""
 
 from core.tools import ToolError, tool
 from core.webhooks import Webhook
@@ -17,7 +17,6 @@ WEBHOOK_ID = {"type": "integer", "minimum": 1}
     "webhooks.list",
     description="The org's webhooks, the events and kinds to pick from, and the feeds of the webhook modules. URLs are never returned.",
     scope="webhooks:manage",
-    module="event_webhook",
 )
 def webhooks_list(db, org, caller):
     return service.listing(db, org)
@@ -30,7 +29,6 @@ def webhooks_list(db, org, caller):
         "match the kind and is stored encrypted. A missing field is kept."
     ),
     scope="webhooks:manage",
-    module="event_webhook",
     input_schema={
         "type": "object",
         "properties": {
@@ -55,7 +53,6 @@ def webhooks_save(db, org, caller, id: int | None = None, **body):
     "webhooks.test",
     description="Send a test message to a webhook now and return whether it worked.",
     scope="webhooks:manage",
-    module="event_webhook",
     input_schema={
         "type": "object",
         "properties": {"id": WEBHOOK_ID},
@@ -71,7 +68,6 @@ def webhooks_test(db, org, caller, id: int):
     "webhooks.delete",
     description="Delete webhooks by id, up to 20. If one id is missing, nothing changes.",
     scope="webhooks:manage",
-    module="event_webhook",
     confirm=True,
     input_schema={
         "type": "object",

@@ -112,7 +112,7 @@ const SCREENS = [
       await page.getByRole('button', { name: 'Limits of Data Science Club' }).click();
     },
   },
-  { name: 'webhooks', path: 'webhooks' },
+  { name: 'alerts', path: 'alerts' },
   { name: 'uptime', path: 'uptime' },
   {
     name: 'uptime-edit',

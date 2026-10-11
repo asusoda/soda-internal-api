@@ -19,11 +19,11 @@ flowchart LR
 
 `dashboard/` is a Vite and React app with Tailwind and TanStack Query. It calls the API and has no server code.
 
-The sidebar puts the pages in sections that follow the module categories on Explore: Storage (Knowledge, Points, Store), AI and agents (Agents), Webhooks (Events, Job alerts, Hackathons), Automations (Calendar, Uptime), Bots (LeetCode) and Compute (Godfather, Hosting). Tokens, Activity and Settings are at the bottom. Core modules have no section. A sidebar label is the short name of the page, without the category: Events, not Event webhooks.
+The sidebar puts the pages in sections that follow the module categories on Explore: Storage (Knowledge, Points, Store), AI and agents (Agents), Webhooks (Job alerts, Hackathons), Automations (Calendar, Uptime), Bots (LeetCode) and Compute (Godfather, Hosting). Alerts, Tokens, Activity and Settings are at the bottom. Core modules have no section. A sidebar label is the short name of the page, without the category: Job alerts, not Job alert feeds.
 
 `dashboard/src/pages/registry.tsx` has one entry for each page, with its section and its module.
 
-The sidebar hides the page of an optional module when the module is off for the org. A section with no pages has no header. If you open the page of a module that is off, the page links to Explore. Old paths open the new pages: `ci` opens Activity, CI runs; `notifications` opens Activity; `modules` opens Explore; `integrations` opens the Integrations tab of Explore; `apps` opens Hosting; `compute` and `hosting?tab=pods` open Godfather; `mcp` opens Tokens; `alerts` opens Job alerts.
+The sidebar hides the page of an optional module when the module is off for the org. A section with no pages has no header. If you open the page of a module that is off, the page links to Explore. Old paths open the new pages: `ci` opens Activity, CI runs; `notifications` opens Activity; `modules` opens Explore; `integrations` opens the Integrations tab of Explore; `apps` opens Hosting; `compute` and `hosting?tab=pods` open Godfather; `mcp` opens Tokens; `webhooks` opens Alerts.
 
 The sidebar collapses to a 56px rail of icons. To collapse or expand it, use the button at the left of the top bar, Ctrl+B (Cmd+B on a Mac) or `[`. The `[` key does nothing while you type in a field. The rail shows a tooltip with the page name on hover and on keyboard focus. The dashboard keeps the state in `localStorage` as `platform.sidebar`. On a phone, the sidebar is a menu that opens from the top bar.
 
@@ -44,7 +44,7 @@ The dashboard has one React Query client, made in `dashboard/src/lib/query-clien
 | Calendar | The Notion database and Google calendar settings, sync on or off, sync now, create the Google calendar, and the upcoming events |
 | LeetCode | The daily post settings: channel, role to ping and time. The slash commands are in [leetcode](modules/leetcode.md) |
 | Godfather | Pods that members connect to with the Godfather CLI, with their live status from their hosting provider: create, start, stop, restart, terminate, who can connect, sessions, files and pod settings. `godfather` module |
-| Events | The org's outbound webhooks: add, edit, turn on or off, send test, delete. Each has a name, a destination (Discord), the events it sends and the result of its last message. See [webhooks.md](./webhooks.md) |
+| Alerts | Core. Destinations: the org's Discord webhooks, with add, edit, turn on or off, send test and delete; each shows its event count and the result of its last message. Routes: each event and feed, and the destinations it goes to, or Activity only. See [webhooks.md](./webhooks.md) |
 | Job alerts, Hackathons | The feeds of one kind (`github_jobs`, `hackathons`) of the Feeds module: create, pause, run now, delete, and the history of each feed: its last 50 runs with counts and errors, and its last 50 items. `job-alerts?new=<submodule>/<feed>` and `hackathons?new=<submodule>/<feed>` open the new feed form with a feed of a submodule. `feeds` module. See [feeds](modules/feeds.md) |
 | Hosting | The org's bots, agents, sites and services on its hosting providers, grouped by kind, with the provider of each. RunPod is the only provider. Register app has a Provider select. Templates creates an app from a template in `apps/`, then opens the deploy form. Register a manifest or repo, see the pod and deployments, deploy a tag with a dry-run preview, roll back, delete. `runpod` module |
 | Knowledge | Sources filtered by domain: upload documents one at a time or in a batch, add, edit, pause and run crawls, delete sources, change the passage size and search settings, and test a search. Submodules are on Explore. `knowledge` module |
@@ -65,7 +65,7 @@ The dashboard uses these officer routes in `modules/dashboard/`:
 | `GET /api/dashboard/<org>/ci` | The latest runs for each listed repo, kept in a cache for 120 seconds |
 | `PUT /api/dashboard/<org>/ci/repos` | Sets the repo list: `{"repos": ["owner/name"]}`, 20 or fewer |
 | `GET`, `PUT /api/dashboard/<org>/branding` | Gets or sets `logo_url` (https), `accent_color` (`#RRGGBB`) and `website_url` (https). An empty string or null removes a value |
-| `/api/dashboard/<org>/webhooks/...` | List, add, change, delete and test outbound webhooks. See [webhooks.md](./webhooks.md) |
+| `/api/dashboard/<org>/webhooks/...` | List, add, change, delete and test alert destinations. See [webhooks.md](./webhooks.md) |
 | `/api/dashboard/<org>/hosting/providers` | The hosting providers: `name`, `title`, `integration` and `configured` for the org. The Provider selects disable a provider that is not configured and link to Integrations |
 | `/api/dashboard/<org>/apps/...` | List, register, delete, deploy and roll back apps, and read the pod. The same operations as `/api/apps` in [runpod-apps](modules/runpod-apps.md), for officers |
 | `/api/dashboard/<org>/knowledge/...` | List and delete sources, upload documents, add and run crawls, read and set the search settings, start a reindex, read the run log, and search. The same operations as `/api/knowledge` in [knowledge](modules/knowledge.md), for officers. The sources list also says if the org may publish public sources |

@@ -145,8 +145,6 @@ class Notification(Base):
 declare("job.failed", "Failed job runs", "A background job for the org fails, such as a crawl or a reindex.")
 
 _organizations = sql_table("organizations", column("id"), column("prefix"), column("config", JSON))
-# The module that switches delivery for an org
-MODULE = "event_webhook"
 _sent: dict[tuple[int | str, str], list[float]] = {}
 _sent_lock = threading.Lock()
 
@@ -242,19 +240,12 @@ def post(kind: str, url: str, message: Message) -> str | None:
     return None
 
 
-def _module_on(db, org_id: int) -> bool:
-    """True when the event_webhook module is on for the org. An unset switch is on."""
-    row = db.execute(_organizations.select().where(_organizations.c.id == org_id)).first()
-    modules = ((row.config if row is not None else None) or {}).get("modules") or {}
-    return modules.get(MODULE) is not False
-
-
 def deliver(org: int | str, event: str, message: Message) -> int:
     """Post the message to each enabled webhook of the org that takes the event. Returns the number sent."""
     try:
         with session() as db:
             org_id = _org_id(db, org)
-            if org_id is None or not _module_on(db, org_id):
+            if org_id is None:
                 return 0
             rows = db.query(Webhook).filter_by(organization_id=org_id, enabled=True).all()
             targets = [

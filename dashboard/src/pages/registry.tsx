@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Trophy,
-  Webhook,
+  Megaphone,
 } from 'lucide-react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ComponentType, ReactNode } from 'react';
@@ -41,7 +41,7 @@ import { StorePage } from './store';
 import { prefetchStore } from './store/shared';
 import { TokensPage } from './tokens';
 import { UptimePage } from './uptime';
-import { WebhooksPage } from './webhooks';
+import { AlertsPage } from './alerts';
 
 // The sidebar sections, in order. A section with no title has no header. They follow the categories on Explore.
 export const SECTIONS = [
@@ -90,7 +90,6 @@ export const PAGES: PageEntry[] = [
   { path: 'points', label: 'Points', icon: Coins, section: 'storage', module: 'points', gate: true, page: PointsPage, prefetch: prefetchPoints },
   { path: 'store', label: 'Store', icon: ShoppingBag, section: 'storage', module: 'storefront', gate: true, page: StorePage, prefetch: prefetchStore },
   { path: 'agents', label: 'Agents', icon: Bot, section: 'agents', module: 'agents', gate: true, page: AgentsPage },
-  { path: 'webhooks', label: 'Events', icon: Webhook, section: 'webhooks', module: 'event_webhook', gate: true, page: WebhooksPage },
   { path: 'job-alerts', label: 'Job alerts', icon: BriefcaseBusiness, section: 'webhooks', module: 'feeds', gate: true, page: JobWebhookPage },
   { path: 'hackathons', label: 'Hackathons', icon: Trophy, section: 'webhooks', module: 'feeds', gate: true, page: HackathonWebhookPage },
   { path: 'calendar', label: 'Calendar', icon: CalendarDays, section: 'automations', module: 'calendar', gate: true, page: CalendarPage },
@@ -98,6 +97,7 @@ export const PAGES: PageEntry[] = [
   { path: 'leetcode', label: 'LeetCode', icon: CodeXml, section: 'bots', module: 'leetcode', gate: true, page: LeetCodePage },
   { path: 'godfather', label: 'Godfather', icon: Cpu, section: 'compute', module: 'godfather', gate: true, page: GodfatherPage },
   { path: 'hosting', label: 'Hosting', icon: Server, section: 'compute', module: 'runpod', gate: true, page: HostingPage },
+  { path: 'alerts', label: 'Alerts', icon: Megaphone, section: 'bottom', page: AlertsPage },
   { path: 'tokens', label: 'Tokens', icon: KeyRound, section: 'bottom', page: TokensPage },
   { path: 'activity', label: 'Activity', icon: Activity, section: 'bottom', page: ActivityPage },
   { path: 'settings', label: 'Settings', icon: Settings, section: 'bottom', page: SettingsPage },
@@ -113,7 +113,7 @@ export const REDIRECTS: { path: string; to: string }[] = [
   { path: 'apps', to: '../hosting' },
   { path: 'compute', to: '../godfather' },
   { path: 'mcp', to: '../tokens' },
-  { path: 'alerts', to: '../job-alerts' },
+  { path: 'webhooks', to: '../alerts' },
 ];
 
 // The element for the route of a page, inside a ModuleGate when the entry asks for one.

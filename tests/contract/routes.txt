@@ -159,11 +159,11 @@
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription DELETE,OPTIONS dashboard.unsubscribe_submodule
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription OPTIONS,PUT dashboard.subscribe_submodule
 /api/dashboard/<string:org_prefix>/trends GET,HEAD,OPTIONS dashboard.trends
-/api/dashboard/<string:org_prefix>/webhooks GET,HEAD,OPTIONS event_webhook.list_webhooks
-/api/dashboard/<string:org_prefix>/webhooks OPTIONS,POST event_webhook.create_webhook
-/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id> DELETE,OPTIONS event_webhook.delete_webhook
-/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id> OPTIONS,PUT event_webhook.update_webhook
-/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id>/test OPTIONS,POST event_webhook.test_webhook
+/api/dashboard/<string:org_prefix>/webhooks GET,HEAD,OPTIONS alerts.list_webhooks
+/api/dashboard/<string:org_prefix>/webhooks OPTIONS,POST alerts.create_webhook
+/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id> DELETE,OPTIONS alerts.delete_webhook
+/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id> OPTIONS,PUT alerts.update_webhook
+/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id>/test OPTIONS,POST alerts.test_webhook
 /api/dashboard/integrations/oauth/callback GET,HEAD,OPTIONS dashboard.oauth_callback
 /api/feeds/<string:org_prefix>/feeds GET,HEAD,OPTIONS feeds.list_feeds
 /api/feeds/<string:org_prefix>/feeds/<string:key> DELETE,OPTIONS feeds.delete_feed

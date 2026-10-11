@@ -39,8 +39,8 @@ def feeds_history(db, org, caller, key: str):
 @tool(
     "feeds.save",
     description=(
-        "Create or change a feed. kind is github_jobs or hackathons. A new feed needs webhook_url, "
-        "a Discord webhook URL; it is stored encrypted and never returned."
+        "Create or change a feed. kind is github_jobs or hackathons. A new feed needs destination_id, the id of a "
+        "Discord destination from webhooks.list. webhook_url is the older way and is stored as a secret."
     ),
     scope="feeds:manage",
     input_schema={
@@ -51,6 +51,7 @@ def feeds_history(db, org, caller, key: str):
             "config": {"type": "object"},
             "every_hours": {"type": "integer", "minimum": 1, "maximum": 168},
             "enabled": {"type": "boolean"},
+            "destination_id": {"type": "integer", "minimum": 1},
             "webhook_url": {"type": "string", "maxLength": 300},
         },
         "required": ["key"],

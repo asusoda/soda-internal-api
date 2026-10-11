@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BellRing, History, Play, Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   Badge,
   Button,
@@ -27,11 +27,11 @@ import {
 import { api, send } from '../lib/api';
 import { timeAgo } from '../lib/format';
 import { useCurrentOrg } from '../lib/org';
-import type { Feed, FeedRuns, FeedPreset, FeedRun } from '../lib/types';
+import type { Feed, FeedRuns, FeedPreset, FeedRun, WebhookList } from '../lib/types';
 
 type Kind = Feed['kind'];
-type Draft = { key: string; repo: string; label: string; webhook: string; every: string };
-const EMPTY: Draft = { key: '', repo: '', label: 'Internship', webhook: '', every: '3' };
+type Draft = { key: string; repo: string; label: string; destination: string; every: string };
+const EMPTY: Draft = { key: '', repo: '', label: 'Internship', destination: '', every: '3' };
 
 // The new feed form of one kind. initial is the submodule/key of a feed to start from, from the Add of a submodule on Explore.
 function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind; initial?: string | null; onDone: () => void }) {
@@ -42,16 +42,19 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
     queryKey: ['feeds', prefix, 'presets'],
     queryFn: () => api<{ presets: FeedPreset[] }>(`/api/feeds/${prefix}/presets`),
   });
+  // A feed posts to a Discord destination of Alerts
+  const alerts = useQuery({ queryKey: ['webhooks', prefix], queryFn: () => api<WebhookList>(`/api/dashboard/${prefix}/webhooks`) });
+  const destinations = (alerts.data?.webhooks ?? []).filter((h) => h.kind === 'discord');
   const choices = (presets.data?.presets ?? []).filter((p) => !p.added && p.kind === kind);
   const pick = (id: string) => {
     const chosen = choices.find((p) => `${p.submodule}/${p.key}` === id) ?? null;
     setPreset(chosen);
-    if (!chosen) return setDraft({ ...EMPTY, webhook: draft.webhook });
+    if (!chosen) return setDraft({ ...EMPTY, destination: draft.destination });
     setDraft({
       key: chosen.key,
       repo: String(chosen.config.repo ?? ''),
       label: String(chosen.config.label ?? 'Job'),
-      webhook: draft.webhook,
+      destination: draft.destination,
       every: String(chosen.every_hours),
     });
   };
@@ -70,7 +73,7 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
     mutationFn: () =>
       send(`/api/feeds/${prefix}/feeds/${draft.key}`, 'PUT', {
         kind,
-        webhook_url: draft.webhook,
+        destination_id: Number(draft.destination),
         every_hours: Number(draft.every),
         config: config(),
       }),
@@ -115,15 +118,28 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
             </Field>
           </>
         ) : null}
-        <Field label="Discord webhook URL" hint="Never shown again after you save.">
-          <Input value={draft.webhook} onChange={set('webhook')} placeholder="https://discord.com/api/webhooks/..." required />
+        <Field label="Destination">
+          {alerts.data && !destinations.length ? (
+            <Link to={`/${prefix}/alerts`} className="flex h-9 items-center text-sm text-accent hover:underline">
+              Add a Discord destination on Alerts
+            </Link>
+          ) : (
+            <Select value={draft.destination} onChange={set('destination')} required>
+              <option value="">Pick a channel</option>
+              {destinations.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field label="Every (hours)">
           <Input type="number" min={1} max={168} value={draft.every} onChange={set('every')} />
         </Field>
         <div className="sm:col-span-2">
           <FormActions error={create.error}>
-            <Button variant="primary" disabled={create.isPending}>
+            <Button variant="primary" disabled={create.isPending || !draft.destination}>
               Create feed
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
@@ -292,7 +308,7 @@ function FeedsPage({ kind, title }: { kind: Kind; title: string }) {
                 </Button>
                 <DeleteButton
                   label={`Delete ${f.key}`}
-                  question={`Delete feed ${f.key} and its webhook?`}
+                  question={`Delete feed ${f.key}?`}
                   onDelete={() => remove.mutate(f.key)}
                 />
               </div>

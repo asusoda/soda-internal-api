@@ -23,7 +23,7 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `godfather.pods` | godfather | Pods | 10 |
 | `runpod.apps` | runpod | Hosting apps | 25 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |
-| `event_webhook.webhooks` | event_webhook | Event webhooks | 20 |
+| `alerts.destinations` | alerts | Alert destinations | 20 |
 | `submodules.subscriptions` | submodules | Submodules the org subscribes to. Their shared pages count against no org | 20 |
 | `mcp.calls_per_minute` | mcp | Tool calls a minute, over MCP and `/api/tools`. Each call in a batch counts | 300 |
 

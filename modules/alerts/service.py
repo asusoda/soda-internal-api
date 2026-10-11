@@ -1,8 +1,8 @@
-"""Outbound webhooks for officers: add, change, remove and test the org's webhooks. No Flask here.
+"""Alerts: the org's destinations (outbound webhooks) and the events each one gets. No Flask here.
 
 core/webhooks.py has the table, the events and the delivery. A URL must match its kind and name a public
-host. It is encrypted with SECRETS_KEY and no route returns it. The feeds of the webhook modules post to
-their own webhooks; the listing names them so officers see every place that Platform sends to.
+host. It is encrypted with SECRETS_KEY and no route returns it. Feeds post to a destination too; the listing
+names them, so officers see every place that Platform sends to.
 """
 
 from datetime import datetime
@@ -12,16 +12,17 @@ from core import limits, net, secrets, webhooks
 from core.errors import ServiceError
 from core.time import utcnow
 from modules.feeds import service as feeds
+from modules.feeds.models import AlertFeed
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
 
-WEBHOOKS_LIMIT = "event_webhook.webhooks"
+WEBHOOKS_LIMIT = "alerts.destinations"
 limits.declare(
     WEBHOOKS_LIMIT,
-    "event_webhook",
-    "Event webhooks",
+    "alerts",
+    "Alert destinations",
     20,
-    unit="webhooks",
+    unit="destinations",
     usage=lambda db, org_id: db.query(webhooks.Webhook).filter_by(organization_id=org_id).count(),
 )
 MAX_IDS = 100  # ids in one bulk call
@@ -66,6 +67,7 @@ def _feeds(db, org: Organization) -> list[dict]:
             "key": f["key"],
             "kind": f["kind"],
             "enabled": f["enabled"],
+            "destination_id": f["destination_id"],
             "webhook_set": f["webhook_set"],
             "last_run_at": f["last_run_at"],
             "last_error": f["last_error"],
@@ -177,7 +179,12 @@ def update(db, org: Organization, webhook_id: int, body: dict) -> dict:
 
 
 def delete(db, org: Organization, webhook_id: int) -> None:
-    db.delete(_find(db, org, webhook_id))
+    """Delete a destination. Refuses while a feed posts to it. Commits."""
+    row = _find(db, org, webhook_id)
+    used = [key for (key,) in db.query(AlertFeed.key).filter_by(organization_id=org.id, destination_id=webhook_id)]
+    if used:
+        raise WebhookError(f"Feeds post here: {', '.join(sorted(used))}. Give them another destination first", 409)
+    db.delete(row)
     db.commit()
 
 
