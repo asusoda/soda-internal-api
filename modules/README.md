@@ -13,7 +13,6 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | [auth](auth/README.md) | Discord sign-in, tokens, access checks, machine tokens and scopes | |
 | [bot](bot/README.md) | The Discord bot and its helper cog | |
 | [dashboard](dashboard/README.md) | Overview, branding, CI runs and the module catalog for the officer dashboard | |
-| [feeds](feeds/README.md) | Runs the feeds of the webhook modules | |
 | [mcp](mcp/README.md) | The MCP server and `/api/tools`. A token's scopes decide what an agent can call | |
 | [organizations](organizations/README.md) | Orgs, config, module switches, secrets and machine tokens | |
 | [public](public/README.md) | Open reads | |
@@ -42,8 +41,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | Module | Does | Org switch |
 | --- | --- | --- |
 | [event_webhook](event_webhook/README.md) | Events of the org, such as a failed job, sent to Discord webhooks | `event_webhook` |
-| [job_webhook](job_webhook/README.md) | New internship and new grad roles posted to a Discord webhook | `job_webhook` |
-| [hackathon_webhook](hackathon_webhook/README.md) | Upcoming hackathons posted to a Discord webhook | `hackathon_webhook` |
+| [feeds](feeds/README.md) | New job listings and hackathons posted to Discord webhooks | `feeds` |
 
 ## Automations
 

@@ -12,7 +12,7 @@ flowchart LR
   on -- no --> stop["No message"]
 ```
 
-The Webhooks category has three modules. Event webhooks sends events. Job alerts webhook and Hackathon webhook post feed listings to their own webhooks (see [Feeds and the webhook modules](./modules/feeds.md)).
+The Webhooks category has two modules. Event webhooks sends events. Feeds posts job listings and hackathons to their own webhooks (see [Feeds](./modules/feeds.md)).
 
 ## Events
 
@@ -81,7 +81,7 @@ All routes are under `/api/dashboard/<org>/webhooks`, for officers of the org, b
 
 ## Feeds and the server webhook
 
-- The feeds of the Job alerts webhook and Hackathon webhook modules post listings to their own webhooks. Set them on the page of each module. See [Feeds and the webhook modules](./modules/feeds.md).
+- Feeds post listings to their own webhooks. Set them on the Job alerts and Hackathons pages. See [Feeds](./modules/feeds.md).
 - `ERROR_WEBHOOK_URL` in `.env` gets every new error of every org and of the server. It is not an org webhook and does not show on the page.
 
 The `webhooks` table is in [Data model](./data-model.md). Migration `a1358e0da9ef` moved each org secret `error_webhook_url` to a webhook named Errors that sends `errors`.

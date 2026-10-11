@@ -20,7 +20,7 @@ flowchart LR
 | Submodule | Content |
 | --- | --- |
 | [asu](../../submodules/asu/README.md) | Arizona State University: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports; the ASU Canvas URL; the ASU sign-in for Sun Devil Central ([Sign in to ASU](../integrations.md#sign-in-to-asu)) |
-| [careers](../../submodules/careers/__init__.py) | Feeds for software internships and new grad roles (`job_webhook`) and for hackathons (`hackathon_webhook`) |
+| [careers](../../submodules/careers/__init__.py) | Feeds for software internships, new grad roles and hackathons (`feeds`) |
 
 ## Subscribe an org
 
@@ -30,7 +30,7 @@ flowchart LR
 A subscription does these things:
 
 - Knowledge search of the org reads the submodule's pages. If the submodule has no shared pages yet, the subscription makes them, and the crawl job gets them.
-- The feeds of the submodule show under **Start from** on the Job alerts webhook and Hackathon webhook pages. A feed needs its module on and a Discord webhook URL.
+- The feeds of the submodule show under **Start from** on the Job alerts and Hackathons pages. A feed needs the Feeds module on and a Discord webhook URL.
 
 **Unsubscribe** stops both. Feeds that the org already made keep running. The shared pages stay for the other subscribers, and the crawl job skips a submodule that no org subscribes to.
 

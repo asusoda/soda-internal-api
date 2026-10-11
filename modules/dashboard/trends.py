@@ -106,7 +106,7 @@ def trends(db, org: Organization, days: int = DEFAULT_DAYS) -> dict:
         KnowledgeRun.organization_id == org_id, KnowledgeRun.started_at >= since
     )
     series.append(_series("knowledge", "Knowledge runs", "runs", dates, ((t, 1, bool(err)) for t, err in rows)))
-    if on("job_webhook") or on("hackathon_webhook"):
+    if on("feeds"):
         rows = (
             db.query(AlertRun.started_at, AlertRun.posted, AlertRun.error)
             .join(AlertFeed, AlertFeed.id == AlertRun.feed_id)

@@ -24,8 +24,7 @@ def test_modules_are_on_by_default(client, officer_headers, soda_id):
         "leetcode": True,
         "godfather": True,
         "event_webhook": True,
-        "job_webhook": True,
-        "hackathon_webhook": True,
+        "feeds": True,
         "uptime": True,
         "knowledge": True,
         "agents": True,
@@ -76,21 +75,19 @@ def test_module_catalog_lists_every_module_but_core(client, officer_headers, sod
     from modules.manifest import CATALOG, CATEGORIES, CORE
 
     monkeypatch.delenv("BOT_TOKEN", raising=False)
-    client.put(
-        f"/api/organizations/{soda_id}/modules", json={"modules": {"job_webhook": False}}, headers=officer_headers
-    )
+    client.put(f"/api/organizations/{soda_id}/modules", json={"modules": {"feeds": False}}, headers=officer_headers)
     response = client.get("/api/dashboard/soda/modules", headers=officer_headers)
     assert response.status_code == 200
     body = response.get_json()
     assert CORE not in body["categories"]
     found = {m["name"]: m for m in body["modules"]}
     assert set(found) == set(CATALOG) - set(CATEGORIES[CORE])
-    assert found["job_webhook"]["enabled"] is False and found["job_webhook"]["switchable"] is True
+    assert found["feeds"]["enabled"] is False and found["feeds"]["switchable"] is True
     assert found["points"]["enabled"] is True
     assert found["knowledge"]["switchable"] is True and found["knowledge"]["enabled"] is True
     assert found["games"]["switchable"] is True
     assert [p["name"] for p in found["knowledge"]["submodules"]] == ["asu"]
-    assert [p["name"] for p in found["job_webhook"]["submodules"]] == ["careers"]
+    assert [p["name"] for p in found["feeds"]["submodules"]] == ["careers"]
     games = found["games"]
     assert games["needs"] == [
         {"key": "discord", "label": "Discord bot", "kind": "integration", "optional": False, "connected": False}

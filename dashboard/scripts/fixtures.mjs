@@ -16,8 +16,7 @@ export const MODULES = [
   { name: 'leetcode', description: "Daily LeetCode post in the org's channel, with solve checks", enabled: true },
   { name: 'godfather', description: "GPU and CPU pods on the org's RunPod account that members SSH into", enabled: true },
   { name: 'event_webhook', description: 'Events of the org, such as a failed job, sent to Discord webhooks', enabled: true },
-  { name: 'job_webhook', description: 'New internship and new grad roles posted to a Discord webhook', enabled: true },
-  { name: 'hackathon_webhook', description: 'Upcoming hackathons posted to a Discord webhook', enabled: true },
+  { name: 'feeds', description: 'New job listings and hackathons posted to Discord webhooks', enabled: true },
   { name: 'uptime', description: 'Checks of sites and Hosting apps, with an event when one goes down or up', enabled: true },
   { name: 'knowledge', description: 'Pages and documents that agents search', enabled: true },
   { name: 'agents', description: "Conversations, memories and pending actions of the org's agents", enabled: true },
@@ -36,8 +35,7 @@ const CATALOG = [
   { name: 'agents', title: 'Agents', description: "Conversations, memories and pending actions of the org's agents.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
   { name: 'integrations', title: 'Integration tools', description: "Gives agents the tools of the services that the org connects.", category: 'AI and agents', switchable: true, needs: [], submodules: [] },
   { name: 'event_webhook', title: 'Event webhooks', description: 'Sends events of the org, such as a failed job or a site that is down, to Discord webhooks.', category: 'Webhooks', switchable: true, needs: [], submodules: [] },
-  { name: 'job_webhook', title: 'Job alerts webhook', description: "Posts new internship and new grad roles from GitHub job lists to a Discord channel.", category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
-  { name: 'hackathon_webhook', title: 'Hackathon webhook', description: "Posts upcoming hackathons from Hack Club, Euro-Hackathons and Hackalist to a Discord channel.", category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
+  { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
   { name: 'calendar', title: 'Calendar sync', description: "Copies Notion events to Google Calendar and the public events feed.", category: 'Automations', switchable: true, needs: [need('notion', 'Notion', false), need('google', 'Google service account', true)], submodules: [] },
   { name: 'uptime', title: 'Uptime', description: "Checks the org's sites and Hosting apps, with an event when one goes down or comes back.", category: 'Automations', switchable: true, needs: [], submodules: [] },
   { name: 'leetcode', title: 'LeetCode', description: "Posts the daily LeetCode question in a Discord channel and checks who solved it.", category: 'Bots', switchable: true, needs: [need('discord', 'Discord bot', true)], submodules: [] },
@@ -710,7 +708,7 @@ export function fixtures(now = Date.now()) {
         feeds: feeds.map((f, i) => ({
           key: f.key,
           kind: f.kind,
-          module: f.kind === 'github_jobs' ? 'job_webhook' : 'hackathon_webhook',
+          module: 'feeds',
           enabled: f.enabled,
           every_hours: f.every_hours,
           last_run_at: f.last_run_at,
@@ -767,7 +765,7 @@ export function fixtures(now = Date.now()) {
     event(39, 'jobs', 'Job failed: knowledge.reindex', 'Embeddings answered 401 Unauthorized', 'activity?tab=knowledge', 'error', -3 * HOUR),
     event(38, 'order', 'New order: Robotics hoodie', 'Member: dana · 450 points', 'store', 'info', -5 * HOUR),
     event(37, 'app', 'Deployed: match-scout v1.4.2', 'Healthy after 38 s', 'hosting?tab=services', 'info', -9 * HOUR),
-    notice('a1', 'job_webhook', 'new-grad', 'The feed answered 404 Not Found', 'job-alerts'),
+    notice('a1', 'feeds', 'new-grad', 'The feed answered 404 Not Found', 'job-alerts'),
     notice('k1', 'knowledge', 'club/sponsor-packet', 'sponsors.robotics.example.org does not resolve', 'knowledge'),
     notice('k2', 'knowledge', 'asu/parking_rates', 'The page answered 503 Service Unavailable', 'knowledge'),
     notice('p1', 'apps', 'match-scout', 'Health check failed after 5 tries: GET /health answered 502', 'apps', -2 * HOUR),
@@ -1296,9 +1294,9 @@ export function fixtures(now = Date.now()) {
       parts: [{ kind: 'feeds', count: 3, paid_by: 'org', module: 'feeds' }],
       sources: 0,
       last_crawl: null,
-      subscribed: false,
+      subscribed: true,
       subscribers: 2,
-      modules: ['hackathon_webhook', 'job_webhook'],
+      modules: ['feeds'],
     },
   ];
 
@@ -1381,7 +1379,7 @@ export function fixtures(now = Date.now()) {
     [`/api/feeds/${ORG.prefix}/presets`]: {
       presets: [
         {
-          module: 'job_webhook',
+          module: 'feeds',
           submodule: 'careers',
           submodule_title: 'Internships and hackathons',
           key: 'new-grad',

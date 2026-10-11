@@ -35,7 +35,7 @@ def test_overview_covers_every_module(client, officer_headers, clean):
     assert response.status_code == 200
     body = response.get_json()
     assert body["organization"]["prefix"] == "soda"
-    assert {m["name"] for m in body["modules"]} >= {"points", "godfather", "job_webhook", "hackathon_webhook"}
+    assert {m["name"] for m in body["modules"]} >= {"points", "godfather", "feeds"}
     assert set(body["sections"]) == {
         "members",
         "points",
@@ -49,7 +49,7 @@ def test_overview_covers_every_module(client, officer_headers, clean):
         "tokens",
     }
     assert body["sections"]["members"]["total"] >= 1
-    assert body["problems"] == [{"module": "job_webhook", "subject": "jobs", "message": "README unreachable"}]
+    assert body["problems"] == [{"module": "feeds", "subject": "jobs", "message": "README unreachable"}]
     assert "content" not in str(body["sections"]["agents"])
 
 

@@ -18,7 +18,7 @@ Each org route checks access. The audit log records each change that an officer 
 | `knowledge` | Hybrid search (pgvector and full text) over documents and crawled public pages |
 | `submodules` | Sub-modules from `submodules/`: content that a module reads, such as the ASU campus pages and live queries for knowledge, and the job and hackathon feeds for the webhook modules |
 | `accounts` | Canvas, Google and Outlook sign-in for a member, so that agents can act for them |
-| `job_webhook`, `hackathon_webhook`, `feeds` | New job listings and hackathons posted to Discord webhooks. `feeds` runs the feeds of both |
+| `feeds` | New job listings and hackathons posted to Discord webhooks |
 | `runpod` | Deploys of an org's apps to RunPod from a manifest, with health checks and rollback |
 | `uptime` | Checks of sites and Hosting apps on a schedule, with events when one goes down or up |
 | `dashboard` | One page for each org with problems, activity, jobs, CI runs and module state |

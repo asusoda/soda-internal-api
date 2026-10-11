@@ -1,7 +1,8 @@
 """Feeds: read a source on a schedule and post new items to a Discord webhook. No Flask here.
 
-Each kind of feed belongs to a webhook module: github_jobs to job_webhook, hackathons to hackathon_webhook.
-A feed whose module is off is hidden and does not run.
+The kinds of feed are github_jobs (github_jobs.py: the job table of a GitHub README) and hackathons
+(hackathons.py: Hack Club, Euro-Hackathons and Hackalist). Every kind belongs to the feeds module; when the
+org has it off, its feeds are hidden and do not run. The presets come from the submodules the org subscribes to.
 
 A feed's first run records every current item without posting, so turning a feed on does not
 flood the channel. Later runs post items not seen before. The webhook URL is an org secret
@@ -20,8 +21,8 @@ from core.errors import ServiceError
 from core.log import get_logger
 from core.time import utcnow
 from modules.auth import scopes
-from modules.hackathon_webhook import source as hackathons
-from modules.job_webhook import source as jobs_table
+from modules.feeds import github_jobs as jobs_table
+from modules.feeds import hackathons
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
 
@@ -30,14 +31,14 @@ from .types import Item, SourceError
 
 logger = get_logger("feeds")
 
-scopes.declare("feeds:manage", "List, create, change, run and delete the feeds of the webhook modules")
+scopes.declare("feeds:manage", "List, create, change, run and delete the org's feeds")
 
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 WEBHOOK_PATTERN = re.compile(r"^https://(?:discord|discordapp)\.com/api/webhooks/\d+/[\w-]+$")
 SECRET_PREFIX = "alert_webhook_"  # nosec B105 - a secret name prefix, not a value
 KINDS = {"github_jobs": jobs_table, "hackathons": hackathons}
 # The module that each kind of feed belongs to
-KIND_MODULES = {"github_jobs": "job_webhook", "hackathons": "hackathon_webhook"}
+KIND_MODULES = {"github_jobs": "feeds", "hackathons": "feeds"}
 MAX_POSTS_PER_RUN = 25
 POST_GAP_SECONDS = 0.5
 RUNS_KEPT = 50  # runs kept per feed; older ones are deleted

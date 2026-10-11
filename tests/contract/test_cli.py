@@ -27,7 +27,7 @@ def test_org_create_starts_with_optional_modules_off(cli, client, remove_org):
     remove_org("clinew")
     result = cli.invoke(args=["org", "create", "--name", "CLI New", "--prefix", "clinew", "--guild-id", "1011"])
     assert result.exit_code == 0, result.output
-    assert "points=off" in result.output and "job_webhook=off" in result.output
+    assert "points=off" in result.output and "feeds=off" in result.output
     assert client.get("/api/storefront/clinew/products").status_code == 404
 
 
@@ -50,7 +50,7 @@ def test_org_create_with_modules_on_and_off(cli, client, remove_org):
         ]
     )
     assert result.exit_code == 0, result.output
-    assert "points=on" in result.output and "calendar=on" in result.output and "job_webhook=off" in result.output
+    assert "points=on" in result.output and "calendar=on" in result.output and "feeds=off" in result.output
     assert client.get("/api/storefront/clitest/products").status_code == 404
 
 

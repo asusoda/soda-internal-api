@@ -13,7 +13,6 @@ CATEGORIES = {
         "auth",
         "bot",
         "dashboard",
-        "feeds",
         "mcp",
         "organizations",
         "public",
@@ -23,7 +22,7 @@ CATEGORIES = {
     ],
     "Storage": ["knowledge", "points", "storefront", "accounts"],
     "AI and agents": ["agents", "integrations"],
-    "Webhooks": ["event_webhook", "job_webhook", "hackathon_webhook"],
+    "Webhooks": ["event_webhook", "feeds"],
     "Automations": ["calendar", "uptime"],
     "Bots": ["leetcode", "games"],
     "Compute": ["godfather", "runpod"],
@@ -86,19 +85,13 @@ CATALOG = {
     "event_webhook": ModuleInfo(
         "Event webhooks", "Sends events of the org, such as a failed job or a site that is down, to Discord webhooks."
     ),
-    "feeds": ModuleInfo("Feeds", "Runs the feeds of the webhook modules and posts their new items to Discord."),
+    "feeds": ModuleInfo(
+        "Feeds",
+        "Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.",
+        submodules=("careers",),
+    ),
     "games": ModuleInfo("Games", "Jeopardy games in the org's Discord server.", (DISCORD_BOT,)),
-    "hackathon_webhook": ModuleInfo(
-        "Hackathon webhook",
-        "Posts upcoming hackathons from Hack Club, Euro-Hackathons and Hackalist to a Discord channel.",
-        submodules=("careers",),
-    ),
     "integrations": ModuleInfo("Integration tools", "Gives agents the tools of the services that the org connects."),
-    "job_webhook": ModuleInfo(
-        "Job alerts webhook",
-        "Posts new internship and new grad roles from GitHub job lists to a Discord channel.",
-        submodules=("careers",),
-    ),
     "knowledge": ModuleInfo(
         "Knowledge",
         "Pages and documents that agents search, with crawls on a schedule.",
