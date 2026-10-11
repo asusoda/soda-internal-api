@@ -156,7 +156,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | Tools | Scope | Module |
 | --- | --- | --- |
 | `batch`: 1 to 25 calls of other tools, each checked as a single call | the scope of each call | mcp |
-| `org.info`, `org.branding`, `org.settings`, `leetcode.settings` | `org:read` | organizations, leetcode |
+| `org.info`, `org.branding`, `org.settings`, `org.limits`, `leetcode.settings` | `org:read` | organizations, leetcode |
 | `org.set_modules` (confirm), `org.set_branding`, `org.update_settings`, `leetcode.update_settings`, `ci.set_repos` | `settings:write` | organizations, leetcode, dashboard |
 | `secrets.list`, `secrets.set` (confirm), `secrets.delete` (confirm) | `secrets:manage` | organizations |
 | `tokens.list`, `tokens.create` (confirm), `tokens.revoke` (confirm) | `tokens:manage` | organizations |
@@ -174,6 +174,8 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `store.save_product`, `store.update_orders`, `store.delete_products` (confirm), `store.delete_orders` (confirm) | `store:write` | storefront |
 | `knowledge.search`, `knowledge.sources`, `knowledge.read_source`, `knowledge.submodules`, `knowledge.settings`, `knowledge.runs` | `knowledge:read` | knowledge |
 | `knowledge.add_document`, `knowledge.delete_source` (confirm), `knowledge.set_crawl`, `knowledge.crawl_now`, `knowledge.sync_submodule`, `knowledge.update_settings`, `knowledge.reindex` (confirm) | `knowledge:write` | knowledge |
+| `submodules.list` | `submodules:read` | submodules |
+| `submodules.subscribe` (confirm), `submodules.unsubscribe` (confirm) | `submodules:manage` | submodules |
 | `submodules.query` | `knowledge:read` | submodules |
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
 | `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
