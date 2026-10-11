@@ -29,7 +29,7 @@ Each module has a `README.md` in its folder with its files, routes, jobs, tools 
 | [Agents](./modules/agents.md) | Conversations, memories, profile graph and turns for agents |
 | [Calendar](./modules/calendar.md) | Notion events synced to Google Calendar |
 | [Discord bot](./modules/discord-bot.md) | The bot process, its setup and its commands |
-| [Feeds](./modules/feeds.md) | The Job alerts webhook and Hackathon webhook modules, and the feeds engine that posts their listings to Discord |
+| [Feeds](./modules/feeds.md) | Job listings and hackathons posted to Discord channels |
 | [Godfather](./modules/godfather.md) | RunPod pods, SSH certificates, file manager, sessions |
 | [Knowledge](./modules/knowledge.md) | Sources, crawls and hybrid search |
 | [LeetCode](./modules/leetcode.md) | Daily question post, solve checks and slash commands |

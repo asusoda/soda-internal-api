@@ -67,7 +67,7 @@ Views get a database session from `officer_route`, `machine_route` or `member_vi
 
 A module is a folder in `modules/` with only the files it needs: `service.py` for the logic, `api.py` for the routes, `models.py`, `jobs.py` and `tools.py`. The REST routes, jobs, tools and the bot call the same `service.py` functions. [Writing a module](./writing-a-module.md) gives the rules and the places to register a module.
 
-Orgs can turn on and off the optional modules: `points`, `storefront`, `calendar`, `games`, `leetcode`, `godfather`, `job_webhook`, `hackathon_webhook`, `uptime`, `knowledge`, `agents`, `integrations`, `accounts` and `runpod`. The list is `OPTIONAL_MODULES` in `modules/organizations/service.py`. The Core modules, `mcp` and `feeds` among them, are always on. When a module is off for an org, its routes return 404 for the org (`module=` on `officer_route`, `machine_route` or the `Mount`), its tools are not listed, and its jobs skip the org. With `integrations` off, the org has no tools of connected services. If `games` is off for each org of an officer, the `/api/bot` routes return 404 for that officer. The switches are in `Organization.config["modules"]`. A module with no entry is on, so an org made before the switch existed keeps the module. A new org gets an entry for each optional module: on for the modules in `NEW_ORG_MODULES` in `modules/manifest.py`, off for the others. `NEW_ORG_MODULES` is empty, so a new org starts with Core only. Officers add and remove modules on the dashboard Explore page, or with `flask --app main org modules <prefix> --on x --off y`.
+Orgs can turn on and off the optional modules: `points`, `storefront`, `calendar`, `games`, `leetcode`, `godfather`, `event_webhook`, `feeds`, `uptime`, `knowledge`, `agents`, `integrations`, `accounts` and `runpod`. The list is `OPTIONAL_MODULES` in `modules/organizations/service.py`. The Core modules, `mcp` and `submodules` among them, are always on. When a module is off for an org, its routes return 404 for the org (`module=` on `officer_route`, `machine_route` or the `Mount`), its tools are not listed, and its jobs skip the org. With `integrations` off, the org has no tools of connected services. If `games` is off for each org of an officer, the `/api/bot` routes return 404 for that officer. The switches are in `Organization.config["modules"]`. A module with no entry is on, so an org made before the switch existed keeps the module. A new org gets an entry for each optional module: on for the modules in `NEW_ORG_MODULES` in `modules/manifest.py`, off for the others. `NEW_ORG_MODULES` is empty, so a new org starts with Core only. Officers add and remove modules on the dashboard Explore page, or with `flask --app main org modules <prefix> --on x --off y`.
 
 ### Categories, modules and sub-modules
 
@@ -81,7 +81,7 @@ flowchart LR
 | | Module | Sub-module |
 | --- | --- | --- |
 | Is | A feature with code, in `modules/<name>/` | Content or presets with no code of their own, in `submodules/<name>/` |
-| Examples | `knowledge`, `job_webhook`, `godfather` | `submodules/asu` (campus pages and live queries for `knowledge`), `submodules/careers` (feeds for `job_webhook` and `hackathon_webhook`) |
+| Examples | `knowledge`, `feeds`, `godfather` | `submodules/asu` (campus pages and live queries for `knowledge`), `submodules/careers` (feeds for `feeds`) |
 | Per org | Optional modules are switched on or off for each org | An org adds a sub-module's sources or feeds in the module that uses it |
 | On the dashboard | A card on Explore | A sub-module on the card of the module that uses it |
 
@@ -92,7 +92,7 @@ flowchart LR
 | Core | `auth`, `bot`, `dashboard`, `feeds`, `mcp`, `organizations`, `public`, `submodules`, `superadmin`, `users`. Always on and not on Explore |
 | Storage | `knowledge`, `points`, `storefront`, `accounts` |
 | AI and agents | `agents`, `integrations` |
-| Webhooks | `event_webhook`, `job_webhook`, `hackathon_webhook` |
+| Webhooks | `event_webhook`, `feeds` |
 | Automations | `calendar`, `uptime` |
 | Bots | `leetcode`, `games` |
 | Compute | `godfather`, `runpod` (Hosting) |
@@ -142,7 +142,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
 | `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
 | `apps.deploy` (confirm) | `apps:deploy` | runpod |
-| `feeds.list`, `feeds.presets`, `feeds.history`, `feeds.save`, `feeds.run`, `feeds.delete` (confirm) | `feeds:manage` | feeds (the feeds of `job_webhook` and `hackathon_webhook`) |
+| `feeds.list`, `feeds.presets`, `feeds.history`, `feeds.save`, `feeds.run`, `feeds.delete` (confirm) | `feeds:manage` | feeds |
 | `godfather.pods`, `godfather.pod_members`, `godfather.connected`, `godfather.settings`, `godfather.sessions`, `godfather.list_files`, `godfather.read_file`, `godfather.update_pod`, `godfather.update_settings`, `godfather.delete_session`, `godfather.make_folder`, `godfather.move_file` | `godfather:manage` | godfather |
 | `godfather.pod_action`, `godfather.create_pod`, `godfather.add_session`, `godfather.write_file`, `godfather.delete_file` (each confirm) | `godfather:manage` | godfather |
 | `uptime.list`, `uptime.get`, `uptime.targets` | `uptime:read` | uptime |

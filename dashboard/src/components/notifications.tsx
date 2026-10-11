@@ -10,6 +10,8 @@ import { Tooltip } from './tooltip';
 import { Badge, Button, cx, Mono, Spinner } from './ui';
 
 const MODULE_LABELS: Record<string, string> = {
+  feeds: 'Feeds',
+  // Older notifications, from before the two feed modules became feeds
   job_webhook: 'Job alerts',
   hackathon_webhook: 'Hackathons',
   apps: 'Hosting',

@@ -32,7 +32,7 @@ def test_each_call_needs_its_own_scope(client):
     calls = [
         {"tool": "org.info"},
         {"tool": "points.leaderboard", "arguments": {"limit": 3}},
-        {"tool": "org.set_modules", "arguments": {"modules": {"job_webhook": False}, "confirm": True}},
+        {"tool": "org.set_modules", "arguments": {"modules": {"feeds": False}, "confirm": True}},
         {"tool": "org.info", "arguments": {"nope": 1}},
     ]
     response = _batch(client, headers, calls)
@@ -50,14 +50,14 @@ def test_each_call_needs_its_own_scope(client):
 
 def test_confirm_tools_return_their_preview_in_a_batch(client, restore_soda_config):
     headers = _issue("settings:write", "org:read")
-    change = {"tool": "org.set_modules", "arguments": {"modules": {"job_webhook": False}}}
+    change = {"tool": "org.set_modules", "arguments": {"modules": {"feeds": False}}}
     pending = _batch(client, headers, [change, {"tool": "org.info"}]).get_json()["result"]["results"]
     assert pending[0]["ok"] is True and pending[0]["result"]["confirm_required"] is True
-    assert pending[1]["result"]["modules"]["job_webhook"] is True
+    assert pending[1]["result"]["modules"]["feeds"] is True
 
-    confirmed = {"tool": "org.set_modules", "arguments": {"modules": {"job_webhook": False}, "confirm": True}}
+    confirmed = {"tool": "org.set_modules", "arguments": {"modules": {"feeds": False}, "confirm": True}}
     done = _batch(client, headers, [confirmed, {"tool": "org.info"}]).get_json()["result"]["results"]
-    assert done[1]["result"]["modules"]["job_webhook"] is False
+    assert done[1]["result"]["modules"]["feeds"] is False
 
 
 def test_stop_on_error_stops_at_the_first_failure(client):

@@ -18,15 +18,17 @@ const MODULE_PAGES: Record<string, string> = {
   godfather: 'godfather',
   runpod: 'hosting',
   event_webhook: 'webhooks',
-  job_webhook: 'job-alerts',
-  hackathon_webhook: 'hackathons',
+  feeds: 'job-alerts',
   knowledge: 'knowledge',
   agents: 'agents',
   uptime: 'uptime',
 };
 
-// The webhook modules, whose submodules are feeds
-const FEED_MODULES = { job_webhook: true, hackathon_webhook: true };
+// The page of each kind of feed
+const KIND_PAGES: Record<string, string> = { github_jobs: 'job-alerts', hackathons: 'hackathons' };
+
+// The modules whose submodules give feeds
+const FEED_MODULES = { feeds: true };
 
 // One submodule row inside a module card: a submodule or a feed the module can add.
 function SubRow({ title, meta, action }: { title: string; meta?: string; action?: ReactNode }) {
@@ -97,7 +99,7 @@ function ModuleFeeds({ m, prefix }: { m: CatalogModule; prefix: string }) {
                 <Badge tone="ok">Added</Badge>
               ) : (
                 <Link
-                  to={`/${prefix}/${MODULE_PAGES[m.name]}?new=${encodeURIComponent(`${p.submodule}/${p.key}`)}`}
+                  to={`/${prefix}/${KIND_PAGES[p.kind] ?? MODULE_PAGES[m.name]}?new=${encodeURIComponent(`${p.submodule}/${p.key}`)}`}
                   className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-panel px-2 text-xs font-medium shadow-xs hover:bg-panel-2"
                 >
                   <Plus className="size-3.5" /> Add

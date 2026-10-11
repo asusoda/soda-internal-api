@@ -5,7 +5,7 @@ A sub-module is content for one campus or topic that a module reads and any org 
 | Sub-module | Content |
 | --- | --- |
 | [asu](asu/README.md) | Arizona State University: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports; the ASU Canvas URL; the ASU sign-in for Sun Devil Central |
-| [careers](careers/__init__.py) | Feeds for software internships and new grad roles (`job_webhook`) and for hackathons (`hackathon_webhook`) |
+| [careers](careers/__init__.py) | Feeds for software internships, new grad roles and hackathons (`feeds`) |
 
 ## Write a sub-module
 
@@ -34,7 +34,7 @@ A sub-module is content for one campus or topic that a module reads and any org 
    ```
 
 3. Optional parts of a `Submodule`:
-   - `feeds`: feeds that officers pick under **New feed** > **Start from** on the page of a webhook module. Each `Feed` has a key (lowercase letters, digits and dashes), a title, a description, and the `kind` and `config` that the [feeds module](../docs/modules/feeds.md) takes. The `kind` selects the module: `github_jobs` for `job_webhook`, `hackathons` for `hackathon_webhook`.
+   - `feeds`: feeds that officers pick under **New feed** > **Start from** on the Job alerts and Hackathons pages of the Feeds module. Each `Feed` has a key (lowercase letters, digits and dashes), a title, a description, and the `kind` and `config` that the [feeds module](../docs/modules/feeds.md) takes. The `kind` is `github_jobs` or `hackathons`.
    - `canvas_url`: the school's Canvas, like `https://canvas.example.edu`. Member sign-in to Canvas uses it when `ACCOUNTS_CANVAS_URL` is not set and only one sub-module sets it.
 4. Optional: give a `Source` or `QuerySource` an `extractor` that turns the fetched page into one line for each record. Helpers are in `modules/submodules/text.py`. A query that calls an API sets `answer` instead of `to_url`. Add `modules.submodules.web.QUERY` to `queries` for web search.
 5. Add a `README.md` that lists the pages and the queries, and add the sub-module to the table above.

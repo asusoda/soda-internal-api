@@ -48,8 +48,8 @@ EVENT_MODULES = {
     "monitor.down": "uptime",
     "monitor.up": "uptime",
 }
-# The dashboard page of each webhook module
-FEED_PAGES = {"job_webhook": "job-alerts", "hackathon_webhook": "hackathons"}
+# The dashboard page of each kind of feed
+FEED_PAGES = {"github_jobs": "job-alerts", "hackathons": "hackathons"}
 ERROR_COLORS = (webhooks.RED, webhooks.AMBER)
 MAX_IDS = 500
 
@@ -120,7 +120,7 @@ def problems(db, org_id: int) -> list[dict]:
     for f in rows:
         if f.kind in on:
             module = feeds.KIND_MODULES[str(f.kind)]
-            found.append(_notice(module, cast(str, f.key), cast(str, f.last_error), FEED_PAGES[module]))
+            found.append(_notice(module, cast(str, f.key), cast(str, f.last_error), FEED_PAGES[str(f.kind)]))
     for app in db.query(App).filter_by(organization_id=org_id).order_by(App.name):
         latest = db.query(AppDeployment).filter_by(app_id=app.id).order_by(AppDeployment.started_at.desc()).first()
         if latest and latest.status == "failed":

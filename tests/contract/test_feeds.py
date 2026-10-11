@@ -22,7 +22,7 @@ def _row(company, role, url, date="Oct 07", location="Tempe, AZ"):
 
 
 def test_job_table_parsing():
-    from modules.job_webhook import source as jobs_table
+    from modules.feeds import github_jobs as jobs_table
 
     markdown = _readme(
         _row("Acme", "Software Intern \U0001f6c2", "https://jobs.acme.com/1?utm_source=list"),
@@ -66,14 +66,14 @@ def test_job_table_parsing():
     ],
 )
 def test_job_table_config_is_checked(config):
-    from modules.job_webhook import source as jobs_table
+    from modules.feeds import github_jobs as jobs_table
 
     with pytest.raises(ValueError):
         jobs_table.validate(config)
 
 
 def test_hackathon_sources():
-    from modules.hackathon_webhook import source as hackathons
+    from modules.feeds import hackathons
 
     now = datetime.datetime(2026, 10, 8, 12)
     responses = {
@@ -292,9 +292,7 @@ def test_due_feeds_respect_schedule_and_switch(client, officer_headers, alerts, 
 
     orgs = client.get("/api/organizations/", headers=officer_headers).get_json()
     soda_id = next(o["id"] for o in orgs if o["prefix"] == "soda")
-    client.put(
-        f"/api/organizations/{soda_id}/modules", json={"modules": {"job_webhook": False}}, headers=officer_headers
-    )
+    client.put(f"/api/organizations/{soda_id}/modules", json={"modules": {"feeds": False}}, headers=officer_headers)
     assert client.get("/api/feeds/soda/feeds", headers=officer_headers).get_json()["feeds"] == []
     assert client.get("/api/feeds/soda/feeds/internships", headers=officer_headers).status_code == 404
     db = db_connect.SessionLocal()

@@ -170,9 +170,9 @@ export function OverviewPage() {
         </Card>
         ) : null}
 
-        {on('job_webhook') || on('hackathon_webhook') ? (
+        {on('feeds') ? (
         <Card>
-          <CardHeader title="Webhook feeds" />
+          <CardHeader title="Feeds" />
           {s.feeds.feeds.length ? (
             s.feeds.feeds.map((f) => (
               <Row key={f.key}>
