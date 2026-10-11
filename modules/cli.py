@@ -6,11 +6,9 @@ org modules    turn modules on or off for an organization
 jobs list      list registered jobs
 jobs run       run a job now, in this process
 config check   check settings, the database and migrations before a deploy
-apps link      add or update a linked app of an organization: a service that runs outside Platform
 """
 
 import os
-from typing import cast
 
 import click
 from flask import Flask
@@ -22,7 +20,6 @@ from core.db import db_connect
 org_cli = AppGroup("org", help="Organizations.")
 jobs_cli = AppGroup("jobs", help="Background jobs.")
 config_cli = AppGroup("config", help="Configuration.")
-apps_cli = AppGroup("apps", help="Hosting apps.")
 
 
 def _csv(value: str | None) -> tuple[str, ...]:
@@ -223,34 +220,6 @@ def _check_database(report) -> None:
     report("ok", f"job backend: {jobs.queue_backend()}")
 
 
-@apps_cli.command("link")
-@click.argument("prefix")
-@click.argument("name")
-@click.option("--url", default=None, help="The public https URL that Uptime checks")
-@click.option("--description", default=None)
-@click.option("--kind", default="service", help="site, service, bot, agent or database")
-@click.option("--runs-as", "runs_as", default="", help="The containers or processes that run it, comma-separated")
-def apps_link(prefix, name, url, description, kind, runs_as):
-    """Add or update a linked app of an organization. Platform lists it and checks its URL; it never deploys it."""
-    from modules.organizations import service as organizations
-    from modules.runpod import service
-
-    db = db_connect.SessionLocal()
-    try:
-        org = organizations.find_by_prefix(db, prefix)
-        if org is None:
-            raise click.ClickException(f"No organization with prefix {prefix}")
-        try:
-            app = service.link_app(db, cast(int, org.id), name, url, description, kind, list(_csv(runs_as)))
-        except service.AppError as e:
-            raise click.ClickException(e.message) from e
-        click.echo(
-            f"{prefix}/{app['name']}: linked, url={app['url'] or '-'}, runs as {', '.join(app['runs_as']) or '-'}"
-        )
-    finally:
-        db.close()
-
-
 def register_cli(app: Flask) -> None:
-    for group in (org_cli, jobs_cli, config_cli, apps_cli):
+    for group in (org_cli, jobs_cli, config_cli):
         app.cli.add_command(group)

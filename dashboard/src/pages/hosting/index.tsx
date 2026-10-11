@@ -1,6 +1,6 @@
 import { IntegrationHint } from '../../components/integration-hint';
 import { useQuery } from '@tanstack/react-query';
-import { Boxes, LayoutTemplate, Link2, Plus } from 'lucide-react';
+import { Boxes, LayoutTemplate, Plus } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router';
 import { Button, Card, CardHeader, Dialog, EmptyState, ErrorNote, Mono, Notice, PageHeader, SkeletonRows } from '../../components/ui';
@@ -8,7 +8,6 @@ import { api } from '../../lib/api';
 import { useCurrentOrg } from '../../lib/org';
 import type { App, AppKind } from '../../lib/types';
 import { AppPanel } from './detail';
-import { LinkApp } from './link';
 import { RegisterApp } from './register';
 import { TemplatePicker } from './templates';
 import { providerTitle, useProviders } from './providers';
@@ -20,7 +19,6 @@ const KINDS: { kind: AppKind; title: string }[] = [
   { kind: 'agent', title: 'Agents' },
   { kind: 'site', title: 'Sites' },
   { kind: 'service', title: 'Services' },
-  { kind: 'database', title: 'Databases' },
 ];
 
 // The apps that the org deploys to its hosting providers.
@@ -34,7 +32,6 @@ function Services() {
   const { prefix } = useCurrentOrg();
   const [registering, setRegistering] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [linking, setLinking] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   // The tag to put in the deploy form of an app just made from a template
   const [deployTag, setDeployTag] = useState<string | null>(null);
@@ -49,9 +46,6 @@ function Services() {
   const providers = useProviders(prefix);
   const register = (
     <div className="flex gap-2">
-      <Button onClick={() => setLinking(true)} aria-label="Link service">
-        <Link2 className="size-4" /> <span className="hidden sm:inline">Link service</span>
-      </Button>
       <Button onClick={() => setPicking(true)} aria-label="Templates">
         <LayoutTemplate className="size-4" /> <span className="hidden sm:inline">Templates</span>
       </Button>
@@ -63,12 +57,7 @@ function Services() {
   const current = apps.find((a) => a.name === open);
   return (
     <>
-      <PageHeader
-        title="Hosting"
-        description="Apps the org deploys, and services it links."
-        docs="modules/runpod-apps"
-        action={register}
-      />
+      <PageHeader title="Hosting" description="Bots, agents, sites and services the org deploys." docs="modules/runpod-apps" action={register} />
       {providers.data?.some((p) => p.configured) ? null : <IntegrationHint keys={providers.data?.map((p) => p.integration) ?? ['runpod']} />}
       {notice ? <Notice onDismiss={() => setNotice(null)}>{notice}</Notice> : null}
       {list.error ? (
@@ -115,18 +104,6 @@ function Services() {
         />
       </Dialog>
 
-      <Dialog open={linking} onClose={() => setLinking(false)} title="Link service" wide>
-        {linking ? (
-          <LinkApp
-            prefix={prefix}
-            onDone={(name) => {
-              setLinking(false);
-              if (name) setOpen(name);
-            }}
-          />
-        ) : null}
-      </Dialog>
-
       <Dialog open={picking} onClose={() => setPicking(false)} title="Templates" wide>
         {picking ? (
           <TemplatePicker
@@ -149,7 +126,7 @@ function Services() {
           setDeployTag(null);
         }}
         title={open ?? ''}
-        description={current ? (current.linked ? 'Linked: runs outside Platform' : current.repo ? `From ${current.repo}` : 'Inline manifest') : undefined}
+        description={current ? (current.repo ? `From ${current.repo}` : 'Inline manifest') : undefined}
         wide
       >
         {open ? (

@@ -55,28 +55,6 @@ def apps_register(db, org, caller, name: str, manifest=None, repo=None, manifest
 
 
 @tool(
-    "apps.link",
-    description="Add or update a linked app: a service that runs outside Platform, such as a container the org "
-    "already runs. Platform lists it and Uptime checks its url; Platform never deploys it.",
-    scope="apps:manage",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "name": NAME,
-            "url": {"type": ["string", "null"], "maxLength": 500},
-            "description": {"type": ["string", "null"], "maxLength": 200},
-            "kind": {"enum": list(service.LINK_KINDS)},
-            "runs_as": {"type": "array", "items": {"type": "string", "maxLength": 100}, "maxItems": 20},
-        },
-        "required": ["name"],
-        "additionalProperties": False,
-    },
-)
-def apps_link(db, org, caller, name: str, url=None, description=None, kind="service", runs_as=None):
-    return service.link_app(db, int(org.id), name, url, description, kind, runs_as)
-
-
-@tool(
     "apps.delete",
     description="Forget an app. Its pod keeps running until it is terminated on its provider.",
     scope="apps:manage",

@@ -62,21 +62,6 @@ def put_app(db, org, name):
     )
 
 
-@_route("/<string:name>/link", "apps:manage", ["PUT"])
-def link_app(db, org, name):
-    """Add or update a linked app: a service that runs outside Platform, which Uptime checks."""
-    data = json_body()
-    return service.link_app(
-        db,
-        _org_id(org),
-        name,
-        data.get("url"),
-        data.get("description"),
-        data.get("kind", "service"),
-        data.get("runs_as"),
-    )
-
-
 @_route("/<string:name>", "apps:manage", ["DELETE"])
 def delete_app(db, org, name):
     return service.delete_app(db, _org_id(org), name)

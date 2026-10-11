@@ -7,7 +7,6 @@ import { deployTone, duration, podTone, timeAgo } from '../../lib/format';
 import type { App, AppDetail, RunPodPod } from '../../lib/types';
 import { providerTitle, useProviders } from './providers';
 import { DeletePanel, DeployPanel, RollbackPanel } from './actions';
-import { LinkedPanel } from './link';
 import { ManifestSection } from './manifest';
 import { actorLabel, Fact, Label } from './shared';
 
@@ -152,7 +151,6 @@ export function AppPanel({
   if (detail.isLoading) return <SkeletonRows rows={5} />;
   if (detail.error || !detail.data) return <ErrorNote error={detail.error ?? 'No data'} />;
   const app = detail.data;
-  if (app.linked) return <LinkedPanel prefix={prefix} app={app} onDeleted={onDeleted} />;
   const latest = app.latest_deployment;
   const close = () => setPanel(null);
   return (

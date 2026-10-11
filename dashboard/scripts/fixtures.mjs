@@ -486,7 +486,7 @@ export function fixtures(now = Date.now()) {
     deployment(38, 'v1.7.3', 'healthy', -12 * DAY, { manifest_ref: '71aa5b2' }),
   ];
 
-  const deployedApps = [
+  const appList = [
     {
       name: 'match-scout',
       kind: 'site',
@@ -532,31 +532,6 @@ export function fixtures(now = Date.now()) {
       latest_deployment: telemetryDeployments[0],
       updated_at: at(-2 * HOUR),
     },
-  ];
-  const appList = [
-    ...deployedApps.map((a) => ({ linked: false, runs_as: [], ...a })),
-    ...[
-      ['vault', 'service', 'Password manager for officers', 'https://vault.robotics.example.org', ['vaultwarden']],
-      ['crm', 'service', 'Sponsor and member CRM', 'https://crm.robotics.example.org', ['crm_server', 'crm_worker', 'crm_db', 'crm_redis']],
-      ['website', 'site', 'Main website', 'https://robotics.example.org', ['serve (host process)']],
-      ['field-map', 'database', 'Map data for the field app', null, ['field-db']],
-    ].map(([name, kind, description, url, runsAs]) => ({
-      name,
-      kind,
-      description,
-      url,
-      host: 'linked',
-      provider: 'linked',
-      linked: true,
-      runs_as: runsAs,
-      manifest: { kind, description, url, runs_as: runsAs },
-      repo: null,
-      manifest_path: null,
-      pod_id: null,
-      current_tag: null,
-      latest_deployment: null,
-      updated_at: at(-6 * DAY),
-    })),
   ];
 
   const telemetryPod = {
@@ -1423,7 +1398,6 @@ export function fixtures(now = Date.now()) {
     [`/api/dashboard/${ORG.prefix}/hosting/providers`]: { providers: [{ name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true }] },
     [`/api/dashboard/${ORG.prefix}/apps`]: { apps: appList },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry`]: { ...appList[2], deployments: telemetryDeployments },
-    ...Object.fromEntries(appList.filter((a) => a.linked).map((a) => [`/api/dashboard/${ORG.prefix}/apps/${a.name}`, { ...a, deployments: [] }])),
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/pod`]: { pod: telemetryPod },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/deploy`]: preview('v1.9.0'),
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/rollback`]: preview('v1.8.0'),

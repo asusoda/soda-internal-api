@@ -77,7 +77,7 @@ Platform has four kinds of part. Each one lives in one place.
 | --- | --- | --- | --- | --- |
 | Module | A feature with code | `modules/<name>/`; a card on Explore | `knowledge`, `feeds`, `godfather` | A developer, by pull request |
 | Submodule | A domain: content and presets with no code of their own | `submodules/<name>/`; the Submodules tab of Explore | `asu` (campus pages, live queries, Canvas URL), `careers` (job and hackathon feeds) | A developer, by pull request |
-| App | Something that runs: a container or a pod | The Hosting page | Hermes, Sparky, Vaultwarden | The org, from a manifest or a template, or linked when it runs outside Platform |
+| App | Something that runs: a container or a pod | The Hosting page | Hermes, Sparky, Vaultwarden | The org, from a manifest or a template |
 | Integration | A connection to an outside service | The Integrations tab of Explore | RunPod, OpenRouter, Firecrawl, Embeddings | The org with its own keys, or the deployment as the default |
 
 ```mermaid
@@ -93,7 +93,7 @@ flowchart LR
   modules --> mcp
 ```
 
-An org turns modules on and subscribes to submodules. Each module that is on gets its part of each subscribed submodule. An app never runs inside Platform: it is its own container or pod, and it calls Platform over MCP with a token of its org. A linked app runs outside Platform, and Platform only lists it and checks its URL.
+An org turns modules on and subscribes to submodules. Each module that is on gets its part of each subscribed submodule. An app never runs inside Platform: it is its own container or pod, and it calls Platform over MCP with a token of its org.
 
 `CATALOG` in `modules/manifest.py` gives each module a title, a description, what it needs (integration keys or settings) and the submodules it reads. `CATEGORIES` puts each module in one category:
 
@@ -178,7 +178,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `submodules.subscribe` (confirm), `submodules.unsubscribe` (confirm) | `submodules:manage` | submodules |
 | `submodules.query` | `knowledge:read` | submodules |
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
-| `apps.register`, `apps.link`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
+| `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
 | `apps.deploy` (confirm) | `apps:deploy` | runpod |
 | `feeds.list`, `feeds.presets`, `feeds.history`, `feeds.save`, `feeds.run`, `feeds.delete` (confirm) | `feeds:manage` | feeds |
 | `godfather.pods`, `godfather.pod_members`, `godfather.connected`, `godfather.settings`, `godfather.sessions`, `godfather.list_files`, `godfather.read_file`, `godfather.update_pod`, `godfather.update_settings`, `godfather.delete_session`, `godfather.make_folder`, `godfather.move_file` | `godfather:manage` | godfather |
