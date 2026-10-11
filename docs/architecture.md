@@ -77,7 +77,7 @@ Platform has four kinds of part. Each one lives in one place. The dashboard and 
 | --- | --- | --- | --- | --- | --- |
 | Feature | module | Something Platform does, with code. Its data belongs to each org | `modules/<name>/`; the Features tab of Explore | `knowledge`, `feeds`, `godfather` | A developer, by pull request |
 | Shared content | submodule | Content made once for every org, with no code of its own | `submodules/<name>/`; the Shared tab of Explore | `asu` (campus pages, live queries, Canvas URL), `careers` (job and hackathon feeds) | A developer, by pull request |
-| App | app | A program in its own container or pod | The Hosting page | Hermes, Vaultwarden | The org, from a manifest or a template |
+| App | app | A program in its own container or pod | The Hosting page | Vaultwarden, an org's own Discord agent | The org, from a manifest or a template |
 | Integration | integration | A connection to an outside service | The Integrations tab of Explore | RunPod, OpenRouter, Firecrawl, Embeddings | The org with its own keys, or the deployment as the default |
 
 ```mermaid
