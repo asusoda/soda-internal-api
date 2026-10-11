@@ -259,7 +259,7 @@ def test_an_expired_session_gives_an_error_and_one_notification(client, officer_
         assert len(rows) == 1 and rows[0].color == webhooks.AMBER
         notices = client.get("/api/dashboard/soda/notifications", headers=officer_headers).get_json()
         expired = [n for n in notices["notifications"] if n["subject"] == "ASU sign-in expired"]
-        assert len(expired) == 1 and expired[0]["link"] == "explore?tab=submodules"
+        assert len(expired) == 1 and expired[0]["link"] == "explore?tab=shared"
         _sign_in(client, officer_headers)
         assert client.get(BASE, headers=officer_headers).get_json()["signed_in"] is True
     finally:

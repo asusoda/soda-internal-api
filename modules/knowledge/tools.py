@@ -167,7 +167,7 @@ def knowledge_crawl_now(db, org, caller, key: str, force: bool = False):
 
 @tool(
     "knowledge.submodules",
-    description="Submodules the org can subscribe to, such as a campus submodule. Same as submodules.list.",
+    description="Shared content (submodules) the org can subscribe to, such as a campus. Same as submodules.list.",
     scope="knowledge:read",
 )
 def knowledge_submodules(db, org, caller):
@@ -176,7 +176,8 @@ def knowledge_submodules(db, org, caller):
 
 @tool(
     "knowledge.sync_submodule",
-    description="Subscribe the org to a submodule's shared pages, then start the crawl of the pages that are due. "
+    description="Subscribe the org to shared content (a submodule) and its pages, then start the crawl of the pages that "
+    "are due. "
     "Same as submodules.subscribe.",
     scope="knowledge:write",
     input_schema={

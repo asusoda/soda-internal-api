@@ -96,7 +96,7 @@ Some MCP servers take no API key. The officer signs in with the service, and the
 
 Sun Devil Central, the ASU club system, needs an ASU sign-in. An officer signs in one time, and agents then search its clubs and events. Only an org that subscribes to the ASU submodule can sign in; the routes and tools refuse the others. The code is in `submodules/asu/signin/`.
 
-1. On the Submodules tab of Explore, subscribe to Arizona State University, then click **Sign in to ASU** on its card.
+1. On the Shared tab of Explore, subscribe to Arizona State University, then click **Sign in to ASU** on its card.
 2. Type your NetID and password, and click **Sign in**.
 3. Approve the Duo push on your phone. If Duo shows a code, the card shows the same code. Type it in the Duo app.
 4. When the card shows **Signed in**, give a token the `asu:read` scope.
@@ -104,7 +104,7 @@ Sun Devil Central, the ASU club system, needs an ASU sign-in. An officer signs i
 - Platform keeps only the browser cookies, as the org secret `asu_session`, encrypted with `SECRETS_KEY`. It does not keep, log or audit the NetID or the password.
 - The tools `asu.clubs` and `asu.events` show only when the org subscribes to ASU and has a saved sign-in. They are read-only. Their results go only to the caller. Platform never adds them to knowledge.
 - `asu.events` also reads the public ASU events calendar. If the sign-in expired, it returns the calendar and says that it did not read Sun Devil Central.
-- When a page load ends on a sign-in page, the sign-in has expired. The tools return an error, the card shows **Sign-in expired**, and Platform sends the event `asu.session_expired` one time. The notification links to the Submodules tab of Explore. Sign in again to clear it.
+- When a page load ends on a sign-in page, the sign-in has expired. The tools return an error, the card shows **Sign-in expired**, and Platform sends the event `asu.session_expired` one time. The notification links to the Shared tab of Explore. Sign in again to clear it.
 - **Sign out** removes the saved cookies.
 - The sign-in runs in a browser on the API. The API process keeps the state of each attempt in memory, so run one API worker (the default).
 

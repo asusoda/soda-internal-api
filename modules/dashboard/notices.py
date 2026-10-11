@@ -35,7 +35,7 @@ EVENT_LINKS = {
     "app.deployed": "hosting",
     "order.created": "store",
     "member.joined": "points",
-    "asu.session_expired": "explore?tab=submodules",
+    "asu.session_expired": "explore?tab=shared",
     "monitor.down": "uptime",
     "monitor.up": "uptime",
 }

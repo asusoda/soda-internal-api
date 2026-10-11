@@ -82,7 +82,7 @@ function CalendarForm({ orgId, saved }: { orgId: number; saved: CalendarSettings
       </div>
       <p className="flex items-start gap-2 rounded-lg border border-line bg-panel-2/40 p-3 text-xs text-pretty text-muted">
         <Info className="mt-px size-3.5 shrink-0" aria-hidden />
-        Sync is off by default. Check the calendar module notes before you turn it on.
+        Sync is off by default. Read the Calendar sync docs before you turn it on.
       </p>
       <FormActions error={save.error}>
         <Button variant="primary" disabled={!changed || save.isPending}>

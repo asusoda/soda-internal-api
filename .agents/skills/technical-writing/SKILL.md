@@ -46,8 +46,11 @@ The repo's prose follows the rules of ASD-STE100 (Simplified Technical English),
 | org | organization (in prose), club, chapter |
 | member | user (for a person in an org), student |
 | officer | admin, exec |
-| module | feature, plugin, app (for code in `modules/`) |
-| app | service, deployment (for a RunPod app) |
+| module | plugin, app (in code and developer docs, for code in `modules/`) |
+| feature | module (in the dashboard, the site and messages that officers read) |
+| submodule | pack, domain (in code and developer docs, for content in `submodules/`) |
+| shared content | submodule, pack (in the dashboard, the site and messages that officers read) |
+| app | service, deployment (for a program in its own container or pod) |
 | route | endpoint (in prose) |
 | token | key (for a machine token) |
 | secret | credential, password (for an org secret) |

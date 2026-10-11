@@ -140,7 +140,7 @@ function LimitsForm({ org, onClose }: { org: OrgLimits; onClose: () => void }) {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium">{row.label}</span>
-                  {row.enabled ? null : <Badge>Module off</Badge>}
+                  {row.enabled ? null : <Badge>Feature off</Badge>}
                 </div>
                 <Mono className="truncate">{row.key}</Mono>
                 <UseBar row={row} className="mt-1.5" />

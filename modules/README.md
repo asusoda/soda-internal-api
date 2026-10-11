@@ -37,16 +37,11 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | [agents](agents/README.md) | Conversations, memories, profile graph and pending actions for agents | `agents` |
 | [integrations](integrations/README.md) | Tools of connected services (GitHub) passed through to their MCP servers | `integrations` |
 
-## Webhooks
-
-| Module | Does | Org switch |
-| --- | --- | --- |
-| [feeds](feeds/README.md) | New job listings and hackathons posted to an alert destination | `feeds` |
-
 ## Automations
 
 | Module | Does | Org switch |
 | --- | --- | --- |
+| [feeds](feeds/README.md) | New job listings and hackathons posted to an alert destination | `feeds` |
 | [calendar](calendar/README.md) | Notion events synced to Google Calendar | `calendar` |
 | [uptime](uptime/README.md) | Checks of sites and Hosting apps, with events when one goes down or up | `uptime` |
 

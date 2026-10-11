@@ -11,10 +11,13 @@ import { ModuleCard, ModuleGrid } from './modules';
 import { SubmodulesTab } from './submodules';
 
 const TABS = [
-  { id: 'modules', label: 'Modules' },
-  { id: 'submodules', label: 'Submodules' },
+  { id: 'features', label: 'Features' },
+  { id: 'shared', label: 'Shared' },
   { id: 'integrations', label: 'Integrations' },
 ] as const;
+
+// The tab ids before the rename, from old links and notifications
+const ALIASES = { modules: 'features', submodules: 'shared' } as const;
 
 function ModulesTab({ query }: { query: string }) {
   const { org, prefix } = useCurrentOrg();
@@ -83,14 +86,14 @@ function SubmodulesTabFor({ query }: { query: string }) {
   return <SubmodulesTab prefix={prefix} query={query} />;
 }
 
-// Everything an org can add: modules, the submodules it subscribes to, and the services it connects.
+// Everything an org can add: features (modules), shared content (submodules) it subscribes to, and services it connects.
 export function ExplorePage() {
-  const [tab, setTab] = useTabParam(TABS);
+  const [tab, setTab] = useTabParam(TABS, ALIASES);
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   return (
     <>
-      <PageHeader title="Explore" description="Add modules, subscribe to submodules and connect services." docs="codebase/writing-a-module" />
+      <PageHeader title="Explore" description="Add features, subscribe to shared content and connect services." docs="concepts" />
       <TabBar
         label="Explore"
         tabs={TABS}
@@ -99,16 +102,16 @@ export function ExplorePage() {
         action={
           <SearchInput
             className="w-full sm:w-64"
-            placeholder={tab === 'modules' ? 'Search modules' : tab === 'submodules' ? 'Search submodules' : 'Search integrations'}
+            placeholder={tab === 'features' ? 'Search features' : tab === 'shared' ? 'Search shared content' : 'Search integrations'}
             aria-label="Search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         }
       />
-      {tab === 'modules' ? (
+      {tab === 'features' ? (
         <ModulesTab query={deferred} />
-      ) : tab === 'submodules' ? (
+      ) : tab === 'shared' ? (
         <SubmodulesTabFor query={deferred} />
       ) : (
         <IntegrationsTab query={deferred} />

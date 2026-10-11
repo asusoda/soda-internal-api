@@ -1,6 +1,6 @@
 # Submodules
 
-A submodule is content for one campus or topic that a module reads and any org can use: public pages crawled into knowledge, live queries that agents run, feeds for the webhook modules, and the school's Canvas URL. A submodule holds content and settings, not new behavior. It adds no tables, routes or dashboard pages. Use a [module](../docs/writing-a-module.md) for a feature.
+A submodule is content for one campus or topic that a module reads and any org can use: public pages crawled into knowledge, live queries that agents run, feeds for the Feeds module, and the school's Canvas URL. The dashboard calls submodules shared content. A submodule holds content and settings, not new behavior. It adds no tables, routes or dashboard pages. Use a [module](../docs/writing-a-module.md) for a feature.
 
 | Submodule | Content |
 | --- | --- |

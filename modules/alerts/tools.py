@@ -15,7 +15,7 @@ WEBHOOK_ID = {"type": "integer", "minimum": 1}
 
 @tool(
     "webhooks.list",
-    description="The org's webhooks, the events and kinds to pick from, and the feeds of the webhook modules. URLs are never returned.",
+    description="The org's alert destinations (webhooks), the events and kinds to pick from, and the org's feeds with the destination of each. URLs are never returned.",
     scope="webhooks:manage",
 )
 def webhooks_list(db, org, caller):

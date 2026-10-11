@@ -20,7 +20,7 @@ INACTIVE_ORG = "The token's organization is inactive or gone"
 def module_off(org: Organization, module: str | None):
     """A 404 response when the optional module is off for the org, else None."""
     if module and not organizations.module_enabled(org, module):
-        return error(f"The {module} module is turned off for this organization", 404)
+        return error(f"The {module} feature is turned off for this organization", 404)
     return None
 
 

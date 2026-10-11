@@ -41,7 +41,7 @@ export function DemoVideo({ className = '' }: { className?: string }) {
           playsInline
           preload="metadata"
           poster="/demo/poster.webp"
-          aria-label="Demo of the officer dashboard: sign in, turn on modules, award points, upload documents, deploy an app and create a token"
+          aria-label="Demo of the officer dashboard: sign in, turn on features, award points, upload documents, deploy an app and create a token"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
         >

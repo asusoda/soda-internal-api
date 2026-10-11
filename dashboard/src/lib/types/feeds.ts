@@ -1,4 +1,4 @@
-// The feeds of the webhook modules and their history.
+// The feeds of the Feeds module and their history.
 
 // A feed that a submodule offers, with the kind and config to create it.
 export type FeedPreset = {

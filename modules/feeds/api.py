@@ -1,4 +1,4 @@
-"""HTTP routes for officers to manage the feeds of their organization's webhook modules."""
+"""HTTP routes for officers to manage the feeds of their org."""
 
 from functools import partial
 
