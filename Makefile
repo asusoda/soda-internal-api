@@ -102,6 +102,8 @@ discard-local-changes:
 # fails to replace api ("has dependent containers"), which leaves only api and dashboard running.
 # soda-mcp (profile mcp) is recreated when it exists. Docker Compose gets --profile mcp; podman-compose
 # 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
+# soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
+# and recreated on its own with --no-deps, after the other containers.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
@@ -124,6 +126,7 @@ deploy:
 		BUILD_API=0; \
 		BUILD_WEB=0; \
 		BUILD_DASHBOARD=0; \
+		BUILD_SITE=0; \
 		if [ -n "$$CHANGED_FILES" ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Changed files since last deploy commit:"; \
 			printf "%s\n" "$$CHANGED_FILES"; \
@@ -133,8 +136,10 @@ deploy:
 						BUILD_WEB=1 ;; \
 					dashboard/*|Dockerfile.dashboard) \
 						BUILD_DASHBOARD=1 ;; \
+					site/*|docs/*|Dockerfile.site|Dockerfile.site.dockerignore) \
+						BUILD_SITE=1 ;; \
 					docker-compose.yml|docker-compose.dev.yml|Makefile) \
-						BUILD_API=1; BUILD_WEB=1; BUILD_DASHBOARD=1 ;; \
+						BUILD_API=1; BUILD_WEB=1; BUILD_DASHBOARD=1; BUILD_SITE=1 ;; \
 					.github/*|*.md|CLAUDE.md|AGENTS.md|.pre-commit-config.yaml) \
 						;; \
 					*) \
@@ -151,6 +156,9 @@ deploy:
 		MCP_ON=0; PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then MCP_ON=1; fi; \
 		if [ "$$MCP_ON" -eq 1 ] && [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="--profile mcp"; fi; \
+		SITE_ON=0; SITE_PROFILE_ARGS=""; \
+		if $(CONTAINER_CMD) inspect soda-site >/dev/null 2>&1; then SITE_ON=1; fi; \
+		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then SITE_PROFILE_ARGS="--profile site"; fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Setting up data directory permissions..."; \
 		mkdir -p data; \
 		chmod -R 755 data; \
@@ -233,6 +241,14 @@ deploy:
 				exit 1; \
 			fi; \
 			echo -e "$(GREEN)[INFO]$(NC) /health reports commit $$NEW_HEAD."; \
+		fi; \
+		if [ "$$BUILD_SITE" -eq 1 ] && [ "$$SITE_ON" -eq 1 ]; then \
+			echo -e "$(GREEN)[INFO]$(NC) Building and recreating the site..."; \
+			$(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null || true; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build site; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
+			wait_for_health soda-site 90; \
+			check_image soda-site soda-site:latest; \
 		fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Container status:"; \
 		$(COMPOSE_CMD) ps; \
@@ -326,6 +342,7 @@ health:
 	@FAILED=0; \
 	CONTAINERS="soda-internal-api soda-bot soda-web soda-dashboard"; \
 	if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then CONTAINERS="$$CONTAINERS soda-mcp"; fi; \
+	if $(CONTAINER_CMD) inspect soda-site >/dev/null 2>&1; then CONTAINERS="$$CONTAINERS soda-site"; fi; \
 	for CONTAINER_NAME in $$CONTAINERS; do \
 		RAW=$$($(CONTAINER_CMD) inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.Status}}' "$$CONTAINER_NAME" 2>/dev/null || echo "missing|missing"); \
 		STATUS=$${RAW%%|*}; [ -n "$$STATUS" ] || STATUS=$${RAW#*|}; \

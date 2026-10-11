@@ -1,0 +1,7 @@
+# Context for Dockerfile.site: only site/ and docs/
+*
+!site/
+!docs/
+**/node_modules/
+site/.next/
+site/.source/
