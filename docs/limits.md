@@ -24,6 +24,7 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `runpod.apps` | runpod | Hosting apps | 25 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |
 | `event_webhook.webhooks` | event_webhook | Event webhooks | 20 |
+| `submodules.subscriptions` | submodules | Submodules the org subscribes to. Their shared pages count against no org | 20 |
 | `mcp.calls_per_minute` | mcp | Tool calls a minute, over MCP and `/api/tools`. Each call in a batch counts | 300 |
 
 Each embedding counts, whichever service the org uses. A search over the embedding limit searches on text only and does not fail. A crawl or an upload over a limit records the error on the source or the file, and the other sources and files go on.

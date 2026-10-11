@@ -158,6 +158,7 @@ MODEL_MODULES = [
     "modules.points.models",
     "modules.runpod.models",
     "modules.storefront.models",
+    "modules.submodules.models",
     "modules.uptime.models",
     "modules.users.models",
 ]

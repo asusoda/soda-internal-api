@@ -11,7 +11,7 @@ import os
 from collections.abc import Callable
 from typing import Any, cast
 
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 
 from core import limits
 from core.log import get_logger
@@ -35,6 +35,7 @@ from modules.knowledge.service import (
 )
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
+from modules.submodules.models import SubmoduleSubscription
 
 logger = get_logger("knowledge.crawl")
 
@@ -124,6 +125,12 @@ def queue_job(db, org_id: int, name: str, /, **kwargs) -> None:
     db.commit()
 
 
+def _record(db, source: KnowledgeSource, started: runs.Timer, **outcome: Any) -> None:
+    """Add a crawl run to the org's run log. A shared submodule's source has no org: its result stays on the source."""
+    if source.organization_id is not None:
+        runs.record(db, cast(int, source.organization_id), str(source.key), "crawl", started, **outcome)
+
+
 def crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: bool = False, pacer: Any = None) -> dict:
     """Fetch, extract, chunk, embed and index one crawled source. Commits; records any error on the source."""
     started = runs.Timer()
@@ -134,20 +141,12 @@ def crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: bool
     except (fetch.FetchError, fetch.FetchRejected, KnowledgeError, limits.LimitError) as e:
         db.rollback()
         source.last_error = str(e.message if isinstance(e, KnowledgeError | limits.LimitError) else e)[:1000]
-        runs.record(db, cast(int, source.organization_id), str(source.key), "crawl", started, error=source.last_error)
+        _record(db, source, started, error=source.last_error)
         db.commit()
         logger.warning("crawl failed source=%s error=%s", source.key, source.last_error)
         return {"key": source.key, "changed": False, "error": source.last_error}
     source.last_error = None
-    runs.record(
-        db,
-        cast(int, source.organization_id),
-        str(source.key),
-        "crawl",
-        started,
-        changed=result["changed"],
-        chunks=result["chunks"],
-    )
+    _record(db, source, started, changed=result["changed"], chunks=result["chunks"])
     db.commit()
     logger.info("crawled source=%s changed=%s chunks=%s", source.key, result["changed"], result["chunks"])
     return result
@@ -157,7 +156,9 @@ def _crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: boo
     url = str(source.url)
     if pacer is not None:
         pacer.wait(url)
-    with fetch.firecrawl_scope(fetch.firecrawl_for(db, cast(int, source.organization_id))):
+    org_id = cast(int | None, source.organization_id)
+    firecrawl = fetch.firecrawl_for(db, org_id) if org_id is not None else fetch.deployment_firecrawl()
+    with fetch.firecrawl_scope(firecrawl):
         page = fetch.fetch(url)
     content_hash = hashlib.sha256(page.body).hexdigest()
     previous = db.query(KnowledgeVersion).filter_by(id=source.current_version_id).first()
@@ -188,7 +189,7 @@ def index_text(
 ) -> dict:
     """Chunk, embed and store text as the source's new version. Commits."""
     label: str = title or cast(str | None, source.title) or str(source.key)
-    tuning = settings.for_org(db, cast(int, source.organization_id))
+    tuning = settings.for_org(db, cast(int | None, source.organization_id))
     pieces = extract.chunk_text(text, max_chars=tuning["chunk_chars"], overlap_chars=tuning["chunk_overlap"])
     if not pieces:
         raise KnowledgeError("No text was extracted; the index is kept")
@@ -219,23 +220,34 @@ def due(
 ) -> list[KnowledgeSource]:
     """Enabled crawled sources whose schedule has come round, never-tried ones first, of orgs not in skip.
 
-    The batch takes one source of each org in turn, so an org with many due sources does not fill it.
+    A shared submodule's sources are due only while an org subscribes to it. The batch takes one source of
+    each org, and of each submodule, in turn, so one with many due sources does not fill it.
     """
     now = now or utcnow()
     query = (
         db.query(KnowledgeSource)
         .filter(KnowledgeSource.fetch_every_hours.isnot(None), KnowledgeSource.enabled.is_(True))
         .filter(or_(KnowledgeSource.last_attempt_at.is_(None), KnowledgeSource.last_attempt_at < now))
+        .filter(
+            or_(
+                KnowledgeSource.submodule_id.is_(None),
+                KnowledgeSource.submodule_id.in_(select(SubmoduleSubscription.submodule_id)),
+            )
+        )
     )
+    skip = {org_id for org_id in skip or () if org_id is not None}  # NOT IN with a NULL matches no row
     if skip:
-        query = query.filter(KnowledgeSource.organization_id.notin_(skip))
+        query = query.filter(
+            or_(KnowledgeSource.organization_id.is_(None), KnowledgeSource.organization_id.notin_(skip))
+        )
     candidates = query.order_by(
         KnowledgeSource.last_attempt_at.is_(None).desc(), KnowledgeSource.last_attempt_at, KnowledgeSource.id
     ).all()
-    by_org: dict[int, list[KnowledgeSource]] = {}
+    by_org: dict[tuple[str, int], list[KnowledgeSource]] = {}
     for s in candidates:
         if s.last_attempt_at is None or s.last_attempt_at + datetime.timedelta(hours=int(s.fetch_every_hours)) <= now:
-            by_org.setdefault(cast(int, s.organization_id), []).append(s)
+            owner = ("org", s.organization_id) if s.organization_id is not None else ("submodule", s.submodule_id)
+            by_org.setdefault(cast(tuple[str, int], owner), []).append(s)
     batch: list[KnowledgeSource] = []
     queues = list(by_org.values())
     while queues and len(batch) < limit:
@@ -246,8 +258,11 @@ def due(
     return batch
 
 
-def crawl_due(db, embedder_for: Callable[[int], Embedder | None], now: datetime.datetime | None = None) -> dict:
-    """Crawl every due source with its org's embedder, one host at a time per KNOWLEDGE_CRAWL_GAP_SECONDS. Commits."""
+def crawl_due(db, embedder_for: Callable[[int | None], Embedder | None], now: datetime.datetime | None = None) -> dict:
+    """Crawl every due source with its org's embedder, one host at a time per KNOWLEDGE_CRAWL_GAP_SECONDS. Commits.
+
+    embedder_for(None) gives the embedder of a shared submodule's sources: the deployment's.
+    """
     pacer = fetch.HostPacer(_setting("KNOWLEDGE_CRAWL_GAP_SECONDS", 2))
     results = []
     off = {
@@ -258,19 +273,12 @@ def crawl_due(db, embedder_for: Callable[[int], Embedder | None], now: datetime.
     for source in due(db, now, limit=_setting("KNOWLEDGE_CRAWL_BATCH", 20), skip=off):
         started = runs.Timer()
         try:
-            results.append(crawl(db, source, embedder_for(cast(int, source.organization_id)), pacer=pacer))
+            results.append(crawl(db, source, embedder_for(cast(int | None, source.organization_id)), pacer=pacer))
         except Exception:
             # One broken source must not stop the rest of the batch
             db.rollback()
             logger.exception("crawl crashed source=%s", source.key)
-            runs.record(
-                db,
-                cast(int, source.organization_id),
-                str(source.key),
-                "crawl",
-                started,
-                error="The crawl crashed. The server log has the details",
-            )
+            _record(db, source, started, error="The crawl crashed. The server log has the details")
             db.commit()
             results.append({"key": source.key, "error": "crashed"})
     return {

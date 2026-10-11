@@ -15,6 +15,8 @@ from . import service
 
 submodules_blueprint = Blueprint("submodules", __name__)
 _route = partial(machine_route, submodules_blueprint, module="knowledge")
+# Subscriptions belong to the submodule, not to one module, so no module switch gates them
+_core_route = partial(machine_route, submodules_blueprint)
 asu_blueprint = Blueprint("asu", __name__)
 _asu_route = partial(machine_route, asu_blueprint, module="knowledge")
 
@@ -39,9 +41,20 @@ def run_query(db, org, name):
     return service.query(db, int(org.id), str(org.prefix), name, data.get("source"), data.get("params"))
 
 
+@_core_route("/<string:name>/subscription", "submodules:manage", ["PUT"])
+def subscribe(db, org, name):
+    """Subscribe the token's org to the submodule: its pages, feeds and other parts."""
+    return service.subscribe(db, int(org.id), name, actor="machine")
+
+
+@_core_route("/<string:name>/subscription", "submodules:manage", ["DELETE"])
+def unsubscribe(db, org, name):
+    return service.unsubscribe(db, int(org.id), name)
+
+
 @_route("/<string:name>/sync", "knowledge:write", ["POST"])
 def sync_submodule(db, org, name):
-    """Register every page of the submodule as a crawled source of the token's org."""
+    """Older name of PUT /<name>/subscription."""
     return service.sync(db, int(org.id), str(org.prefix), name)
 
 

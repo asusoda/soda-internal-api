@@ -1242,6 +1242,37 @@ export function fixtures(now = Date.now()) {
     return { org: { id: o.id, name: o.name, prefix: o.prefix, is_active: true }, limits, near, overrides };
   });
   const GB = 1024 ** 3;
+  // Submodules: ASU shared by 3 orgs and subscribed here; careers not subscribed
+  const sharedSubmodules = [
+    {
+      name: 'asu',
+      title: 'Arizona State University',
+      description: 'Public ASU pages and live queries: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports.',
+      key_prefix: 'asu/',
+      pages: 226,
+      queries: ['courses', 'course_catalog', 'scholarships', 'events', 'news', 'dining', 'web'],
+      feeds: [],
+      sources: 226,
+      last_crawl: at(-40 * MINUTE),
+      subscribed: true,
+      subscribers: 3,
+      modules: ['accounts', 'knowledge'],
+    },
+    {
+      name: 'careers',
+      title: 'Internships and hackathons',
+      description: 'Feeds of software internships, new grad roles and hackathons.',
+      key_prefix: 'careers/',
+      pages: 0,
+      queries: [],
+      feeds: ['internships', 'new-grad', 'hackathons'],
+      sources: 0,
+      last_crawl: null,
+      subscribed: false,
+      subscribers: 2,
+      modules: ['hackathon_webhook', 'job_webhook'],
+    },
+  ];
 
   return {
     '/api/organizations/': [ORG],
@@ -1344,20 +1375,8 @@ export function fixtures(now = Date.now()) {
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/pod`]: { pod: telemetryPod },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/deploy`]: preview('v1.9.0'),
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/rollback`]: preview('v1.8.0'),
-    [`/api/dashboard/${ORG.prefix}/knowledge/submodules`]: {
-      submodules: [
-        {
-          name: 'asu',
-          title: 'Arizona State University',
-          description:
-            'Public ASU pages and live queries: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports.',
-          key_prefix: 'asu/',
-          pages: 226,
-          queries: ['courses', 'course_catalog', 'scholarships', 'events', 'news', 'dining', 'web'],
-          sources: 0,
-        },
-      ],
-    },
+    [`/api/dashboard/${ORG.prefix}/submodules`]: { submodules: sharedSubmodules },
+    [`/api/dashboard/${ORG.prefix}/knowledge/submodules`]: { submodules: sharedSubmodules },
     [`/api/dashboard/${ORG.prefix}/knowledge/sources`]: { sources, can_publish: false },
     [`/api/dashboard/${ORG.prefix}/knowledge/search`]: search,
     [`/api/dashboard/${ORG.prefix}/knowledge/sources/club/build-nights`]: buildNightsText,

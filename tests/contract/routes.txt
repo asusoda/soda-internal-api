@@ -155,6 +155,9 @@
 /api/dashboard/<string:org_prefix>/notifications/reopen OPTIONS,POST dashboard.reopen_notifications
 /api/dashboard/<string:org_prefix>/notifications/resolve OPTIONS,POST dashboard.resolve_notifications
 /api/dashboard/<string:org_prefix>/overview GET,HEAD,OPTIONS dashboard.overview
+/api/dashboard/<string:org_prefix>/submodules GET,HEAD,OPTIONS dashboard.list_shared_submodules
+/api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription DELETE,OPTIONS dashboard.unsubscribe_submodule
+/api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription OPTIONS,PUT dashboard.subscribe_submodule
 /api/dashboard/<string:org_prefix>/trends GET,HEAD,OPTIONS dashboard.trends
 /api/dashboard/<string:org_prefix>/webhooks GET,HEAD,OPTIONS event_webhook.list_webhooks
 /api/dashboard/<string:org_prefix>/webhooks OPTIONS,POST event_webhook.create_webhook
@@ -242,6 +245,8 @@
 /api/submodules GET,HEAD,OPTIONS submodules.list_submodules
 /api/submodules/<string:name>/queries GET,HEAD,OPTIONS submodules.list_queries
 /api/submodules/<string:name>/query OPTIONS,POST submodules.run_query
+/api/submodules/<string:name>/subscription DELETE,OPTIONS submodules.unsubscribe
+/api/submodules/<string:name>/subscription OPTIONS,PUT submodules.subscribe
 /api/submodules/<string:name>/sync OPTIONS,POST submodules.sync_submodule
 /api/superadmin/add_org/<guild_id> OPTIONS,POST superadmin.add_organization
 /api/superadmin/audit GET,HEAD,OPTIONS superadmin.get_audit
@@ -257,6 +262,7 @@
 /api/superadmin/publishers/<int:org_id> OPTIONS,PUT superadmin.put_publisher
 /api/superadmin/remove_org/<int:org_id> DELETE,OPTIONS superadmin.remove_organization
 /api/superadmin/server GET,HEAD,OPTIONS superadmin.get_server
+/api/superadmin/submodules GET,HEAD,OPTIONS superadmin.get_submodules
 /api/superadmin/update_officer_role/<int:org_id> OPTIONS,PUT superadmin.update_officer_role
 /api/tools GET,HEAD,OPTIONS tools.list_tools
 /api/tools/<string:name> OPTIONS,POST tools.call_tool

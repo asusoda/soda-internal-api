@@ -106,7 +106,8 @@ erDiagram
 | leetcode | `leetcode_link`, `leetcode_solve` (one solve for each member and day), `leetcode_daily` |
 | accounts | `account_grants`, `account_logins` |
 | agents | `agent_conversations`, `agent_messages`, `agent_memories`, `agent_profile_nodes`, `agent_profile_edges`, `agent_pending_actions` |
-| knowledge | `knowledge_sources`, `knowledge_versions`, `knowledge_chunks`, `knowledge_runs` (one row for each crawl or upload) |
+| knowledge | `knowledge_sources`, `knowledge_versions`, `knowledge_chunks`, `knowledge_runs` (one row for each crawl or upload). A source and its chunks belong to an org, or with no org to a shared submodule (`submodule_id`) |
+| submodules | `submodules` (one row for each submodule), `submodule_subscriptions` (the orgs that subscribe to each) |
 | godfather | `compute_pods`, `compute_keys`, `compute_sessions`, `compute_connections` (one row for each pod certificate, kept 90 days) |
 | runpod | `runpod_apps`, `runpod_deployments` |
 | feeds | `alert_feeds`, `alert_posts`, `alert_runs` (one row for each feed run) |

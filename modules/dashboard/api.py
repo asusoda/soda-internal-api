@@ -331,10 +331,28 @@ def list_submodules(db, org):
 
 @_route("/knowledge/submodules/<string:name>/sync", ["POST"], module="knowledge")
 def sync_submodule(db, org, name):
-    """Add or update the submodule's sources, then start the crawl job for the sources that are due."""
+    """Older name of PUT /submodules/<name>/subscription."""
     counts = submodules.sync(db, _org_id(org), str(org.prefix), name)
     crawl.start_crawl_due()
     return counts
+
+
+@_route("/submodules", ["GET"])
+def list_shared_submodules(db, org):
+    return {"submodules": submodules.list_submodules(db, _org_id(org))}
+
+
+@_route("/submodules/<string:name>/subscription", ["PUT"])
+def subscribe_submodule(db, org, name):
+    """Subscribe the org to the submodule (its pages, feeds and other parts), then start the crawl of its due pages."""
+    result = submodules.subscribe(db, _org_id(org), name, actor=_actor())
+    crawl.start_crawl_due()
+    return result
+
+
+@_route("/submodules/<string:name>/subscription", ["DELETE"])
+def unsubscribe_submodule(db, org, name):
+    return submodules.unsubscribe(db, _org_id(org), name)
 
 
 @_route("/knowledge/search", ["POST"], module="knowledge")

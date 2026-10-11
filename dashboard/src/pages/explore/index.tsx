@@ -8,9 +8,11 @@ import { useModuleCatalog } from '../../lib/queries';
 import type { CatalogModule } from '../../lib/types';
 import { IntegrationsTab } from './integrations';
 import { ModuleCard, ModuleGrid } from './modules';
+import { SubmodulesTab } from './submodules';
 
 const TABS = [
   { id: 'modules', label: 'Modules' },
+  { id: 'submodules', label: 'Submodules' },
   { id: 'integrations', label: 'Integrations' },
 ] as const;
 
@@ -54,7 +56,6 @@ function ModulesTab({ query }: { query: string }) {
             busy={change.isPending}
             onAdd={() => change.mutate({ m, on: true })}
             onRemove={() => setRemoving(m)}
-            onSynced={setNotice}
           />
         )}
       />
@@ -77,14 +78,19 @@ function ModulesTab({ query }: { query: string }) {
   );
 }
 
-// Everything an org can add: modules with their sub-modules, and the services it connects.
+function SubmodulesTabFor({ query }: { query: string }) {
+  const { prefix } = useCurrentOrg();
+  return <SubmodulesTab prefix={prefix} query={query} />;
+}
+
+// Everything an org can add: modules, the submodules it subscribes to, and the services it connects.
 export function ExplorePage() {
   const [tab, setTab] = useTabParam(TABS);
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   return (
     <>
-      <PageHeader title="Explore" description="Add modules and connect services." docs="codebase/writing-a-module" />
+      <PageHeader title="Explore" description="Add modules, subscribe to submodules and connect services." docs="codebase/writing-a-module" />
       <TabBar
         label="Explore"
         tabs={TABS}
@@ -93,14 +99,20 @@ export function ExplorePage() {
         action={
           <SearchInput
             className="w-full sm:w-64"
-            placeholder={tab === 'modules' ? 'Search modules' : 'Search integrations'}
+            placeholder={tab === 'modules' ? 'Search modules' : tab === 'submodules' ? 'Search submodules' : 'Search integrations'}
             aria-label="Search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         }
       />
-      {tab === 'modules' ? <ModulesTab query={deferred} /> : <IntegrationsTab query={deferred} />}
+      {tab === 'modules' ? (
+        <ModulesTab query={deferred} />
+      ) : tab === 'submodules' ? (
+        <SubmodulesTabFor query={deferred} />
+      ) : (
+        <IntegrationsTab query={deferred} />
+      )}
     </>
   );
 }

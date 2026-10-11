@@ -56,8 +56,8 @@ def _org(db, org_id: int) -> Organization:
     return org
 
 
-def for_org(db, org_id: int) -> dict:
-    """The org's settings with defaults filled in."""
+def for_org(db, org_id: int | None) -> dict:
+    """The org's settings with defaults filled in. None (a shared submodule's source) gives the defaults."""
     org = db.query(Organization).filter_by(id=org_id).first()
     saved = ((cast(dict, org.config) or {}).get(CONFIG_KEY) or {}) if org is not None else {}
     base = defaults()

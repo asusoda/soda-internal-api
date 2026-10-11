@@ -1,4 +1,4 @@
-"""Submodules: sync the ASU submodule into knowledge, crawl with its extractors, live queries and their indexing."""
+"""Submodules: subscribe to the ASU submodule's shared pages, crawl with its extractors, live queries and their indexing."""
 
 from pathlib import Path
 
@@ -28,8 +28,8 @@ def _issue(prefix, *scopes):
 
 
 @pytest.fixture
-def writer(app):
-    headers, org_id = _issue("ais", "knowledge:read", "knowledge:write")
+def writer(app, clean_submodules):
+    headers, org_id = _issue("ais", "knowledge:read", "knowledge:write", "submodules:read", "submodules:manage")
     yield headers, org_id
     # Synced sources are due at once and would crowd other tests' crawl batches
     from modules.knowledge.service import delete_source
@@ -70,52 +70,101 @@ def pages(monkeypatch):
     return served
 
 
-def _sources(org_id):
+def _sources():
+    """The ASU submodule's shared sources: no org, the submodule's id."""
     db = db_connect.SessionLocal()
     try:
         rows = db.query(KnowledgeSource).filter(
-            KnowledgeSource.organization_id == org_id, KnowledgeSource.key.like("asu/%")
+            KnowledgeSource.submodule_id.isnot(None), KnowledgeSource.key.like("asu/%")
         )
-        return {s.key: (s.url, s.enabled, s.extractor, s.fetch_every_hours) for s in rows}
+        return {s.key: (s.url, s.enabled, s.extractor, s.fetch_every_hours, s.organization_id) for s in rows}
     finally:
         db.close()
 
 
-def test_sync_registers_every_page_and_retires_removed_ones(client, writer):
+def test_subscribe_shares_every_page_and_retires_removed_ones(client, writer):
     headers, org_id = writer
-    first = client.post("/api/asu/sync", headers=headers).get_json()
-    assert first["added"] + first["updated"] == len(SOURCES)
-    rows = _sources(org_id)
+    first = client.put("/api/submodules/asu/subscription", headers=headers).get_json()
+    assert first["added"] == len(SOURCES) and first["subscribed"] is True
+    rows = _sources()
     assert len(rows) == len(SOURCES)
-    url, enabled, extractor, every = rows["asu/library_hours"]
+    url, enabled, extractor, every, owner = rows["asu/library_hours"]
     assert url == SOURCES["library_hours"].url and enabled and extractor == "asu.library_hours"
-    assert every == SOURCES["library_hours"].fetch_every_hours
+    assert every == SOURCES["library_hours"].fetch_every_hours and owner is None
 
     db = db_connect.SessionLocal()
     try:
-        db.add(KnowledgeSource(organization_id=org_id, key="asu/removed", url="https://asu.edu/x", category="c"))
+        submodule_id = (
+            db.query(KnowledgeSource.submodule_id).filter(KnowledgeSource.key == "asu/library_hours").scalar()
+        )
+        db.add(KnowledgeSource(submodule_id=submodule_id, key="asu/removed", url="https://asu.edu/x", category="c"))
         db.commit()
     finally:
         db.close()
+    # The older sync route subscribes again; a second org shares the same pages
     again = client.post("/api/asu/sync", headers=headers).get_json()
     assert again["added"] == 0 and again["retired"] == 1
-    assert _sources(org_id)["asu/removed"][1] is False
+    assert _sources()["asu/removed"][1] is False
+    soda_headers, _ = _issue("soda", "submodules:manage")
+    assert client.put("/api/submodules/asu/subscription", headers=soda_headers).get_json()["added"] == 0
+    assert len(_sources()) == len(SOURCES) + 1
 
 
-def test_sync_needs_write_scope(client, app):
+def test_subscription_needs_the_manage_scope(client, app, clean_submodules):
+    reader, _ = _issue("ais", "submodules:read", "knowledge:write")
+    assert client.put("/api/submodules/asu/subscription", headers=reader).status_code == 403
+    listed = client.post("/api/tools/submodules.list", headers=reader).get_json()["result"]["submodules"]
+    assert next(p for p in listed if p["name"] == "asu")["subscribed"] is False
+
+
+def test_only_subscribers_search_a_submodule(client, writer):
+    from modules.knowledge import service as knowledge
+
+    headers, _ = writer
+    client.put("/api/submodules/asu/subscription", headers=headers)
+    db = db_connect.SessionLocal()
+    try:
+        source = db.query(KnowledgeSource).filter(KnowledgeSource.key == "asu/library_hours").one()
+        rows = [
+            {
+                "ordinal": 0,
+                "level": 0,
+                "parent_ordinal": None,
+                "content": "Hayden Library opens at 7.",
+                "embedding": None,
+            }
+        ]
+        knowledge._write_version(db, source, rows, "h1", None)
+        db.commit()
+    finally:
+        db.close()
+    found = client.post("/api/knowledge/search", json={"query": "Hayden Library"}, headers=headers).get_json()
+    assert any("Hayden Library opens" in r["content"] for r in found["results"])
+    read = client.post("/api/tools/knowledge.read_source", json={"key": "asu/library_hours"}, headers=headers)
+    assert read.status_code == 200 and "Hayden Library opens" in str(read.get_json()["result"])
+    soda_headers, _ = _issue("soda", "knowledge:read")
+    other = client.post("/api/knowledge/search", json={"query": "Hayden Library"}, headers=soda_headers).get_json()
+    assert not any("Hayden Library opens" in r["content"] for r in other["results"])
+    client.delete("/api/submodules/asu/subscription", headers=headers)
+    gone = client.post("/api/knowledge/search", json={"query": "Hayden Library"}, headers=headers).get_json()
+    assert not any("Hayden Library opens" in r["content"] for r in gone["results"])
+
+
+def test_sync_needs_write_scope(client, app, clean_submodules):
     reader, _ = _issue("ais", "knowledge:read")
     assert client.post("/api/asu/sync", headers=reader).status_code == 403
 
 
 def test_crawl_uses_the_asu_extractor(client, writer, pages):
     headers, org_id = writer
-    client.post("/api/asu/sync", headers=headers)
+    client.put("/api/submodules/asu/subscription", headers=headers)
     url = SOURCES["library_hours"].url
     markdown = (Path(__file__).parent / "asu_fixtures" / "library_hours.md").read_text()
     pages[url] = fetch.Fetched(url=url, body=markdown.encode(), content_type="text/markdown", text=markdown)
     db = db_connect.SessionLocal()
     try:
-        result = crawl.run(db, org_id, "asu/library_hours", None)
+        source = db.query(KnowledgeSource).filter(KnowledgeSource.key == "asu/library_hours").one()
+        result = crawl.crawl(db, source, None)
     finally:
         db.close()
     assert result["changed"] is True
@@ -148,16 +197,17 @@ def test_live_query_answers_then_queues_indexing(client, writer, pages, queued):
     assert any("Robotics team wins title." in r["content"] for r in found["results"])
 
 
-def test_live_result_for_a_scheduled_page_updates_that_source(client, writer):
+def test_live_result_never_writes_into_a_shared_page(client, writer):
     headers, org_id = writer
-    client.post("/api/asu/sync", headers=headers)
+    client.put("/api/submodules/asu/subscription", headers=headers)
     db = db_connect.SessionLocal()
     try:
         url = SOURCES["library_hours"].url
         result = service.index_result(db, org_id, "ais", "asu", "library_hours", url, "Hayden opens at 7am.", None)
+        shared = db.query(KnowledgeSource).filter(KnowledgeSource.key == "asu/library_hours").one()
     finally:
         db.close()
-    assert result["key"] == "asu/library_hours"
+    assert result["key"].startswith("asu-live/library_hours-") and shared.current_version_id is None
 
 
 def test_query_errors(client, writer, pages, queued, monkeypatch):
@@ -219,7 +269,11 @@ def test_every_submodule_feed_is_a_valid_alert_feed():
             alerts.KINDS[feed.kind].validate(dict(feed.config))
 
 
-def test_alert_presets_come_from_submodules(client, officer_headers):
+def test_alert_presets_come_from_subscribed_submodules(client, officer_headers, clean_submodules, monkeypatch):
+    monkeypatch.setattr(crawl, "start_crawl_due", lambda: None)
+    presets = client.get("/api/feeds/ais/presets", headers=officer_headers).get_json()["presets"]
+    assert not [p for p in presets if p["submodule"] == "careers"]
+    assert client.put("/api/dashboard/ais/submodules/careers/subscription", headers=officer_headers).status_code == 200
     presets = client.get("/api/feeds/ais/presets", headers=officer_headers).get_json()["presets"]
     internships = next(p for p in presets if p["key"] == "internships")
     assert internships["submodule"] == "careers" and internships["kind"] == "github_jobs"

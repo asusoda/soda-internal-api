@@ -220,3 +220,26 @@ def sent(app, monkeypatch):
     db.query(webhooks.Webhook).delete()
     db.commit()
     db.close()
+
+
+@pytest.fixture
+def clean_submodules(app):
+    """Removes every submodule subscription and shared submodule source after the test.
+
+    Shared sources have no org, so the per-org cleanups of other fixtures leave them, and they are due at once.
+    """
+    yield
+    from core.db import db_connect
+    from modules.knowledge.models import KnowledgeChunk, KnowledgeSource, KnowledgeVersion
+    from modules.submodules.models import Submodule, SubmoduleSubscription
+
+    db = db_connect.SessionLocal()
+    shared = [s.id for s in db.query(KnowledgeSource.id).filter(KnowledgeSource.submodule_id.isnot(None))]
+    if shared:
+        db.query(KnowledgeChunk).filter(KnowledgeChunk.source_id.in_(shared)).delete(synchronize_session=False)
+        db.query(KnowledgeVersion).filter(KnowledgeVersion.source_id.in_(shared)).delete(synchronize_session=False)
+        db.query(KnowledgeSource).filter(KnowledgeSource.id.in_(shared)).delete(synchronize_session=False)
+    db.query(SubmoduleSubscription).delete()
+    db.query(Submodule).delete()
+    db.commit()
+    db.close()

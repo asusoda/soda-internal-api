@@ -352,3 +352,16 @@ def put_org_limits(org_id):
         return respond(db, lambda db: service.set_org_limits(db, _org_or_404(db, org_id), changes, actor))
     finally:
         db.close()
+
+
+@superadmin_blueprint.route("/submodules", methods=["GET"])
+@superadmin_required
+def get_submodules():
+    """Every submodule with its subscribers, shared pages, passages and failing pages."""
+    from modules.submodules import service as submodules
+
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, lambda db: {"submodules": submodules.overview(db)})
+    finally:
+        db.close()

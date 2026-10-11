@@ -137,10 +137,13 @@ def list_feeds(db, org_id: int) -> list[dict]:
 
 
 def presets(db, org_id: int) -> list[dict]:
-    """The feeds that submodules offer, with the kind and config to create each, and whether the org has the key."""
+    """The feeds that the org's subscribed submodules offer, with the kind and config to create each, and whether the
+    org has the key."""
     from modules.submodules import catalog
+    from modules.submodules.service import subscribed_names
 
     on = kinds_on(db, org_id)
+    mine = subscribed_names(db, org_id)
     have = {key for (key,) in db.query(AlertFeed.key).filter_by(organization_id=org_id)}
     return [
         {
@@ -156,6 +159,7 @@ def presets(db, org_id: int) -> list[dict]:
             "added": feed.key in have,
         }
         for submodule in catalog.SUBMODULES.values()
+        if submodule.name in mine
         for feed in submodule.feeds
         if feed.kind in on
     ]

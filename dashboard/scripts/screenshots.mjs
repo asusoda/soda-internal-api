@@ -79,6 +79,7 @@ const SCREENS = [
   },
   { name: 'activity', path: 'activity' },
   { name: 'explore', path: 'explore' },
+  { name: 'explore-submodules', path: 'explore?tab=submodules' },
   { name: 'settings', path: 'settings' },
   {
     name: 'settings-limits',

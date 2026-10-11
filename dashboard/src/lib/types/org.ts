@@ -25,7 +25,7 @@ export type ModuleNeed = {
   connected: boolean;
 };
 
-export type ModulePack = { name: string; title: string; description: string };
+export type ModuleSubmodule = { name: string; title: string; description: string };
 
 // A module on Explore. ready is false while a need that is not optional is not connected.
 export type CatalogModule = {
@@ -37,7 +37,7 @@ export type CatalogModule = {
   enabled: boolean;
   ready: boolean;
   needs: ModuleNeed[];
-  submodules: ModulePack[];
+  submodules: ModuleSubmodule[];
 };
 
 export type ModuleCatalog = { categories: string[]; modules: CatalogModule[] };
@@ -86,4 +86,22 @@ export type AuditEntry = {
   actor_id: string | null;
   status: number | null;
   details: Record<string, unknown> | null;
+};
+
+// A submodule: a domain such as a campus or careers that an org subscribes to (GET /api/dashboard/<org>/submodules).
+export type Submodule = {
+  name: string;
+  title: string;
+  description: string;
+  key_prefix: string;
+  pages: number;
+  queries: string[];
+  feeds: string[];
+  // Shared pages and their last crawl, for every subscriber
+  sources: number;
+  last_crawl: string | null;
+  subscribed: boolean;
+  subscribers: number;
+  // The modules that read the submodule
+  modules: string[];
 };
