@@ -49,7 +49,7 @@ const GROUPS: { title: string; keys: string[] }[] = [
 
 function StateBadge({ i }: { i: Integration }) {
   if (i.source === 'org') return <Badge tone="ok">Connected</Badge>;
-  if (i.source === 'deployment') return <Badge tone="active">Deployment default</Badge>;
+  if (i.source === 'deployment') return <Badge tone="active">Platform's key</Badge>;
   return <Badge tone="warn">Not connected</Badge>;
 }
 
@@ -199,7 +199,10 @@ function IntegrationCard({ prefix, i, canSave, oauth }: { prefix: string; i: Int
     ...(i.unlocks ?? []).map((title) => ({ label: title, path: 'explore' })),
   ].filter((u, n, all) => all.findIndex((o) => o.label === u.label) === n);
   const note = [
-    i.source === 'deployment' && i.editable ? "The deployment's key is in use. Save your own to replace it." : '',
+    i.source === 'deployment' && i.editable ? "Platform's shared key is in use. Save your own to replace it." : '',
+    i.source === 'deployment' && i.metered_by.length
+      ? `Your use counts against your limits: ${i.metered_by.map((l) => l.label.toLowerCase()).join(', ')}.`
+      : '',
     saved.length ? `Saved ${timeAgo(saved.sort().at(-1) as string)}.` : '',
   ]
     .filter(Boolean)

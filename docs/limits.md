@@ -29,6 +29,25 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 
 Each embedding counts, whichever service the org uses. A search over the embedding limit searches on text only and does not fail. A crawl or an upload over a limit records the error on the source or the file, and the other sources and files go on.
 
+## Who pays
+
+Each limit says who pays for what it counts (`paid_by`), so an officer sees what uses the org's budget.
+
+| `paid_by` | Means | Example | Counts against the org |
+| --- | --- | --- | --- |
+| `org` | The org's own data and apps | Its own knowledge sources, its pods and apps | Yes, as counts. The default for a count limit |
+| `metered` | A shared service the org uses | The deployment's embedder, the shared MCP server, the job worker | Yes, as rates. The default for a rate limit |
+| `shared` | Content the deployment makes once for every org | A submodule's pages | No. It has no limit of an org |
+
+A limit can name the integrations whose deployment default it meters (`integrations=("embeddings",)`). When an org uses the deployment's key for such an integration, the Integrations tab says which limits its use counts against.
+
+The dashboard shows who pays:
+
+- Settings > Limits puts the org's own limits and the metered ones in two groups.
+- A module card on Explore lists the limits that its use counts against.
+- The Submodules tab marks each part of a submodule: its pages are shared, its live query results and feeds are the org's own.
+- The Integrations tab shows "Platform's key" and the limits it counts against, or the org's own key.
+
 ## The value of a limit
 
 The value for an org is the first of these that is set:
@@ -57,7 +76,7 @@ An override can be a whole number, `null` (no limit) or `"default"` (remove the 
 
 ## Add a limit to a module
 
-1. Declare the limit at the top of the module's `service.py` with `limits.declare(...)` from `core/limits.py`. A count limit needs a `usage` function that counts what the org has. A rate limit needs a `window`.
+1. Declare the limit at the top of the module's `service.py` with `limits.declare(...)` from `core/limits.py`. A count limit needs a `usage` function that counts what the org has. A rate limit needs a `window`. Set `paid_by` when the default (`org` for a count, `metered` for a rate) is not right, and `integrations` when the limit meters an integration's deployment default.
 2. Before the module adds a thing, call `limits.check(db, org_id, KEY)`. For a rate, call `limits.consume(db, org_id, KEY, amount)` before the work.
 3. Add the limit to the table on this page and to the module's `README.md`.
 

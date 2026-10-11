@@ -78,6 +78,20 @@ def subscribed_names(db, org_id: int) -> set[str]:
     return {str(r[0]) for r in rows}
 
 
+def _parts(submodule: Submodule) -> list[dict]:
+    """What the submodule brings to a subscribed org, and who pays for each part (see core.limits.PAID_BY)."""
+    parts = []
+    if submodule.sources:
+        parts.append({"kind": "pages", "count": len(submodule.sources), "paid_by": "shared", "module": "knowledge"})
+    if submodule.queries:
+        # A live result is indexed as a source of the org, so it counts against the org's knowledge limits
+        parts.append({"kind": "queries", "count": len(submodule.queries), "paid_by": "org", "module": "knowledge"})
+    if submodule.feeds:
+        # A feed made from a preset is the org's own feed and webhook
+        parts.append({"kind": "feeds", "count": len(submodule.feeds), "paid_by": "org", "module": "feeds"})
+    return parts
+
+
 def _users(name: str) -> list[str]:
     """The modules that read the submodule, from the catalog in modules/manifest.py."""
     from modules.manifest import CATALOG
@@ -115,6 +129,7 @@ def list_submodules(db, org_id: int) -> list[dict]:
                 "subscribed": row is not None and int(cast(int, row.id)) in mine,
                 "subscribers": subscribers,
                 "modules": _users(submodule.name),
+                "parts": _parts(submodule),
             }
         )
     return result

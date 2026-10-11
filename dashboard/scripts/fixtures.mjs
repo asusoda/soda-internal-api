@@ -52,6 +52,19 @@ const SUBMODULES = {
 };
 
 // The body of GET /api/dashboard/<org>/modules for the given switch states.
+// The limits each module's use counts against (core/limits.py)
+const MODULE_LIMITS = {
+  knowledge: [
+    { key: 'knowledge.sources', label: 'Sources', window: null, paid_by: 'org' },
+    { key: 'knowledge.passages', label: 'Passages', window: null, paid_by: 'org' },
+    { key: 'knowledge.embeddings_per_day', label: 'Texts embedded a day (knowledge and agent memory)', window: 'day', paid_by: 'metered' },
+  ],
+  godfather: [{ key: 'godfather.pods', label: 'Pods', window: null, paid_by: 'org' }],
+  runpod: [{ key: 'runpod.apps', label: 'Hosting apps', window: null, paid_by: 'org' }],
+  uptime: [{ key: 'uptime.monitors', label: 'Uptime monitors', window: null, paid_by: 'org' }],
+  event_webhook: [{ key: 'event_webhook.webhooks', label: 'Event webhooks', window: null, paid_by: 'org' }],
+};
+
 export function moduleCatalog(states = MODULES) {
   const enabled = Object.fromEntries(states.map((m) => [m.name, m.enabled]));
   return {
@@ -61,6 +74,7 @@ export function moduleCatalog(states = MODULES) {
       enabled: enabled[m.name] ?? true,
       ready: m.needs.every((n) => n.connected || n.optional),
       submodules: m.submodules.map((p) => SUBMODULES[p]),
+      limits: MODULE_LIMITS[m.name] ?? [],
     })),
   };
 }
@@ -1227,7 +1241,16 @@ export function fixtures(now = Date.now()) {
     ['runpod.apps', 'runpod', 'Hosting apps', 'apps', null, 25, [5, 2, 0]],
     ['uptime.monitors', 'uptime', 'Uptime monitors', 'monitors', null, 50, [8, 3, 0]],
   ];
-  const limitCatalog = limitSpecs.map(([key, module, label, unit, window, value]) => ({ key, module, label, unit, window, default: value }));
+  const limitCatalog = limitSpecs.map(([key, module, label, unit, window, value]) => ({
+    key,
+    module,
+    label,
+    unit,
+    window,
+    default: value,
+    paid_by: window ? 'metered' : 'org',
+    integrations: key === 'knowledge.embeddings_per_day' ? ['embeddings'] : [],
+  }));
   const overridesFor = [{ 'godfather.pods': 12 }, { 'knowledge.sources': 1200, 'mcp.calls_per_minute': null }, {}];
   const offFor = [new Set(), new Set(['runpod']), new Set(['knowledge', 'godfather', 'runpod'])];
   const limitRows = (i) =>
@@ -1252,6 +1275,10 @@ export function fixtures(now = Date.now()) {
       pages: 226,
       queries: ['courses', 'course_catalog', 'scholarships', 'events', 'news', 'dining', 'web'],
       feeds: [],
+      parts: [
+        { kind: 'pages', count: 226, paid_by: 'shared', module: 'knowledge' },
+        { kind: 'queries', count: 7, paid_by: 'org', module: 'knowledge' },
+      ],
       sources: 226,
       last_crawl: at(-40 * MINUTE),
       subscribed: true,
@@ -1266,6 +1293,7 @@ export function fixtures(now = Date.now()) {
       pages: 0,
       queries: [],
       feeds: ['internships', 'new-grad', 'hackathons'],
+      parts: [{ kind: 'feeds', count: 3, paid_by: 'org', module: 'feeds' }],
       sources: 0,
       last_crawl: null,
       subscribed: false,
@@ -1324,7 +1352,7 @@ export function fixtures(now = Date.now()) {
     [`/api/dashboard/${ORG.prefix}/overview`]: overview,
     [`/api/dashboard/${ORG.prefix}/modules`]: moduleCatalog(),
     [`/api/dashboard/${ORG.prefix}/integrations`]: {
-      integrations: integrations.map((i) => ({ ...i, unlocks: unlocks(i.key) })),
+      integrations: integrations.map((i) => ({ ...i, metered_by: i.metered_by ?? [], unlocks: unlocks(i.key) })),
       oauth: {
         notion: { title: 'Notion', connected: true, connected_by: 'ash', connected_at: at(-2 * DAY), blocked: null },
         google: { title: 'Google', connected: false, connected_by: null, connected_at: null, blocked: null },

@@ -9,6 +9,8 @@ const row = (over: Partial<LimitRow>): LimitRow => ({
   unit: 'sources',
   window: null,
   default: 1000,
+  paid_by: 'org',
+  integrations: [],
   value: 1000,
   override: false,
   used: 0,

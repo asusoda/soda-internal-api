@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { useCurrentOrg } from '../../lib/org';
 import { useBranding, useIntegrations, useOrganization } from '../../lib/queries';
 import { LimitTable } from '../../components/limits';
-import { byUse } from '../../lib/limits';
+import { byUse, PAID_BY } from '../../lib/limits';
 import type { LimitRow, Organization, SecretState } from '../../lib/types';
 import { BrandingForm } from './branding';
 import { GeneralForm } from './general';
@@ -160,7 +160,24 @@ function LimitsSection({ orgId }: { orgId: number }) {
         hint="What this org may use of the shared server, for the modules that are on. Only the Platform superadmin changes them."
       />
       <Pending error={limits.error} loading={limits.isLoading} />
-      {limits.data ? <LimitTable rows={byUse(limits.data.limits)} /> : null}
+      {(['org', 'metered'] as const).map((paid) => {
+        const rows = (limits.data?.limits ?? []).filter((r) => r.paid_by === paid);
+        if (!rows.length) return null;
+        return (
+          <div key={paid}>
+            <div className="border-t border-line px-4 pt-3 pb-2">
+              <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{PAID_BY[paid].title}</h3>
+              <p className="text-xs text-muted">{PAID_BY[paid].text}</p>
+            </div>
+            <LimitTable rows={byUse(rows)} />
+          </div>
+        );
+      })}
+      {limits.data ? (
+        <p className="border-t border-line px-4 py-3 text-xs text-muted">
+          {PAID_BY.shared.title}: {PAID_BY.shared.text} The pages of the submodules you subscribe to are shared.
+        </p>
+      ) : null}
     </Card>
   );
 }

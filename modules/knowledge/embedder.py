@@ -46,6 +46,7 @@ limits.declare(
     500_000,
     window="day",
     unit="texts",
+    integrations=("embeddings",),
 )
 
 

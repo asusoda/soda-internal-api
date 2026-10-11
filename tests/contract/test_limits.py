@@ -333,3 +333,42 @@ def test_request_body_cap(client, officer_headers, monkeypatch, app):
     monkeypatch.setitem(app.config, "MAX_CONTENT_LENGTH", 1000)
     big = client.post(UPTIME, data=b"x" * 2000, headers=officer_headers | {"Content-Type": "application/json"})
     assert big.status_code == 413
+
+
+def test_limits_say_who_pays(client, officer_headers, clean_limits):
+    from modules.knowledge.embedder import EMBEDDINGS_LIMIT
+
+    catalog = {entry["key"]: entry for entry in limits.catalog()}
+    assert catalog["knowledge.sources"]["paid_by"] == "org"
+    assert catalog[EMBEDDINGS_LIMIT]["paid_by"] == "metered" and catalog[EMBEDDINGS_LIMIT]["integrations"] == [
+        "embeddings"
+    ]
+    assert limits.metering("embeddings") == [{"key": EMBEDDINGS_LIMIT, "label": catalog[EMBEDDINGS_LIMIT]["label"]}]
+    with pytest.raises(ValueError):
+        limits.declare("test.bad", "test", "Bad", 1, window="day", paid_by="shared")
+
+    modules = client.get("/api/dashboard/soda/modules", headers=officer_headers).get_json()["modules"]
+    knowledge = next(m for m in modules if m["name"] == "knowledge")
+    assert {"key": "knowledge.sources", "label": "Sources", "window": None, "paid_by": "org"} in knowledge["limits"]
+
+
+def test_submodule_parts_say_who_pays(client, officer_headers):
+    listed = client.get("/api/dashboard/soda/submodules", headers=officer_headers).get_json()["submodules"]
+    asu = next(s for s in listed if s["name"] == "asu")
+    careers = next(s for s in listed if s["name"] == "careers")
+    assert {p["kind"]: p["paid_by"] for p in asu["parts"]} == {"pages": "shared", "queries": "org"}
+    assert {p["kind"]: p["paid_by"] for p in careers["parts"]} == {"feeds": "org"}
+    assert "submodules" not in asu["modules"]
+
+
+def test_shared_keys_say_which_limits_they_count_against(client, officer_headers, monkeypatch):
+    from modules.knowledge.embedder import EMBEDDINGS_LIMIT
+
+    monkeypatch.setenv("EMBEDDINGS_URL", "http://embed.invalid/v1")
+    found = client.get("/api/dashboard/soda/integrations", headers=officer_headers).get_json()["integrations"]
+    embeddings = next(i for i in found if i["key"] == "embeddings")
+    assert embeddings["source"] == "deployment"
+    assert [m["key"] for m in embeddings["metered_by"]] == [EMBEDDINGS_LIMIT]
+    monkeypatch.delenv("EMBEDDINGS_URL")
+    found = client.get("/api/dashboard/soda/integrations", headers=officer_headers).get_json()["integrations"]
+    assert next(i for i in found if i["key"] == "embeddings")["metered_by"] == []

@@ -3,6 +3,10 @@
 // minute, hour or day for a rate limit; null for a count limit.
 export type LimitWindow = 'minute' | 'hour' | 'day' | null;
 
+// Who pays for what a limit counts: the org's own data and apps, or a shared service the org uses.
+// shared is content the deployment makes once for every org, such as a submodule's pages; it has no limit of an org.
+export type PaidBy = 'org' | 'shared' | 'metered';
+
 export type LimitEntry = {
   key: string;
   module: string;
@@ -11,6 +15,8 @@ export type LimitEntry = {
   window: LimitWindow;
   // The value from .env or the declared default. null means no limit.
   default: number | null;
+  paid_by: 'org' | 'metered';
+  integrations: string[];
 };
 
 export type LimitRow = LimitEntry & {

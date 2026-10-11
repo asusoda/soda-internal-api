@@ -11,6 +11,7 @@ from typing import cast
 from sqlalchemy import func
 
 from core import audit
+from core import limits as core_limits
 from core.integrations import registry as integrations
 from core.time import iso, utcnow
 from modules.accounts.models import AccountGrant
@@ -92,6 +93,8 @@ def modules(db, org: Organization) -> dict:
                     "enabled": organizations.module_enabled(org, name),
                     "ready": all(n["connected"] for n in needs if not n["optional"]),
                     "needs": needs,
+                    # The limits this module's use counts against, with who pays for each
+                    "limits": core_limits.for_module(name),
                     "submodules": [
                         {"name": p.name, "title": p.title, "description": p.description}
                         for p in map(submodules.get, info.submodules)
