@@ -22,6 +22,8 @@ const movedDocs = {
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  // A self-contained server in .next/standalone, for Dockerfile.site. Vercel ignores it.
+  output: 'standalone',
   // Contributor avatars on the landing page
   images: { remotePatterns: [{ protocol: 'https', hostname: 'avatars.githubusercontent.com' }] },
   async redirects() {

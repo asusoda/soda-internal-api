@@ -119,6 +119,34 @@ services:
     networks:
       - soda-network
 
+  site:
+    # The landing and docs site (site/), for platform.thesoda.io. Off unless started with --profile site.
+    # It does not use the api, so it is recreated on its own.
+    build:
+      context: .
+      dockerfile: Dockerfile.site
+      cache_from:
+        - soda-site:latest
+    image: soda-site:latest
+    container_name: soda-site
+    restart: unless-stopped
+    profiles: ["site"]
+    ports:
+      - "127.0.0.1:3010:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - soda-network
+
   web:
     # The old officer app (web/), kept for admin.thesoda.io. The dashboard service is the new one.
     build:

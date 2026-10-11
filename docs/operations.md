@@ -15,6 +15,7 @@ This page tells you how to deploy Platform, roll it back, move it to Postgres, a
 | `postgres` | Postgres 16 with pgvector | `postgres` |
 | `worker` | `python3 worker_main.py` | `postgres` |
 | `mcp` | `python3 mcp_main.py` on port 8001 | `mcp` |
+| `site` | The landing and docs site (`Dockerfile.site`, Next.js) on `127.0.0.1:3010`, for platform.thesoda.io | `site` |
 
 The API mounts `./data` (SQLite database and JWT keys), `./.env` and `./google-secret.json`.
 
@@ -66,11 +67,12 @@ flowchart TD
 `make deploy` does these steps:
 
 1. Get `origin/main` and find the files changed since `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, it uses the commit that was checked out before the fetch.
-2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in a compose file or the `Makefile` builds all three. A change in `.github/` or a `.md` file builds nothing. All other changes build `api`.
+2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all four. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.
-6. Start the changed services with `up -d --remove-orphans`, then wait up to 60 seconds for each to be healthy. When it builds `api`, it also starts `bot` again, because the bot uses the same image. `--remove-orphans` removes containers of services that are no longer in `docker-compose.yml`, so an old container does not keep a port.
+6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d --remove-orphans`, and `mcp` too when its container exists. Then wait up to 60 seconds for each to be healthy and check that each runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container: podman-compose 1.0.6 recreates a service's dependencies with it, and it cannot replace `api` while other containers require it. `--remove-orphans` removes containers of services that are no longer in `docker-compose.yml`, so an old container does not keep a port.
+7. If it built `site` and the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. It does not require `api`, so the other containers keep running.
 
 Caution: set `VITE_API_URL` in `.env` before you build the dashboard. If it is empty, `Dockerfile.dashboard` stops the build and the deploy fails.
 
@@ -112,6 +114,15 @@ The API reads `DATABASE_URL`. CI runs the tests on SQLite and Postgres 16. Do th
 4. Copy the data: `uv run python deploy/copy_sqlite_to_postgres.py sqlite:///./data/user.db <postgres url>`. The script refuses tables that have rows. It stops with an error if a row count or an org's points total is different.
 5. Set `DATABASE_URL=postgresql://platform:<password>@postgres:5432/platform` in `.env`. Run `docker compose --profile postgres up -d`. The `worker` service starts and runs the jobs.
 6. Keep `data/user.db` for two weeks or more. To go back, remove `DATABASE_URL` and restart.
+
+## Host the docs site
+
+The `site` service serves `site/` with `next start`, because the site uses redirects and sends a page as Markdown when the client asks for it. It listens only on `127.0.0.1:3010`, so a reverse proxy must forward the domain to it.
+
+1. Build and start it once: `docker compose --profile site up -d --no-deps site`. podman-compose 1.0.6 ignores profiles: use `podman-compose -f docker-compose.yml up -d --no-deps site`.
+2. Point the domain at the server, and forward it in the reverse proxy to `http://127.0.0.1:3010`.
+
+After this, `make deploy` rebuilds the site when `site/` or `docs/` changes, and `make health` checks it.
 
 ## Command-line tools
 
