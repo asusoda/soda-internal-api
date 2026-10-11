@@ -113,6 +113,13 @@ const SCREENS = [
     },
   },
   { name: 'alerts', path: 'alerts' },
+  {
+    name: 'job-alerts-new',
+    path: 'job-alerts',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'New feed' }).click();
+    },
+  },
   { name: 'uptime', path: 'uptime' },
   {
     name: 'uptime-edit',

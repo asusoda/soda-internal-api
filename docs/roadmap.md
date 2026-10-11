@@ -12,7 +12,7 @@ This page lists what is left to build and the known faults. The other pages desc
 
 ## Shared submodules and hosting
 
-The design is in the doc "Platform: shared submodules and This server hosting". Done: per-org limits and container caps (#334), shared submodules (#336), who pays (#339), one Feeds module (#340), the read-only host agent and the services table on the Server card.
+The design is in the doc "Platform: shared submodules and This server hosting". Done: per-org limits and container caps (#334), shared submodules (#336), who pays (#339), one Feeds module (#340), the read-only host agent and the Services card, Alerts as a Core module, and the ASU sign-in on the ASU submodule.
 
 ```mermaid
 flowchart LR
@@ -25,6 +25,7 @@ flowchart LR
 - [ ] Org-made submodules: a manifest of pages and feeds made on the dashboard, approved by the superadmin before other orgs see it (`submodules.owned`).
 - [ ] Provider-neutral Hosting: a `memory` field, `cpu` optional, no RunPod words where an app can run elsewhere.
 - [ ] This server: a hosting provider that runs each app as a capped container on the deployment's server, through `soda-runner`, at `<app>-<org>.apps.thesoda.io`, with per-org app limits.
+- [ ] Move the services an org already runs on the server (such as a vault, a wiki or a static site) into Platform as apps of This server. Until then they are Uptime url monitors of the org, and the superadmin sees them on the Services card.
 - [ ] Shared apps: apps the deployment owns, offered through Integrations. The first is an embedding server with Qwen3-Embedding-0.6B.
 - [ ] Templates: Sparky on one image that starts its engine and bot; templates that make several apps and link them.
 - [ ] Take `canvas_url` from the org's subscribed submodules, not the deployment.
