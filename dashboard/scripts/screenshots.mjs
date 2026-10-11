@@ -63,7 +63,7 @@ const SCREENS = [
   },
   {
     name: 'asu-signed-out',
-    path: 'explore?tab=integrations',
+    path: 'explore?tab=submodules',
     before: async (page) => {
       await page.getByRole('button', { name: 'Sign in to ASU' }).scrollIntoViewIfNeeded();
       await page.mouse.wheel(0, 200);
@@ -71,7 +71,7 @@ const SCREENS = [
   },
   {
     name: 'asu-duo',
-    path: 'explore?tab=integrations',
+    path: 'explore?tab=submodules',
     fixtures: asuDuoFixtures,
     before: async (page) => {
       await page.getByLabel('Duo code').scrollIntoViewIfNeeded();
@@ -89,13 +89,6 @@ const SCREENS = [
     },
   },
   { name: 'hosting-apps', path: 'hosting' },
-  {
-    name: 'hosting-linked',
-    path: 'hosting',
-    before: async (page) => {
-      await page.getByRole('button', { name: 'vault', exact: true }).click();
-    },
-  },
   { name: 'settings', path: 'settings' },
   {
     name: 'settings-limits',
@@ -106,13 +99,27 @@ const SCREENS = [
   },
   { name: 'superadmin', path: 'admin' },
   {
+    name: 'superadmin-services',
+    path: 'admin',
+    before: async (page) => {
+      await page.getByRole('heading', { name: 'Services' }).scrollIntoViewIfNeeded();
+    },
+  },
+  {
     name: 'superadmin-limits',
     path: 'admin',
     before: async (page) => {
       await page.getByRole('button', { name: 'Limits of Data Science Club' }).click();
     },
   },
-  { name: 'webhooks', path: 'webhooks' },
+  { name: 'alerts', path: 'alerts' },
+  {
+    name: 'job-alerts-new',
+    path: 'job-alerts',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'New feed' }).click();
+    },
+  },
   { name: 'uptime', path: 'uptime' },
   {
     name: 'uptime-edit',

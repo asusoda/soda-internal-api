@@ -1,18 +1,17 @@
-# Webhooks
+# Alerts
 
-The Event webhooks module (`modules/event_webhook/`) sends a message to a channel when an event happens in an org. Officers turn it on in Explore, under Webhooks, and add webhooks on its page. Each webhook has a name, a destination and the events it sends. With the module off, no event goes to a webhook, and the routes and tools return 404.
+The Alerts module (`modules/alerts/`) sends a message to a channel when an event happens in an org. It is a Core module, so it is always on. Officers add destinations on the Alerts page. A destination is a Discord webhook with a name and the events it gets: its routes. Feeds post to a destination too.
 
-Each event also shows on the Activity page, with or without the module. The hourly limit applies only to webhook messages.
+Each event also shows on the Activity page and in the bell, also when no destination gets it. The hourly limit applies only to messages to destinations.
 
 ```mermaid
 flowchart LR
-  module["A module calls emit()"] --> saved["Activity notification"]
-  module --> on{"event_webhook on?"}
-  on -- yes --> hooks["Each webhook that takes the event"] --> discord["Discord channel"]
-  on -- no --> stop["No message"]
+  module["A module calls emit()"] --> saved["Activity notification and the bell"]
+  module --> routes["Each destination that is on and gets the event"] --> discord["Discord channel"]
+  feed["A feed run"] --> dest["The feed's destination"] --> discord
 ```
 
-The Webhooks category has two modules. Event webhooks sends events. Feeds posts job listings and hackathons to their own webhooks (see [Feeds](./modules/feeds.md)).
+The Alerts page has two cards. Destinations lists each destination with its state, a test and its last error. Routes lists each event and feed, and the destinations it goes to. An event with no destination shows "Activity only". Uptime decides what to watch; Alerts decides where its `monitor.down` and `monitor.up` events go.
 
 ## Events
 
@@ -40,7 +39,7 @@ The page lists an event only when its module is on for the org. Pods need `godfa
 - "Send test" posts one message now and shows the result.
 - A post has a timeout of 10 seconds and does not follow redirects. An error says the status code. It never has the URL.
 
-## Destinations
+## Destination kinds
 
 Discord is the only kind now. A URL must match `https://discord.com/api/webhooks/<id>/<token>` and its host must resolve to public addresses (`core/net.py`). Platform encrypts the URL with `SECRETS_KEY` and never returns it. The page shows the host and the last 4 digits of the webhook id.
 
@@ -69,19 +68,19 @@ To add a kind, such as Slack, add a `Kind` to `KINDS` in `core/webhooks.py`: a U
 
 ## Routes
 
-All routes are under `/api/dashboard/<org>/webhooks`, for officers of the org, behind the `event_webhook` switch.
+All routes are under `/api/dashboard/<org>/webhooks`, for officers of the org. The path keeps the word webhooks: a destination is a row of the `webhooks` table.
 
 | Route | Does |
 | --- | --- |
-| `GET /` | The webhooks, the events and kinds to pick from, the feeds of the webhook modules that are on, and `secrets_key` |
-| `POST /` | Adds a webhook: `{"name", "kind": "discord", "url", "events": [...]}`. Returns 201 |
+| `GET /` | The destinations, the events and kinds to pick from, the feeds with their `destination_id`, and `secrets_key` |
+| `POST /` | Adds a destination: `{"name", "kind": "discord", "url", "events": [...]}`. Returns 201 |
 | `PUT /<id>` | Changes `name`, `url`, `events` or `enabled`. A missing key keeps its value |
-| `DELETE /<id>` | Removes the webhook |
+| `DELETE /<id>` | Removes the destination. Returns 409 while a feed posts to it |
 | `POST /<id>/test` | Posts a test message. Returns `{"ok", "message"}` |
 
 ## Feeds and the server webhook
 
-- Feeds post listings to their own webhooks. Set them on the Job alerts and Hackathons pages. See [Feeds](./modules/feeds.md).
+- A feed posts to the Discord destination in its `destination_id`. Pick it in the new feed form on the Job alerts and Hackathons pages. A feed made before migration `c6e8a0b2d4f6` can still post to its own webhook secret `alert_webhook_<key>`. See [Feeds](./modules/feeds.md).
 - `ERROR_WEBHOOK_URL` in `.env` gets every new error of every org and of the server. It is not an org webhook and does not show on the page.
 
-The `webhooks` table is in [Data model](./data-model.md). Migration `a1358e0da9ef` moved each org secret `error_webhook_url` to a webhook named Errors that sends `errors`.
+The `webhooks` table is in [Data model](./data-model.md). Migration `c6e8a0b2d4f6` made `alerts` from the `event_webhook` module; an org that had that switch off got its destinations turned off. Migration `a1358e0da9ef` moved each org secret `error_webhook_url` to a webhook named Errors that sends `errors`.

@@ -1,0 +1,19 @@
+# Writes data/host.json, the services of the server, every 30 seconds. See deploy/host-agent/README.md.
+[Unit]
+Description=Platform host agent (read-only)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /var/www/soda-internal-api/deploy/host-agent/host_agent.py --root /var/www/soda-internal-api --port 8080
+Restart=always
+RestartSec=30
+Nice=10
+ProtectSystem=strict
+ReadWritePaths=/var/www/soda-internal-api/data
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

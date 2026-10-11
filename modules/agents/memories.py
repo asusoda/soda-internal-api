@@ -7,7 +7,7 @@ import datetime
 
 from sqlalchemy import or_
 
-from core import secrets
+from core import limits, secrets
 from core.time import iso, utcnow
 from modules.agents import service
 from modules.agents.models import AgentMemory
@@ -62,6 +62,7 @@ def remember(
         raise AgentError("source_seq must be a message seq")
     if expires_in_days is not None and (not isinstance(expires_in_days, int) or expires_in_days < 1):
         raise AgentError("expires_in_days must be a positive integer")
+    limits.check(db, who.organization_id, service.MEMORIES_LIMIT)
     row = AgentMemory(
         organization_id=who.organization_id,
         discord_id=who.discord_id,

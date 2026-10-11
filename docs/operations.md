@@ -38,7 +38,17 @@ Each container has a memory and a CPU cap, so one process cannot take the whole 
 | `site` | 384m | 0.5 | `SITE_MEM_LIMIT`, `SITE_CPUS` |
 | `postgres` | 1g | 1 | `POSTGRES_MEM_LIMIT`, `POSTGRES_CPUS` |
 
-A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
+A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container, and with the [host agent](#host-agent) of every container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
+
+## Host agent
+
+The host agent lists each container and host process on the server for the Services card on the Superadmin page. It runs on the host as root, because only root sees every container. It only reads: `podman ps`, `podman stats`, the proxy hosts of Nginx Proxy Manager (opened read-only), the listening ports, and the cgroups of host processes. Every 30 seconds it writes `data/host.json`, which the API reads as `/app/data/host.json`. The API has no access to the podman socket.
+
+1. Copy the unit: `cp deploy/host-agent/platform-host-agent.service /etc/systemd/system/`.
+2. Add one `--port` to `ExecStart` for each host process that no proxy host forwards to.
+3. Start it: `systemctl daemon-reload && systemctl enable --now platform-host-agent`.
+
+A container started by `docker-compose.yml` is Platform's. A container with the label `platform.org=<prefix>` is that org's. The superadmin sets the owner of each other service on the Services card (`PUT /api/superadmin/server/services/<name>`). If the file is older than 2 minutes, the card shows "Agent stopped".
 
 ## Images and CI
 

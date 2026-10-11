@@ -1,4 +1,4 @@
-// Outbound webhooks, the events they send, and the feeds of the webhook modules, which post to their own webhooks.
+// Alerts: the org's destinations (outbound webhooks), the events each one gets, and the feeds that post to them.
 
 import type { Feed } from './feeds';
 
@@ -25,13 +25,13 @@ export type Webhook = {
   created_by: string | null;
 };
 
-export type WebhookFeed = Pick<Feed, 'key' | 'kind' | 'enabled' | 'webhook_set' | 'last_run_at' | 'last_error'>;
+export type WebhookFeed = Pick<Feed, 'key' | 'kind' | 'enabled' | 'destination_id' | 'webhook_set' | 'last_run_at' | 'last_error'>;
 
 export type WebhookList = {
   webhooks: Webhook[];
   events: WebhookEvent[];
   kinds: WebhookKind[];
-  // The feeds of the webhook modules that are on
+  // The feeds of the org, when the feeds module is on
   feeds: WebhookFeed[];
   secrets_key: boolean;
 };

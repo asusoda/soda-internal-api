@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers, Plus } from 'lucide-react';
+import { AsuSignIn } from '../../components/asu-signin';
 import { Tooltip } from '../../components/tooltip';
 import { Badge, Button, Card, EmptyState, ErrorNote, PageSkeleton, Spinner } from '../../components/ui';
 import { api, send } from '../../lib/api';
@@ -100,6 +101,7 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
                     })}
                   </div>
                 ) : null}
+                {s.name === 'asu' && s.subscribed ? <AsuSignIn prefix={prefix} /> : null}
                 <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                   <span className="text-xs text-muted tabular-nums">
                     {s.subscribers} {s.subscribers === 1 ? 'org' : 'orgs'}

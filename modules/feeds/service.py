@@ -1,12 +1,12 @@
-"""Feeds: read a source on a schedule and post new items to a Discord webhook. No Flask here.
+"""Feeds: read a source on a schedule and post new items to an alert destination (a Discord webhook). No Flask here.
 
 The kinds of feed are github_jobs (github_jobs.py: the job table of a GitHub README) and hackathons
 (hackathons.py: Hack Club, Euro-Hackathons and Hackalist). Every kind belongs to the feeds module; when the
 org has it off, its feeds are hidden and do not run. The presets come from the submodules the org subscribes to.
 
 A feed's first run records every current item without posting, so turning a feed on does not
-flood the channel. Later runs post items not seen before. The webhook URL is an org secret
-named alert_webhook_<key>, encrypted with SECRETS_KEY and never returned by a route.
+flood the channel. Later runs post items not seen before. The URL is the destination's, encrypted with
+SECRETS_KEY and never returned by a route. A feed made before destinations has the org secret alert_webhook_<key>.
 """
 
 import datetime
@@ -16,7 +16,7 @@ from typing import cast
 
 import requests
 
-from core import secrets
+from core import secrets, webhooks
 from core.errors import ServiceError
 from core.log import get_logger
 from core.time import utcnow
@@ -96,8 +96,19 @@ def _secret_name(key: str) -> str:
     return SECRET_PREFIX + key
 
 
+def _destination(db, org_id: int, destination_id: int | None) -> webhooks.Webhook | None:
+    if destination_id is None:
+        return None
+    return db.query(webhooks.Webhook).filter_by(organization_id=org_id, id=destination_id).first()
+
+
 def _webhook(db, feed: AlertFeed) -> str | None:
-    return secrets.get_secret(db, cast(int, feed.organization_id), _secret_name(cast(str, feed.key)))
+    """The URL the feed posts to: its alert destination's, else the older alert_webhook_<key> secret."""
+    org_id = cast(int, feed.organization_id)
+    if feed.destination_id is not None:
+        row = _destination(db, org_id, cast(int, feed.destination_id))
+        return secrets.decrypt(str(row.url_ciphertext)) if row is not None and row.enabled else None
+    return secrets.get_secret(db, org_id, _secret_name(cast(str, feed.key)))
 
 
 def kinds_on(db, org_id: int) -> set[str]:
@@ -123,6 +134,7 @@ def describe(db, feed: AlertFeed) -> dict:
         "config": feed.config,
         "every_hours": feed.every_hours,
         "enabled": feed.enabled,
+        "destination_id": feed.destination_id,
         "webhook_set": _webhook(db, feed) is not None,
         "seeded_at": feed.seeded_at.isoformat() if feed.seeded_at else None,
         "last_run_at": feed.last_run_at.isoformat() if feed.last_run_at else None,
@@ -196,9 +208,22 @@ def put_feed(db, org_id: int, key: str, body: dict, actor: str | None = None) ->
     webhook = body.get("webhook_url")
     if webhook is not None and not WEBHOOK_PATTERN.match(str(webhook)):
         raise FeedError("webhook_url must be a Discord webhook URL")
-    if created and webhook is None:
-        raise FeedError("webhook_url is required for a new feed")
-    if webhook is not None:
+    destination_id = body.get("destination_id", feed.destination_id if feed else None)
+    if "destination_id" in body and destination_id is not None:
+        destination = (
+            _destination(db, org_id, destination_id)
+            if isinstance(destination_id, int) and not isinstance(destination_id, bool)
+            else None
+        )
+        if destination is None or destination.kind != "discord":
+            raise FeedError("destination_id must be the id of a Discord destination on the Alerts page")
+    if (created or "destination_id" in body) and webhook is None and destination_id is None:
+        raise FeedError("destination_id is required for a new feed")
+    if "destination_id" in body and destination_id is not None:
+        # One route per feed: the destination replaces an older webhook secret
+        secrets.delete_secret(db, org_id, _secret_name(key))
+    elif webhook is not None:
+        destination_id = None
         try:
             secrets.set_secret(db, org_id, _secret_name(key), webhook, updated_by=actor)
         except secrets.SecretsError as e:
@@ -207,6 +232,7 @@ def put_feed(db, org_id: int, key: str, body: dict, actor: str | None = None) ->
         feed = AlertFeed(organization_id=org_id, key=key, kind=kind)
         db.add(feed)
     feed.config = config
+    feed.destination_id = destination_id
     feed.every_hours = every_hours
     feed.enabled = enabled
     db.commit()
@@ -232,7 +258,7 @@ def run(db, feed: AlertFeed, post_existing: bool = False) -> dict:
     feed.last_run_at = utcnow()
     webhook = _webhook(db, feed)
     if webhook is None:
-        return _fail(db, feed, "The webhook URL is not set, or SECRETS_KEY is missing", started)
+        return _fail(db, feed, "No destination, the destination is off, or SECRETS_KEY is missing", started)
     try:
         items = _read(feed)
     except SourceError as e:

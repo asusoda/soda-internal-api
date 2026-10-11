@@ -1,4 +1,4 @@
-"""HTTP routes for officers to manage the outbound webhooks of their org, under /api/dashboard/<org_prefix>."""
+"""HTTP routes for officers to manage the alert destinations of their org, under /api/dashboard/<org_prefix>."""
 
 from functools import partial
 
@@ -11,8 +11,8 @@ from modules.auth.routes import officer_route
 
 from . import service
 
-event_webhook_blueprint = Blueprint("event_webhook", __name__)
-_route = partial(officer_route, event_webhook_blueprint)
+alerts_blueprint = Blueprint("alerts", __name__)
+_route = partial(officer_route, alerts_blueprint)
 
 # A test sends a message and changes no settings
 audit_hook.SKIPPED_ROUTES.add("/api/dashboard/<string:org_prefix>/webhooks/<int:webhook_id>/test")

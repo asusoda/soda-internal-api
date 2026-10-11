@@ -21,6 +21,8 @@ export type Feed = {
   config: Record<string, unknown>;
   every_hours: number;
   enabled: boolean;
+  // The alert destination it posts to. Null for an older feed with its own webhook secret
+  destination_id: number | null;
   webhook_set: boolean;
   seeded_at: string | null;
   last_run_at: string | null;

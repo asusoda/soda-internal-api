@@ -122,17 +122,16 @@ def test_events_go_only_to_webhooks_that_take_them(client, officer_headers, sent
     assert len(sent) == 2
 
 
-def test_the_switch_stops_delivery_and_hides_the_routes(client, officer_headers, sent):
-    _create(client, officer_headers, events=["order.created"])
+def test_alerts_is_core_and_a_destination_that_is_off_gets_nothing(client, officer_headers, sent):
+    hook = _create(client, officer_headers, events=["order.created"]).get_json()
     switch = f"/api/organizations/{_ais_id()}/modules"
-    turned_off = client.put(switch, json={"modules": {"event_webhook": False}}, headers=officer_headers)
-    assert turned_off.status_code == 200
+    assert client.put(switch, json={"modules": {"alerts": False}}, headers=officer_headers).status_code == 400
 
+    client.put(f"{BASE}/{hook['id']}", json={"enabled": False}, headers=officer_headers)
     webhooks.emit("ais", "order.created", webhooks.Message(title="New store order #1"))
     assert sent == []
-    assert client.get(BASE, headers=officer_headers).status_code == 404
 
-    client.put(switch, json={"modules": {"event_webhook": True}}, headers=officer_headers)
+    client.put(f"{BASE}/{hook['id']}", json={"enabled": True}, headers=officer_headers)
     webhooks.emit("ais", "order.created", webhooks.Message(title="New store order #2"))
     assert [url for url, _ in sent] == [URL]
 
@@ -236,7 +235,7 @@ def test_listing_names_alert_feeds(client, officer_headers, sent):
     try:
         feeds = client.get(BASE, headers=officer_headers).get_json()["feeds"]
         assert feeds[0]["key"] == "webhook-test-feed"
-        assert set(feeds[0]) == {"key", "kind", "enabled", "webhook_set", "last_run_at", "last_error"}
+        assert set(feeds[0]) == {"key", "kind", "enabled", "destination_id", "webhook_set", "last_run_at", "last_error"}
     finally:
         db.query(AlertFeed).filter_by(key="webhook-test-feed").delete()
         db.commit()

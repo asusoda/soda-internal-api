@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Send, Webhook as WebhookIcon } from 'lucide-react';
+import { Megaphone, Pencil, Plus, Send } from 'lucide-react';
 import { useState } from 'react';
 import {
   Badge,
@@ -22,6 +22,10 @@ import {
   SkeletonRows,
   Spinner,
   Switch,
+  Table,
+  Td,
+  Th,
+  Tr,
 } from '../components/ui';
 import { api, send } from '../lib/api';
 import { timeAgo } from '../lib/format';
@@ -30,7 +34,7 @@ import type { Webhook, WebhookList, WebhookTest } from '../lib/types';
 
 type Draft = { name: string; kind: string; url: string; events: string[] };
 
-// The form to add a webhook, or to change one. When it changes one, an empty URL keeps the saved URL.
+// The form to add a destination, or to change one. When it changes one, an empty URL keeps the saved URL.
 function WebhookForm({ prefix, list, hook, onDone }: { prefix: string; list: WebhookList; hook: Webhook | null; onDone: () => void }) {
   const client = useQueryClient();
   const [draft, setDraft] = useState<Draft>({
@@ -74,9 +78,9 @@ function WebhookForm({ prefix, list, hook, onDone }: { prefix: string; list: Web
     >
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Name">
-          <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Officer alerts" required />
+          <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Officer channel" required />
         </Field>
-        <Field label="Destination">
+        <Field label="Service">
           <Select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })} disabled={Boolean(hook)}>
             {list.kinds.map((k) => (
               <option key={k.key} value={k.key}>
@@ -110,7 +114,7 @@ function WebhookForm({ prefix, list, hook, onDone }: { prefix: string; list: Web
       </fieldset>
       <FormActions error={save.error}>
         <Button variant="primary" disabled={save.isPending || !draft.events.length}>
-          {hook ? 'Save' : 'Add webhook'}
+          {hook ? 'Save' : 'Add destination'}
         </Button>
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
@@ -147,16 +151,10 @@ function WebhookRow({ prefix, hook, labels, onEdit }: { prefix: string; hook: We
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium">
             <span className="truncate">{hook.name}</span>
             <Badge>{hook.kind === 'discord' ? 'Discord' : hook.kind}</Badge>
-            <Mono className="text-xs font-normal text-muted">{hook.url_hint}</Mono>
+            <Mono className="hidden text-xs font-normal text-muted sm:inline">{hook.url_hint}</Mono>
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {hook.events.map((key) => (
-              <span key={key} className="rounded-md border border-line px-1.5 py-0.5 text-xs text-muted">
-                {labels.get(key) ?? key}
-              </span>
-            ))}
-          </div>
-          <div className="mt-1.5 truncate text-xs text-muted">
+          <div className="mt-1 truncate text-xs text-muted" title={hook.events.map((key) => labels.get(key) ?? key).join(', ')}>
+            {hook.events.length} {hook.events.length === 1 ? 'event' : 'events'} ·{' '}
             {hook.last_error ? (
               <span className="text-bad">{hook.last_error}</span>
             ) : hook.last_sent_at ? (
@@ -167,14 +165,14 @@ function WebhookRow({ prefix, hook, labels, onEdit }: { prefix: string; hook: We
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Switch checked={hook.enabled} onChange={() => toggle.mutate()} label={`Webhook ${hook.name} on`} disabled={toggle.isPending} />
+          <Switch checked={hook.enabled} onChange={() => toggle.mutate()} label={`Destination ${hook.name} on`} disabled={toggle.isPending} />
           <Button variant="ghost" size="icon" title="Send test" aria-label={`Send a test to ${hook.name}`} disabled={test.isPending} onClick={() => test.mutate()}>
             {test.isPending ? <Spinner className="size-3.5" /> : <Send className="size-4" />}
           </Button>
           <Button variant="ghost" size="icon" title="Edit" aria-label={`Edit ${hook.name}`} onClick={onEdit}>
             <Pencil className="size-4" />
           </Button>
-          <DeleteButton label={`Delete ${hook.name}`} question={`Delete webhook ${hook.name}?`} onDelete={() => remove.mutate()} />
+          <DeleteButton label={`Delete ${hook.name}`} question={`Delete destination ${hook.name}?`} onDelete={() => remove.mutate()} />
         </div>
       </div>
       {test.data ? (
@@ -194,7 +192,46 @@ function WebhookRow({ prefix, hook, labels, onEdit }: { prefix: string; hook: We
   );
 }
 
-export function WebhooksPage() {
+// Each event and feed, and the destinations it goes to. Events with no destination show only in Activity.
+function RoutesCard({ list }: { list: WebhookList }) {
+  const on = list.webhooks.filter((h) => h.enabled);
+  const names = new Map(list.webhooks.map((h) => [h.id, h.name]));
+  const rows = [
+    ...list.events.map((e) => ({ key: `event:${e.key}`, label: e.label, to: on.filter((h) => h.events.includes(e.key)).map((h) => h.name) })),
+    ...list.feeds.map((f) => ({
+      key: `feed:${f.key}`,
+      label: `Feed ${f.key}`,
+      to: f.destination_id != null ? [names.get(f.destination_id) ?? '-'] : f.webhook_set ? ['Own webhook'] : [],
+    })),
+  ];
+  return (
+    <Card>
+      <CardHeader title="Routes" />
+      <Table>
+        <thead>
+          <tr>
+            <Th>Event</Th>
+            <Th>Goes to</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <Tr key={r.key}>
+              <Td className="w-1/2 max-w-0 truncate">{r.label}</Td>
+              <Td className="max-w-0">
+                <div className="flex flex-wrap gap-1">
+                  {r.to.length ? r.to.map((name) => <Badge key={name}>{name}</Badge>) : <span className="text-xs text-muted">Activity only</span>}
+                </div>
+              </Td>
+            </Tr>
+          ))}
+        </tbody>
+      </Table>
+    </Card>
+  );
+}
+
+export function AlertsPage() {
   const { prefix } = useCurrentOrg();
   const [editing, setEditing] = useState<Webhook | 'new' | null>(null);
   const list = useQuery({
@@ -208,12 +245,12 @@ export function WebhooksPage() {
   return (
     <>
       <PageHeader
-        title="Events"
-        description="Messages to your channels when events happen."
+        title="Alerts"
+        description="Where the org's events and feeds go."
         docs="codebase/webhooks"
         action={
           <Button variant="primary" disabled={!data?.secrets_key} onClick={() => setEditing('new')}>
-            <Plus className="size-4" /> New webhook
+            <Plus className="size-4" /> New destination
           </Button>
         }
       />
@@ -224,26 +261,28 @@ export function WebhooksPage() {
       ) : null}
       {data && !data.secrets_key ? (
         <div className="mb-4 rounded-md bg-warn/10 px-3 py-2 text-sm text-warn" role="status">
-          SECRETS_KEY is not set on the API, so webhook URLs cannot be saved.
+          SECRETS_KEY is not set on the API, so destination URLs cannot be saved.
         </div>
       ) : null}
       <div className="grid gap-6">
         <Card>
-          <CardHeader title="Webhooks" hint={data ? `${hooks.length} webhooks` : undefined} />
+          <CardHeader title="Destinations" hint={data ? `${hooks.length} ${hooks.length === 1 ? 'destination' : 'destinations'}` : undefined} />
           {list.isLoading ? (
             <SkeletonRows />
           ) : hooks.length ? (
             hooks.map((h) => <WebhookRow key={h.id} prefix={prefix} hook={h} labels={labels} onEdit={() => setEditing(h)} />)
           ) : (
-            <EmptyState icon={WebhookIcon} title="No webhooks">
+            <EmptyState icon={Megaphone} title="No destinations">
+              Add a Discord channel webhook. Events still show in Activity.
             </EmptyState>
           )}
         </Card>
+        {data && (hooks.length || data.feeds.length) ? <RoutesCard list={data} /> : null}
       </div>
       <Dialog
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing === 'new' ? 'New webhook' : `Edit ${editing?.name ?? ''}`}
+        title={editing === 'new' ? 'New destination' : `Edit ${editing?.name ?? ''}`}
         wide
       >
         {data && editing !== null ? (

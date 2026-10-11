@@ -10,6 +10,7 @@ from dataclasses import dataclass
 # Explore page of the dashboard. Core modules are always on and do not show on Explore.
 CATEGORIES = {
     "Core": [
+        "alerts",
         "auth",
         "bot",
         "dashboard",
@@ -22,7 +23,7 @@ CATEGORIES = {
     ],
     "Storage": ["knowledge", "points", "storefront", "accounts"],
     "AI and agents": ["agents", "integrations"],
-    "Webhooks": ["event_webhook", "feeds"],
+    "Webhooks": ["feeds"],
     "Automations": ["calendar", "uptime"],
     "Bots": ["leetcode", "games"],
     "Compute": ["godfather", "runpod"],
@@ -67,8 +68,8 @@ CATALOG = {
         needs=(Need("ACCOUNTS_BASE_URL", "ACCOUNTS_BASE_URL setting", kind="setting"),),
     ),
     "agents": ModuleInfo(
-        "Agents",
-        "Conversations, memories and pending actions of the org's agents.",
+        "Agent memory",
+        "Conversations, memories and pending actions that the org's agents keep for each member, through the API.",
         needs=(Need("openrouter", "OpenRouter", optional=True),),
     ),
     "auth": ModuleInfo(
@@ -82,8 +83,8 @@ CATALOG = {
     ),
     "godfather": ModuleInfo("Godfather", "GPU and CPU pods that members connect to with the Godfather CLI.", (RUNPOD,)),
     "dashboard": ModuleInfo("Dashboard", "This dashboard: overview, activity, errors and branding."),
-    "event_webhook": ModuleInfo(
-        "Event webhooks", "Sends events of the org, such as a failed job or a site that is down, to Discord webhooks."
+    "alerts": ModuleInfo(
+        "Alerts", "Sends events of the org, such as a failed job or a site that is down, to its Discord channels."
     ),
     "feeds": ModuleInfo(
         "Feeds",
@@ -152,6 +153,7 @@ MODEL_MODULES = [
     "modules.runpod.models",
     "modules.storefront.models",
     "modules.submodules.models",
+    "modules.superadmin.models",
     "modules.uptime.models",
     "modules.users.models",
 ]
@@ -184,7 +186,7 @@ TOOL_MODULES = [
     "modules.runpod.tools",
     "modules.submodules.tools",
     "modules.dashboard.tools",
-    "modules.event_webhook.tools",
+    "modules.alerts.tools",
     "modules.feeds.tools",
     "modules.godfather.tools",
     "modules.integrations.tools",

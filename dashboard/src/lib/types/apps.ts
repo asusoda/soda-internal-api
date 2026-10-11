@@ -13,7 +13,7 @@ export type AppDeployment = {
   finished_at: string | null;
 };
 
-export type AppKind = 'bot' | 'agent' | 'site' | 'service' | 'database';
+export type AppKind = 'bot' | 'agent' | 'site' | 'service';
 
 export type App = {
   name: string;
@@ -23,9 +23,6 @@ export type App = {
   // host and provider both name the hosting provider; host is the older key
   host: string;
   provider: string;
-  // A linked app runs outside Platform: listed and checked by Uptime, never deployed
-  linked: boolean;
-  runs_as: string[];
   manifest: AppManifest;
   repo: string | null;
   manifest_path: string | null;

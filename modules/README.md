@@ -10,6 +10,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 
 | Module | Does | Org switch |
 | --- | --- | --- |
+| [alerts](alerts/README.md) | The org's events, such as a failed job, sent to its destinations (Discord webhooks). Feeds post to a destination too | |
 | [auth](auth/README.md) | Discord sign-in, tokens, access checks, machine tokens and scopes | |
 | [bot](bot/README.md) | The Discord bot and its helper cog | |
 | [dashboard](dashboard/README.md) | Overview, branding, CI runs and the module catalog for the officer dashboard | |
@@ -40,8 +41,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 
 | Module | Does | Org switch |
 | --- | --- | --- |
-| [event_webhook](event_webhook/README.md) | Events of the org, such as a failed job, sent to Discord webhooks | `event_webhook` |
-| [feeds](feeds/README.md) | New job listings and hackathons posted to Discord webhooks | `feeds` |
+| [feeds](feeds/README.md) | New job listings and hackathons posted to an alert destination | `feeds` |
 
 ## Automations
 

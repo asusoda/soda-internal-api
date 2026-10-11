@@ -24,7 +24,6 @@ export function firstConfigured(providers: HostingProvider[] | undefined): strin
 // The display name of a provider. RunPod is known before the list loads.
 export function providerTitle(providers: HostingProvider[] | undefined, name: string | null | undefined): string {
   const key = name || DEFAULT_PROVIDER;
-  if (key === 'linked') return 'Linked';
   return providers?.find((p) => p.name === key)?.title ?? (key === 'runpod' ? 'RunPod' : key);
 }
 

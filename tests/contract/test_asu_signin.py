@@ -17,7 +17,7 @@ from submodules.asu.signin import browser as browsers
 from submodules.asu.signin import service, sso, sundevil_central
 from submodules.asu.signin.browser import Loaded
 
-BASE = "/api/dashboard/soda/integrations/asu/signin"
+BASE = "/api/dashboard/soda/submodules/asu/signin"
 NETID = "sparky1"
 PASSWORD = "pw-for-tests-only-7Q"  # nosec B105 - a fake password for the fake browser
 COOKIE = "cookie-for-tests-only"
@@ -63,13 +63,28 @@ def fake(monkeypatch):
 
 
 @pytest.fixture
-def soda(client, officer_headers, monkeypatch):
+def soda(client, officer_headers, monkeypatch, clean_submodules):
     monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
     orgs = client.get("/api/organizations/", headers=officer_headers).get_json()
     org_id = next(o["id"] for o in orgs if o["prefix"] == "soda")
+    _subscription(org_id, True)
     yield org_id
     client.delete(BASE, headers=officer_headers)
     service._attempts.pop(org_id, None)
+
+
+def _subscription(org_id: int, on: bool) -> None:
+    from core.db import db_connect
+    from modules.submodules import service as submodules
+
+    db = db_connect.SessionLocal()
+    try:
+        if on:
+            submodules.subscribe(db, org_id, "asu", actor="test")
+        elif "asu" in submodules.subscribed_names(db, org_id):
+            submodules.unsubscribe(db, org_id, "asu")
+    finally:
+        db.close()
 
 
 def _wait(client, officer_headers, states, seconds=10.0):
@@ -122,8 +137,8 @@ def test_sign_in_shows_the_duo_code_and_saves_only_the_cookies(client, officer_h
     assert done["attempt"]["state"] == "done", done
     assert done["signed_in"] is True and done["signed_in_by"] and done["signed_in_at"]
     assert done["attempt"]["code"] is None
-    listed = client.get("/api/dashboard/soda/integrations", headers=officer_headers).get_json()
-    assert listed["asu"]["signed_in"] is True
+    listed = client.get(BASE, headers=officer_headers).get_json()
+    assert listed["signed_in"] is True
 
     db = db_connect.SessionLocal()
     try:
@@ -244,7 +259,7 @@ def test_an_expired_session_gives_an_error_and_one_notification(client, officer_
         assert len(rows) == 1 and rows[0].color == webhooks.AMBER
         notices = client.get("/api/dashboard/soda/notifications", headers=officer_headers).get_json()
         expired = [n for n in notices["notifications"] if n["subject"] == "ASU sign-in expired"]
-        assert len(expired) == 1 and expired[0]["link"] == "explore?tab=integrations"
+        assert len(expired) == 1 and expired[0]["link"] == "explore?tab=submodules"
         _sign_in(client, officer_headers)
         assert client.get(BASE, headers=officer_headers).get_json()["signed_in"] is True
     finally:
@@ -319,3 +334,16 @@ def test_empty_and_changed_listings():
     changed = Fetched(url="x", body=b"<main><p>New layout event</p></main>", content_type="text/html")
     assert "New layout event" in sundevil_central.extract_events(changed)
     assert "New layout event" in sundevil_central.extract_clubs(changed)
+
+
+def test_only_an_org_that_subscribes_to_asu_signs_in(client, officer_headers, soda, fake):
+    _sign_in(client, officer_headers)
+    _subscription(soda, False)
+    assert client.get(BASE, headers=officer_headers).status_code == 404
+    refused = client.post(BASE, json={"netid": NETID, "password": PASSWORD}, headers=officer_headers)
+    assert refused.status_code == 404 and "Subscribe" in refused.get_json()["error"]
+    agent = _token(client, officer_headers, soda, ["asu:read"])
+    assert "asu.clubs" not in _tools(client, agent)
+    # Signing out stays allowed, so the saved session can go
+    assert client.delete(BASE, headers=officer_headers).status_code == 200
+    _subscription(soda, True)

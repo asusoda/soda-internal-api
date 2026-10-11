@@ -300,3 +300,65 @@ def test_due_feeds_respect_schedule_and_switch(client, officer_headers, alerts, 
         assert service.due(db, datetime.datetime(2026, 10, 9)) == []
     finally:
         db.close()
+
+
+@pytest.fixture
+def destination(alerts):
+    from core import secrets, webhooks
+    from core.db import db_connect
+    from modules.organizations.models import Organization
+
+    db = db_connect.SessionLocal()
+    org_id = db.query(Organization.id).filter_by(prefix="soda").scalar()
+    row = webhooks.Webhook(
+        organization_id=org_id,
+        name="Careers channel",
+        kind="discord",
+        url_ciphertext=secrets.encrypt(DESTINATION_URL),
+        url_hint="...abc",
+        events=["errors"],
+    )
+    db.add(row)
+    db.commit()
+    yield row.id
+    from modules.feeds.models import AlertFeed
+
+    db.query(AlertFeed).delete()
+    db.query(webhooks.Webhook).filter_by(id=row.id).delete()
+    db.commit()
+    db.close()
+
+
+DESTINATION_URL = "https://discord.com/api/webhooks/2/careers"
+
+
+def test_a_feed_posts_to_its_alert_destination(client, officer_headers, alerts, destination):
+    from core.db import db_connect
+    from core.secrets import OrgSecret
+
+    # An older feed with a webhook secret moves to the destination, and the secret goes
+    _put(client, officer_headers)
+    moved = _put(client, officer_headers, webhook_url=None, destination_id=destination)
+    assert moved.status_code == 200 and moved.get_json()["feed"]["destination_id"] == destination
+    db = db_connect.SessionLocal()
+    assert db.query(OrgSecret).filter_by(name="alert_webhook_internships").count() == 0
+    db.close()
+
+    _run()
+    alerts["readme"] = _readme(_row("Beta", "Intern", "https://beta.io/7"))
+    assert _run()["posted"] == 1
+    assert alerts["sent"][0][0] == DESTINATION_URL
+
+    # A destination that a feed posts to cannot be deleted
+    deleted = client.delete(f"/api/dashboard/soda/webhooks/{destination}", headers=officer_headers)
+    assert deleted.status_code == 409 and "internships" in deleted.get_json()["error"]
+
+    # A destination that is off gets nothing, and the run says why
+    client.put(f"/api/dashboard/soda/webhooks/{destination}", json={"enabled": False}, headers=officer_headers)
+    assert "destination is off" in _run()["error"]
+
+
+@pytest.mark.parametrize("destination_id", [999999, True, "1", None])
+def test_a_feed_needs_a_known_destination(client, officer_headers, alerts, destination_id):
+    response = _put(client, officer_headers, key="new-feed", webhook_url=None, destination_id=destination_id)
+    assert response.status_code == 400

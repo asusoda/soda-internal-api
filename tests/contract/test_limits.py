@@ -128,6 +128,28 @@ def test_count_limit_refuses_the_next_monitor(client, officer_headers, db, clean
     assert "limit of 1 monitors" in second.get_json()["error"]
 
 
+def test_agent_conversation_and_memory_limits(db, clean_limits):
+    from modules.agents import conversations, memories, service
+    from modules.agents.models import AgentConversation, AgentMemory
+
+    ais = _org_id("ais")
+    who = service.owner(ais, "123456789")
+    limits.set_values(
+        db,
+        ais,
+        {
+            "agents.conversations": db.query(AgentConversation).filter_by(organization_id=ais).count(),
+            "agents.memories": db.query(AgentMemory).filter_by(organization_id=ais).count(),
+        },
+    )
+    with pytest.raises(limits.LimitError):
+        conversations.ensure(db, who, str(uuid.uuid4()), "channel-1", "private")
+    db.rollback()
+    with pytest.raises(limits.LimitError):
+        memories.remember(db, who, kind="semantic", content="Likes robotics")
+    db.rollback()
+
+
 def test_knowledge_source_and_passage_limits(client, officer_headers, db, clean_limits):
     from modules.knowledge import service
 

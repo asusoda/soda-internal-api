@@ -5,6 +5,7 @@ is the host's disk. The cgroup files show the memory and CPU limits of this cont
 cannot be read is None, so the page shows what it can on any host.
 """
 
+import json
 import os
 import shutil
 import time
@@ -18,6 +19,11 @@ from core.log import get_logger
 logger = get_logger("host")
 
 CGROUP = Path("/sys/fs/cgroup")
+# deploy/host-agent writes this file every 30 seconds. An older file means the agent stopped.
+AGENT_FILE = "host.json"
+DATA_DIR = "data"
+AGENT_VERSION = 1
+STALE_SECONDS = 120
 STARTED = time.time()
 
 
@@ -109,3 +115,23 @@ def stats(db, data_dir: str = "data") -> dict[str, Any]:
         "database": db.get_bind().dialect.name,
         "container": container(),
     }
+
+
+def agent_snapshot(data_dir: str | None = None) -> dict[str, Any] | None:
+    """The services that the host agent last saw, with the age of the snapshot. None when there is no snapshot.
+
+    The agent (deploy/host-agent) runs on the host and writes data/host.json. The API only reads it.
+    """
+    raw = _read(Path(data_dir or DATA_DIR) / AGENT_FILE)
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        logger.warning("host agent file is not JSON")
+        return None
+    if not isinstance(data, dict) or data.get("version") != AGENT_VERSION or not isinstance(data.get("services"), list):
+        logger.warning("host agent file has an unknown format")
+        return None
+    age = max(0, int(time.time()) - int(data.get("generated_at") or 0))
+    return {"age_seconds": age, "stale": age > STALE_SECONDS, "services": data["services"]}

@@ -15,7 +15,6 @@ export const MODULES = [
   { name: 'games', description: "Jeopardy games in the org's Discord server", enabled: true },
   { name: 'leetcode', description: "Daily LeetCode post in the org's channel, with solve checks", enabled: true },
   { name: 'godfather', description: "GPU and CPU pods on the org's RunPod account that members SSH into", enabled: true },
-  { name: 'event_webhook', description: 'Events of the org, such as a failed job, sent to Discord webhooks', enabled: true },
   { name: 'feeds', description: 'New job listings and hackathons posted to Discord webhooks', enabled: true },
   { name: 'uptime', description: 'Checks of sites and Hosting apps, with an event when one goes down or up', enabled: true },
   { name: 'knowledge', description: 'Pages and documents that agents search', enabled: true },
@@ -32,9 +31,8 @@ const CATALOG = [
   { name: 'points', title: 'Points', description: "Points, leaderboards and event check-ins.", category: 'Storage', switchable: true, needs: [], submodules: [] },
   { name: 'storefront', title: 'Store', description: "A merch store that members pay for with points.", category: 'Storage', switchable: true, needs: [], submodules: [] },
   { name: 'accounts', title: 'Member accounts', description: "Members connect Canvas, Google and Outlook, and agents read them for the member.", category: 'Storage', switchable: true, needs: [need('ACCOUNTS_BASE_URL', 'ACCOUNTS_BASE_URL setting', true, { kind: 'setting' })], submodules: [] },
-  { name: 'agents', title: 'Agents', description: "Conversations, memories and pending actions of the org's agents.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
+  { name: 'agents', title: 'Agent memory', description: "Conversations, memories and pending actions that the org's agents keep for each member, through the API.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
   { name: 'integrations', title: 'Integration tools', description: "Gives agents the tools of the services that the org connects.", category: 'AI and agents', switchable: true, needs: [], submodules: [] },
-  { name: 'event_webhook', title: 'Event webhooks', description: 'Sends events of the org, such as a failed job or a site that is down, to Discord webhooks.', category: 'Webhooks', switchable: true, needs: [], submodules: [] },
   { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
   { name: 'calendar', title: 'Calendar sync', description: "Copies Notion events to Google Calendar and the public events feed.", category: 'Automations', switchable: true, needs: [need('notion', 'Notion', false), need('google', 'Google service account', true)], submodules: [] },
   { name: 'uptime', title: 'Uptime', description: "Checks the org's sites and Hosting apps, with an event when one goes down or comes back.", category: 'Automations', switchable: true, needs: [], submodules: [] },
@@ -60,7 +58,7 @@ const MODULE_LIMITS = {
   godfather: [{ key: 'godfather.pods', label: 'Pods', window: null, paid_by: 'org' }],
   runpod: [{ key: 'runpod.apps', label: 'Hosting apps', window: null, paid_by: 'org' }],
   uptime: [{ key: 'uptime.monitors', label: 'Uptime monitors', window: null, paid_by: 'org' }],
-  event_webhook: [{ key: 'event_webhook.webhooks', label: 'Event webhooks', window: null, paid_by: 'org' }],
+  alerts: [{ key: 'alerts.destinations', label: 'Alert destinations', window: null, paid_by: 'org' }],
 };
 
 export function moduleCatalog(states = MODULES) {
@@ -390,6 +388,7 @@ export function fixtures(now = Date.now()) {
       config: { repo: 'example-org/summer-internships', label: 'Internship' },
       every_hours: 3,
       enabled: true,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-30 * DAY),
       last_run_at: at(-4 * MINUTE),
@@ -402,6 +401,7 @@ export function fixtures(now = Date.now()) {
       config: {},
       every_hours: 24,
       enabled: true,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-30 * DAY),
       last_run_at: at(-7 * HOUR),
@@ -414,6 +414,7 @@ export function fixtures(now = Date.now()) {
       config: { repo: 'example-org/new-grad-roles', label: 'New grad' },
       every_hours: 6,
       enabled: false,
+      destination_id: 5,
       webhook_set: true,
       seeded_at: at(-90 * DAY),
       last_run_at: at(-20 * DAY),
@@ -486,7 +487,7 @@ export function fixtures(now = Date.now()) {
     deployment(38, 'v1.7.3', 'healthy', -12 * DAY, { manifest_ref: '71aa5b2' }),
   ];
 
-  const deployedApps = [
+  const appList = [
     {
       name: 'match-scout',
       kind: 'site',
@@ -532,31 +533,6 @@ export function fixtures(now = Date.now()) {
       latest_deployment: telemetryDeployments[0],
       updated_at: at(-2 * HOUR),
     },
-  ];
-  const appList = [
-    ...deployedApps.map((a) => ({ linked: false, runs_as: [], ...a })),
-    ...[
-      ['vault', 'service', 'Password manager for officers', 'https://vault.robotics.example.org', ['vaultwarden']],
-      ['crm', 'service', 'Sponsor and member CRM', 'https://crm.robotics.example.org', ['crm_server', 'crm_worker', 'crm_db', 'crm_redis']],
-      ['website', 'site', 'Main website', 'https://robotics.example.org', ['serve (host process)']],
-      ['field-map', 'database', 'Map data for the field app', null, ['field-db']],
-    ].map(([name, kind, description, url, runsAs]) => ({
-      name,
-      kind,
-      description,
-      url,
-      host: 'linked',
-      provider: 'linked',
-      linked: true,
-      runs_as: runsAs,
-      manifest: { kind, description, url, runs_as: runsAs },
-      repo: null,
-      manifest_path: null,
-      pod_id: null,
-      current_tag: null,
-      latest_deployment: null,
-      updated_at: at(-6 * DAY),
-    })),
   ];
 
   const telemetryPod = {
@@ -999,6 +975,7 @@ export function fixtures(now = Date.now()) {
     webhook(2, 'Infra', '9027', ['pod.started', 'pod.stopped', 'app.deployed'], true, -2 * HOUR, null, -21 * DAY, 'daniel'),
     webhook(3, 'Store desk', '3315', ['order.created', 'member.joined'], true, -5 * DAY, 'Discord refused the message with status 404', -60 * DAY, 'maya'),
     webhook(4, 'Old ops channel', '7781', ['errors'], false, -45 * DAY, null, -120 * DAY, 'ava'),
+    webhook(5, 'Careers', '6120', ['knowledge.crawl_failed'], true, -4 * MINUTE, null, -30 * DAY, 'maya'),
   ];
 
   // Uptime monitors. down lists the bar slots (0 is the oldest of 30) whose check was down.
@@ -1253,7 +1230,9 @@ export function fixtures(now = Date.now()) {
 
   // Per-org limits (core/limits.py): [key, module, label, unit, window, default, used by each org]
   const limitSpecs = [
-    ['event_webhook.webhooks', 'event_webhook', 'Event webhooks', 'webhooks', null, 20, [3, 0, 1]],
+    ['agents.conversations', 'agents', 'Agent conversations', 'conversations', null, 5000, [1290, 310, 0]],
+    ['agents.memories', 'agents', 'Agent memories', 'memories', null, 20000, [2140, 860, 0]],
+    ['alerts.destinations', 'alerts', 'Alert destinations', 'destinations', null, 20, [5, 0, 1]],
     ['godfather.pods', 'godfather', 'Pods', 'pods', null, 10, [4, 9, 0]],
     ['knowledge.embeddings_per_day', 'knowledge', 'Texts embedded a day (knowledge and agent memory)', 'texts', 'day', 500000, [12840, 431200, 0]],
     ['knowledge.jobs_per_day', 'knowledge', 'Crawls, re-indexes and re-embeds started by hand a day', 'jobs', 'day', 200, [6, 41, 0]],
@@ -1341,6 +1320,33 @@ export function fixtures(now = Date.now()) {
       bot_ready: true,
       jobs: { backend: 'inline', queue: null },
     },
+    '/api/superadmin/server/services': {
+      agent: { age_seconds: 12, stale: false },
+      services: [
+        ['platform-api', 'container', 0.23 * GB, 1.5 * GB, [8000], ['api.example.org'], 'platform', null, false],
+        ['platform-dashboard', 'container', 0.02 * GB, 0.25 * GB, [5001], ['admin.example.org'], 'platform', null, false],
+        ['proxy', 'container', 0.1 * GB, null, [81], ['proxy.example.org'], 'infrastructure', null, true],
+        ['vaultwarden', 'container', 0.04 * GB, null, [8081], ['vault.robotics.example.org'], 'org', orgDetail, true],
+        ['crm_server', 'container', 0.49 * GB, null, [2020], ['crm.robotics.example.org'], 'org', orgDetail, true],
+        ['website', 'process', 0.08 * GB, null, [3002], ['robotics.example.org'], null, null, false],
+        ['old-site', 'container', null, null, [], [], null, null, false],
+      ].map(([name, kind, used, limit, ports, domains, owner, org, set]) => ({
+        name,
+        kind,
+        state: used == null ? 'created' : 'running',
+        status: used == null ? 'Created' : 'Up 2 weeks',
+        image: null,
+        project: null,
+        memory_used: used,
+        memory_limit: limit,
+        cpu_percent: used == null ? null : 0.4,
+        ports,
+        domains,
+        owner,
+        org: org ? { id: org.id, name: org.name, prefix: org.prefix } : null,
+        set,
+      })),
+    },
     [`/api/organizations/${ORG.id}`]: orgDetail,
     [`/api/organizations/${ORG.id}/calendar`]: {
       notion_database_id: orgDetail.notion_database_id,
@@ -1380,10 +1386,9 @@ export function fixtures(now = Date.now()) {
         notion: { title: 'Notion', connected: true, connected_by: 'ash', connected_at: at(-2 * DAY), blocked: null },
         google: { title: 'Google', connected: false, connected_by: null, connected_at: null, blocked: null },
       },
-      asu: asuSignedOut,
       secrets_key: true,
     },
-    [`/api/dashboard/${ORG.prefix}/integrations/asu/signin`]: asuSignedOut,
+    [`/api/dashboard/${ORG.prefix}/submodules/asu/signin`]: asuSignedOut,
     [`/api/dashboard/${ORG.prefix}/notifications`]: { notifications, open: notifications.filter((n) => !n.resolved_at).length },
     [`/api/dashboard/${ORG.prefix}/ci`]: ci,
     [`/api/dashboard/${ORG.prefix}/errors`]: { errors: orgErrors, open: orgErrors.length, events: orgErrors.reduce((n, e) => n + e.count, 0), webhook_set: true },
@@ -1395,7 +1400,7 @@ export function fixtures(now = Date.now()) {
       webhooks,
       events: webhookEvents,
       kinds: [{ key: 'discord', label: 'Discord', example: 'https://discord.com/api/webhooks/...' }],
-      feeds: feeds.map(({ key, kind, enabled, webhook_set, last_run_at, last_error }) => ({ key, kind, enabled, webhook_set, last_run_at, last_error })),
+      feeds: feeds.map(({ key, kind, enabled, destination_id, webhook_set, last_run_at, last_error }) => ({ key, kind, enabled, destination_id, webhook_set, last_run_at, last_error })),
       secrets_key: true,
     },
     ...Object.fromEntries(
@@ -1423,7 +1428,6 @@ export function fixtures(now = Date.now()) {
     [`/api/dashboard/${ORG.prefix}/hosting/providers`]: { providers: [{ name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true }] },
     [`/api/dashboard/${ORG.prefix}/apps`]: { apps: appList },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry`]: { ...appList[2], deployments: telemetryDeployments },
-    ...Object.fromEntries(appList.filter((a) => a.linked).map((a) => [`/api/dashboard/${ORG.prefix}/apps/${a.name}`, { ...a, deployments: [] }])),
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/pod`]: { pod: telemetryPod },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/deploy`]: preview('v1.9.0'),
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/rollback`]: preview('v1.8.0'),
@@ -1532,12 +1536,12 @@ export function fixtures(now = Date.now()) {
 
 // The same org with long lists, for perf.mjs: 2,000 knowledge sources, 1,500 members, 200 knowledge runs,
 // 600 store orders and 1,000 audit log entries.
-// The ASU card while Duo shows a code, for the asu-duo screenshot.
+// The ASU sign-in while Duo shows a code, for the asu-duo screenshot.
 export function asuDuoFixtures(now = Date.now()) {
   const data = fixtures(now);
-  const path = `/api/dashboard/${ORG.prefix}/integrations`;
+  const path = `/api/dashboard/${ORG.prefix}/submodules/asu/signin`;
   const asu = {
-    ...data[path].asu,
+    ...data[path],
     attempt: {
       state: 'duo_code',
       message: 'Enter the code 482916 in the Duo app.',
@@ -1547,7 +1551,7 @@ export function asuDuoFixtures(now = Date.now()) {
       finished_at: null,
     },
   };
-  return { ...data, [path]: { ...data[path], asu }, [`${path}/asu/signin`]: asu };
+  return { ...data, [path]: asu };
 }
 
 export function largeFixtures(now = Date.now()) {

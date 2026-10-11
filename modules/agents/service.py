@@ -12,6 +12,7 @@ import os
 import uuid
 from dataclasses import dataclass
 
+from core import limits
 from core.errors import ServiceError
 from core.time import utcnow
 from modules.agents.models import AgentConversation, AgentMemory, AgentMessage, AgentPendingAction
@@ -33,6 +34,26 @@ scopes.declare(
 
 class AgentError(ServiceError, ValueError):
     pass
+
+
+CONVERSATIONS_LIMIT = "agents.conversations"
+MEMORIES_LIMIT = "agents.memories"
+limits.declare(
+    CONVERSATIONS_LIMIT,
+    "agents",
+    "Agent conversations",
+    5000,
+    unit="conversations",
+    usage=lambda db, org_id: db.query(AgentConversation).filter_by(organization_id=org_id).count(),
+)
+limits.declare(
+    MEMORIES_LIMIT,
+    "agents",
+    "Agent memories",
+    20000,
+    unit="memories",
+    usage=lambda db, org_id: db.query(AgentMemory).filter_by(organization_id=org_id).count(),
+)
 
 
 @dataclass(frozen=True)

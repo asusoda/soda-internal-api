@@ -1,13 +1,13 @@
 # runpod
 
-Deploys an org's own apps to pods on a hosting provider: register an app's manifest, deploy a new image tag from the app's CI, and roll back. A deploy ends when the app's health path answers, or fails after 15 minutes. Uptime checks the apps after that. Each app keeps its `provider`, and calls go through `core/hosting.py`. RunPod is the only provider, and each org pays with its own RunPod key. A linked app (provider `linked`) is a service the org runs outside Platform: listed, checked by Uptime, never deployed. The module name stays `runpod`.
+Deploys an org's own apps to pods on a hosting provider: register an app's manifest, deploy a new image tag from the app's CI, and roll back. A deploy ends when the app's health path answers, or fails after 15 minutes. Uptime checks the apps after that. Each app keeps its `provider`, and calls go through `core/hosting.py`. RunPod is the only provider, and each org pays with its own RunPod key. The module name stays `runpod`.
 
 ## Files
 
 | File | Holds |
 | --- | --- |
 | `api.py` | Machine routes for apps, deployments, deploy and rollback |
-| `service.py` | Manifests (inline, or `platform.app.yaml` from the app's repo), deploys, the deploy check and rollback on the app's provider; `link_app()` for linked apps; declares `apps:read`, `apps:manage`, `apps:deploy` and the `runpod_api_key`, `github_token` and `app_*` secrets |
+| `service.py` | Manifests (inline, or `platform.app.yaml` from the app's repo), deploys, the deploy check and rollback on the app's provider; declares `apps:read`, `apps:manage`, `apps:deploy` and the `runpod_api_key`, `github_token` and `app_*` secrets |
 | `templates.py` | App templates from `apps/<name>/platform.app.yaml`, and new apps made from them |
 | `models.py` | Apps, with their `provider`, and deployments |
 | `tools.py` | The `apps.*` tools and `hosting.providers` |
@@ -15,11 +15,11 @@ Deploys an org's own apps to pods on a hosting provider: register an app's manif
 
 ## Surface
 
-- Routes: `/api/apps`, `/api/apps/<name>/link` for linked apps, and `/api/apps/templates` for app templates. The CLI `flask --app main apps link` links one on the server. Machine tokens only, with `apps:read`, `apps:manage` or `apps:deploy`.
+- Routes: `/api/apps`, and `/api/apps/templates` for app templates. Machine tokens only, with `apps:read`, `apps:manage` or `apps:deploy`.
 - Jobs: `runpod.check_deployments`, schedule `* * * * *`.
-- Tools: `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` (scope `apps:read`); `apps.register`, `apps.link`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) (scope `apps:manage`); `apps.deploy` (confirm, scope `apps:deploy`). Without `confirm=true`, deploy and rollback return their dry run. Tools marked confirm run only with `confirm=true`.
+- Tools: `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` (scope `apps:read`); `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) (scope `apps:manage`); `apps.deploy` (confirm, scope `apps:deploy`). Without `confirm=true`, deploy and rollback return their dry run. Tools marked confirm run only with `confirm=true`.
 - Webhook events: `app.deployed`, when a deploy becomes healthy or fails. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `runpod_apps`, `runpod_deployments`.
-- Limits: `runpod.apps`, checked before a new app is made. Linked apps do not count. See [docs/limits.md](../../docs/limits.md).
+- Limits: `runpod.apps`, checked before a new app is made. See [docs/limits.md](../../docs/limits.md).
 
 See [docs/modules/runpod-apps.md](../../docs/modules/runpod-apps.md).

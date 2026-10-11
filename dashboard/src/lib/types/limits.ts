@@ -59,3 +59,27 @@ export type ServerHealth = {
   bot_ready: boolean | null;
   jobs: { backend: string; queue: Record<string, number> | null };
 };
+
+// A container or host process that the host agent lists (deploy/host-agent), with its owner.
+export type ServerService = {
+  name: string;
+  kind: 'container' | 'process';
+  state: string | null;
+  status: string | null;
+  image: string | null;
+  project: string | null;
+  memory_used: number | null;
+  memory_limit: number | null;
+  cpu_percent: number | null;
+  ports: number[];
+  domains: string[];
+  owner: 'platform' | 'infrastructure' | 'org' | null;
+  org: { id: number; name: string; prefix: string } | null;
+  // Whether the superadmin set the owner; else it comes from the container's labels
+  set: boolean;
+};
+
+export type ServerServices = {
+  agent: { age_seconds: number; stale: boolean } | null;
+  services: ServerService[];
+};

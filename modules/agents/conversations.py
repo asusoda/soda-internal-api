@@ -2,6 +2,7 @@
 
 from typing import Any, cast
 
+from core import limits
 from core.time import iso, utcnow
 from modules.agents import service
 from modules.agents.models import AgentConversation, AgentMessage
@@ -29,6 +30,7 @@ def ensure(
         raise AgentError(f"visibility must be one of {', '.join(VISIBILITIES)}")
     row = db.query(AgentConversation).filter_by(id=cid).first()
     if row is None:
+        limits.check(db, who.organization_id, service.CONVERSATIONS_LIMIT)
         db.add(
             AgentConversation(
                 id=cid,

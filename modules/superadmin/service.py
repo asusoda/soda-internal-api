@@ -1,5 +1,5 @@
-"""Superadmin logic: guilds without an org, an officer's orgs, guild roles, new orgs, the server's health and each
-org's limits. No Flask here."""
+"""Superadmin logic: guilds without an org, an officer's orgs, guild roles, new orgs, the server's health and
+services, and each org's limits. No Flask here."""
 
 import re
 from typing import Any, cast
@@ -7,11 +7,14 @@ from typing import Any, cast
 from core import host, jobs
 from core import limits as core_limits
 from core.config import superadmin_ids
+from core.errors import ServiceError
 from core.integrations.discord import DiscordUnavailable
 from core.log import get_logger
+from core.time import utcnow
 from modules.organizations import service as organizations
 from modules.organizations.config import OrganizationSettings
 from modules.organizations.models import Organization
+from modules.superadmin.models import ServiceOwner
 
 logger = get_logger(__name__)
 
@@ -121,3 +124,90 @@ def set_org_limits(db, org: Organization, changes: object, actor: str | None) ->
     """Set the org's overrides. Commits."""
     core_limits.set_values(db, cast(int, org.id), changes, actor=actor)
     return org_limits(db, org)
+
+
+OWNERS = ("platform", "infrastructure", "org")
+MAX_SERVICE_NAME = 128
+
+
+class ServerError(ServiceError):
+    """A bad request about the server's services."""
+
+
+def _owner_of(service: dict, row: ServiceOwner | None, orgs: dict) -> dict:
+    """The owner the superadmin set; else the org of a platform.org label; else Platform for Platform's own
+    containers."""
+    if row is not None:
+        org = orgs["id"].get(row.organization_id)
+        return {"owner": row.owner, "org": org, "set": True}
+    if service.get("org") and service["org"] in orgs["prefix"]:
+        return {"owner": "org", "org": orgs["prefix"][service["org"]], "set": False}
+    if service.get("platform"):
+        return {"owner": "platform", "org": None, "set": False}
+    return {"owner": None, "org": None, "set": False}
+
+
+def server_services(db) -> dict:
+    """Each container and host process on the server, from the host agent, with its owner."""
+    snapshot = host.agent_snapshot()
+    if snapshot is None:
+        return {"agent": None, "services": []}
+    rows = {row.name: row for row in db.query(ServiceOwner).all()}
+    orgs: dict[str, dict] = {"id": {}, "prefix": {}}
+    for org in db.query(Organization).all():
+        brief = {"id": org.id, "name": org.name, "prefix": org.prefix}
+        orgs["id"][org.id] = brief
+        orgs["prefix"][org.prefix] = brief
+    services = [
+        {
+            key: s.get(key)
+            for key in (
+                "name",
+                "kind",
+                "state",
+                "status",
+                "image",
+                "project",
+                "memory_used",
+                "memory_limit",
+                "cpu_percent",
+                "ports",
+                "domains",
+            )
+        }
+        | _owner_of(s, rows.get(s.get("name")), orgs)
+        for s in snapshot["services"]
+        if isinstance(s, dict) and s.get("name")
+    ]
+    return {"agent": {"age_seconds": snapshot["age_seconds"], "stale": snapshot["stale"]}, "services": services}
+
+
+def set_service_owner(db, name: str, body: Any, actor: str | None) -> dict:
+    """Set the owner of a service: {"owner": "platform" | "infrastructure" | "org" | null, "organization_id": id}.
+    null goes back to the owner from the labels. Commits."""
+    if not name or len(name) > MAX_SERVICE_NAME:
+        raise ServerError(f"The service name must have 1 to {MAX_SERVICE_NAME} characters")
+    if not isinstance(body, dict) or "owner" not in body:
+        raise ServerError('Send "owner": platform, infrastructure, org or null')
+    owner, org_id = body.get("owner"), body.get("organization_id")
+    row = db.query(ServiceOwner).filter_by(name=name).first()
+    if owner is None:
+        if row is not None:
+            db.delete(row)
+            db.commit()
+        logger.info("service owner cleared name=%s actor=%s", name, actor)
+        return {"name": name, "owner": None}
+    if owner not in OWNERS:
+        raise ServerError(f"owner must be one of {', '.join(OWNERS)}, or null")
+    if owner == "org":
+        if not isinstance(org_id, int) or isinstance(org_id, bool) or db.get(Organization, org_id) is None:
+            raise ServerError("organization_id must be the id of an org")
+    else:
+        org_id = None
+    if row is None:
+        row = ServiceOwner(name=name)
+        db.add(row)
+    row.owner, row.organization_id, row.updated_at, row.updated_by = owner, org_id, utcnow(), actor
+    db.commit()
+    logger.info("service owner set name=%s owner=%s org=%s actor=%s", name, owner, org_id, actor)
+    return {"name": name, "owner": owner, "organization_id": org_id}
