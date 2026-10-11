@@ -148,7 +148,7 @@ A setting stays in `.env` when it is the same for every org or when it is about 
 - The one Discord app and the sign-in: `BOT_TOKEN`, `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, `SYS_ADMIN`, the Clerk keys.
 - The OAuth apps of connected accounts (`ACCOUNTS_*`). Their callback URLs are on the API, so one app serves every org.
 - URLs of the frontends and CORS: `CLIENT_URL`, `DASHBOARD_URL`, `CORS_EXTRA_ORIGINS`.
-- Limits and schedules of jobs: `CALENDAR_SYNC_CRON`, `AUDIT_RETENTION_DAYS`, `ERROR_RETENTION_DAYS`, `ERROR_WEBHOOK_URL`, `AGENT_RETENTION_DAYS`, `UPTIME_RETENTION_DAYS`, `KNOWLEDGE_CRAWL_*`, `PACK_QUERY_MAX_CHARS`.
+- Limits and schedules of jobs: `CALENDAR_SYNC_CRON`, `AUDIT_RETENTION_DAYS`, `ERROR_RETENTION_DAYS`, `ERROR_WEBHOOK_URL`, `AGENT_RETENTION_DAYS`, `UPTIME_RETENTION_DAYS`, `KNOWLEDGE_CRAWL_*`, `SUBMODULE_QUERY_MAX_CHARS`.
 - `GODFATHER_CLI_NAME`: the name of the one CLI that talks to this API.
 
 These settings moved to the dashboard, and the `.env` value is now the default for orgs that set none:

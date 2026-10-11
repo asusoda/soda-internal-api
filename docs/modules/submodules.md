@@ -54,7 +54,7 @@ An org sets its own Firecrawl and SearXNG on the Integrations tab of the dashboa
 | `FIRECRAWL_URL` | not set | Renders JavaScript pages. If it is not set, those pages are almost empty |
 | `SEARXNG_URL` | not set | The search service for the `web` query. If it is not set, that query returns 503 |
 | `SEARXNG_ENGINES` | `google,brave,bing` | The engines SearXNG asks |
-| `PACK_QUERY_MAX_CHARS` | 30000 | The maximum text length of a live query result. `ASU_QUERY_MAX_CHARS` still works |
+| `SUBMODULE_QUERY_MAX_CHARS` | 30000 | The maximum text length of a live query result. `ASU_QUERY_MAX_CHARS` still works |
 
 ## Write a sub-module
 
