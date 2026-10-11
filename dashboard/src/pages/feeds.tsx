@@ -33,7 +33,7 @@ type Kind = Feed['kind'];
 type Draft = { key: string; repo: string; label: string; webhook: string; every: string };
 const EMPTY: Draft = { key: '', repo: '', label: 'Internship', webhook: '', every: '3' };
 
-// The new feed form of one kind. initial is the submodule/key of a feed to start from, from the Add of a sub-module on Explore.
+// The new feed form of one kind. initial is the submodule/key of a feed to start from, from the Add of a submodule on Explore.
 function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind; initial?: string | null; onDone: () => void }) {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [preset, setPreset] = useState<FeedPreset | null>(null);

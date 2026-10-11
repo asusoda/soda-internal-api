@@ -36,7 +36,7 @@ Each module has a `README.md` in its folder with its files, routes, jobs, tools 
 | [Points](./modules/points.md) | Members, points from events and the leaderboard |
 | [RunPod apps](./modules/runpod-apps.md) | App manifests, deploys, health checks and rollback |
 | [Store](./modules/storefront.md) | Merch store paid with points |
-| [Sub-modules](./modules/submodules.md) | Content that a module reads: campus pages and live queries for knowledge, such as the ASU sub-module, and feeds for the webhook modules |
+| [Submodules](./modules/submodules.md) | Content that a module reads: campus pages and live queries for knowledge, such as the ASU submodule, and feeds for the webhook modules |
 | [Uptime](./modules/uptime.md) | Checks of sites and Hosting apps, with events when one goes down or up |
 
 ## Notes

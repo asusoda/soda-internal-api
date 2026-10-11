@@ -16,7 +16,7 @@ Each org route checks access. The audit log records each change that an officer 
 | `godfather` | GPU and CPU pods on the org's RunPod account. Members connect over SSH with 12-hour certificates |
 | `agents` | Conversations, memories and a profile graph for each member, for agents that talk to members |
 | `knowledge` | Hybrid search (pgvector and full text) over documents and crawled public pages |
-| `submodules` | Sub-modules from `submodules/`: content that a module reads, such as the ASU campus pages and live queries for knowledge, and the job and hackathon feeds for the webhook modules |
+| `submodules` | Submodules from `submodules/`: content that a module reads, such as the ASU campus pages and live queries for knowledge, and the job and hackathon feeds for the webhook modules |
 | `accounts` | Canvas, Google and Outlook sign-in for a member, so that agents can act for them |
 | `feeds` | New job listings and hackathons posted to Discord webhooks |
 | `runpod` | Deploys of an org's apps to RunPod from a manifest, with health checks and rollback |
@@ -25,7 +25,7 @@ Each org route checks access. The audit log records each change that an officer 
 | `mcp` | An MCP server and `/api/tools` that give agents the module tools through scoped machine tokens |
 | `auth`, `public`, `bot` | Discord sign-in, tokens and access checks; open reads for public pages; the Discord bot |
 
-Each module is in one category: Core, Storage, AI and agents, Webhooks, Automations, Bots or Compute. Core modules are always on. A new org starts with each other module off. A module can read sub-modules from `submodules/`. See [Architecture](docs/architecture.md#categories-modules-and-sub-modules).
+Each module is in one category: Core, Storage, AI and agents, Webhooks, Automations, Bots or Compute. Core modules are always on. A new org starts with each other module off. A module can read submodules from `submodules/`. See [Architecture](docs/architecture.md#categories-modules-and-submodules).
 
 ## Processes
 

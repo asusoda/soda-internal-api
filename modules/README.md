@@ -2,7 +2,7 @@
 
 One folder for each module. Each folder has a `README.md` with its files and its surface: routes, jobs, tools and tables. [docs/writing-a-module.md](../docs/writing-a-module.md) gives the rules and the places to register a new module.
 
-The folders are not nested. `CATEGORIES` in `manifest.py` groups the modules below in the same sections as the Explore page of the dashboard. Each module is in one category, and a module can have sub-modules: content in `submodules/` that the module reads. `CATALOG` in `manifest.py` gives the title, description, needs and sub-modules that the page shows for each module. A new org starts with every module in the Org switch column off.
+The folders are not nested. `CATEGORIES` in `manifest.py` groups the modules below in the same sections as the Explore page of the dashboard. Each module is in one category, and a module can have submodules: content in `submodules/` that the module reads. `CATALOG` in `manifest.py` gives the title, description, needs and submodules that the page shows for each module. A new org starts with every module in the Org switch column off.
 
 ## Core
 
@@ -16,7 +16,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | [mcp](mcp/README.md) | The MCP server and `/api/tools`. A token's scopes decide what an agent can call | |
 | [organizations](organizations/README.md) | Orgs, config, module switches, secrets and machine tokens | |
 | [public](public/README.md) | Open reads | |
-| [submodules](submodules/README.md) | Loads the sub-modules in `submodules/`. Explore shows each sub-module under the module that reads it | |
+| [submodules](submodules/README.md) | Loads the submodules in `submodules/`. Explore shows each submodule under the module that reads it | |
 | [superadmin](superadmin/README.md) | Orgs for the whole deployment | |
 | [users](users/README.md) | Members and memberships | |
 
