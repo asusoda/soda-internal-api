@@ -19,7 +19,7 @@ flowchart LR
   a["Org-made submodules"] --> b["Provider-neutral Hosting"]
   b --> d["This server: soda-runner and capped app containers"]
   d --> e["Shared apps: the embedding server"]
-  e --> f["Templates: Sparky, apps of several parts"]
+  e --> f["Templates: apps of several parts"]
 ```
 
 - [ ] Org-made submodules: a manifest of pages and feeds made on the dashboard, approved by the superadmin before other orgs see it (`submodules.owned`).
@@ -27,7 +27,7 @@ flowchart LR
 - [ ] This server: a hosting provider that runs each app as a capped container on the deployment's server, through `soda-runner`, at `<app>-<org>.apps.thesoda.io`, with per-org app limits.
 - [ ] Move the services an org already runs on the server (such as a vault, a wiki or a static site) into Platform as apps of This server. Until then they are Uptime url monitors of the org, and the superadmin sees them on the Services card.
 - [ ] Shared apps: apps the deployment owns, offered through Integrations. The first is an embedding server with Qwen3-Embedding-0.6B.
-- [ ] Templates: Sparky on one image that starts its engine and bot; templates that make several apps and link them.
+- [ ] Templates that make several apps and link them.
 - [ ] Take `canvas_url` from the org's subscribed submodules, not the deployment.
 - [ ] Deployment-wide limits on shared submodule passages and embeddings.
 
