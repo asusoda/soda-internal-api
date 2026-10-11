@@ -131,7 +131,7 @@ flowchart LR
 
 The job commits one source at a time. A source that fails keeps its old vectors. A change to the deployment default in `.env` starts no job; start it from the Knowledge page. Public sources of other orgs keep the model of the org that wrote them.
 
-## Sub-modules
+## Submodules
 
 A [submodule](./submodules.md) is a domain, such as ASU, that an org subscribes to. Its pages are shared sources with no org: the deployment crawls and embeds them once, and the search of each subscribed org reads them. An org's search reads its own sources, public sources, and the sources of the submodules it subscribes to. Shared sources do not count against the org's `knowledge.sources` and `knowledge.passages` limits, and `knowledge.reindex` skips them.
 

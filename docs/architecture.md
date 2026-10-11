@@ -69,27 +69,37 @@ A module is a folder in `modules/` with only the files it needs: `service.py` fo
 
 Orgs can turn on and off the optional modules: `points`, `storefront`, `calendar`, `games`, `leetcode`, `godfather`, `event_webhook`, `feeds`, `uptime`, `knowledge`, `agents`, `integrations`, `accounts` and `runpod`. The list is `OPTIONAL_MODULES` in `modules/organizations/service.py`. The Core modules, `mcp` and `submodules` among them, are always on. When a module is off for an org, its routes return 404 for the org (`module=` on `officer_route`, `machine_route` or the `Mount`), its tools are not listed, and its jobs skip the org. With `integrations` off, the org has no tools of connected services. If `games` is off for each org of an officer, the `/api/bot` routes return 404 for that officer. The switches are in `Organization.config["modules"]`. A module with no entry is on, so an org made before the switch existed keeps the module. A new org gets an entry for each optional module: on for the modules in `NEW_ORG_MODULES` in `modules/manifest.py`, off for the others. `NEW_ORG_MODULES` is empty, so a new org starts with Core only. Officers add and remove modules on the dashboard Explore page, or with `flask --app main org modules <prefix> --on x --off y`.
 
-### Categories, modules and sub-modules
+### Modules, submodules, apps and integrations
 
-A category groups modules. A module can read sub-modules.
+Platform has four kinds of part. Each one lives in one place.
+
+| Kind | Is | Where | Example | Who adds it |
+| --- | --- | --- | --- | --- |
+| Module | A feature with code | `modules/<name>/`; a card on Explore | `knowledge`, `feeds`, `godfather` | A developer, by pull request |
+| Submodule | A domain: content and presets with no code of their own | `submodules/<name>/`; the Submodules tab of Explore | `asu` (campus pages, live queries, Canvas URL), `careers` (job and hackathon feeds) | A developer, by pull request |
+| App | Something that runs: a container or a pod | The Hosting page | Hermes, Sparky, Vaultwarden | The org, from a manifest or a template, or linked when it runs outside Platform |
+| Integration | A connection to an outside service | The Integrations tab of Explore | RunPod, OpenRouter, Firecrawl, Embeddings | The org with its own keys, or the deployment as the default |
 
 ```mermaid
 flowchart LR
-  category["Category: Storage"] --> module["Module: knowledge"] --> submodule["Sub-module: submodules/asu"]
+  org["Org (a Discord server)"] -->|"turns on"| modules["Modules: knowledge, feeds, uptime..."]
+  org -->|"subscribes to"| subs["Submodules: asu, careers"]
+  org -->|"deploys or links"| apps["Apps: Hosting page"]
+  org -->|"connects"| integrations["Integrations: own keys or the deployment's"]
+  subs -->|"pages"| knowledge["knowledge search"]
+  subs -->|"presets"| feeds["feeds"]
+  subs -->|"live queries"| agents["agents and tools"]
+  apps -->|"token of its org, MCP"| mcp["Platform MCP"]
+  modules --> mcp
 ```
 
-| | Module | Sub-module |
-| --- | --- | --- |
-| Is | A feature with code, in `modules/<name>/` | Content or presets with no code of their own, in `submodules/<name>/` |
-| Examples | `knowledge`, `feeds`, `godfather` | `submodules/asu` (campus pages and live queries for `knowledge`), `submodules/careers` (feeds for `feeds`) |
-| Per org | Optional modules are switched on or off for each org | An org adds a sub-module's sources or feeds in the module that uses it |
-| On the dashboard | A card on Explore | A sub-module on the card of the module that uses it |
+An org turns modules on and subscribes to submodules. Each module that is on gets its part of each subscribed submodule. An app never runs inside Platform: it is its own container or pod, and it calls Platform over MCP with a token of its org. A linked app runs outside Platform, and Platform only lists it and checks its URL.
 
-`CATALOG` in `modules/manifest.py` gives each module a title, a description, what it needs (integration keys or settings) and the sub-modules it reads. `CATEGORIES` puts each module in one category:
+`CATALOG` in `modules/manifest.py` gives each module a title, a description, what it needs (integration keys or settings) and the submodules it reads. `CATEGORIES` puts each module in one category:
 
 | Category | Modules |
 | --- | --- |
-| Core | `auth`, `bot`, `dashboard`, `feeds`, `mcp`, `organizations`, `public`, `submodules`, `superadmin`, `users`. Always on and not on Explore |
+| Core | `auth`, `bot`, `dashboard`, `mcp`, `organizations`, `public`, `submodules`, `superadmin`, `users`. Always on and not on Explore |
 | Storage | `knowledge`, `points`, `storefront`, `accounts` |
 | AI and agents | `agents`, `integrations` |
 | Webhooks | `event_webhook`, `feeds` |
@@ -97,7 +107,33 @@ flowchart LR
 | Bots | `leetcode`, `games` |
 | Compute | `godfather`, `runpod` (Hosting) |
 
-The dashboard sidebar has one section for each category except Core. The routes and tools of `submodules` need the `knowledge` module. `GET /api/dashboard/<org>/modules` returns the catalog with the org's switches and whether each need is connected.
+The dashboard sidebar has one section for each category except Core. Submodule subscriptions need no module switch; live queries need `knowledge`. `GET /api/dashboard/<org>/modules` returns the catalog with the org's switches, whether each need is connected, and the limits that each module's use counts against.
+
+### Sharing and isolation
+
+Every org shares the same processes, containers and database. Three layers keep one org from using up the server for the others:
+
+```mermaid
+flowchart TB
+  subgraph server["One server: api, bot, mcp, worker, web, dashboard, site"]
+    caps["Container caps: memory and CPU for each service"]
+    subgraph process["Each process"]
+      limits["Per-org limits: counts and rates for each module"]
+      fair["Fair jobs: one heavy job per org at a time, crawl batches by org"]
+    end
+  end
+  db[("One database: each row has its organization_id; submodule pages have none")]
+  process --> db
+```
+
+| Layer | Does | See |
+| --- | --- | --- |
+| Data | Each query filters on `organization_id`. A submodule's shared pages have no org, and only subscribers search them | [Data model](./data-model.md) |
+| Per-org limits | Each module declares count and rate limits; the superadmin sets them for each org; each says who pays | [Limits](./limits.md) |
+| Container caps | A memory and CPU cap on each service | [Operations](./operations.md#container-limits) |
+| Apps | Each app is its own container or pod, never a Platform process | [RunPod apps](./modules/runpod-apps.md) |
+
+The superadmins (`SYS_ADMIN`) see the server's health and each org's use on the Superadmin page, and set each org's limits. Superadmin routes refuse every other caller.
 
 ## Jobs
 
@@ -120,7 +156,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | Tools | Scope | Module |
 | --- | --- | --- |
 | `batch`: 1 to 25 calls of other tools, each checked as a single call | the scope of each call | mcp |
-| `org.info`, `org.branding`, `org.settings`, `leetcode.settings` | `org:read` | organizations, leetcode |
+| `org.info`, `org.branding`, `org.settings`, `org.limits`, `leetcode.settings` | `org:read` | organizations, leetcode |
 | `org.set_modules` (confirm), `org.set_branding`, `org.update_settings`, `leetcode.update_settings`, `ci.set_repos` | `settings:write` | organizations, leetcode, dashboard |
 | `secrets.list`, `secrets.set` (confirm), `secrets.delete` (confirm) | `secrets:manage` | organizations |
 | `tokens.list`, `tokens.create` (confirm), `tokens.revoke` (confirm) | `tokens:manage` | organizations |
@@ -138,6 +174,8 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `store.save_product`, `store.update_orders`, `store.delete_products` (confirm), `store.delete_orders` (confirm) | `store:write` | storefront |
 | `knowledge.search`, `knowledge.sources`, `knowledge.read_source`, `knowledge.submodules`, `knowledge.settings`, `knowledge.runs` | `knowledge:read` | knowledge |
 | `knowledge.add_document`, `knowledge.delete_source` (confirm), `knowledge.set_crawl`, `knowledge.crawl_now`, `knowledge.sync_submodule`, `knowledge.update_settings`, `knowledge.reindex` (confirm) | `knowledge:write` | knowledge |
+| `submodules.list` | `submodules:read` | submodules |
+| `submodules.subscribe` (confirm), `submodules.unsubscribe` (confirm) | `submodules:manage` | submodules |
 | `submodules.query` | `knowledge:read` | submodules |
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
 | `apps.register`, `apps.link`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |

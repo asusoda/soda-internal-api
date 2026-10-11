@@ -10,6 +10,28 @@ This page lists what is left to build and the known faults. The other pages desc
 - [ ] Check the RunPod request and response field names against the live RunPod API. The godfather and runpod modules are tested against a fake only.
 - [ ] Tie Jeopardy to an org. It is global because the bot process has no command channel from the API.
 
+## Shared submodules and hosting
+
+The design is in the doc "Platform: shared submodules and This server hosting". Done: per-org limits and container caps (#334), shared submodules (#336), who pays (#339), one Feeds module (#340), linked apps (#341).
+
+```mermaid
+flowchart LR
+  a["Org-made submodules"] --> b["Provider-neutral Hosting"]
+  b --> c["Host agent: container memory and CPU of linked apps"]
+  c --> d["This server: soda-runner and capped app containers"]
+  d --> e["Shared apps: the embedding server"]
+  e --> f["Templates: Sparky, apps of several parts"]
+```
+
+- [ ] Org-made submodules: a manifest of pages and feeds made on the dashboard, approved by the superadmin before other orgs see it (`submodules.owned`).
+- [ ] Provider-neutral Hosting: a `memory` field, `cpu` optional, no RunPod words where an app can run elsewhere.
+- [ ] A read-only host agent that gives the Server card and linked apps their containers' memory and CPU.
+- [ ] This server: a hosting provider that runs each app as a capped container on the deployment's server, through `soda-runner`, at `<app>-<org>.apps.thesoda.io`, with per-org app limits.
+- [ ] Shared apps: apps the deployment owns, offered through Integrations. The first is an embedding server with Qwen3-Embedding-0.6B.
+- [ ] Templates: Sparky on one image that starts its engine and bot; templates that make several apps and link them.
+- [ ] Take `canvas_url` from the org's subscribed submodules, not the deployment.
+- [ ] Deployment-wide limits on shared submodule passages and embeddings.
+
 ## Core
 
 - [ ] Terms and role assignments for each term. Officer access stops when the term stops.
@@ -35,7 +57,7 @@ This page lists what is left to build and the known faults. The other pages desc
 | `slack` | Slack as a second chat platform |
 | `sponsors`, `hackathon` | Sponsor records and hackathon logistics |
 
-Campus content is a sub-module in `submodules/`, such as `submodules/asu`. Another campus adds its own sub-module the same way.
+Campus content is a submodule in `submodules/`, such as `submodules/asu`. Another campus adds its own submodule the same way.
 
 ## Cleanup
 

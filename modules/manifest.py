@@ -52,7 +52,7 @@ class ModuleInfo:
     title: str
     description: str
     needs: tuple[Need, ...] = ()
-    # The sub-modules in submodules/ that the module reads
+    # The submodules in submodules/ that the module reads
     submodules: tuple[str, ...] = ()
 
 
@@ -107,8 +107,8 @@ CATALOG = {
     "mcp": ModuleInfo("MCP", "The MCP server that gives agents and apps the tools of each module."),
     "organizations": ModuleInfo("Organizations", "The org record, module switches, secrets and machine tokens."),
     "submodules": ModuleInfo(
-        "Sub-modules",
-        "Loads sub-modules: campus pages and live queries for knowledge, and feeds for the webhook modules.",
+        "Submodules",
+        "Loads submodules: campus pages and live queries for knowledge, and feeds for the webhook modules.",
         needs=(Need("searxng", "Web search (SearXNG)", optional=True),),
         submodules=("asu", "careers"),
     ),

@@ -1,6 +1,6 @@
 # asu
 
-The Arizona State University sub-module. It adds public ASU pages to an org's knowledge as crawled sources, and answers live queries against ASU pages and APIs. With an officer's ASU sign-in, agents also search clubs and events on Sun Devil Central. Other pages that need an ASU sign-in (MyASU, Canvas) are not included.
+The Arizona State University submodule. It adds public ASU pages to an org's knowledge as crawled sources, and answers live queries against ASU pages and APIs. With an officer's ASU sign-in, agents also search clubs and events on Sun Devil Central. Other pages that need an ASU sign-in (MyASU, Canvas) are not included.
 
 ## Files
 

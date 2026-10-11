@@ -1,6 +1,6 @@
 # Writing a module
 
-This page lists the files a module can have, the places to register it, and the rules that `make ci` checks. The `new-module` skill in `.agents/skills/` has the full procedure. Content for one campus or topic, such as pages to crawl and live queries, is a sub-module: see [submodules/README.md](../submodules/README.md).
+This page lists the files a module can have, the places to register it, and the rules that `make ci` checks. The `new-module` skill in `.agents/skills/` has the full procedure. Content for one campus or topic, such as pages to crawl and live queries, is a submodule: see [submodules/README.md](../submodules/README.md).
 
 ## Files
 
@@ -20,7 +20,7 @@ If `service.py` has more than one concern, split it into more Flask-free files. 
 | What | Where |
 | --- | --- |
 | Category | `CATEGORIES` in `modules/manifest.py`. Put the module in one category. Core modules are always on and are not on Explore |
-| Catalog entry | `CATALOG` in `modules/manifest.py`: the title and one-line description that Explore shows, each integration key or setting the module needs (`Need`), and the sub-modules it reads |
+| Catalog entry | `CATALOG` in `modules/manifest.py`: the title and one-line description that Explore shows, each integration key or setting the module needs (`Need`), and the submodules it reads |
 | Blueprint and URL prefix | `MOUNTS` in `modules/registry.py`, and the import at the top of that file |
 | Tables | `MODEL_MODULES` in `modules/manifest.py`, then `uv run alembic revision --autogenerate -m "..."` |
 | Jobs | `JOB_MODULES` in `modules/manifest.py` |

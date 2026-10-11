@@ -141,7 +141,7 @@ function SubModules({ m, prefix }: { m: CatalogModule; prefix: string }) {
   );
 }
 
-// One module: title, one line of what it does, what it still needs, its sub-modules and one action.
+// One module: title, one line of what it does, what it still needs, its submodules and one action.
 export function ModuleCard({
   m,
   prefix,
