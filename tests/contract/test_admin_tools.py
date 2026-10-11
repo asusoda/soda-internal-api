@@ -12,7 +12,7 @@ def _issue(*scopes):
 
     db = db_connect.SessionLocal()
     try:
-        value, _ = machine_tokens.issue(db, organization_id=1, name="hermes", kind="agent", scopes=list(scopes))
+        value, _ = machine_tokens.issue(db, organization_id=1, name="test-agent", kind="agent", scopes=list(scopes))
         return {"Authorization": f"Bearer {value}"}
     finally:
         db.close()
@@ -104,6 +104,6 @@ def test_pending_calls_are_audited_as_pending(client, restore_soda_config):
     try:
         entry = db.query(AuditEntry).filter_by(action="tool org.set_modules").order_by(AuditEntry.id.desc()).first()
         assert entry.details["confirm"] == "pending"
-        assert entry.actor_id.startswith("agent:hermes#")
+        assert entry.actor_id.startswith("agent:test-agent#")
     finally:
         db.close()

@@ -18,7 +18,7 @@ With a repo, a change to the pod's env, ports or disk is a pull request to the a
 
 ## Templates
 
-`apps/` holds ready-made apps: [Vaultwarden](../../apps/vaultwarden/README.md) and [Hermes Agent](../../apps/hermes/README.md). See [apps/README.md](../../apps/README.md) for the template format.
+`apps/` holds ready-made apps: [Vaultwarden](../../apps/vaultwarden/README.md). See [apps/README.md](../../apps/README.md) for the template format.
 
 1. On the Services tab of the Hosting page, select **Templates** and pick a template.
 2. Fill in the name and the inputs, then select **Create app**. Secret inputs become org secrets named `app_<name>_<input>`. The app gets an inline manifest.

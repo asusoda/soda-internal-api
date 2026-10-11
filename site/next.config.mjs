@@ -11,7 +11,6 @@ const movedDocs = {
   '/docs/codebase/deployment-and-operations': '/docs/codebase/operations',
   '/docs/codebase/gotchas': '/docs/project/roadmap',
   '/docs/modules/dashboard': '/docs/codebase/frontends',
-  '/docs/modules/hermes': '/docs/codebase/operations',
   '/docs/modules/tools-and-mcp': '/docs/codebase/architecture',
   '/docs/project/runpod-deploy': '/docs/codebase/getting-started',
   '/docs/modules/alerts': '/docs/modules/feeds',
