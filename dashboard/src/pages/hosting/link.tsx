@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { ExternalLink, Link2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Badge, Button, Field, FormActions, Input, Mono, Select, Spinner } from '../../components/ui';
+import { Button, Field, FormActions, Input, Mono, Select, Spinner } from '../../components/ui';
 import { send } from '../../lib/api';
 import type { App, AppKind } from '../../lib/types';
 import { DeletePanel } from './actions';
@@ -52,10 +52,7 @@ export function LinkApp({ prefix, onDone }: { prefix: string; onDone: (name: str
         if (ready) save.mutate();
       }}
     >
-      <p className="text-sm text-pretty text-muted">
-        For a service the org already runs outside Platform, such as a container on the server. Platform lists it, and Uptime checks its URL and sends
-        down and up events. Platform does not deploy it or roll it back, and it counts against no limit.
-      </p>
+      <p className="text-sm text-muted">A service that runs outside Platform. Uptime checks its URL; Platform never deploys it.</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" hint="Lowercase letters, digits and dashes.">
           <Input value={name} onChange={(e) => setName(e.target.value.trim())} aria-invalid={!NAME_PATTERN.test(name) && name !== ''} placeholder="vault" />
@@ -70,13 +67,13 @@ export function LinkApp({ prefix, onDone }: { prefix: string; onDone: (name: str
           </Select>
         </Field>
       </div>
-      <Field label="URL" hint="The public https address that Uptime checks. Leave empty for a service with no address.">
+      <Field label="URL" hint="Public https. Optional.">
         <Input value={url} onChange={(e) => setUrl(e.target.value.trim())} aria-invalid={!urlOk} placeholder="https://vault.thesoda.io" />
       </Field>
       <Field label="Description">
         <Input value={description} maxLength={200} onChange={(e) => setDescription(e.target.value)} placeholder="Password manager" />
       </Field>
-      <Field label="Runs as" hint="The containers or processes that run it, comma-separated. For people to read.">
+      <Field label="Runs as" hint="Containers or processes, comma-separated.">
         <Input value={runsAs} onChange={(e) => setRunsAs(e.target.value)} placeholder="vaultwarden" />
       </Field>
       <FormActions error={save.error ?? undefined}>
@@ -105,9 +102,6 @@ export function LinkedPanel({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Fact label="Status">
-          <Badge tone="active">Linked</Badge>
-        </Fact>
         <Fact label="Kind">{LINK_KINDS.find((k) => k.kind === app.kind)?.title ?? app.kind}</Fact>
         <div className="col-span-2">
           <Fact label="URL">
@@ -137,10 +131,6 @@ export function LinkedPanel({
           <p className="text-sm text-muted">Not given.</p>
         )}
       </section>
-      <p className="text-sm text-pretty text-muted">
-        Platform does not run this app. {app.url ? 'Uptime checks its URL and sends down and up events to the org.' : 'Give it a URL for Uptime to check it.'} Link it
-        again to change it.
-      </p>
       <div className="flex">
         <Button variant="danger" className="ml-auto" onClick={() => setDeleting(!deleting)}>
           <Trash2 className="size-4" /> Unlink

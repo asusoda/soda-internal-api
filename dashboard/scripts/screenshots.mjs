@@ -13,8 +13,9 @@ import { asuDuoFixtures, fixtures, ORG } from './fixtures.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = resolve(root, process.env.SCREENSHOT_DIR ?? '../site/public/screenshots');
-const WIDTH = 1440;
-const HEIGHT = 900;
+// SCREENSHOT_WIDTH and SCREENSHOT_HEIGHT take other sizes, such as 390 x 844 for a phone
+const WIDTH = Number(process.env.SCREENSHOT_WIDTH ?? 1440);
+const HEIGHT = Number(process.env.SCREENSHOT_HEIGHT ?? 900);
 const QUALITY = 0.86;
 const SCALE = 2;
 

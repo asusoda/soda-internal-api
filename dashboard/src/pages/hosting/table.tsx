@@ -73,7 +73,7 @@ export function AppTable({ apps, providers, onOpen }: { apps: App[]; providers?:
                 <Mono className="block truncate text-fg">{app.current_tag ?? '-'}</Mono>
               </Td>
               <Td>
-                {app.linked ? <Badge tone="active">linked</Badge> : <Badge tone={tone}>{latest?.status ?? 'not deployed'}</Badge>}
+                {app.linked ? <span className="text-muted">-</span> : <Badge tone={tone}>{latest?.status ?? 'not deployed'}</Badge>}
               </Td>
               <Td className="hidden text-xs whitespace-nowrap text-muted tabular-nums md:table-cell">
                 {app.linked ? (

@@ -48,15 +48,15 @@ function Services() {
   const apps = list.data?.apps ?? [];
   const providers = useProviders(prefix);
   const register = (
-    <div className="flex flex-wrap gap-2">
-      <Button onClick={() => setLinking(true)} title="List a service that runs outside Platform">
-        <Link2 className="size-4" /> Link service
+    <div className="flex gap-2">
+      <Button onClick={() => setLinking(true)} aria-label="Link service">
+        <Link2 className="size-4" /> <span className="hidden sm:inline">Link service</span>
       </Button>
-      <Button onClick={() => setPicking(true)}>
-        <LayoutTemplate className="size-4" /> Templates
+      <Button onClick={() => setPicking(true)} aria-label="Templates">
+        <LayoutTemplate className="size-4" /> <span className="hidden sm:inline">Templates</span>
       </Button>
-      <Button variant="primary" onClick={() => setRegistering(true)}>
-        <Plus className="size-4" /> Register app
+      <Button variant="primary" onClick={() => setRegistering(true)} aria-label="Register app">
+        <Plus className="size-4" /> <span className="hidden sm:inline">Register app</span>
       </Button>
     </div>
   );
@@ -65,7 +65,7 @@ function Services() {
     <>
       <PageHeader
         title="Hosting"
-        description="Bots, agents, sites and services the org deploys, and the ones it runs elsewhere, linked here."
+        description="Apps the org deploys, and services it links."
         docs="modules/runpod-apps"
         action={register}
       />
