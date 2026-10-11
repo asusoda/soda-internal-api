@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Layers, Plus } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
+import { Tooltip } from '../../components/tooltip';
 import { Badge, Button, Card, EmptyState, ErrorNote, PageSkeleton, Spinner } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { count, timeAgo } from '../../lib/format';
@@ -32,27 +33,20 @@ export function useSubscription(prefix: string) {
 }
 
 const PART_NAME = { pages: ['page', 'pages'], queries: ['live query', 'live queries'], feeds: ['feed', 'feeds'] } as const;
-const PART_NOTE = {
-  pages: 'crawled once for every org, uses none of your limits',
-  queries: 'results become your knowledge sources',
-  feeds: 'a feed you make is your own',
-} as const;
 
 // What a submodule brings, and who pays for each part.
 function Parts({ s }: { s: Submodule }) {
   if (!s.parts.length) return <p className="mt-3 text-xs text-muted">No parts yet</p>;
   return (
-    <ul className="mt-3 space-y-1 text-xs">
+    <div className="mt-3 flex flex-wrap gap-1.5">
       {s.parts.map((p) => (
-        <li key={p.kind} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="tabular-nums">
-            {count(p.count)} {PART_NAME[p.kind][p.count === 1 ? 0 : 1]}
-          </span>
-          <Badge tone={p.paid_by === 'shared' ? 'ok' : 'muted'}>{PAID_BY[p.paid_by].title}</Badge>
-          <span className="text-muted">{PART_NOTE[p.kind]}</span>
-        </li>
+        <Tooltip key={p.kind} label={PAID_BY[p.paid_by].text} side="top">
+          <Badge tone={p.paid_by === 'shared' ? 'ok' : 'muted'}>
+            {count(p.count)} {PART_NAME[p.kind][p.count === 1 ? 0 : 1]} · {PAID_BY[p.paid_by].title.toLowerCase()}
+          </Badge>
+        </Tooltip>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -71,10 +65,7 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
   const list = submodules.data.submodules.filter((s) => matchesQuery(s, query));
   return (
     <div className="space-y-4">
-      <p className="text-sm text-pretty text-muted">
-        A submodule is a domain, such as a campus or careers. Subscribe once, and each module that is on gets its part: knowledge searches its pages,
-        agents run its live queries, and its feeds show as presets. Its pages are crawled once for every org that subscribes.
-      </p>
+      <p className="text-sm text-muted">Domains, such as a campus. Subscribe once; each module that is on gets its part.</p>
       {change.error ? <ErrorNote error={change.error} /> : null}
       {!list.length ? (
         <Card>
@@ -112,8 +103,7 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
                 <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                   <span className="text-xs text-muted tabular-nums">
                     {s.subscribers} {s.subscribers === 1 ? 'org' : 'orgs'}
-                    {s.sources ? `, ${count(s.sources)} pages shared` : ''}
-                    {s.last_crawl ? `, crawled ${timeAgo(s.last_crawl)}` : ''}
+                    {s.last_crawl ? ` · crawled ${timeAgo(s.last_crawl)}` : ''}
                   </span>
                   {s.subscribed ? (
                     <Button variant="ghost" className="h-7 shrink-0 px-2 text-xs" disabled={busy} onClick={() => change.mutate({ name: s.name, on: false })}>
@@ -130,9 +120,6 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
           })}
         </div>
       )}
-      <p className="flex items-center gap-1.5 text-xs text-muted">
-        <Check className="size-3.5" /> Feeds you made keep running when you unsubscribe.
-      </p>
     </div>
   );
 }

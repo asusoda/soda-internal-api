@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Gauge, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { UseBar } from '../../components/limits';
-import { Badge, Button, Card, CardHeader, Dialog, EmptyState, ErrorNote, FormActions, Input, Mono, Select, SkeletonRows, Table, Td, Th, Tr } from '../../components/ui';
+import { Badge, Button, Card, CardHeader, Dialog, DocsLink, EmptyState, ErrorNote, FormActions, Input, Mono, Select, SkeletonRows, Table, Td, Th, Tr } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { byUse, limitText } from '../../lib/limits';
 import type { AllLimits, LimitChange, LimitRow, OrgLimits } from '../../lib/types';
@@ -18,7 +18,8 @@ export function ResourcesCard() {
     <Card>
       <CardHeader
         title="Resources"
-        hint="What each org uses of its limits. A limit that an org uses 80% of or more is marked. LIMIT_<KEY> in .env sets the default for all orgs."
+        hint="Marked at 80% of a limit."
+        action={<DocsLink page="codebase/limits" />}
       />
       {all.error ? (
         <div className="p-4">
