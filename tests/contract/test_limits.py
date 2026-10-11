@@ -254,8 +254,12 @@ def test_superadmin_server_health(client, superadmin):
     server = client.get("/api/superadmin/server", headers=superadmin)
     assert server.status_code == 200, server.get_json()
     body = server.get_json()
-    assert body["cpus"] >= 1 and body["database"] == "sqlite"
-    assert body["jobs"]["backend"] == "inline" and body["jobs"]["queue"] is None
+    from core import jobs
+    from core.db import db_connect
+
+    assert body["cpus"] >= 1 and body["database"] == db_connect.engine.dialect.name
+    assert body["jobs"]["backend"] == jobs.queue_backend()
+    assert (body["jobs"]["queue"] is None) == (jobs.queue_backend() == "inline")
     assert set(body["container"]) == {"memory_used", "memory_limit", "cpu_limit", "process_uptime_seconds"}
     assert body["disk"]["total"] >= body["disk"]["used"]
 
