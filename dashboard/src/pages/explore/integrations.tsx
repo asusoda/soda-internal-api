@@ -201,7 +201,7 @@ function IntegrationCard({ prefix, i, canSave, oauth }: { prefix: string; i: Int
   const note = [
     i.source === 'deployment' && i.editable ? "Platform's shared key is in use. Save your own to replace it." : '',
     i.source === 'deployment' && i.metered_by.length
-      ? `Your use counts against your limits: ${i.metered_by.map((l) => l.label.toLowerCase()).join(', ')}.`
+      ? `Counts against: ${i.metered_by.map((l) => l.label.toLowerCase()).join(', ')}.`
       : '',
     saved.length ? `Saved ${timeAgo(saved.sort().at(-1) as string)}.` : '',
   ]

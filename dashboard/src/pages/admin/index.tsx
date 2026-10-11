@@ -30,7 +30,7 @@ function Superadmin() {
   const close = () => setOpen(null);
   return (
     <>
-      <PageHeader title="Superadmin" description="Every org on this deployment, the server it runs on, and what each org may use." />
+      <PageHeader title="Superadmin" description="Every org on this deployment, and the server." />
 
       {dashboard.error ? (
         <Card className="mb-6">

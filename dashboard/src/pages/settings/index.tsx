@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Card, CardHeader, cx, ErrorNote, PageHeader, PageSkeleton, SkeletonRows } from '../../components/ui';
+import { Card, CardHeader, cx, DocsLink, ErrorNote, PageHeader, PageSkeleton, SkeletonRows } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useCurrentOrg } from '../../lib/org';
 import { useBranding, useIntegrations, useOrganization } from '../../lib/queries';
@@ -157,7 +157,8 @@ function LimitsSection({ orgId }: { orgId: number }) {
     <Card>
       <CardHeader
         title="Limits"
-        hint="What this org may use of the shared server, for the modules that are on. Only the Platform superadmin changes them."
+        hint="Set by the Platform superadmin."
+        action={<DocsLink page="codebase/limits" />}
       />
       <Pending error={limits.error} loading={limits.isLoading} />
       {(['org', 'metered'] as const).map((paid) => {
@@ -165,19 +166,13 @@ function LimitsSection({ orgId }: { orgId: number }) {
         if (!rows.length) return null;
         return (
           <div key={paid}>
-            <div className="border-t border-line px-4 pt-3 pb-2">
-              <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{PAID_BY[paid].title}</h3>
-              <p className="text-xs text-muted">{PAID_BY[paid].text}</p>
-            </div>
+            <h3 className="border-t border-line px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted uppercase" title={PAID_BY[paid].text}>
+              {PAID_BY[paid].title}
+            </h3>
             <LimitTable rows={byUse(rows)} />
           </div>
         );
       })}
-      {limits.data ? (
-        <p className="border-t border-line px-4 py-3 text-xs text-muted">
-          {PAID_BY.shared.title}: {PAID_BY.shared.text} The pages of the submodules you subscribe to are shared.
-        </p>
-      ) : null}
     </Card>
   );
 }
