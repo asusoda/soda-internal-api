@@ -23,6 +23,22 @@ Caution: make sure that `google-secret.json` is on the host, also if it is empty
 
 The API uses one gunicorn worker because the one-time sign-in codes are in process memory. Increase `--workers` only after those codes move to the database.
 
+## Container limits
+
+Each container has a memory and a CPU cap, so one process cannot take the whole server. The values come from `.env`, with these defaults:
+
+| Service | Memory | CPUs | Settings |
+| --- | --- | --- | --- |
+| `api` | 1536m | 1.5 | `API_MEM_LIMIT`, `API_CPUS` |
+| `bot` | 768m | 1 | `BOT_MEM_LIMIT`, `BOT_CPUS` |
+| `worker` | 1536m | 1 | `WORKER_MEM_LIMIT`, `WORKER_CPUS` |
+| `mcp` | 768m | 1 | `MCP_MEM_LIMIT`, `MCP_CPUS` |
+| `web` | 256m | 0.5 | `WEB_MEM_LIMIT`, `WEB_CPUS` |
+| `dashboard` | 256m | 0.5 | `DASHBOARD_MEM_LIMIT`, `DASHBOARD_CPUS` |
+| `postgres` | 1g | 1 | `POSTGRES_MEM_LIMIT`, `POSTGRES_CPUS` |
+
+A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
+
 ## Images and CI
 
 | Workflow | Does |
