@@ -262,6 +262,8 @@
 /api/superadmin/publishers/<int:org_id> OPTIONS,PUT superadmin.put_publisher
 /api/superadmin/remove_org/<int:org_id> DELETE,OPTIONS superadmin.remove_organization
 /api/superadmin/server GET,HEAD,OPTIONS superadmin.get_server
+/api/superadmin/server/services GET,HEAD,OPTIONS superadmin.get_server_services
+/api/superadmin/server/services/<string:name> OPTIONS,PUT superadmin.put_server_service
 /api/superadmin/submodules GET,HEAD,OPTIONS superadmin.get_submodules
 /api/superadmin/update_officer_role/<int:org_id> OPTIONS,PUT superadmin.update_officer_role
 /api/tools GET,HEAD,OPTIONS tools.list_tools

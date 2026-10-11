@@ -99,6 +99,13 @@ const SCREENS = [
   },
   { name: 'superadmin', path: 'admin' },
   {
+    name: 'superadmin-services',
+    path: 'admin',
+    before: async (page) => {
+      await page.getByRole('heading', { name: 'Services' }).scrollIntoViewIfNeeded();
+    },
+  },
+  {
     name: 'superadmin-limits',
     path: 'admin',
     before: async (page) => {

@@ -152,6 +152,7 @@ MODEL_MODULES = [
     "modules.runpod.models",
     "modules.storefront.models",
     "modules.submodules.models",
+    "modules.superadmin.models",
     "modules.uptime.models",
     "modules.users.models",
 ]

@@ -315,6 +315,31 @@ def get_server():
         db.close()
 
 
+@superadmin_blueprint.route("/server/services", methods=["GET"])
+@superadmin_required
+def get_server_services():
+    """Each container and host process on the server, from the host agent, with its owner."""
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, service.server_services)
+    finally:
+        db.close()
+
+
+@superadmin_blueprint.route("/server/services/<string:name>", methods=["PUT"])
+@superadmin_required
+def put_server_service(name):
+    """Set who owns a service. Body: {"owner": "org", "organization_id": 1}, or {"owner": null} for the labels."""
+    body = request.get_json(silent=True)
+    principal = current_principal()
+    actor = f"superadmin:{principal.discord_id}" if principal and principal.discord_id else "superadmin"
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, lambda db: service.set_service_owner(db, name, body, actor))
+    finally:
+        db.close()
+
+
 @superadmin_blueprint.route("/limits", methods=["GET"])
 @superadmin_required
 def get_limits():

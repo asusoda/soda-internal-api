@@ -35,10 +35,11 @@ flask --app main org|jobs|config ...
 | Path | Holds |
 | --- | --- |
 | `main.py`, `bot_main.py`, `worker_main.py`, `mcp_main.py` | API, Discord bot, job worker (Postgres only), MCP server on port 8001 |
-| `core/` | Config, database (`core/db/`), jobs, tools, secrets, audit, logs, the in-process cache, HTTP hooks, Discord and RunPod clients, hosting providers (`core/hosting.py`), per-org limits (`core/limits.py`), server health (`core/host.py`) |
+| `core/` | Config, database (`core/db/`), jobs, tools, secrets, audit, logs, the in-process cache, HTTP hooks, Discord and RunPod clients, hosting providers (`core/hosting.py`), per-org limits (`core/limits.py`), server health and the host agent's file (`core/host.py`) |
 | `modules/<name>/` | One module: `README.md`, `service.py`, `api.py`, `models.py`, `jobs.py`, `tools.py`, only the files it needs |
 | `modules/registry.py`, `modules/manifest.py` | Blueprint mounts and module switches; categories, the module catalog, the modules of a new org, and model, job and tool modules |
 | `apps/` | App templates that officers create apps from on the Hosting page. No Platform code |
+| `deploy/` | The SQLite to Postgres copy script, the RunPod start script, and the read-only host agent (`deploy/host-agent/`) |
 | `alembic/` | Migrations. Nothing creates tables at startup |
 | `tests/contract/` | Route tests, `snapshots.json`, and `routes.txt`, the list of every route |
 | `tests/test_module_layout.py` | Checks that each module is registered and documented in every place |

@@ -12,6 +12,7 @@ import { ErrorsCard } from './errors';
 import { PublishersCard } from './publishers';
 import { ResourcesCard } from './resources';
 import { ServerCard } from './server';
+import { ServicesCard } from './services';
 import { GuildsCard, OrganizationsCard } from './tables';
 
 type Open = { kind: 'role' | 'remove'; org: OrganizationDetail } | { kind: 'add'; guild: AvailableGuild } | null;
@@ -63,8 +64,9 @@ function Superadmin() {
         </StatGrid>
       ) : null}
 
-      <div className="mb-6">
+      <div className="mb-6 space-y-6">
         <ServerCard />
+        <ServicesCard orgs={dashboard.data ? orgs : (orgList.data ?? [])} />
       </div>
 
       {!dashboard.error ? (

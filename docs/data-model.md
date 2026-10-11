@@ -111,6 +111,7 @@ erDiagram
 | godfather | `compute_pods`, `compute_keys`, `compute_sessions`, `compute_connections` (one row for each pod certificate, kept 90 days) |
 | runpod | `runpod_apps`, `runpod_deployments` |
 | feeds | `alert_feeds`, `alert_posts`, `alert_runs` (one row for each feed run) |
+| superadmin | `server_service_owners` (the owner of each container or host process that the host agent lists) |
 | uptime | `uptime_monitors`, `uptime_checks` (one row for each check, kept `UPTIME_RETENTION_DAYS`, default 30) |
 | jobs | `procrastinate_*` (Postgres only, from the Procrastinate SQL, not from models) |
 
