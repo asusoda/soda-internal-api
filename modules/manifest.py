@@ -142,6 +142,7 @@ NEW_ORG_MODULES: tuple[str, ...] = ()
 MODEL_MODULES = [
     "core.audit",
     "core.error_log",
+    "core.limits",
     "core.secrets",
     "core.webhooks",
     "modules.accounts.models",
@@ -165,6 +166,7 @@ MODEL_MODULES = [
 JOB_MODULES = [
     "core.audit",
     "core.error_log",
+    "core.limits",
     "modules.auth.jobs",
     "modules.points.jobs",
     "modules.calendar.jobs",

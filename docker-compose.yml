@@ -10,6 +10,9 @@ services:
     image: soda-internal-api:latest
     container_name: soda-internal-api
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${API_MEM_LIMIT:-1536m}
+    cpus: ${API_CPUS:-1.5}
     # One worker with threads: SQLite takes one writer at a time, and login codes live in memory.
     # Raise the worker count after the move to Postgres.
     # Migrations run first; the schema comes from Alembic, not from create_all at startup.
@@ -52,6 +55,9 @@ services:
     image: soda-internal-api:latest
     container_name: soda-bot
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${BOT_MEM_LIMIT:-768m}
+    cpus: ${BOT_CPUS:-1}
     command: ["python3", "bot_main.py"]
     depends_on:
       - api
@@ -75,6 +81,9 @@ services:
     image: soda-internal-api:latest
     container_name: soda-worker
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${WORKER_MEM_LIMIT:-1536m}
+    cpus: ${WORKER_CPUS:-1}
     profiles: ["postgres"]
     command: ["python3", "worker_main.py"]
     depends_on:
@@ -99,6 +108,9 @@ services:
     image: soda-internal-api:latest
     container_name: soda-mcp
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${MCP_MEM_LIMIT:-768m}
+    cpus: ${MCP_CPUS:-1}
     profiles: ["mcp"]
     command: ["python3", "mcp_main.py"]
     depends_on:
@@ -130,6 +142,9 @@ services:
     image: soda-site:latest
     container_name: soda-site
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${SITE_MEM_LIMIT:-384m}
+    cpus: ${SITE_CPUS:-0.5}
     profiles: ["site"]
     ports:
       - "127.0.0.1:3010:3000"
@@ -159,6 +174,9 @@ services:
     image: soda-web:latest
     container_name: soda-web
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${WEB_MEM_LIMIT:-256m}
+    cpus: ${WEB_CPUS:-0.5}
     ports:
       - "5000:5000"
     depends_on:
@@ -192,6 +210,9 @@ services:
     image: soda-dashboard:latest
     container_name: soda-dashboard
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${DASHBOARD_MEM_LIMIT:-256m}
+    cpus: ${DASHBOARD_CPUS:-0.5}
     ports:
       - "5001:5001"
     depends_on:
@@ -219,6 +240,9 @@ services:
     image: mirror.gcr.io/pgvector/pgvector:pg16
     container_name: soda-postgres
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    cpus: ${POSTGRES_CPUS:-1}
     profiles: ["postgres"]
     environment:
       - POSTGRES_DB=platform

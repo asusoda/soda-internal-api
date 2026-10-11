@@ -186,10 +186,8 @@ def knowledge_submodules(db, org, caller):
     },
 )
 def knowledge_sync_submodule(db, org, caller, name: str):
-    from core.jobs import defer
-
     counts = submodules.sync(db, int(org.id), str(org.prefix), name)
-    defer("knowledge.crawl_due")
+    crawl.start_crawl_due()
     return counts
 
 
@@ -221,9 +219,7 @@ def knowledge_update_settings(db, org, caller, **arguments):
     input_schema=NO_ARGS,
 )
 def knowledge_reindex(db, org, caller):
-    from core.jobs import defer
-
-    defer("knowledge.reindex", org_id=int(org.id))
+    crawl.queue_job(db, int(org.id), "knowledge.reindex", org_id=int(org.id))
     return {"queued": True}
 
 

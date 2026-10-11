@@ -8,10 +8,11 @@ from typing import cast
 
 from sqlalchemy import func
 
+from core import limits
 from core.log import get_logger
 from modules.knowledge.embedder import Embedder, EmbeddingError
 from modules.knowledge.models import KnowledgeChunk, KnowledgeSource, KnowledgeVersion
-from modules.knowledge.service import KnowledgeError, _vector
+from modules.knowledge.service import JOBS_LIMIT, KnowledgeError, _vector
 
 logger = get_logger("knowledge.reembed")
 
@@ -81,5 +82,7 @@ def queue(db, org_id: int) -> dict:
 
     if embedder.for_org(db, org_id) is None:
         raise KnowledgeError("Set an embedding service first")
+    limits.consume(db, org_id, JOBS_LIMIT)
     defer("knowledge.reembed", org_id=org_id)
+    db.commit()
     return {"queued": True}

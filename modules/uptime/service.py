@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import case, func
 
-from core import hosting, net, webhooks
+from core import hosting, limits, net, webhooks
 from core.errors import ServiceError
 from core.log import get_logger
 from core.time import iso, utcnow
@@ -37,7 +37,7 @@ webhooks.declare("monitor.up", "Monitors up", "An uptime monitor that was down f
 
 KINDS = ("url", "app")
 STATUS_PATTERN = re.compile(r"^([1-5]xx|[1-5][0-9]{2})$")
-MAX_MONITORS = 50
+MAX_IDS = 100  # ids in one bulk call
 MAX_NAME = 100
 MAX_URL = 500
 TIMEOUT_RANGE = (1, 30)
@@ -52,6 +52,17 @@ RETENTION_DAYS = int(os.environ.get("UPTIME_RETENTION_DAYS", "30"))
 
 class UptimeError(ServiceError):
     pass
+
+
+MONITORS_LIMIT = "uptime.monitors"
+limits.declare(
+    MONITORS_LIMIT,
+    "uptime",
+    "Uptime monitors",
+    50,
+    unit="monitors",
+    usage=lambda db, org_id: db.query(UptimeMonitor).filter_by(organization_id=org_id).count(),
+)
 
 
 def _find(db, org_id: int, monitor_id: int) -> UptimeMonitor:
@@ -214,8 +225,7 @@ def targets(db, org_id: int) -> list[dict]:
 
 def create_monitor(db, org_id: int, body: dict) -> dict:
     """Add a monitor. Commits."""
-    if db.query(UptimeMonitor).filter_by(organization_id=org_id).count() >= MAX_MONITORS:
-        raise UptimeError(f"An org can have {MAX_MONITORS} monitors or fewer", 409)
+    limits.check(db, org_id, MONITORS_LIMIT)
     fields = _fields(db, org_id, body, None)
     if _name_taken(db, org_id, fields["name"], None):
         raise UptimeError("A monitor with this name exists", 409)
@@ -231,7 +241,8 @@ def watch_app(db, org_id: int, name: str) -> None:
     if org is None or not organizations.module_enabled(org, "uptime"):
         return
     monitors = db.query(UptimeMonitor).filter_by(organization_id=org_id)
-    if monitors.count() >= MAX_MONITORS or _name_taken(db, org_id, name, None):
+    limit = limits.value(db, org_id, MONITORS_LIMIT)
+    if (limit is not None and monitors.count() >= limit) or _name_taken(db, org_id, name, None):
         return
     if monitors.filter_by(target_kind="app", target=name).first() is not None:
         return

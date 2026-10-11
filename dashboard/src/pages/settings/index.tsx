@@ -5,7 +5,9 @@ import { Card, CardHeader, cx, ErrorNote, PageHeader, PageSkeleton, SkeletonRows
 import { api } from '../../lib/api';
 import { useCurrentOrg } from '../../lib/org';
 import { useBranding, useIntegrations, useOrganization } from '../../lib/queries';
-import type { Organization, SecretState } from '../../lib/types';
+import { LimitTable } from '../../components/limits';
+import { byUse } from '../../lib/limits';
+import type { LimitRow, Organization, SecretState } from '../../lib/types';
 import { BrandingForm } from './branding';
 import { GeneralForm } from './general';
 import { SecretRow } from './secrets';
@@ -146,6 +148,23 @@ function SecretsSection({ orgId, prefix }: { orgId: number; prefix: string }) {
   );
 }
 
+function LimitsSection({ orgId }: { orgId: number }) {
+  const limits = useQuery({
+    queryKey: ['limits', orgId],
+    queryFn: () => api<{ limits: LimitRow[] }>(`/api/organizations/${orgId}/limits`),
+  });
+  return (
+    <Card>
+      <CardHeader
+        title="Limits"
+        hint="What this org may use of the shared server, for the modules that are on. Only the Platform superadmin changes them."
+      />
+      <Pending error={limits.error} loading={limits.isLoading} />
+      {limits.data ? <LimitTable rows={byUse(limits.data.limits)} /> : null}
+    </Card>
+  );
+}
+
 // Scrolls to the section in the URL hash once the page shows, or opens the page a section moved to.
 function useHashSection(prefix: string, ready: boolean) {
   const { hash } = useLocation();
@@ -167,6 +186,7 @@ export function SettingsPage() {
     { id: 'general', label: 'General', body: <GeneralSection org={org} /> },
     { id: 'branding', label: 'Branding', body: <BrandingSection org={org} prefix={prefix} /> },
     { id: 'secrets', label: 'Secrets', body: <SecretsSection orgId={org.id} prefix={prefix} /> },
+    { id: 'limits', label: 'Limits', body: <LimitsSection orgId={org.id} /> },
   ];
   return (
     <>

@@ -184,6 +184,7 @@
 /api/organizations/<int:org_id>/calendar OPTIONS,PUT organizations.update_organization_calendar_settings
 /api/organizations/<int:org_id>/leetcode GET,HEAD,OPTIONS organizations.get_organization_leetcode
 /api/organizations/<int:org_id>/leetcode OPTIONS,PUT organizations.update_organization_leetcode
+/api/organizations/<int:org_id>/limits GET,HEAD,OPTIONS organizations.get_organization_limits
 /api/organizations/<int:org_id>/modules GET,HEAD,OPTIONS organizations.get_organization_modules
 /api/organizations/<int:org_id>/modules OPTIONS,PUT organizations.update_organization_modules
 /api/organizations/<int:org_id>/roles GET,HEAD,OPTIONS organizations.get_organization_roles
@@ -249,9 +250,13 @@
 /api/superadmin/errors GET,HEAD,OPTIONS superadmin.get_errors
 /api/superadmin/errors/<string:action> OPTIONS,POST superadmin.change_errors
 /api/superadmin/guild_roles/<guild_id> GET,HEAD,OPTIONS superadmin.get_guild_roles
+/api/superadmin/limits GET,HEAD,OPTIONS superadmin.get_limits
+/api/superadmin/limits/<int:org_id> GET,HEAD,OPTIONS superadmin.get_org_limits
+/api/superadmin/limits/<int:org_id> OPTIONS,PUT superadmin.put_org_limits
 /api/superadmin/publishers GET,HEAD,OPTIONS superadmin.get_publishers
 /api/superadmin/publishers/<int:org_id> OPTIONS,PUT superadmin.put_publisher
 /api/superadmin/remove_org/<int:org_id> DELETE,OPTIONS superadmin.remove_organization
+/api/superadmin/server GET,HEAD,OPTIONS superadmin.get_server
 /api/superadmin/update_officer_role/<int:org_id> OPTIONS,PUT superadmin.update_officer_role
 /api/tools GET,HEAD,OPTIONS tools.list_tools
 /api/tools/<string:name> OPTIONS,POST tools.call_tool

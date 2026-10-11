@@ -1214,8 +1214,51 @@ export function fixtures(now = Date.now()) {
     { id: 'n-5', title: 'Build night', start: at(9 * DAY), end: at(9 * DAY + 3 * HOUR), location: 'Engineering Center, room 210' },
   ];
 
+  // Per-org limits (core/limits.py): [key, module, label, unit, window, default, used by each org]
+  const limitSpecs = [
+    ['event_webhook.webhooks', 'event_webhook', 'Event webhooks', 'webhooks', null, 20, [3, 0, 1]],
+    ['godfather.pods', 'godfather', 'Pods', 'pods', null, 10, [4, 9, 0]],
+    ['knowledge.embeddings_per_day', 'knowledge', 'Texts embedded a day (knowledge and agent memory)', 'texts', 'day', 500000, [12840, 431200, 0]],
+    ['knowledge.jobs_per_day', 'knowledge', 'Crawls, re-indexes and re-embeds started by hand a day', 'jobs', 'day', 200, [6, 41, 0]],
+    ['knowledge.passages', 'knowledge', 'Passages', 'passages', null, 250000, [18420, 236900, 0]],
+    ['knowledge.sources', 'knowledge', 'Sources', 'sources', null, 1000, [212, 880, 0]],
+    ['knowledge.uploads_per_day', 'knowledge', 'Files uploaded a day', 'files', 'day', 500, [4, 12, 0]],
+    ['mcp.calls_per_minute', 'mcp', 'Tool calls a minute (MCP and /api/tools)', 'calls', 'minute', 300, [18, 120, 2]],
+    ['runpod.apps', 'runpod', 'Hosting apps', 'apps', null, 25, [5, 2, 0]],
+    ['uptime.monitors', 'uptime', 'Uptime monitors', 'monitors', null, 50, [8, 3, 0]],
+  ];
+  const limitCatalog = limitSpecs.map(([key, module, label, unit, window, value]) => ({ key, module, label, unit, window, default: value }));
+  const overridesFor = [{ 'godfather.pods': 12 }, { 'knowledge.sources': 1200, 'mcp.calls_per_minute': null }, {}];
+  const offFor = [new Set(), new Set(['runpod']), new Set(['knowledge', 'godfather', 'runpod'])];
+  const limitRows = (i) =>
+    limitSpecs.map(([key, module, label, unit, window, value, used], n) => {
+      const override = key in overridesFor[i];
+      return { ...limitCatalog[n], value: override ? overridesFor[i][key] : value, override, used: used[i], enabled: !offFor[i].has(module) };
+    });
+  const orgLimits = [orgDetail, ...otherOrgs.slice(0, 2)].map((o, i) => {
+    const limits = limitRows(i);
+    const near = limits.filter((r) => r.enabled && r.value !== null && r.used >= 0.8 * Math.max(r.value, 1)).map((r) => r.key);
+    const overrides = Object.entries(overridesFor[i]).map(([key, value]) => ({ key, value, updated_at: at(-3 * DAY), updated_by: 'superadmin:1290000000000000999' }));
+    return { org: { id: o.id, name: o.name, prefix: o.prefix, is_active: true }, limits, near, overrides };
+  });
+  const GB = 1024 ** 3;
+
   return {
     '/api/organizations/': [ORG],
+    [`/api/organizations/${ORG.id}/limits`]: { limits: orgLimits[0].limits.filter((r) => r.enabled) },
+    '/api/superadmin/limits': { catalog: limitCatalog, near: 0.8, orgs: orgLimits },
+    '/api/superadmin/server': {
+      cpus: 2,
+      load: [0.42, 0.37, 0.31],
+      uptime_seconds: 41 * 24 * 3600,
+      memory: { total: 7.75 * GB, available: 4.9 * GB },
+      disk: { total: 96 * GB, used: 48 * GB, free: 48 * GB },
+      database_bytes: 1.1 * 1024 ** 2,
+      database: 'sqlite',
+      container: { memory_used: 0.29 * GB, memory_limit: 1.5 * GB, cpu_limit: 1.5, process_uptime_seconds: 5 * 3600 + 12 * 60 },
+      bot_ready: true,
+      jobs: { backend: 'inline', queue: null },
+    },
     [`/api/organizations/${ORG.id}`]: orgDetail,
     [`/api/organizations/${ORG.id}/calendar`]: {
       notion_database_id: orgDetail.notion_database_id,

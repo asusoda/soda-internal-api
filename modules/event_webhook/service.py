@@ -8,14 +8,23 @@ their own webhooks; the listing names them so officers see every place that Plat
 from datetime import datetime
 from typing import cast
 
-from core import net, secrets, webhooks
+from core import limits, net, secrets, webhooks
 from core.errors import ServiceError
 from core.time import utcnow
 from modules.feeds import service as feeds
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
 
-MAX_WEBHOOKS = 20
+WEBHOOKS_LIMIT = "event_webhook.webhooks"
+limits.declare(
+    WEBHOOKS_LIMIT,
+    "event_webhook",
+    "Event webhooks",
+    20,
+    unit="webhooks",
+    usage=lambda db, org_id: db.query(webhooks.Webhook).filter_by(organization_id=org_id).count(),
+)
+MAX_IDS = 100  # ids in one bulk call
 MAX_NAME = 100
 
 
@@ -130,8 +139,7 @@ def create(db, org: Organization, body: dict, actor: str | None) -> dict:
     name = _name(body.get("name"))
     chosen = _events(org, body.get("events"))
     _unique(db, org, name)
-    if db.query(webhooks.Webhook).filter_by(organization_id=org.id).count() >= MAX_WEBHOOKS:
-        raise WebhookError(f"An org can have at most {MAX_WEBHOOKS} webhooks")
+    limits.check(db, cast(int, org.id), WEBHOOKS_LIMIT)
     ciphertext, hint = _url(kind, body.get("url"))
     row = webhooks.Webhook(
         organization_id=org.id,

@@ -20,5 +20,6 @@ Checks public URLs and the health URLs of Hosting apps on a schedule. Keeps each
 - Tools: `uptime.list`, `uptime.get`, `uptime.targets` (scope `uptime:read`); `uptime.save`, `uptime.check`, `uptime.delete` (confirm) (scope `uptime:manage`). Tools marked confirm run only with `confirm=true`.
 - Webhook events: `monitor.down`, `monitor.up`. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `uptime_monitors`, `uptime_checks`.
+- Limits: `uptime.monitors` (default 50). The monitor that Hosting adds for a new app is skipped when the org is at the limit. See [docs/limits.md](../../docs/limits.md).
 
 See [docs/modules/uptime.md](../../docs/modules/uptime.md).

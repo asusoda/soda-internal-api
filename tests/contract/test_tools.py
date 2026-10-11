@@ -25,7 +25,7 @@ def _names(client, headers):
 
 
 def test_tools_follow_scopes(client, token_for):
-    org_read = ["batch", "leetcode.settings", "org.branding", "org.info", "org.settings"]
+    org_read = ["batch", "leetcode.settings", "org.branding", "org.info", "org.limits", "org.settings"]
     assert _names(client, token_for("org:read")) == org_read
     assert _names(client, token_for("org:read", "points:read", "calendar:read")) == [
         "batch",
@@ -34,6 +34,7 @@ def test_tools_follow_scopes(client, token_for):
         "leetcode.settings",
         "org.branding",
         "org.info",
+        "org.limits",
         "org.settings",
         "points.leaderboard",
     ]
@@ -108,7 +109,14 @@ def test_mcp_lists_and_calls_tools(mcp_client, token_for):
     listed = _rpc(mcp_client, headers, "tools/list")
     assert listed.status_code == 200, listed.text
     tools = listed.json()["result"]["tools"]
-    assert [t["name"] for t in tools] == ["batch", "leetcode.settings", "org.branding", "org.info", "org.settings"]
+    assert [t["name"] for t in tools] == [
+        "batch",
+        "leetcode.settings",
+        "org.branding",
+        "org.info",
+        "org.limits",
+        "org.settings",
+    ]
     assert tools[3]["annotations"] == {"readOnlyHint": True, "destructiveHint": False}
     called = _rpc(mcp_client, headers, "tools/call", {"name": "org.info", "arguments": {}})
     result = called.json()["result"]

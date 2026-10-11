@@ -13,12 +13,14 @@ from typing import Any, cast
 
 from sqlalchemy import or_
 
+from core import limits
 from core.log import get_logger
 from core.time import utcnow
 from modules.knowledge import extract, fetch, runs, settings
 from modules.knowledge.embedder import Embedder
 from modules.knowledge.models import KnowledgeSource, KnowledgeVersion
 from modules.knowledge.service import (
+    JOBS_LIMIT,
     KEY_PATTERN,
     MAX_CHUNKS,
     KnowledgeError,
@@ -28,6 +30,8 @@ from modules.knowledge.service import (
     _text,
     _write_version,
     can_publish,
+    check_passages,
+    new_source,
 )
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
@@ -67,8 +71,7 @@ def schedule(db, org_id: int, org_prefix: str, key: str, data: dict) -> dict:
 
     source = db.query(KnowledgeSource).filter_by(organization_id=org_id, key=key).first()
     if source is None:
-        source = KnowledgeSource(organization_id=org_id, key=key)
-        db.add(source)
+        source = new_source(db, org_id, key=key, url=url, category=category)
     if source.url != url:
         source.last_attempt_at = None  # a new URL is due at once
     source.url, source.category, source.public, source.enabled = url, category, public, enabled
@@ -88,13 +91,37 @@ def run(db, org_id: int, key: str, embedder: Embedder | None, force: bool = Fals
 
 
 def queue(db, org_id: int, org_prefix: str, key: str, force: bool = False) -> None:
-    """Start the crawl job for one source of the org. The result shows on the source as last_attempt_at and last_error."""
+    """Start the crawl job for one source of the org. The result shows on the source as last_attempt_at and last_error.
+
+    It counts against the org's knowledge.jobs_per_day limit. Commits.
+    """
     from core.jobs import defer
 
     source = _find(db, org_id, key)
     if source.fetch_every_hours is None:
         raise KnowledgeError("This source is written by a client, not crawled", 409)
+    limits.consume(db, org_id, JOBS_LIMIT)
     defer("knowledge.crawl_source", org_id=org_id, key=key, force=force, org_prefix=org_prefix)
+    db.commit()
+
+
+def start_crawl_due() -> None:
+    """Start the crawl of due sources now, unless a run is already queued or running."""
+    from core.jobs import JobBusy, defer
+
+    try:
+        defer("knowledge.crawl_due")
+    except JobBusy:
+        logger.info("crawl of due sources already queued")
+
+
+def queue_job(db, org_id: int, name: str, /, **kwargs) -> None:
+    """Start knowledge.reindex or knowledge.crawl_due for the org, within its jobs_per_day limit. Commits."""
+    from core.jobs import defer
+
+    limits.consume(db, org_id, JOBS_LIMIT)
+    defer(name, **kwargs)
+    db.commit()
 
 
 def crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: bool = False, pacer: Any = None) -> dict:
@@ -104,9 +131,9 @@ def crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: bool
     db.commit()
     try:
         result = _crawl(db, source, embedder, force=force, pacer=pacer)
-    except (fetch.FetchError, fetch.FetchRejected, KnowledgeError) as e:
+    except (fetch.FetchError, fetch.FetchRejected, KnowledgeError, limits.LimitError) as e:
         db.rollback()
-        source.last_error = str(e.message if isinstance(e, KnowledgeError) else e)[:1000]
+        source.last_error = str(e.message if isinstance(e, KnowledgeError | limits.LimitError) else e)[:1000]
         runs.record(db, cast(int, source.organization_id), str(source.key), "crawl", started, error=source.last_error)
         db.commit()
         logger.warning("crawl failed source=%s error=%s", source.key, source.last_error)
@@ -179,6 +206,7 @@ def index_text(
         {"ordinal": i, "level": 0, "parent_ordinal": None, "content": f"{label}\n{piece}", "embedding": None}
         for i, piece in enumerate(pieces)
     ]
+    check_passages(db, source, len(rows))
     model = _embed(rows, embedder)
     source.title = label[:500]
     _write_version(db, source, rows, content_hash, model, text_chars=len(text))
@@ -186,32 +214,48 @@ def index_text(
     return {"key": source.key, "changed": True, "chunks": len(rows)}
 
 
-def due(db, now: datetime.datetime | None = None, limit: int = 20) -> list[KnowledgeSource]:
-    """Enabled crawled sources whose schedule has come round, never-tried ones first."""
+def due(
+    db, now: datetime.datetime | None = None, limit: int = 20, skip: set[int] | None = None
+) -> list[KnowledgeSource]:
+    """Enabled crawled sources whose schedule has come round, never-tried ones first, of orgs not in skip.
+
+    The batch takes one source of each org in turn, so an org with many due sources does not fill it.
+    """
     now = now or utcnow()
-    candidates = (
+    query = (
         db.query(KnowledgeSource)
         .filter(KnowledgeSource.fetch_every_hours.isnot(None), KnowledgeSource.enabled.is_(True))
         .filter(or_(KnowledgeSource.last_attempt_at.is_(None), KnowledgeSource.last_attempt_at < now))
-        .order_by(KnowledgeSource.last_attempt_at.is_(None).desc(), KnowledgeSource.last_attempt_at)
-        .all()
     )
-    ready = [
-        s
-        for s in candidates
-        if s.last_attempt_at is None or s.last_attempt_at + datetime.timedelta(hours=int(s.fetch_every_hours)) <= now
-    ]
-    return ready[:limit]
+    if skip:
+        query = query.filter(KnowledgeSource.organization_id.notin_(skip))
+    candidates = query.order_by(
+        KnowledgeSource.last_attempt_at.is_(None).desc(), KnowledgeSource.last_attempt_at, KnowledgeSource.id
+    ).all()
+    by_org: dict[int, list[KnowledgeSource]] = {}
+    for s in candidates:
+        if s.last_attempt_at is None or s.last_attempt_at + datetime.timedelta(hours=int(s.fetch_every_hours)) <= now:
+            by_org.setdefault(cast(int, s.organization_id), []).append(s)
+    batch: list[KnowledgeSource] = []
+    queues = list(by_org.values())
+    while queues and len(batch) < limit:
+        for queue in queues:
+            if len(batch) < limit:
+                batch.append(queue.pop(0))
+        queues = [queue for queue in queues if queue]
+    return batch
 
 
 def crawl_due(db, embedder_for: Callable[[int], Embedder | None], now: datetime.datetime | None = None) -> dict:
     """Crawl every due source with its org's embedder, one host at a time per KNOWLEDGE_CRAWL_GAP_SECONDS. Commits."""
     pacer = fetch.HostPacer(_setting("KNOWLEDGE_CRAWL_GAP_SECONDS", 2))
     results = []
-    off = {o.id for o in db.query(Organization).all() if not organizations.module_enabled(o, "knowledge")}
-    for source in due(db, now, limit=_setting("KNOWLEDGE_CRAWL_BATCH", 20)):
-        if source.organization_id in off:
-            continue
+    off = {
+        cast(int, o.id)
+        for o in db.query(Organization).all()
+        if not o.is_active or not organizations.module_enabled(o, "knowledge")
+    }
+    for source in due(db, now, limit=_setting("KNOWLEDGE_CRAWL_BATCH", 20), skip=off):
         started = runs.Timer()
         try:
             results.append(crawl(db, source, embedder_for(cast(int, source.organization_id)), pacer=pacer))

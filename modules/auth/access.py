@@ -230,13 +230,15 @@ def member_details_allowed(org) -> bool:
 
 
 def superadmin_denial(discord_id: str | None) -> tuple[str, int] | None:
-    """Refuse callers other than the configured superadmin."""
+    """Refuse callers other than the superadmins in SYS_ADMIN, also when ACCESS_ENFORCE is false.
+
+    Report mode is for the rollout of the org officer checks. Superadmin routes add and remove orgs and set
+    their limits, so they always refuse.
+    """
     if is_superadmin(discord_id):
         return None
-    principal = current_principal() or Principal("none", discord_id)
-    if decide("not_superadmin", principal, None):
-        return "Superadmin access required!", 403
-    return None
+    decide("not_superadmin", current_principal() or Principal("none", discord_id), None)
+    return "Superadmin access required!", 403
 
 
 def visible_org_filter():

@@ -35,7 +35,7 @@ flask --app main org|jobs|config ...
 | Path | Holds |
 | --- | --- |
 | `main.py`, `bot_main.py`, `worker_main.py`, `mcp_main.py` | API, Discord bot, job worker (Postgres only), MCP server on port 8001 |
-| `core/` | Config, database (`core/db/`), jobs, tools, secrets, audit, logs, the in-process cache, HTTP hooks, Discord and RunPod clients, hosting providers (`core/hosting.py`) |
+| `core/` | Config, database (`core/db/`), jobs, tools, secrets, audit, logs, the in-process cache, HTTP hooks, Discord and RunPod clients, hosting providers (`core/hosting.py`), per-org limits (`core/limits.py`), server health (`core/host.py`) |
 | `modules/<name>/` | One module: `README.md`, `service.py`, `api.py`, `models.py`, `jobs.py`, `tools.py`, only the files it needs |
 | `modules/registry.py`, `modules/manifest.py` | Blueprint mounts and module switches; categories, the module catalog, the modules of a new org, and model, job and tool modules |
 | `apps/` | App templates that officers create apps from on the Hosting page. No Platform code |
@@ -54,6 +54,7 @@ Modules: accounts, agents, auth, bot, calendar, dashboard, event_webhook, feeds,
 - A new module is registered in each place that `docs/writing-a-module.md` lists. `tests/test_module_layout.py` checks them.
 - A service takes a database session and plain values and raises a `core.errors.ServiceError` subclass.
 - Use `officer_route`, `machine_route` and `member_view` from `modules/auth/routes.py` for new routes.
+- A module that stores data or calls a paid service declares its limits with `limits.declare(...)` and checks them. See `docs/limits.md`.
 - A model change needs an Alembic migration. `make ci` runs `alembic check`.
 - A route change updates `tests/contract/routes.txt` (`UPDATE_ROUTES=1`). A change to a route that a client uses follows the `api-contract` skill.
 - Use `get_logger(__name__)` from `core/log.py`. Do not use `print()`.

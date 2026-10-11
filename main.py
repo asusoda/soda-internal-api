@@ -67,6 +67,9 @@ if not app.secret_key:
     logger.warning("FLASK_SECRET_KEY is not set; using a random session key until restart")
     app.secret_key = secrets.token_hex(32)
 
+# A bigger body gets 413 before Flask reads it
+app.config["MAX_CONTENT_LENGTH"] = config.MAX_REQUEST_MB * 1_000_000
+
 # Officer, member and guild lookups go to Discord's REST API, so the API does not need the bot
 app.discord_directory = DiscordDirectory(config.BOT_TOKEN)
 

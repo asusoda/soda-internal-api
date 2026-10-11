@@ -96,6 +96,15 @@ def module_states(org: Organization) -> list[dict]:
     ]
 
 
+def limits(db, org: Organization) -> list[dict]:
+    """Each declared limit for the org, what it uses, and whether the limit's module is on for it."""
+    from core import limits as core_limits
+    from modules.manifest import load_tools
+
+    load_tools()  # imports every module's service, so each limit is declared
+    return [row | {"enabled": module_enabled(org, row["module"])} for row in core_limits.report(db, cast(int, org.id))]
+
+
 def new_org_switches() -> dict[str, bool]:
     """The module switches of a new org: on for the modules in NEW_ORG_MODULES, off for the others."""
     return {name: name in NEW_ORG_MODULES for name in OPTIONAL_MODULES}

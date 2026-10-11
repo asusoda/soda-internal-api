@@ -20,5 +20,6 @@ Deploys an org's own apps to pods on a hosting provider: register an app's manif
 - Tools: `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` (scope `apps:read`); `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) (scope `apps:manage`); `apps.deploy` (confirm, scope `apps:deploy`). Without `confirm=true`, deploy and rollback return their dry run. Tools marked confirm run only with `confirm=true`.
 - Webhook events: `app.deployed`, when a deploy becomes healthy or fails. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `runpod_apps`, `runpod_deployments`.
+- Limits: `runpod.apps`, checked before a new app is made. See [docs/limits.md](../../docs/limits.md).
 
 See [docs/modules/runpod-apps.md](../../docs/modules/runpod-apps.md).

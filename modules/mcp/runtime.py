@@ -3,6 +3,8 @@
 The tools are the modules' tools in core.tools.TOOLS and the tools of connected services that
 modules/integrations passes through to their MCP servers. The batch tool runs up to MAX_BATCH of those
 calls in one request; each call gets its own scope check, confirm step and audit entry.
+
+Each call of a tool, also inside a batch, counts against the org's mcp.calls_per_minute limit.
 """
 
 import time
@@ -10,7 +12,7 @@ from typing import Any
 
 import jsonschema
 
-from core import audit
+from core import audit, limits
 from core.cache import cache
 from core.errors import ServiceError
 from core.log import get_logger
@@ -21,6 +23,9 @@ from modules.organizations import service as organizations
 from modules.organizations.models import Organization
 
 logger = get_logger("tools")
+
+CALLS_LIMIT = "mcp.calls_per_minute"
+limits.declare(CALLS_LIMIT, "mcp", "Tool calls a minute (MCP and /api/tools)", 300, window="minute", unit="calls")
 
 BATCH = "batch"
 MAX_BATCH = 25
@@ -97,6 +102,8 @@ def call(db, caller: MachineCaller, name: str, arguments: dict | None, *, source
         org = _org(db, caller)
         if name == BATCH:
             return _batch(db, caller, arguments, source)
+        limits.consume(db, caller.organization_id, CALLS_LIMIT)
+        db.commit()
         spec = TOOLS.get(name)
         if spec is not None and not _usable(db, spec, org, caller):
             spec = None

@@ -9,7 +9,7 @@ Signs officers and members in with Discord and decides who can call a route: pla
 | `api.py` | Discord sign-in and callback, code exchange, refresh, revoke, logout, app tokens, `/machine/whoami` |
 | `decorators.py` | `auth_required`, `dual_auth_required`, `member_required`, `org_officer_required`, `superadmin_required`, `machine_scope_required` |
 | `routes.py` | `officer_route`, `machine_route`, `member_view` and `token_org` |
-| `access.py` | The caller of a request and the officer and superadmin checks; logs refusals until `ACCESS_ENFORCE=true` |
+| `access.py` | The caller of a request and the officer and superadmin checks; logs officer refusals until `ACCESS_ENFORCE=true`, and always refuses a caller who is not a superadmin on superadmin routes |
 | `tokens.py` | `TokenManager`: RS256 keys in `./data`, access, refresh and app tokens, revocation |
 | `machine_tokens.py`, `scopes.py` | Machine tokens (stored as a hash); the scopes that modules declare |
 | `clerk.py` | `verify_clerk_token` |

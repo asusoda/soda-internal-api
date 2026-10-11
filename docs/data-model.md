@@ -95,7 +95,7 @@ erDiagram
 
 | Module | Tables |
 | --- | --- |
-| core | `audit_log` (successful changes and job runs), `error_groups` (errors of each process and the dashboard, grouped), `org_secrets` (org secrets, encrypted with `SECRETS_KEY`), `webhooks` (outbound webhooks of each org and their events), `notifications` (each webhook event of an org, shown in Notifications) |
+| core | `audit_log` (successful changes and job runs), `error_groups` (errors of each process and the dashboard, grouped), `org_secrets` (org secrets, encrypted with `SECRETS_KEY`), `webhooks` (outbound webhooks of each org and their events), `notifications` (each webhook event of an org, shown in Notifications), `org_limits` (the superadmin's limit overrides for each org), `usage_counters` (what each org used of a rate limit in each window) |
 | organizations | `organizations`, `organization_configs` and `officers` (not used) |
 | users | `users`, `user_organization_memberships` |
 | points | `points` |
