@@ -10,6 +10,8 @@ import { AuditCard } from './audit';
 import { AddDialog, OfficerRoleDialog, RemoveDialog } from './dialogs';
 import { ErrorsCard } from './errors';
 import { PublishersCard } from './publishers';
+import { ResourcesCard } from './resources';
+import { ServerCard } from './server';
 import { GuildsCard, OrganizationsCard } from './tables';
 
 type Open = { kind: 'role' | 'remove'; org: OrganizationDetail } | { kind: 'add'; guild: AvailableGuild } | null;
@@ -28,7 +30,7 @@ function Superadmin() {
   const close = () => setOpen(null);
   return (
     <>
-      <PageHeader title="Superadmin" description="Every org on this deployment." />
+      <PageHeader title="Superadmin" description="Every org on this deployment, the server it runs on, and what each org may use." />
 
       {dashboard.error ? (
         <Card className="mb-6">
@@ -61,6 +63,10 @@ function Superadmin() {
         </StatGrid>
       ) : null}
 
+      <div className="mb-6">
+        <ServerCard />
+      </div>
+
       {!dashboard.error ? (
         <div className="mb-6 space-y-6">
           <Card>
@@ -75,6 +81,7 @@ function Superadmin() {
             <CardHeader title="Discord servers without an org" />
             {dashboard.isLoading ? <SkeletonRows rows={2} /> : <GuildsCard guilds={guilds} onAdd={(guild) => setOpen({ kind: 'add', guild })} />}
           </Card>
+          <ResourcesCard />
           {dashboard.data ? <PublishersCard orgs={orgs} /> : null}
         </div>
       ) : null}

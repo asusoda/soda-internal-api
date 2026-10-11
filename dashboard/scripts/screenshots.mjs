@@ -80,6 +80,21 @@ const SCREENS = [
   { name: 'activity', path: 'activity' },
   { name: 'explore', path: 'explore' },
   { name: 'settings', path: 'settings' },
+  {
+    name: 'settings-limits',
+    path: 'settings#limits',
+    before: async (page) => {
+      await page.getByRole('heading', { name: 'Limits' }).scrollIntoViewIfNeeded();
+    },
+  },
+  { name: 'superadmin', path: 'admin' },
+  {
+    name: 'superadmin-limits',
+    path: 'admin',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'Limits of Data Science Club' }).click();
+    },
+  },
   { name: 'webhooks', path: 'webhooks' },
   { name: 'uptime', path: 'uptime' },
   {
