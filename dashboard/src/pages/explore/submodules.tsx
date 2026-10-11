@@ -3,6 +3,7 @@ import { Check, Layers, Plus } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, ErrorNote, PageSkeleton, Spinner } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { count, timeAgo } from '../../lib/format';
+import { PAID_BY } from '../../lib/limits';
 import { useModuleCatalog } from '../../lib/queries';
 import type { Submodule } from '../../lib/types';
 
@@ -30,13 +31,29 @@ export function useSubscription(prefix: string) {
   });
 }
 
-// What a submodule brings: its pages, live queries and feeds.
-function parts(s: Submodule): string[] {
-  const out: string[] = [];
-  if (s.pages) out.push(`${count(s.pages)} pages`);
-  if (s.queries.length) out.push(`${s.queries.length} live ${s.queries.length === 1 ? 'query' : 'queries'}`);
-  if (s.feeds.length) out.push(`${s.feeds.length} ${s.feeds.length === 1 ? 'feed' : 'feeds'}`);
-  return out;
+const PART_NAME = { pages: ['page', 'pages'], queries: ['live query', 'live queries'], feeds: ['feed', 'feeds'] } as const;
+const PART_NOTE = {
+  pages: 'crawled once for every org, uses none of your limits',
+  queries: 'results become your knowledge sources',
+  feeds: 'a feed you make is your own',
+} as const;
+
+// What a submodule brings, and who pays for each part.
+function Parts({ s }: { s: Submodule }) {
+  if (!s.parts.length) return <p className="mt-3 text-xs text-muted">No parts yet</p>;
+  return (
+    <ul className="mt-3 space-y-1 text-xs">
+      {s.parts.map((p) => (
+        <li key={p.kind} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="tabular-nums">
+            {count(p.count)} {PART_NAME[p.kind][p.count === 1 ? 0 : 1]}
+          </span>
+          <Badge tone={p.paid_by === 'shared' ? 'ok' : 'muted'}>{PAID_BY[p.paid_by].title}</Badge>
+          <span className="text-muted">{PART_NOTE[p.kind]}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function matchesQuery(s: Submodule, query: string): boolean {
@@ -78,7 +95,7 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
                   </div>
                   {s.subscribed ? <Badge tone="ok">Subscribed</Badge> : null}
                 </div>
-                <p className="mt-3 text-xs text-muted">{parts(s).join(' · ') || 'No parts yet'}</p>
+                <Parts s={s} />
                 {s.modules.length ? (
                   <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Modules that read it">
                     {s.modules.map((name) => {

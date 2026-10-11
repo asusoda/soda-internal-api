@@ -21,6 +21,8 @@ export type Integration = {
   fields: IntegrationField[];
   editable: boolean;
   source: 'org' | 'deployment' | null;
+  // With the deployment's keys, the org's use counts against these limits
+  metered_by: { key: string; label: string }[];
   testable: boolean;
   used_by: string[];
   // The titles of the modules on Explore that need the integration

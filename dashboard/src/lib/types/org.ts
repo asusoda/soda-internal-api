@@ -38,6 +38,8 @@ export type CatalogModule = {
   ready: boolean;
   needs: ModuleNeed[];
   submodules: ModuleSubmodule[];
+  // The limits this module's use counts against
+  limits: { key: string; label: string; window: string | null; paid_by: 'org' | 'metered' }[];
 };
 
 export type ModuleCatalog = { categories: string[]; modules: CatalogModule[] };
@@ -104,4 +106,6 @@ export type Submodule = {
   subscribers: number;
   // The modules that read the submodule
   modules: string[];
+  // What the submodule brings and who pays for each part
+  parts: { kind: 'pages' | 'queries' | 'feeds'; count: number; paid_by: 'org' | 'shared'; module: string }[];
 };

@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from core import net, secrets
+from core import limits, net, secrets
 from core.errors import ServiceError
 from core.log import get_logger
 
@@ -109,6 +109,8 @@ def status(db, org_id: int) -> list[dict]:
                 "fields": fields,
                 "editable": bool(fields),
                 "source": "org" if org_set else "deployment" if deployment else None,
+                # With the deployment's keys, the org's use counts against these limits
+                "metered_by": limits.metering(i.key) if not org_set and deployment else [],
                 "testable": i.test is not None,
                 "used_by": sorted(i.used_by),
             }

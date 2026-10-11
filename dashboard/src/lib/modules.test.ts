@@ -12,6 +12,7 @@ const hosting: CatalogModule = {
   ready: false,
   needs: [{ key: 'runpod', label: 'RunPod', kind: 'integration', optional: false, connected: false }],
   submodules: [{ name: 'asu', title: 'ASU', description: 'Campus pages' }],
+  limits: [{ key: 'runpod.apps', label: 'Hosting apps', window: null, paid_by: 'org' }],
 };
 
 describe('matches', () => {

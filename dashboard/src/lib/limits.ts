@@ -1,7 +1,7 @@
 // How the dashboard shows a limit and what an org uses of it.
 
 import { count, type Tone } from './format';
-import type { LimitRow, LimitWindow } from './types';
+import type { LimitRow, LimitWindow, PaidBy } from './types';
 
 // The share of a limit at which the dashboard marks it, as NEAR in modules/superadmin/service.py.
 export const NEAR = 0.8;
@@ -35,3 +35,10 @@ export function limitTone(row: Pick<LimitRow, 'used' | 'value'>): Tone {
 export function byUse(rows: LimitRow[]): LimitRow[] {
   return [...rows].sort((a, b) => (share(b) ?? -1) - (share(a) ?? -1) || a.label.localeCompare(b.label));
 }
+
+// How the dashboard names who pays.
+export const PAID_BY: Record<PaidBy, { title: string; text: string }> = {
+  org: { title: 'Your own', text: "Your org's own data and apps." },
+  shared: { title: 'Shared', text: 'Made once by Platform for every org. Uses none of your limits.' },
+  metered: { title: 'Shared, metered', text: 'A shared service your org uses. Counts against your limits as a rate.' },
+};

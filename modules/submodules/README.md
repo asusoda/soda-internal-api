@@ -15,7 +15,7 @@ See [submodules/README.md](../../submodules/README.md) to write one.
 | --- | --- |
 | `catalog.py` | Loads each folder in `submodules/` once per process and registers its extractors with knowledge |
 | `models.py` | `Submodule` (one row for each submodule) and `SubmoduleSubscription` |
-| `service.py` | `list_submodules()`, `subscribe()`, `unsubscribe()`, `sync_shared()` (the shared sources of a submodule), `sync()` (the older name of `subscribe()`), `overview()` for the superadmin, `query()` and the indexing of query results; declares `submodules:read`, `submodules:manage` and the `submodules.subscriptions` limit |
+| `service.py` | `list_submodules()`, `subscribe()`, `unsubscribe()`, `sync_shared()` (the shared sources of a submodule), `sync()` (the older name of `subscribe()`), `overview()` for the superadmin, the parts of each submodule with who pays for each (`_parts()`), `query()` and the indexing of query results; declares `submodules:read`, `submodules:manage` and the `submodules.subscriptions` limit |
 | `api.py`, `tools.py` | Machine routes to list submodules, subscribe and end a subscription, and list and run live queries; the older sync routes and `/api/asu` routes; the `submodules.*` tools |
 | `types.py` | `Submodule`, `Source`, `QuerySource`, `QueryParam`, `Feed`, `QueryError` |
 | `queries.py`, `params.py` | Parameter checks and the run of one live query; helpers that map parameters to URL values |

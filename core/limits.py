@@ -10,6 +10,10 @@ A module declares its limits with declare(). There are two kinds:
 The value of a limit is, in order: the org's override (the superadmin sets it), LIMIT_<KEY> in .env (the key in
 upper case, with _ for . and -), the declared default. None means no limit. An org over a limit gets a LimitError:
 409 for a count, 429 for a rate. consume() flushes and does not commit, so a call that fails later is not counted.
+
+Each limit says who pays for what it counts (paid_by), so the dashboard can tell an org what uses its budget:
+"org" for the org's own data and apps, "metered" for a shared service the org uses, such as the deployment's
+embedder. Shared content, such as a submodule's pages, is "shared" and has no limit of an org.
 No Flask here.
 """
 
@@ -40,6 +44,11 @@ WINDOWS = {
 KEEP = datetime.timedelta(days=8)
 MAX_VALUE = 10**12
 UNLIMITED = "unlimited"
+PAID_BY = {
+    "org": "The org's own data and apps",
+    "shared": "Made once by the deployment for every org; counts against no org",
+    "metered": "A shared service the org uses; counts against the org as a rate",
+}
 
 
 class LimitError(ServiceError):
@@ -59,6 +68,10 @@ class Limit:
     unit: str = ""
     # Counts what the org has now. Required for a count limit.
     usage: Callable[[Any, int], int] | None = None
+    # org or metered (see PAID_BY)
+    paid_by: str = "org"
+    # Integrations whose deployment default this limit meters, such as ("embeddings",)
+    integrations: tuple[str, ...] = ()
 
 
 LIMITS: dict[str, Limit] = {}
@@ -102,13 +115,18 @@ def declare(
     window: str | None = None,
     unit: str = "",
     usage: Callable[[Any, int], int] | None = None,
+    paid_by: str | None = None,
+    integrations: tuple[str, ...] = (),
 ) -> None:
-    """Add a limit. A count limit (no window) needs usage."""
+    """Add a limit. A count limit (no window) needs usage. paid_by defaults to org for a count, metered for a rate."""
     if window is not None and window not in WINDOWS:
         raise ValueError(f"window must be one of {', '.join(WINDOWS)}")
     if window is None and usage is None:
         raise ValueError(f"The count limit {key} needs a usage function")
-    LIMITS[key] = Limit(key, module, label, default, window, unit, usage)
+    paid = paid_by or ("metered" if window else "org")
+    if paid not in ("org", "metered"):
+        raise ValueError("paid_by must be org or metered")
+    LIMITS[key] = Limit(key, module, label, default, window, unit, usage, paid, integrations)
 
 
 def env_name(key: str) -> str:
@@ -221,6 +239,8 @@ def catalog() -> list[dict]:
             "unit": spec.unit,
             "window": spec.window,
             "default": _env_value(spec),
+            "paid_by": spec.paid_by,
+            "integrations": list(spec.integrations),
         }
         for spec in sorted(LIMITS.values(), key=lambda s: (s.module, s.key))
     ]
@@ -284,3 +304,21 @@ def prune() -> None:
     with session() as db:
         deleted = db.query(UsageCounter).filter(UsageCounter.window_start < utcnow() - KEEP).delete()
     logger.info("usage counters pruned rows=%s", deleted)
+
+
+def metering(integration: str) -> list[dict]:
+    """The limits (key and label) that meter the deployment default of the integration."""
+    return [
+        {"key": spec.key, "label": spec.label}
+        for spec in sorted(LIMITS.values(), key=lambda s: s.key)
+        if integration in spec.integrations
+    ]
+
+
+def for_module(module: str) -> list[dict]:
+    """The module's limits from the catalog: key, label, window and paid_by."""
+    return [
+        {"key": e["key"], "label": e["label"], "window": e["window"], "paid_by": e["paid_by"]}
+        for e in catalog()
+        if e["module"] == module
+    ]
