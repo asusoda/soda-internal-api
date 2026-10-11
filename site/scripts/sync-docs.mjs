@@ -40,6 +40,7 @@ const sections = {
       ['operations.md', 'operations'],
       ['frontends.md', 'frontends'],
       ['webhooks.md', 'webhooks'],
+      ['limits.md', 'limits'],
     ],
   },
   project: {

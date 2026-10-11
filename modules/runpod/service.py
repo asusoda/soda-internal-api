@@ -19,7 +19,7 @@ import jsonschema
 import requests
 import yaml
 
-from core import hosting, secrets, webhooks
+from core import hosting, limits, secrets, webhooks
 from core.errors import ServiceError
 from core.integrations import github, registry
 from core.log import get_logger
@@ -104,6 +104,17 @@ MANIFEST_SCHEMA: dict = {
     "oneOf": [{"required": ["gpu"]}, {"required": ["cpu"]}],
     "additionalProperties": False,
 }
+
+
+APPS_LIMIT = "runpod.apps"
+limits.declare(
+    APPS_LIMIT,
+    "runpod",
+    "Hosting apps",
+    25,
+    unit="apps",
+    usage=lambda db, org_id: db.query(App).filter_by(organization_id=org_id).count(),
+)
 
 
 class AppError(ServiceError, ValueError):
@@ -263,6 +274,7 @@ def put_app(
     new = app is None
     chosen = _provider(provider).name if provider is not None else None
     if app is None:
+        limits.check(db, org_id, APPS_LIMIT)
         app = App(organization_id=org_id, name=name, provider=chosen or hosting.DEFAULT)
         db.add(app)
     elif chosen is not None and chosen != app.provider:

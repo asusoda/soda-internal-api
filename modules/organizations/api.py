@@ -241,6 +241,20 @@ def get_organization_modules(org_id):
         db.close()
 
 
+@organizations_blueprint.route("/<int:org_id>/limits", methods=["GET"])
+@auth_required
+def get_organization_limits(org_id):
+    """The org's limits and what it uses, for the modules it has on. Only the superadmin changes them."""
+    db = next(db_connect.get_db())
+    try:
+        org = db.query(Organization).filter_by(id=org_id, is_active=True).first()
+        if not org:
+            return jsonify({"error": "Organization not found"}), 404
+        return jsonify({"limits": [row for row in service.limits(db, org) if row["enabled"]]})
+    finally:
+        db.close()
+
+
 @organizations_blueprint.route("/<int:org_id>/modules", methods=["PUT"])
 @auth_required
 def update_organization_modules(org_id):

@@ -10,12 +10,13 @@ from typing import Any
 
 from sqlalchemy import func
 
+from core import limits
 from core.jobs import defer
 from core.log import get_logger
 from modules.knowledge import crawl, fetch
 from modules.knowledge.embedder import Embedder
 from modules.knowledge.models import KnowledgeSource, KnowledgeVersion
-from modules.knowledge.service import KnowledgeError, can_publish
+from modules.knowledge.service import SOURCES_LIMIT, KnowledgeError, can_publish, new_source
 from modules.submodules import catalog, queries
 from modules.submodules.search import query_scope, settings
 from modules.submodules.types import QueryError, Submodule
@@ -69,6 +70,8 @@ def sync(db, org_id: int, org_prefix: str, name: object) -> dict:
         )
     }
     counts = {"added": 0, "updated": 0, "retired": 0}
+    adding = sum(1 for spec in submodule.sources if submodule.key_prefix + spec.key not in existing)
+    limits.check(db, org_id, SOURCES_LIMIT, add=adding)
     for spec in submodule.sources:
         key = submodule.key_prefix + spec.key
         source = existing.pop(key, None)
@@ -174,11 +177,7 @@ def index_result(
         source = db.query(KnowledgeSource).filter_by(organization_id=org_id, key=key).first()
         if source is None:
             category = next((q.category for q in owner.queries if q.key == query_key), "live")
-            source = KnowledgeSource(
-                organization_id=org_id, key=key, url=url, category=category, public=can_publish(db, org_prefix)
-            )
-            db.add(source)
-            db.flush()
+            source = new_source(db, org_id, key=key, url=url, category=category, public=can_publish(db, org_prefix))
     content_hash = hashlib.sha256(text.encode()).hexdigest()
     previous = db.query(KnowledgeVersion).filter_by(id=source.current_version_id).first()
     if previous is not None and previous.content_hash == content_hash:

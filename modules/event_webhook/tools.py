@@ -75,7 +75,7 @@ def webhooks_test(db, org, caller, id: int):
     confirm=True,
     input_schema={
         "type": "object",
-        "properties": {"ids": {"type": "array", "items": WEBHOOK_ID, "minItems": 1, "maxItems": service.MAX_WEBHOOKS}},
+        "properties": {"ids": {"type": "array", "items": WEBHOOK_ID, "minItems": 1, "maxItems": service.MAX_IDS}},
         "required": ["ids"],
         "additionalProperties": False,
     },

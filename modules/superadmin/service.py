@@ -1,8 +1,11 @@
-"""Superadmin logic: guilds without an org, an officer's orgs, guild roles and new orgs. No Flask here."""
+"""Superadmin logic: guilds without an org, an officer's orgs, guild roles, new orgs, the server's health and each
+org's limits. No Flask here."""
 
 import re
-from typing import Any
+from typing import Any, cast
 
+from core import host, jobs
+from core import limits as core_limits
 from core.config import superadmin_ids
 from core.integrations.discord import DiscordUnavailable
 from core.log import get_logger
@@ -75,3 +78,46 @@ def new_organization(guild: dict) -> Organization:
         icon_url=guild["icon_url"],
         config={**OrganizationSettings().to_dict(), "modules": organizations.new_org_switches()},
     )
+
+
+# A limit is near when the org uses this share of it or more
+NEAR = 0.8
+
+
+def server(db, bot_ready: bool | None) -> dict:
+    """The server's health, whether the Discord bot answers, and the job queue."""
+    return host.stats(db) | {
+        "bot_ready": bot_ready,
+        "jobs": {"backend": jobs.queue_backend(), "queue": jobs.queue_counts(db)},
+    }
+
+
+def _near(row: dict) -> bool:
+    return row["value"] is not None and row["enabled"] and row["used"] >= NEAR * max(row["value"], 1)
+
+
+def org_limits(db, org: Organization) -> dict:
+    """The org, its limits with what it uses, and its overrides."""
+    rows = organizations.limits(db, org)
+    return {
+        "org": {"id": org.id, "name": org.name, "prefix": org.prefix, "is_active": org.is_active},
+        "limits": rows,
+        "near": sorted(row["key"] for row in rows if _near(row)),
+        "overrides": core_limits.overrides_of(db, cast(int, org.id)),
+    }
+
+
+def all_limits(db) -> dict:
+    """Every declared limit, and each org's limits and use."""
+    orgs = db.query(Organization).order_by(Organization.name).all()
+    return {
+        "catalog": core_limits.catalog(),
+        "near": NEAR,
+        "orgs": [org_limits(db, org) for org in orgs],
+    }
+
+
+def set_org_limits(db, org: Organization, changes: object, actor: str | None) -> dict:
+    """Set the org's overrides. Commits."""
+    core_limits.set_values(db, cast(int, org.id), changes, actor=actor)
+    return org_limits(db, org)

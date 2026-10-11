@@ -14,7 +14,7 @@ Checks the org's sites and Hosting apps on a schedule. Officers manage monitors 
 | `interval_minutes` | `5` | 1 to 1440 |
 | `enabled` | `true` | `false` pauses the monitor |
 
-An org has 50 monitors or fewer. A change of target or expected status, and a resume, clear the state.
+An org has at most `uptime.monitors` monitors, 50 by default (see [Limits](../limits.md)). A change of target or expected status, and a resume, clear the state.
 
 An `app` target uses the health URL of the app's pod (`health.port` and `health.path` of its manifest). If the app has no pod, the check uses the `url` of its manifest.
 

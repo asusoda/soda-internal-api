@@ -16,6 +16,7 @@ from typing import Any, cast
 from sqlalchemy import func, or_
 from sqlalchemy.orm.attributes import flag_modified
 
+from core import limits
 from core.errors import ServiceError
 from core.time import iso, utcnow
 from modules.auth import scopes
@@ -38,6 +39,48 @@ KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$")
 
 class KnowledgeError(ServiceError, ValueError):
     pass
+
+
+def source_count(db, org_id: int) -> int:
+    return db.query(KnowledgeSource).filter_by(organization_id=org_id).count()
+
+
+def passage_count(db, org_id: int) -> int:
+    """The passages of the current versions of the org's sources."""
+    total = (
+        db.query(func.coalesce(func.sum(KnowledgeVersion.chunk_count), 0))
+        .join(KnowledgeSource, KnowledgeSource.current_version_id == KnowledgeVersion.id)
+        .filter(KnowledgeSource.organization_id == org_id)
+        .scalar()
+    )
+    return int(total or 0)
+
+
+SOURCES_LIMIT = "knowledge.sources"
+PASSAGES_LIMIT = "knowledge.passages"
+UPLOADS_LIMIT = "knowledge.uploads_per_day"
+JOBS_LIMIT = "knowledge.jobs_per_day"
+limits.declare(SOURCES_LIMIT, "knowledge", "Sources", 1000, unit="sources", usage=source_count)
+limits.declare(PASSAGES_LIMIT, "knowledge", "Passages", 250_000, unit="passages", usage=passage_count)
+limits.declare(UPLOADS_LIMIT, "knowledge", "Files uploaded a day", 500, window="day", unit="files")
+limits.declare(
+    JOBS_LIMIT, "knowledge", "Crawls, re-indexes and re-embeds started by hand a day", 200, window="day", unit="jobs"
+)
+
+
+def check_passages(db, source: KnowledgeSource, count: int) -> None:
+    """Raise LimitError when count passages in place of the source's current ones take the org over its limit."""
+    old = db.query(KnowledgeVersion.chunk_count).filter_by(id=source.current_version_id).scalar()
+    limits.check(db, cast(int, source.organization_id), PASSAGES_LIMIT, add=count - int(old or 0))
+
+
+def new_source(db, org_id: int, **fields) -> KnowledgeSource:
+    """Add a source to the session, within the org's source limit. Flushes."""
+    limits.check(db, org_id, SOURCES_LIMIT)
+    source = KnowledgeSource(organization_id=org_id, **fields)
+    db.add(source)
+    db.flush()
+    return source
 
 
 # Org config key for rights only the superadmin sets
@@ -209,9 +252,7 @@ def put_source(db, org_id: int, org_prefix: str, key: str, data: dict, embedder:
 
     source = db.query(KnowledgeSource).filter_by(organization_id=org_id, key=key).first()
     if source is None:
-        source = KnowledgeSource(organization_id=org_id, key=key, category=category)
-        db.add(source)
-        db.flush()
+        source = new_source(db, org_id, key=key, category=category)
     current = db.query(KnowledgeVersion).filter_by(id=source.current_version_id).first()
     source.title, source.url, source.category, source.public = title, url, category, public
     source.updated_at = utcnow()
@@ -223,6 +264,7 @@ def put_source(db, org_id: int, org_prefix: str, key: str, data: dict, embedder:
         db.commit()
         return {"source": _source_dict(source, current), "changed": False}
 
+    check_passages(db, source, len(rows))
     model = None
     if rows[0]["embedding"] is not None:
         model = _text(data.get("embedding_model"), "embedding_model", 200)
@@ -249,7 +291,11 @@ def _embed(rows: list[dict], embedder: Embedder | None) -> str | None:
 def _write_version(
     db, source: KnowledgeSource, rows: list[dict], content_hash: str, model: str | None, text_chars: int | None = None
 ) -> KnowledgeVersion:
-    """Store rows as the source's new current version and drop the old ones. Flushes, does not commit."""
+    """Store rows as the source's new current version and drop the old ones. Flushes, does not commit.
+
+    Raises LimitError when the new version would take the org over its passage limit.
+    """
+    check_passages(db, source, len(rows))
     version = KnowledgeVersion(
         source_id=source.id,
         content_hash=content_hash,

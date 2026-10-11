@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, request, session
 
 from core.db import db_connect
+from core.errors import ServiceError
 from core.log import get_logger
-from modules.auth.access import discord_directory
+from modules.auth.access import current_principal, discord_directory
 from modules.auth.decorators import superadmin_required
 from modules.auth.routes import respond
 from modules.auth.tokens import token_manager
@@ -16,9 +17,11 @@ superadmin_blueprint = Blueprint("superadmin", __name__)
 
 
 @superadmin_blueprint.route("/check", methods=["GET"])
-@superadmin_required
 def check_superadmin():
-    """Whether the caller is the superadmin: 200 when yes, 403 when no."""
+    """Whether the caller is the superadmin: 200 when yes, 403 when no.
+
+    It answers for the caller's own valid token only, so it does not need superadmin_required.
+    """
     try:
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -288,5 +291,64 @@ def change_errors(action):
     try:
         changed = error_log.set_resolved(db, ids, resolved=action == "resolve", actor="superadmin")
         return jsonify({"changed": changed})
+    finally:
+        db.close()
+
+
+def _org_or_404(db, org_id: int) -> Organization:
+    org = db.query(Organization).filter_by(id=org_id).first()
+    if org is None:
+        raise ServiceError("Organization not found", 404)
+    return org
+
+
+@superadmin_blueprint.route("/server", methods=["GET"])
+@superadmin_required
+def get_server():
+    """The server's health: load, memory, disk, database size, this container, the bot and the job queue."""
+    directory = discord_directory()
+    bot_ready = None if directory is None else bool(directory.is_ready())
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, lambda db: service.server(db, bot_ready))
+    finally:
+        db.close()
+
+
+@superadmin_blueprint.route("/limits", methods=["GET"])
+@superadmin_required
+def get_limits():
+    """Every declared limit, and each org's limits, use and overrides."""
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, service.all_limits)
+    finally:
+        db.close()
+
+
+@superadmin_blueprint.route("/limits/<int:org_id>", methods=["GET"])
+@superadmin_required
+def get_org_limits(org_id):
+    """One org's limits, use and overrides."""
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, lambda db: service.org_limits(db, _org_or_404(db, org_id)))
+    finally:
+        db.close()
+
+
+@superadmin_blueprint.route("/limits/<int:org_id>", methods=["PUT"])
+@superadmin_required
+def put_org_limits(org_id):
+    """Set an org's limits. Body: {"limits": {"knowledge.sources": 200, "godfather.pods": null}}.
+
+    A number sets the limit, null removes the limit, "default" goes back to the default.
+    """
+    changes = (request.get_json(silent=True) or {}).get("limits")
+    principal = current_principal()
+    actor = f"superadmin:{principal.discord_id}" if principal and principal.discord_id else "superadmin"
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, lambda db: service.set_org_limits(db, _org_or_404(db, org_id), changes, actor))
     finally:
         db.close()

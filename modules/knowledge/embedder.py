@@ -7,14 +7,18 @@ runs on text alone. If the base URL is OpenRouter's and no embeddings key is set
 the org's OpenRouter key, else OPENROUTER_API_KEY. The query prefix is put before search queries, for
 models that embed queries and documents differently (Qwen3-Embedding takes an instruction). Search
 compares only vectors of the same model, so orgs with different models do not mix.
+
+An org's embedder counts each text it embeds against the org's knowledge.embeddings_per_day limit, also for
+agent memory, whichever service it uses.
 """
 
 import os
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 
 import requests
 
-from core import net, secrets
+from core import limits, net, secrets
 from core.integrations import openrouter
 from core.integrations.registry import Field, Integration, IntegrationError, org_values, register, use
 from core.log import get_logger
@@ -34,6 +38,17 @@ class EmbeddingError(RuntimeError):
     pass
 
 
+EMBEDDINGS_LIMIT = "knowledge.embeddings_per_day"
+limits.declare(
+    EMBEDDINGS_LIMIT,
+    "knowledge",
+    "Texts embedded a day (knowledge and agent memory)",
+    500_000,
+    window="day",
+    unit="texts",
+)
+
+
 @dataclass(frozen=True)
 class Embedder:
     url: str
@@ -42,8 +57,12 @@ class Embedder:
     query_prefix: str = ""
     # An org's own service must stay on a public address; the deployment's may be on the private network
     public_only: bool = False
+    # Called with the number of texts before each embed; raises when the org is over its limit
+    meter: Callable[[int], None] | None = field(default=None, compare=False, repr=False)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        if self.meter is not None:
+            self.meter(len(texts))
         vectors: list[list[float]] = []
         for start in range(0, len(texts), BATCH):
             vectors.extend(self._post(texts[start : start + BATCH]))
@@ -96,10 +115,16 @@ def configured() -> Embedder | None:
 
 
 def for_org(db, org_id: int) -> Embedder | None:
-    """The org's own embeddings service, else the deployment default, else None."""
+    """The org's own embeddings service, else the deployment default, else None. It counts against the org's limit."""
+
+    def meter(count: int) -> None:
+        limits.consume(db, org_id, EMBEDDINGS_LIMIT, count)
+
     saved = org_values(db, org_id, "embeddings")
     if saved is None:
-        return configured()
+        default = configured()
+        # An embedder that is not an Embedder (a stand-in in tests) is used as it is, without the meter
+        return replace(default, meter=meter) if isinstance(default, Embedder) else default
     api_key = saved.get(KEY_SECRET)
     if api_key is None and openrouter.is_openrouter(saved[URL_SECRET]):
         api_key = secrets.get_secret(db, org_id, openrouter.SECRET_NAME)
@@ -109,6 +134,7 @@ def for_org(db, org_id: int) -> Embedder | None:
         api_key=api_key,
         query_prefix=saved.get(PREFIX_SECRET, ""),
         public_only=True,
+        meter=meter,
     )
 
 
@@ -127,9 +153,12 @@ def _test(db, org_id: int) -> str:
 
 def _queue_reembed(org_id: int) -> None:
     """Embed the org's passages again with the service it saved. Passages already on its model are skipped."""
-    from core.jobs import defer
+    from core.jobs import JobBusy, defer
 
-    defer("knowledge.reembed", org_id=org_id)
+    try:
+        defer("knowledge.reembed", org_id=org_id)
+    except JobBusy:
+        logger.info("re-embed already queued org=%s", org_id)
 
 
 register(

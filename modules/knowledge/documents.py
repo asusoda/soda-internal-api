@@ -14,12 +14,13 @@ from defusedxml import ElementTree
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
+from core import limits
 from core.time import utcnow
 from modules.knowledge import extract, runs, settings
 from modules.knowledge.crawl import index_text
 from modules.knowledge.embedder import Embedder
 from modules.knowledge.models import KnowledgeChunk, KnowledgeSource, KnowledgeVersion
-from modules.knowledge.service import KEY_PATTERN, KnowledgeError, _text, can_publish
+from modules.knowledge.service import KEY_PATTERN, UPLOADS_LIMIT, KnowledgeError, _text, can_publish, new_source
 
 MAX_FILES = 20
 MAX_FILE_BYTES = 10_000_000
@@ -103,8 +104,13 @@ def upload(
     data: dict,
     embedder: Embedder | None,
 ) -> dict:
-    """Index each file as a source. A file that fails does not stop the others. Commits after each file."""
+    """Index each file as a source. A file that fails does not stop the others. Commits after each file.
+
+    The files count against the org's knowledge.uploads_per_day limit, also the ones that fail.
+    """
     check(uploads)
+    limits.consume(db, org_id, UPLOADS_LIMIT, len(uploads))
+    db.commit()
     category = _text(data.get("category") or "documents", "category", 100) or "documents"
     folder = data.get("folder") or "upload"
     if not isinstance(folder, str) or not FOLDER_PATTERN.match(folder):
@@ -135,7 +141,7 @@ def _index_one(db, org_id: int, key: str, item: Upload, category: str, public: b
     if error is None:
         try:
             outcome = _index(db, org_id, key, item, category, public, embedder)
-        except KnowledgeError as e:
+        except (KnowledgeError, limits.LimitError) as e:
             db.rollback()
             error = e.message
     if error is not None:
@@ -173,9 +179,7 @@ def _index(db, org_id: int, key: str, item: Upload, category: str, public: bool,
 
     source = db.query(KnowledgeSource).filter_by(organization_id=org_id, key=key).first()
     if source is None:
-        source = KnowledgeSource(organization_id=org_id, key=key, category=category, public=public)
-        db.add(source)
-        db.flush()
+        source = new_source(db, org_id, key=key, category=category, public=public)
     source.category, source.public, source.updated_at = category, public, utcnow()
     current = db.query(KnowledgeVersion).filter_by(id=source.current_version_id).first()
     if current is not None and current.content_hash == content_hash:

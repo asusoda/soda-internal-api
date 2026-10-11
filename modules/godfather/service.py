@@ -15,7 +15,7 @@ from typing import Any, cast
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
-from core import hosting, secrets, webhooks
+from core import hosting, limits, secrets, webhooks
 from core.errors import ServiceError
 from core.integrations import registry
 from core.log import get_logger
@@ -60,6 +60,17 @@ CONNECTION_KEEP_DAYS = 90
 RECENT_CONNECTIONS = 100
 # The most names one request looks up in the member directory.
 NAME_LOOKUPS = 50
+
+
+PODS_LIMIT = "godfather.pods"
+limits.declare(
+    PODS_LIMIT,
+    "godfather",
+    "Pods",
+    10,
+    unit="pods",
+    usage=lambda db, org_id: db.query(ComputePod).filter_by(organization_id=org_id).count(),
+)
 
 
 class GodfatherError(ServiceError):
@@ -327,6 +338,7 @@ def create_pod(
     if not isinstance(data, dict):
         raise GodfatherError("Send a JSON object")
     data = cast(dict, data)
+    limits.check(db, org_id, PODS_LIMIT)
     provider = _provider(data.get("provider", hosting.DEFAULT))
     client = client or _client(db, org_id, provider.name)
     backend_public, _ = keypair(db, org_id, BACKEND_KEY)

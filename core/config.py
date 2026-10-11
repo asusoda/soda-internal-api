@@ -78,6 +78,9 @@ class Config:
             # Access checks (modules/auth/access.py): false logs refusals, true enforces them
             self.ACCESS_ENFORCE = os.environ.get("ACCESS_ENFORCE", "false").lower() == "true"
 
+            # The largest request body in MB. Godfather file transfers are up to 100 MB. A bigger body gets 413.
+            self.MAX_REQUEST_MB = int(os.environ.get("MAX_REQUEST_MB", "110"))
+
             # Godfather (modules/godfather): the CLI name members see in messages, and the default pod image.
             # The COMPUTE_ names are the names before the rename.
             self.GODFATHER_CLI_NAME = os.environ.get("GODFATHER_CLI_NAME") or os.environ.get(

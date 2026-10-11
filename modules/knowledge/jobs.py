@@ -4,7 +4,7 @@ from core.db import db_connect
 from core.jobs import job
 
 
-@job("knowledge.crawl_due", cron="*/10 * * * *", audit=False)
+@job("knowledge.crawl_due", cron="*/10 * * * *", audit=False, once=())
 def crawl_due() -> None:
     """Crawl every enabled source whose fetch_every_hours has passed since its last attempt."""
     from modules.knowledge import crawl, embedder
@@ -18,7 +18,7 @@ def crawl_due() -> None:
         db.close()
 
 
-@job("knowledge.crawl_source")
+@job("knowledge.crawl_source", once=("org_id", "key"))
 def crawl_source(org_id: int, key: str, force: bool = False, org_prefix: str | None = None) -> None:
     """Crawl one source now, on request."""
     from modules.knowledge import crawl, embedder
@@ -30,7 +30,7 @@ def crawl_source(org_id: int, key: str, force: bool = False, org_prefix: str | N
         db.close()
 
 
-@job("knowledge.reindex")
+@job("knowledge.reindex", once=("org_id",))
 def reindex(org_id: int) -> None:
     """Crawl every crawled source of the org again with force, so new chunk settings apply."""
     from modules.knowledge import crawl, embedder
@@ -43,7 +43,7 @@ def reindex(org_id: int) -> None:
         db.close()
 
 
-@job("knowledge.reembed")
+@job("knowledge.reembed", once=("org_id",))
 def reembed(org_id: int, org_prefix: str | None = None) -> None:
     """Embed every passage of the org that is not on the org's current embedding model."""
     from modules.knowledge import embedder, reembed

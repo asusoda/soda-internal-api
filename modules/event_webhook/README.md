@@ -18,5 +18,6 @@ Sends events of the org, such as a failed job or a site that is down, to the web
 - Jobs: none.
 - Tools: `webhooks.list`, `webhooks.save`, `webhooks.test`, `webhooks.delete` (confirm) (scope `webhooks:manage`). Webhook URLs are never returned. Tools marked confirm run only with `confirm=true`.
 - Tables: none here. The webhooks are in `webhooks` (`core/webhooks.py`).
+- Limits: `event_webhook.webhooks` (default 20). See [docs/limits.md](../../docs/limits.md).
 
 See [docs/webhooks.md](../../docs/webhooks.md).

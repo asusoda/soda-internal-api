@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import or_, text
 
+from core import limits
 from core.log import get_logger
 from core.time import iso
 from modules.knowledge import settings
@@ -156,8 +157,9 @@ def search(
     elif embedder is not None and tuning["mode"] != "text":
         try:
             vector, model = _vector(embedder.embed_query(query_text), "query embedding"), embedder.model
-        except (EmbeddingError, KnowledgeError):
-            logger.warning("query embedding failed, searching on text only")
+            db.commit()  # keeps the count of the embedded query
+        except (EmbeddingError, KnowledgeError, limits.LimitError):
+            logger.warning("query embedding failed or is over the org's limit, searching on text only")
 
     # Mode text drops the vector leg. Mode vector drops the text leg when a vector is at hand.
     if tuning["mode"] == "text":

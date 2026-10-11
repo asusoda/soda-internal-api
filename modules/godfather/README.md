@@ -22,6 +22,7 @@ Terminate also forgets a pod that was already deleted on RunPod, such as one del
 
 - Routes: `/api/compute`, behind the `godfather` switch. The prefix and the `compute_*` tables keep the old module name, because the Godfather CLI calls these routes. Officer routes need an officer of the org. Member routes need a Discord session or a CLI token with `godfather:connect`.
 - Jobs: `godfather.schedule`, schedule `*/5 * * * *`.
+- Limits: `godfather.pods`, checked before a pod is made. See [docs/limits.md](../../docs/limits.md).
 - Tools, scope `godfather:manage`: `godfather.pods`, `godfather.pod_members`, `godfather.connected`, `godfather.pod_action` (confirm), `godfather.create_pod` (confirm), `godfather.update_pod`, `godfather.settings`, `godfather.update_settings`, `godfather.sessions`, `godfather.add_session` (confirm), `godfather.delete_session`, `godfather.list_files`, `godfather.read_file`, `godfather.write_file` (confirm), `godfather.make_folder`, `godfather.move_file`, `godfather.delete_file` (confirm). Tools marked confirm run only with `confirm=true`.
 - Webhook events: `pod.started` and `pod.stopped`, from `act()` and the session schedule. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `compute_pods`, `compute_keys`, `compute_sessions`, `compute_connections`. `connect()` writes a `compute_connections` row for each certificate and deletes the org's rows older than 90 days.

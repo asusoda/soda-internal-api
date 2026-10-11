@@ -137,6 +137,14 @@ def test_superadmin_routes_need_the_superadmin(client):
     assert client.get("/api/superadmin/guild_roles/1001", headers=headers_for(SUPERADMIN_ID)).status_code != 403
 
 
+def test_superadmin_routes_refuse_officers_in_report_mode(client, monkeypatch):
+    from core.config import config
+
+    monkeypatch.setattr(config, "ACCESS_ENFORCE", False)
+    assert client.get("/api/superadmin/audit", headers=headers_for(OFFICER_DISCORD_ID)).status_code == 403
+    assert client.get("/api/superadmin/audit", headers=headers_for(SUPERADMIN_ID)).status_code == 200
+
+
 def test_sys_admin_takes_a_list_of_ids(client, monkeypatch):
     from core.config import config
 

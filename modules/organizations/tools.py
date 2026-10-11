@@ -37,6 +37,18 @@ def org_set_modules(db, org, caller, modules: dict):
         raise ToolError(str(e), 400) from e
 
 
+@tool(
+    "org.limits",
+    description=(
+        "The org's resource limits and what it uses now: counts such as knowledge sources or pods, and rates such as "
+        "texts embedded a day. value null means no limit. Only the deployment's superadmin changes limits."
+    ),
+    scope="org:read",
+)
+def org_limits(db, org, caller):
+    return {"limits": [row for row in service.limits(db, org) if row["enabled"]]}
+
+
 @tool("org.branding", description="The org's logo, accent color and website.", scope="org:read")
 def org_branding(db, org, caller):
     return service.branding(org)

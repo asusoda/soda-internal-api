@@ -332,10 +332,8 @@ def list_submodules(db, org):
 @_route("/knowledge/submodules/<string:name>/sync", ["POST"], module="knowledge")
 def sync_submodule(db, org, name):
     """Add or update the submodule's sources, then start the crawl job for the sources that are due."""
-    from core.jobs import defer
-
     counts = submodules.sync(db, _org_id(org), str(org.prefix), name)
-    defer("knowledge.crawl_due")
+    crawl.start_crawl_due()
     return counts
 
 
@@ -384,9 +382,7 @@ def _settings_body(db, org_id: int, values: dict) -> dict:
 @_route("/knowledge/reindex", ["POST"], module="knowledge")
 def reindex(db, org):
     """Start a job that crawls every crawled source again, so new chunk settings apply."""
-    from core.jobs import defer
-
-    defer("knowledge.reindex", org_id=_org_id(org))
+    crawl.queue_job(db, _org_id(org), "knowledge.reindex", org_id=_org_id(org))
     return {"queued": True}, 202
 
 

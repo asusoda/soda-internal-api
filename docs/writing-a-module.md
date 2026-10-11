@@ -27,6 +27,7 @@ If `service.py` has more than one concern, split it into more Flask-free files. 
 | Tools | `TOOL_MODULES` in `modules/manifest.py` |
 | Machine token scopes | `scopes.declare(...)` from `modules/auth/scopes.py`, at the top of `service.py` |
 | Org secrets | `secrets.declare(...)` or `secrets.declare_prefix(...)` from `core/secrets.py`, at the top of `service.py` |
+| Limits | `limits.declare(...)` from `core/limits.py`, at the top of `service.py`, for each thing that can grow or cost money. See [limits.md](./limits.md) |
 | Outside services | `register(...)` and `use(...)` from `core/integrations/registry.py`. See [integrations.md](./integrations.md) |
 | Flask-free files | `service.py`, `models.py`, `jobs.py` and `tools.py` are in the "service modules do not import Flask" contract in `pyproject.toml` by wildcard. Add each other Flask-free file, such as `crawl.py`, to that list |
 | Dashboard page | An entry in `PAGES` in `dashboard/src/pages/registry.tsx`, with `module` and the sidebar section of the module's category |
