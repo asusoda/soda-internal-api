@@ -73,25 +73,38 @@ def test_officer_manages_crawls(client, officer_headers, queued):
     assert client.delete(f"{base}/sources/{key}", headers=officer_headers).status_code == 404
 
 
-def test_officer_syncs_a_source_submodule(client, officer_headers, queued):
+def test_officer_subscribes_to_a_submodule(client, officer_headers, queued, clean_submodules):
     from submodules.asu.sources import SOURCES
 
-    base = "/api/dashboard/ais/knowledge"
-    listed = client.get(f"{base}/submodules", headers=officer_headers).get_json()["submodules"]
-    assert ("asu", "asu/", 0) in [(p["name"], p["key_prefix"], p["sources"]) for p in listed]
+    base = "/api/dashboard/ais"
 
-    first = client.post(f"{base}/submodules/asu/sync", headers=officer_headers)
+    def _asu():
+        listed = client.get(f"{base}/submodules", headers=officer_headers).get_json()["submodules"]
+        return next(p for p in listed if p["name"] == "asu")
+
+    asu = _asu()
+    assert (asu["key_prefix"], asu["sources"], asu["subscribed"]) == ("asu/", 0, False)
+    assert "knowledge" in asu["modules"]
+
+    first = client.put(f"{base}/submodules/asu/subscription", headers=officer_headers)
     assert first.status_code == 200 and first.get_json()["added"] == len(SOURCES)
+    assert first.get_json()["subscribed"] is True
     assert queued[-1] == ("knowledge.crawl_due", {})
-    listed = client.get(f"{base}/submodules", headers=officer_headers).get_json()["submodules"]
-    assert next(p for p in listed if p["name"] == "asu")["sources"] == len(SOURCES)
-    assert client.post(f"{base}/submodules/asu/sync", headers=officer_headers).get_json()["added"] == 0
-    assert client.post(f"{base}/submodules/nope/sync", headers=officer_headers).status_code == 404
+    asu = _asu()
+    assert (asu["sources"], asu["subscribed"], asu["subscribers"]) == (len(SOURCES), True, 1)
+    # The older sync route subscribes too, and adds nothing the second time
+    again = client.post(f"{base}/knowledge/submodules/asu/sync", headers=officer_headers)
+    assert again.get_json()["added"] == 0
+    assert client.put(f"{base}/submodules/nope/subscription", headers=officer_headers).status_code == 404
+    # The pages are the submodule's, not the org's
+    keys = [s["key"] for s in client.get(f"{base}/knowledge/sources", headers=officer_headers).get_json()["sources"]]
+    assert not [k for k in keys if k.startswith("asu/")]
 
-    keys = [s["key"] for s in client.get(f"{base}/sources", headers=officer_headers).get_json()["sources"]]
-    for key in keys:
-        if key.startswith("asu/"):
-            client.delete(f"{base}/sources/{key}", headers=officer_headers)
+    assert client.delete(f"{base}/submodules/asu/subscription", headers=officer_headers).get_json() == {
+        "subscribed": False
+    }
+    asu = _asu()
+    assert (asu["subscribed"], asu["subscribers"], asu["sources"]) == (False, 0, len(SOURCES))
 
 
 def test_control_routes_need_an_officer(client):

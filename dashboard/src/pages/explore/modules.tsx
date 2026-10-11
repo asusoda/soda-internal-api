@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { ArrowUpRight, Plus, RefreshCw, SearchX } from 'lucide-react';
+import { ArrowUpRight, Plus, SearchX } from 'lucide-react';
 import { Link } from 'react-router';
 import { Badge, Button, Card, EmptyState, ErrorNote, Spinner } from '../../components/ui';
-import { api, send } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useSubmodules, useSubscription } from './submodules';
 import { matches } from '../../lib/modules';
 import type { FeedPreset, CatalogModule } from '../../lib/types';
 
@@ -23,12 +24,10 @@ const MODULE_PAGES: Record<string, string> = {
   uptime: 'uptime',
 };
 
-// The webhook modules, whose sub-modules are feeds
+// The webhook modules, whose submodules are feeds
 const FEED_MODULES = { job_webhook: true, hackathon_webhook: true };
 
-type KnowledgeSubmodule = { name: string; title: string; description: string; pages: number; queries: string[]; sources: number };
-
-// One sub-module row inside a module card: a sub-module or a feed the module can add.
+// One submodule row inside a module card: a submodule or a feed the module can add.
 function SubRow({ title, meta, action }: { title: string; meta?: string; action?: ReactNode }) {
   return (
     <div className="flex min-h-9 items-center gap-2 border-t border-line px-4 py-1.5 text-sm">
@@ -41,89 +40,94 @@ function SubRow({ title, meta, action }: { title: string; meta?: string; action?
 
 const subButton = 'h-7 px-2 text-xs';
 
-// The sub-modules of the knowledge module. Add or sync crawls the sub-module's pages into knowledge.
-function KnowledgeSubmodules({ prefix, onSynced }: { prefix: string; onSynced: (message: string) => void }) {
-  const client = useQueryClient();
-  const submodules = useQuery({
-    queryKey: ['knowledge', prefix, 'submodules'],
-    queryFn: () => api<{ submodules: KnowledgeSubmodule[] }>(`/api/dashboard/${prefix}/knowledge/submodules`),
-  });
-  const sync = useMutation({
-    mutationFn: (submodule: KnowledgeSubmodule) =>
-      send<{ added: number; updated: number; retired: number }>(`/api/dashboard/${prefix}/knowledge/submodules/${submodule.name}/sync`, 'POST'),
-    onSuccess: (r, submodule) => {
-      client.invalidateQueries({ queryKey: ['knowledge', prefix] });
-      onSynced(`${submodule.title}: ${r.added} added, ${r.updated} updated, ${r.retired} retired.`);
-    },
-  });
-  const list = (submodules.data?.submodules ?? []).filter((p) => p.pages || p.queries.length);
+// The submodules with pages or live queries. Subscribe makes knowledge search read the submodule's shared pages.
+function KnowledgeSubmodules({ prefix }: { prefix: string }) {
+  const submodules = useSubmodules(prefix);
+  const change = useSubscription(prefix);
+  const list = (submodules.data?.submodules ?? []).filter((s) => s.pages || s.queries.length);
   return (
     <>
-      {list.map((submodule) => (
+      {list.map((s) => (
         <SubRow
-          key={submodule.name}
-          title={submodule.title}
-          meta={submodule.sources ? `${submodule.sources} sources` : `${submodule.pages} pages`}
+          key={s.name}
+          title={s.title}
+          meta={s.subscribed && s.sources ? `${s.sources} pages shared` : `${s.pages} pages`}
           action={
-            <Button variant={submodule.sources ? 'ghost' : 'secondary'} className={subButton} disabled={sync.isPending} onClick={() => sync.mutate(submodule)}>
-              {sync.isPending && sync.variables?.name === submodule.name ? (
-                <Spinner className="size-3.5" />
-              ) : submodule.sources ? (
-                <RefreshCw className="size-3.5" />
-              ) : (
-                <Plus className="size-3.5" />
-              )}
-              {submodule.sources ? 'Sync' : 'Add'}
-            </Button>
+            s.subscribed ? (
+              <Badge tone="ok">Subscribed</Badge>
+            ) : (
+              <Button className={subButton} disabled={change.isPending} onClick={() => change.mutate({ name: s.name, on: true })}>
+                {change.isPending && change.variables?.name === s.name ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
+                Subscribe
+              </Button>
+            )
           }
         />
       ))}
-      {sync.error ? (
+      {change.error ? (
         <div className="px-4 pb-3">
-          <ErrorNote error={sync.error} />
+          <ErrorNote error={change.error} />
         </div>
       ) : null}
     </>
   );
 }
 
-// The feeds a webhook module offers. Add opens the new feed form on the module's page, which asks for the webhook.
-function ModuleFeeds({ module, prefix }: { module: string; prefix: string }) {
+// The feeds a webhook module offers from the subscribed submodules. Add opens the new feed form on the module's page,
+// which asks for the webhook. A submodule of the module that the org does not subscribe to links to the Submodules tab.
+function ModuleFeeds({ m, prefix }: { m: CatalogModule; prefix: string }) {
   const presets = useQuery({
     queryKey: ['feeds', prefix, 'presets'],
     queryFn: () => api<{ presets: FeedPreset[] }>(`/api/feeds/${prefix}/presets`),
   });
+  const submodules = useSubmodules(prefix);
+  const subscribed = new Set((submodules.data?.submodules ?? []).filter((s) => s.subscribed).map((s) => s.name));
   return (
     <>
       {(presets.data?.presets ?? [])
-        .filter((p) => p.module === module)
+        .filter((p) => p.module === m.name)
         .map((p) => (
-        <SubRow
-          key={`${p.submodule}/${p.key}`}
-          title={p.title}
-          meta={`every ${p.every_hours}h`}
-          action={
-            p.added ? (
-              <Badge tone="ok">Added</Badge>
-            ) : (
-              <Link
-                to={`/${prefix}/${MODULE_PAGES[module]}?new=${encodeURIComponent(`${p.submodule}/${p.key}`)}`}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-panel px-2 text-xs font-medium shadow-xs hover:bg-panel-2"
-              >
-                <Plus className="size-3.5" /> Add
-              </Link>
-            )
-          }
-        />
-      ))}
+          <SubRow
+            key={`${p.submodule}/${p.key}`}
+            title={p.title}
+            meta={`every ${p.every_hours}h`}
+            action={
+              p.added ? (
+                <Badge tone="ok">Added</Badge>
+              ) : (
+                <Link
+                  to={`/${prefix}/${MODULE_PAGES[m.name]}?new=${encodeURIComponent(`${p.submodule}/${p.key}`)}`}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-panel px-2 text-xs font-medium shadow-xs hover:bg-panel-2"
+                >
+                  <Plus className="size-3.5" /> Add
+                </Link>
+              )
+            }
+          />
+        ))}
+      {submodules.data
+        ? m.submodules
+            .filter((s) => !subscribed.has(s.name))
+            .map((s) => (
+              <SubRow
+                key={s.name}
+                title={s.title}
+                action={
+                  <Link to={`/${prefix}/explore?tab=submodules`} className="text-xs text-muted hover:text-fg hover:underline">
+                    Subscribe for its feeds
+                  </Link>
+                }
+              />
+            ))
+        : null}
     </>
   );
 }
 
-// The sub-modules of a module that is on. A module that is off lists its sub-modules by title.
-function SubModules({ m, prefix, onSynced }: { m: CatalogModule; prefix: string; onSynced: (message: string) => void }) {
-  if (m.enabled && m.name === 'knowledge') return <KnowledgeSubmodules prefix={prefix} onSynced={onSynced} />;
-  if (m.enabled && m.name in FEED_MODULES) return <ModuleFeeds module={m.name} prefix={prefix} />;
+// The submodules of a module that is on. A module that is off lists its submodules by title.
+function SubModules({ m, prefix }: { m: CatalogModule; prefix: string }) {
+  if (m.enabled && m.name === 'knowledge') return <KnowledgeSubmodules prefix={prefix} />;
+  if (m.enabled && m.name in FEED_MODULES) return <ModuleFeeds m={m} prefix={prefix} />;
   if (m.enabled || !m.submodules.length) return null;
   return (
     <>
@@ -141,14 +145,12 @@ export function ModuleCard({
   busy,
   onAdd,
   onRemove,
-  onSynced,
 }: {
   m: CatalogModule;
   prefix: string;
   busy: boolean;
   onAdd: () => void;
   onRemove: () => void;
-  onSynced: (message: string) => void;
 }) {
   const page = MODULE_PAGES[m.name];
   const missing = m.needs.filter((n) => !n.connected && !n.optional);
@@ -185,7 +187,7 @@ export function ModuleCard({
           )}
         </div>
       </div>
-      <SubModules m={m} prefix={prefix} onSynced={onSynced} />
+      <SubModules m={m} prefix={prefix} />
     </Card>
   );
 }

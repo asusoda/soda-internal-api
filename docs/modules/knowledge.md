@@ -111,7 +111,7 @@ A new passage size applies when a source is indexed again. `POST /api/dashboard/
 
 ## Embeddings
 
-Platform embeds a source when it writes the source: a crawl, an upload, a sub-module sync or a `PUT`. Each version keeps the name of the model, and each passage keeps the text it was embedded from. Vector search uses only passages of the org's current model. A passage of another model, or with no vector, is found by text search only.
+Platform embeds a source when it writes the source: a crawl, an upload or a `PUT`. Each version keeps the name of the model, and each passage keeps the text it was embedded from. Vector search uses only passages of the org's current model. A passage of another model, or with no vector, is found by text search only.
 
 So when an org adds an embedding service after it has sources, or changes the model, the old passages are not in the vector search. `knowledge.reembed` embeds them again from the stored text, with no new fetch:
 
@@ -133,7 +133,7 @@ The job commits one source at a time. A source that fails keeps its old vectors.
 
 ## Sub-modules
 
-A [sub-module](./submodules.md) is a set of crawled pages and live queries that an org adds in one step, such as the ASU sub-module. The sub-module owns the org's sources whose keys start with `<submodule>/`. The Knowledge card on the Explore page of the dashboard lists the sub-modules (`GET /api/dashboard/<org>/knowledge/submodules`) and syncs one (`POST /api/dashboard/<org>/knowledge/submodules/<name>/sync`), which also starts the crawl job.
+A [submodule](./submodules.md) is a domain, such as ASU, that an org subscribes to. Its pages are shared sources with no org: the deployment crawls and embeds them once, and the search of each subscribed org reads them. An org's search reads its own sources, public sources, and the sources of the submodules it subscribes to. Shared sources do not count against the org's `knowledge.sources` and `knowledge.passages` limits, and `knowledge.reindex` skips them.
 
 The dashboard groups sources by domain: the part of the key before the first `/`.
 

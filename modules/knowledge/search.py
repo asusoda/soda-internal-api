@@ -1,7 +1,7 @@
 """Hybrid search over knowledge chunks. No Flask here.
 
-Search fuses a vector leg and a text leg with reciprocal rank fusion over the caller's organization
-plus public sources. On Postgres with pgvector, both legs run in SQL. Elsewhere, including Postgres
+Search fuses a vector leg and a text leg with reciprocal rank fusion over the caller's organization,
+public sources, and the sources of the submodules the org subscribes to. On Postgres with pgvector, both legs run in SQL. Elsewhere, including Postgres
 without pgvector, the vector leg runs in Python over the stored vectors, and on SQLite so does the
 text leg.
 """
@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-from sqlalchemy import or_, text
+from sqlalchemy import or_, select, text
 
 from core import limits
 from core.log import get_logger
@@ -19,6 +19,7 @@ from modules.knowledge import settings
 from modules.knowledge.embedder import Embedder, EmbeddingError
 from modules.knowledge.models import Embedding, KnowledgeChunk, KnowledgeSource, KnowledgeVersion, vector_sql
 from modules.knowledge.service import KnowledgeError, _text, _vector
+from modules.submodules.models import SubmoduleSubscription
 
 logger = get_logger("knowledge")
 
@@ -26,14 +27,30 @@ MAX_TOP_K = 50
 MAX_WINDOW = 5
 CANDIDATES = 50
 TEXT_CONFIG = "english"
+# What an org reads: its own chunks, public chunks, and the chunks of the submodules it subscribes to
+VISIBLE_SQL = (
+    "(c.organization_id = :org OR c.public OR c.submodule_id IN"
+    " (SELECT submodule_id FROM submodule_subscriptions WHERE organization_id = :org))"
+)
 
 
 def _dialect(db) -> str:
     return db.get_bind().dialect.name
 
 
+def subscribed(org_id: int):
+    """The ids of the submodules the org subscribes to, as a subquery."""
+    return select(SubmoduleSubscription.submodule_id).where(SubmoduleSubscription.organization_id == org_id)
+
+
 def _scope(query, org_id: int, category: str | None):
-    query = query.filter(or_(KnowledgeChunk.organization_id == org_id, KnowledgeChunk.public.is_(True)))
+    query = query.filter(
+        or_(
+            KnowledgeChunk.organization_id == org_id,
+            KnowledgeChunk.public.is_(True),
+            KnowledgeChunk.submodule_id.in_(subscribed(org_id)),
+        )
+    )
     return query.filter(KnowledgeChunk.category == category) if category else query
 
 
@@ -45,7 +62,7 @@ def _dense_sql(db, org_id: int, category: str | None, vector: list[float], model
         "n": CANDIDATES,
         "max": limit,
     }
-    where = "(c.organization_id = :org OR c.public) AND c.embedding IS NOT NULL AND v.embedding_model = :model"
+    where = f"{VISIBLE_SQL} AND c.embedding IS NOT NULL AND v.embedding_model = :model"
     if category:
         where += " AND c.category = :category"
         params["category"] = category
@@ -79,7 +96,7 @@ def _dense_python(db, org_id: int, category: str | None, vector: list[float], mo
 
 def _lexical_sql(db, org_id: int, category: str | None, query_text: str) -> list[str]:
     params: dict[str, Any] = {"org": org_id, "q": query_text, "n": CANDIDATES}
-    where = "(c.organization_id = :org OR c.public)"
+    where = VISIBLE_SQL
     if category:
         where += " AND c.category = :category"
         params["category"] = category

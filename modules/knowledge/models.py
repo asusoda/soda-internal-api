@@ -9,6 +9,7 @@ import json
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -88,7 +89,9 @@ class KnowledgeSource(Base):
     __tablename__ = "knowledge_sources"
 
     id = Column(String(36), primary_key=True, default=new_uuid)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    # Null for a shared submodule's source, which submodule_id names instead
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    submodule_id = Column(Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True, index=True)
     key = Column(String(255), nullable=False)  # stable name the writer chooses
     url = Column(Text, nullable=True)
     title = Column(String(500), nullable=True)
@@ -104,7 +107,11 @@ class KnowledgeSource(Base):
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow)
 
-    __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_knowledge_source_key"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "key", name="uq_knowledge_source_key"),
+        UniqueConstraint("submodule_id", "key", name="uq_knowledge_source_submodule_key"),
+        CheckConstraint("organization_id IS NOT NULL OR submodule_id IS NOT NULL", name="ck_knowledge_source_owner"),
+    )
 
 
 class KnowledgeVersion(Base):
@@ -123,7 +130,8 @@ class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
 
     id = Column(String(36), primary_key=True, default=new_uuid)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)  # null: a shared submodule's
+    submodule_id = Column(Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True)
     source_id = Column(String(36), ForeignKey("knowledge_sources.id", ondelete="CASCADE"), nullable=False)
     version_id = Column(String(36), ForeignKey("knowledge_versions.id", ondelete="CASCADE"), nullable=False)
     category = Column(String(100), nullable=False)
@@ -139,6 +147,7 @@ class KnowledgeChunk(Base):
         UniqueConstraint("version_id", "ordinal", name="uq_knowledge_chunk_ordinal"),
         Index("ix_knowledge_chunks_scope", "organization_id", "category", "level"),
         Index("ix_knowledge_chunks_public", "public", "category"),
+        Index("ix_knowledge_chunks_submodule", "submodule_id", "category"),
     )
 
 

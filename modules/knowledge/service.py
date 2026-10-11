@@ -13,7 +13,7 @@ import os
 import re
 from typing import Any, cast
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm.attributes import flag_modified
 
 from core import limits
@@ -23,6 +23,7 @@ from modules.auth import scopes
 from modules.knowledge.embedder import Embedder, EmbeddingError
 from modules.knowledge.models import DIMENSIONS, KnowledgeChunk, KnowledgeSource, KnowledgeVersion
 from modules.organizations.models import Organization
+from modules.submodules.models import SubmoduleSubscription
 
 scopes.declare(
     "knowledge:read", "Search the organization's knowledge and public sources", uses=("embeddings", "searxng")
@@ -70,6 +71,8 @@ limits.declare(
 
 def check_passages(db, source: KnowledgeSource, count: int) -> None:
     """Raise LimitError when count passages in place of the source's current ones take the org over its limit."""
+    if source.organization_id is None:
+        return  # a shared submodule's source counts against no org
     old = db.query(KnowledgeVersion.chunk_count).filter_by(id=source.current_version_id).scalar()
     limits.check(db, cast(int, source.organization_id), PASSAGES_LIMIT, add=count - int(old or 0))
 
@@ -308,6 +311,7 @@ def _write_version(
     db.add_all(
         KnowledgeChunk(
             organization_id=source.organization_id,
+            submodule_id=source.submodule_id,
             source_id=source.id,
             version_id=version.id,
             category=source.category,
@@ -360,8 +364,14 @@ MIN_OVERLAP = 40
 
 
 def _readable(db, org_id: int, key: str, chunk_id: str | None) -> KnowledgeSource:
-    """The source the org may read: the one that holds chunk_id, else its own source, else the oldest public one."""
-    visible = or_(KnowledgeSource.organization_id == org_id, KnowledgeSource.public.is_(True))
+    """The source the org may read: the one that holds chunk_id, else its own source, else one of a submodule it
+    subscribes to, else the oldest public one."""
+    subscribed = select(SubmoduleSubscription.submodule_id).where(SubmoduleSubscription.organization_id == org_id)
+    visible = or_(
+        KnowledgeSource.organization_id == org_id,
+        KnowledgeSource.public.is_(True),
+        KnowledgeSource.submodule_id.in_(subscribed),
+    )
     if chunk_id:
         held = (
             db.query(KnowledgeSource)
@@ -374,6 +384,14 @@ def _readable(db, org_id: int, key: str, chunk_id: str | None) -> KnowledgeSourc
     own = db.query(KnowledgeSource).filter_by(organization_id=org_id, key=key).first()
     if own is not None:
         return own
+    shared = (
+        db.query(KnowledgeSource)
+        .filter(KnowledgeSource.key == key, KnowledgeSource.submodule_id.in_(subscribed))
+        .order_by(KnowledgeSource.submodule_id)
+        .first()
+    )
+    if shared is not None:
+        return shared
     public = (
         db.query(KnowledgeSource)
         .filter(KnowledgeSource.key == key, KnowledgeSource.public.is_(True))

@@ -11,7 +11,9 @@ def crawl_due() -> None:
 
     db = db_connect.SessionLocal()
     try:
-        result = crawl.crawl_due(db, lambda org_id: embedder.for_org(db, org_id))
+        result = crawl.crawl_due(
+            db, lambda org_id: embedder.for_org(db, org_id) if org_id is not None else embedder.configured()
+        )
         if result["crawled"]:
             crawl.logger.info("crawl run %s", result)
     finally:
