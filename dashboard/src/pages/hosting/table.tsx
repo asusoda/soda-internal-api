@@ -57,6 +57,8 @@ export function AppTable({ apps, providers, onOpen }: { apps: App[]; providers?:
                         ? latest.error
                         : app.description
                           ? app.description
+                          : app.linked
+                          ? app.runs_as.join(', ') || 'runs outside Platform'
                           : app.repo
                           ? `${app.repo}${app.manifest_path && app.manifest_path !== DEFAULT_MANIFEST_PATH ? ` · ${app.manifest_path}` : ''}`
                           : 'inline manifest'}
@@ -71,10 +73,12 @@ export function AppTable({ apps, providers, onOpen }: { apps: App[]; providers?:
                 <Mono className="block truncate text-fg">{app.current_tag ?? '-'}</Mono>
               </Td>
               <Td>
-                <Badge tone={tone}>{latest?.status ?? 'not deployed'}</Badge>
+                {app.linked ? <span className="text-muted">-</span> : <Badge tone={tone}>{latest?.status ?? 'not deployed'}</Badge>}
               </Td>
               <Td className="hidden text-xs whitespace-nowrap text-muted tabular-nums md:table-cell">
-                {latest ? (
+                {app.linked ? (
+                  'not deployed by Platform'
+                ) : latest ? (
                   <>
                     {timeAgo(latest.started_at)}
                     {latest.actor ? <span className="text-muted/70"> · {actorLabel(latest.actor)}</span> : null}

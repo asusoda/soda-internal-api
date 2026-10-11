@@ -22,7 +22,7 @@ export function ServerCard() {
     <Card>
       <CardHeader
         title="Server"
-        hint="Load, memory and disk are the host's. The container row is the API container. Refreshes every 30 seconds."
+        hint="The host, and the API container."
       />
       {server.error ? (
         <div className="p-4">

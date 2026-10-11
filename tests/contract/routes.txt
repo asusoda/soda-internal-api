@@ -38,6 +38,7 @@
 /api/apps/<string:name> OPTIONS,PUT apps.put_app
 /api/apps/<string:name>/deploy OPTIONS,POST apps.deploy
 /api/apps/<string:name>/deployments GET,HEAD,OPTIONS apps.list_deployments
+/api/apps/<string:name>/link OPTIONS,PUT apps.link_app
 /api/apps/<string:name>/pod GET,HEAD,OPTIONS apps.get_pod
 /api/apps/<string:name>/rollback OPTIONS,POST apps.rollback
 /api/apps/templates GET,HEAD,OPTIONS apps.list_templates
@@ -113,6 +114,7 @@
 /api/dashboard/<string:org_prefix>/apps/<string:name> GET,HEAD,OPTIONS dashboard.get_app
 /api/dashboard/<string:org_prefix>/apps/<string:name> OPTIONS,PUT dashboard.put_app
 /api/dashboard/<string:org_prefix>/apps/<string:name>/deploy OPTIONS,POST dashboard.deploy_app
+/api/dashboard/<string:org_prefix>/apps/<string:name>/link OPTIONS,PUT dashboard.link_app
 /api/dashboard/<string:org_prefix>/apps/<string:name>/pod GET,HEAD,OPTIONS dashboard.get_app_pod
 /api/dashboard/<string:org_prefix>/apps/<string:name>/rollback OPTIONS,POST dashboard.rollback_app
 /api/dashboard/<string:org_prefix>/apps/templates GET,HEAD,OPTIONS dashboard.list_app_templates

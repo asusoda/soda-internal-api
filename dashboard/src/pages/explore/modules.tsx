@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { ArrowUpRight, Plus, SearchX } from 'lucide-react';
 import { Link } from 'react-router';
+import { Tooltip } from '../../components/tooltip';
 import { Badge, Button, Card, EmptyState, ErrorNote, Spinner } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useSubmodules, useSubscription } from './submodules';
-import { PAID_BY } from '../../lib/limits';
 import { matches } from '../../lib/modules';
 import type { FeedPreset, CatalogModule } from '../../lib/types';
 
@@ -169,10 +169,16 @@ export function ModuleCard({
           ) : null}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-pretty text-muted">{m.description}</p>
-        {m.limits.length ? (
-          <p className="mt-2 line-clamp-2 text-xs text-muted" title={m.limits.map((l) => `${l.label} (${PAID_BY[l.paid_by].title.toLowerCase()})`).join('\n')}>
-            Uses your limits: {m.limits.map((l) => l.label.toLowerCase()).join(', ')}
-          </p>
+        {m.enabled && m.limits.length ? (
+          <div className="mt-2">
+            <Tooltip label={m.limits.map((l) => l.label).join(', ')} side="top">
+              <Link to={`/${prefix}/settings#limits`} className="inline-flex">
+                <Badge>
+                  {m.limits.length} {m.limits.length === 1 ? 'limit' : 'limits'}
+                </Badge>
+              </Link>
+            </Tooltip>
+          </div>
         ) : null}
         <div className="mt-auto flex items-center justify-between gap-3 pt-4">
           {missing.length ? (

@@ -106,6 +106,13 @@ MANIFEST_SCHEMA: dict = {
 }
 
 
+# A linked app runs outside Platform, such as a service the org already had on the server. Platform lists it and
+# checks its URL with Uptime, and never deploys it. It has no pod, and it counts against no limit.
+LINKED = "linked"
+LINK_KINDS = ("site", "service", "bot", "agent", "database")
+LINKED_REFUSAL = "This is a linked app: it runs outside Platform, so Platform does not deploy it or roll it back"
+MAX_RUNS_AS = 20
+
 APPS_LIMIT = "runpod.apps"
 limits.declare(
     APPS_LIMIT,
@@ -113,7 +120,7 @@ limits.declare(
     "Hosting apps",
     25,
     unit="apps",
-    usage=lambda db, org_id: db.query(App).filter_by(organization_id=org_id).count(),
+    usage=lambda db, org_id: db.query(App).filter(App.organization_id == org_id, App.provider != LINKED).count(),
 )
 
 
@@ -233,6 +240,8 @@ def _app_dict(db, app: App) -> dict:
         "url": manifest.get("url"),
         "host": app.provider,
         "provider": app.provider,
+        "linked": app.provider == LINKED,
+        "runs_as": manifest.get("runs_as") or [],
         "manifest": manifest,
         "repo": app.repo,
         "manifest_path": app.manifest_path,
@@ -271,6 +280,8 @@ def put_app(
     else:
         _validated(manifest)
     app = db.query(App).filter_by(organization_id=org_id, name=name).first()
+    if app is not None and app.provider == LINKED:
+        raise AppError("A linked app has this name. Delete it first to deploy an app with this name", 409)
     new = app is None
     chosen = _provider(provider).name if provider is not None else None
     if app is None:
@@ -286,6 +297,52 @@ def put_app(
     app.updated_at = utcnow()
     db.commit()
     if new:
+        uptime.watch_app(db, org_id, name)
+    return _app_dict(db, app)
+
+
+def link_app(
+    db,
+    org_id: int,
+    name: str,
+    url: Any = None,
+    description: Any = None,
+    kind: Any = "service",
+    runs_as: Any = None,
+) -> dict:
+    """Add or update a linked app: a service that runs outside Platform. Uptime checks its URL. Commits.
+
+    runs_as names the containers or processes that run it, for people to read; Platform does not use them.
+    """
+    if not isinstance(name, str) or not NAME_PATTERN.match(name):
+        raise AppError("name must be lowercase letters, digits and dashes, up to 63")
+    if name == RESERVED_NAME:
+        raise AppError(f"{RESERVED_NAME} is not available as an app name")
+    if url is not None and (not isinstance(url, str) or not url.startswith("https://") or len(url) > 500):
+        raise AppError("url must be an https URL of at most 500 characters, or null")
+    if description is not None and (not isinstance(description, str) or len(description) > 200):
+        raise AppError("description must be a string of at most 200 characters")
+    if kind not in LINK_KINDS:
+        raise AppError(f"kind must be one of {', '.join(LINK_KINDS)}")
+    runs = runs_as if runs_as is not None else []
+    if (
+        not isinstance(runs, list)
+        or len(runs) > MAX_RUNS_AS
+        or not all(isinstance(r, str) and 0 < len(r) <= 100 for r in runs)
+    ):
+        raise AppError(f"runs_as must be a list of at most {MAX_RUNS_AS} names of at most 100 characters")
+    app = db.query(App).filter_by(organization_id=org_id, name=name).first()
+    if app is not None and app.provider != LINKED:
+        raise AppError("An app that Platform deploys has this name", 409)
+    new = app is None
+    if app is None:
+        app = App(organization_id=org_id, name=name, provider=LINKED)
+        db.add(app)
+    manifest = {"kind": kind, "description": description, "url": url, "runs_as": runs}
+    app.manifest = json.dumps({k: v for k, v in manifest.items() if v is not None}, sort_keys=True)
+    app.updated_at = utcnow()
+    db.commit()
+    if new and url:
         uptime.watch_app(db, org_id, name)
     return _app_dict(db, app)
 
@@ -380,6 +437,8 @@ def deploy(
     if not isinstance(tag, str) or not TAG_PATTERN.match(tag):
         raise AppError("tag must be an image tag or a sha256 digest")
     app = _find(db, org_id, name)
+    if app.provider == LINKED:
+        raise AppError(LINKED_REFUSAL, 409)
     manifest_ref = None
     if manifest is None and app.repo:
         manifest_ref = _safe_path(ref, REF_PATTERN, "ref") if ref is not None else None
@@ -430,6 +489,8 @@ def deploy(
 def rollback(db, org_id: int, org_prefix: str, name: str, actor: str | None, dry_run: bool = False) -> dict:
     """Deploy the newest healthy tag other than the current one, with the manifest it ran with."""
     app = _find(db, org_id, name)
+    if app.provider == LINKED:
+        raise AppError(LINKED_REFUSAL, 409)
     previous = (
         db.query(AppDeployment)
         .filter(AppDeployment.app_id == app.id, AppDeployment.status == "healthy", AppDeployment.tag != app.current_tag)
