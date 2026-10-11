@@ -35,6 +35,7 @@ Each container has a memory and a CPU cap, so one process cannot take the whole 
 | `mcp` | 768m | 1 | `MCP_MEM_LIMIT`, `MCP_CPUS` |
 | `web` | 256m | 0.5 | `WEB_MEM_LIMIT`, `WEB_CPUS` |
 | `dashboard` | 256m | 0.5 | `DASHBOARD_MEM_LIMIT`, `DASHBOARD_CPUS` |
+| `site` | 384m | 0.5 | `SITE_MEM_LIMIT`, `SITE_CPUS` |
 | `postgres` | 1g | 1 | `POSTGRES_MEM_LIMIT`, `POSTGRES_CPUS` |
 
 A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.

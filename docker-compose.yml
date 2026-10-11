@@ -142,6 +142,9 @@ services:
     image: soda-site:latest
     container_name: soda-site
     restart: unless-stopped
+    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
+    mem_limit: ${SITE_MEM_LIMIT:-384m}
+    cpus: ${SITE_CPUS:-0.5}
     profiles: ["site"]
     ports:
       - "127.0.0.1:3010:3000"
