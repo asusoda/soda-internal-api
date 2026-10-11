@@ -66,7 +66,7 @@ def query_scope(db, org_id: int) -> Iterator[None]:
 def settings() -> SimpleNamespace:
     search = _SEARCH.get() or _deployment_search()
     return SimpleNamespace(
-        scraper=SimpleNamespace(query_max_chars=_int("PACK_QUERY_MAX_CHARS", _int("ASU_QUERY_MAX_CHARS", 30_000))),
+        scraper=SimpleNamespace(query_max_chars=_int("SUBMODULE_QUERY_MAX_CHARS", _int("ASU_QUERY_MAX_CHARS", 30_000))),
         search=SimpleNamespace(
             base_url=search.base_url,
             engines=search.engines,

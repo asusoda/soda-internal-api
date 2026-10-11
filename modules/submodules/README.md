@@ -12,7 +12,7 @@ Loads the sub-modules in the `submodules/` folder. Adds a sub-module's pages to 
 | `types.py` | `Submodule`, `Source`, `QuerySource`, `QueryParam`, `Feed`, `QueryError` |
 | `queries.py`, `params.py` | Parameter checks and the run of one live query; helpers that map parameters to URL values |
 | `http.py`, `text.py` | Page, JSON and feed fetches; text and Markdown helpers for extractors |
-| `search.py`, `web.py` | `PACK_QUERY_MAX_CHARS`; the SearXNG integration; `query_scope()` sets the org's SearXNG and Firecrawl; the `web` live query that a sub-module can add |
+| `search.py`, `web.py` | `SUBMODULE_QUERY_MAX_CHARS`; the SearXNG integration; `query_scope()` sets the org's SearXNG and Firecrawl; the `web` live query that a sub-module can add |
 | `jobs.py` | The indexing job |
 
 ## Surface
