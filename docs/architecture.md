@@ -106,7 +106,7 @@ A module declares a job in its `jobs.py` with `@job(name, cron=..., retry=...)` 
 - On Postgres, `defer` adds a row to the Procrastinate queue. The worker runs the job, tries it again if it fails, and runs the periodic jobs.
 - On SQLite, there is no queue. `defer` runs the job in a thread of the calling process. A thread in the API runs the periodic jobs, and `worker_main.py` stops.
 
-`JOBS_BACKEND=inline|procrastinate` sets the choice. The tests use `inline`. Each run of a job with `audit=True` (the default) is written to `audit_log`.
+`JOBS_BACKEND=inline|procrastinate` sets the choice. The tests use `inline`. `JOBS_SCHEDULER=false` stops the thread that runs periodic jobs with the inline backend; the tests set it, so no periodic job changes rows during a test. Each run of a job with `audit=True` (the default) is written to `audit_log`.
 
 ## Tools and the MCP server
 

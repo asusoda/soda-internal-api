@@ -235,8 +235,11 @@ def _open_app() -> None:
 
 
 def start_inline_scheduler() -> threading.Thread | None:
-    """Run periodic jobs from a thread in this process. Only for the inline backend."""
-    if queue_backend() != "inline":
+    """Run periodic jobs from a thread in this process. Only for the inline backend.
+
+    JOBS_SCHEDULER=false turns it off; the tests set it, so no periodic job runs between their steps.
+    """
+    if queue_backend() != "inline" or os.environ.get("JOBS_SCHEDULER", "true").lower() == "false":
         return None
     periodic = [(entry, entry.cron) for entry in JOBS.values() if entry.cron]
     if not periodic:

@@ -21,6 +21,8 @@ os.chdir(TEST_HOME)
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{TEST_HOME / 'data' / 'user.db'}"
 os.environ.setdefault("IS_PROD", "false")
 os.environ.setdefault("JOBS_BACKEND", "inline")
+# Periodic jobs in a background thread would change rows between the steps of a test
+os.environ.setdefault("JOBS_SCHEDULER", "false")
 
 
 def create_schema():
