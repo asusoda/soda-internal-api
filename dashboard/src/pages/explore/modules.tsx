@@ -19,7 +19,6 @@ const MODULE_PAGES: Record<string, string> = {
   runpod: 'hosting',
   feeds: 'job-alerts',
   knowledge: 'knowledge',
-  agents: 'agents',
   uptime: 'uptime',
 };
 

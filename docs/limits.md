@@ -20,6 +20,8 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `knowledge.embeddings_per_day` | knowledge | Texts embedded a day, for knowledge and agent memory | 500,000 |
 | `knowledge.uploads_per_day` | knowledge | Files uploaded a day | 500 |
 | `knowledge.jobs_per_day` | knowledge | Crawls, re-indexes and re-embeds that an officer or a token starts | 200 |
+| `agents.conversations` | agents | Agent conversations, for Agent memory | 5,000 |
+| `agents.memories` | agents | Agent memories, for Agent memory | 20,000 |
 | `godfather.pods` | godfather | Pods | 10 |
 | `runpod.apps` | runpod | Hosting apps | 25 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |

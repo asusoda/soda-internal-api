@@ -1,7 +1,6 @@
 import {
   Activity,
   BriefcaseBusiness,
-  Bot,
   CalendarDays,
   CodeXml,
   Coins,
@@ -26,7 +25,6 @@ import { ActivityPage } from './activity';
 import { AdminPage } from './admin';
 import { HackathonWebhookPage, JobWebhookPage } from './feeds';
 import { CalendarPage } from './calendar';
-import { AgentsPage } from './agents';
 import { ExplorePage } from './explore';
 import { GodfatherPage } from './godfather';
 import { HostingPage } from './hosting';
@@ -89,7 +87,6 @@ export const PAGES: PageEntry[] = [
   { path: 'knowledge/sources/*', label: 'Knowledge source', icon: Database, section: 'storage', module: 'knowledge', gate: true, hidden: true, page: KnowledgeSourcePage },
   { path: 'points', label: 'Points', icon: Coins, section: 'storage', module: 'points', gate: true, page: PointsPage, prefetch: prefetchPoints },
   { path: 'store', label: 'Store', icon: ShoppingBag, section: 'storage', module: 'storefront', gate: true, page: StorePage, prefetch: prefetchStore },
-  { path: 'agents', label: 'Agents', icon: Bot, section: 'agents', module: 'agents', gate: true, page: AgentsPage },
   { path: 'job-alerts', label: 'Job alerts', icon: BriefcaseBusiness, section: 'webhooks', module: 'feeds', gate: true, page: JobWebhookPage },
   { path: 'hackathons', label: 'Hackathons', icon: Trophy, section: 'webhooks', module: 'feeds', gate: true, page: HackathonWebhookPage },
   { path: 'calendar', label: 'Calendar', icon: CalendarDays, section: 'automations', module: 'calendar', gate: true, page: CalendarPage },
@@ -114,6 +111,7 @@ export const REDIRECTS: { path: string; to: string }[] = [
   { path: 'compute', to: '../godfather' },
   { path: 'mcp', to: '../tokens' },
   { path: 'webhooks', to: '../alerts' },
+  { path: 'agents', to: '../explore' },
 ];
 
 // The element for the route of a page, inside a ModuleGate when the entry asks for one.

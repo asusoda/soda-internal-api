@@ -37,7 +37,7 @@ OPTIONAL_MODULES = {
     "feeds": "New job listings and hackathons posted to an alert destination",
     "uptime": "Checks of sites and Hosting apps, with an event when one goes down or up",
     "knowledge": "Pages and documents that agents search",
-    "agents": "Conversations, memories and pending actions of the org's agents",
+    "agents": "Agent memory: conversations, memories and pending actions that agents keep for each member",
     "integrations": "Tools of the services the org connects, for agents",
     "accounts": "Accounts that members connect for agents to read",
     "runpod": "Apps the org deploys to a hosting provider",

@@ -68,8 +68,8 @@ CATALOG = {
         needs=(Need("ACCOUNTS_BASE_URL", "ACCOUNTS_BASE_URL setting", kind="setting"),),
     ),
     "agents": ModuleInfo(
-        "Agents",
-        "Conversations, memories and pending actions of the org's agents.",
+        "Agent memory",
+        "Conversations, memories and pending actions that the org's agents keep for each member, through the API.",
         needs=(Need("openrouter", "OpenRouter", optional=True),),
     ),
     "auth": ModuleInfo(
