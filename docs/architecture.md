@@ -140,7 +140,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `knowledge.add_document`, `knowledge.delete_source` (confirm), `knowledge.set_crawl`, `knowledge.crawl_now`, `knowledge.sync_submodule`, `knowledge.update_settings`, `knowledge.reindex` (confirm) | `knowledge:write` | knowledge |
 | `submodules.query` | `knowledge:read` | submodules |
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
-| `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
+| `apps.register`, `apps.link`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
 | `apps.deploy` (confirm) | `apps:deploy` | runpod |
 | `feeds.list`, `feeds.presets`, `feeds.history`, `feeds.save`, `feeds.run`, `feeds.delete` (confirm) | `feeds:manage` | feeds |
 | `godfather.pods`, `godfather.pod_members`, `godfather.connected`, `godfather.settings`, `godfather.sessions`, `godfather.list_files`, `godfather.read_file`, `godfather.update_pod`, `godfather.update_settings`, `godfather.delete_session`, `godfather.make_folder`, `godfather.move_file` | `godfather:manage` | godfather |

@@ -171,9 +171,11 @@ export function DeletePanel({
       }}
     >
       <div className="space-y-1 text-sm text-pretty">
-        <p className="font-medium">Delete {app.name} and its deployment history?</p>
+        <p className="font-medium">{app.linked ? `Unlink ${app.name}?` : `Delete ${app.name} and its deployment history?`}</p>
         <p className="text-muted">
-          {app.pod_id ? (
+          {app.linked ? (
+            'The service keeps running where it is. Platform stops listing it, and its Uptime monitor goes.'
+          ) : app.pod_id ? (
             <>
               The pod <Mono className="text-fg">{app.pod_id}</Mono> is not deleted. It keeps running and billing until you
               terminate it on {host}.
@@ -188,7 +190,7 @@ export function DeletePanel({
       </Field>
       <FormActions error={remove.error}>
         <Button variant="danger" disabled={typed !== app.name || remove.isPending}>
-          <Trash2 className="size-4" /> Delete app
+          <Trash2 className="size-4" /> {app.linked ? 'Unlink' : 'Delete app'}
         </Button>
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel

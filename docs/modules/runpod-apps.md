@@ -16,6 +16,29 @@ Officers can do steps 1, 2 and 4 on the dashboard (Settings > Secrets, and the S
 
 With a repo, a change to the pod's env, ports or disk is a pull request to the app, with the same review as its code. A person who can merge to the app's repo can already change what runs on the pod. Thus the deploy token gets no more access.
 
+## Linked apps
+
+A linked app is a service that the org runs outside Platform, such as a container that was on the server before Platform. Platform lists it on the Hosting page and Uptime checks its URL, so its down and up events reach the org's webhooks. Platform does not deploy it, roll it back or stop it, and it counts against no limit.
+
+```mermaid
+flowchart LR
+  service["Service the org runs, such as vaultwarden"] -->|public https URL| uptime["Uptime monitor"]
+  uptime --> events["monitor.down and monitor.up events"]
+  link["PUT /apps/name/link"] --> hosting["Hosting page: Linked badge"]
+  hosting --> uptime
+```
+
+- Link one on the Hosting page with **Link service**, with `PUT /api/apps/<name>/link` (`apps:manage`), with the `apps.link` tool, or on the server:
+
+  ```bash
+  flask --app main apps link soda vault --url https://vault.thesoda.io --kind service --runs-as vaultwarden
+  ```
+
+- The body is `{"url": "https://...", "kind": "site|service|bot|agent|database", "description": "...", "runs_as": ["container or process"]}`. `url` is optional; with no URL, Uptime has nothing to check. `runs_as` is for people to read.
+- Link it again to change it. Delete it to unlink it; the service keeps running.
+- Deploy, rollback and `PUT /<name>` answer 409 for a linked app, and linking a name that a deployed app has answers 409.
+- The org needs the `runpod` module on to see the Hosting page, and `uptime` on for the monitor.
+
 ## Templates
 
 `apps/` holds ready-made apps: [Vaultwarden](../../apps/vaultwarden/README.md) and [Hermes Agent](../../apps/hermes/README.md). See [apps/README.md](../../apps/README.md) for the template format.
@@ -62,6 +85,7 @@ All routes are under `/api/apps`. They need a machine token, and the org is the 
 | `POST /templates/<template>` | `apps:manage` | `{"name": "vault", "values": {...}, "secrets": {...}, "provider": "runpod"}`. Saves the secrets, then registers the app inline. 201. 409 if the app exists. A secret the org already saved can be left out |
 | `GET /<name>` | `apps:read` | One app and its manifest |
 | `PUT /<name>` | `apps:manage` | Creates or replaces the manifest. The name `templates` is not available |
+| `PUT /<name>/link` | `apps:manage` | Adds or updates a linked app (see Linked apps) |
 | `DELETE /<name>` | `apps:manage` | Removes the app record. The pod continues to run |
 | `GET /<name>/deployments` | `apps:read` | The latest 20 deployments |
 | `GET /<name>/pod` | `apps:read` | The pod as its provider shows it |
