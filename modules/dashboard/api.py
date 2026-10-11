@@ -93,24 +93,26 @@ def list_integrations(db, org):
     return {
         "integrations": [i | {"unlocks": unlocks.get(i["key"], [])} for i in integrations.status(db, _org_id(org))],
         "oauth": oauth.status(db, _org_id(org)),
-        "asu": asu.status(db, _org_id(org)),
         "secrets_key": secrets.configured(),
     }
 
 
-@_route("/integrations/asu/signin", ["GET"])
+@_route("/submodules/asu/signin", ["GET"])
 def asu_signin(db, org):
+    """The ASU sign-in of the org. Only for an org that subscribes to the ASU submodule."""
+    asu.require_subscribed(db, _org_id(org))
     return asu.status(db, _org_id(org))
 
 
-@_route("/integrations/asu/signin", ["POST"])
+@_route("/submodules/asu/signin", ["POST"])
 def start_asu_signin(db, org):
     body = json_body()
     return asu.start(db, _org_id(org), body.get("netid"), body.get("password"), _actor()), 202
 
 
-@_route("/integrations/asu/signin", ["DELETE"])
+@_route("/submodules/asu/signin", ["DELETE"])
 def stop_asu_signin(db, org):
+    """Sign out. Allowed after the org stops its subscription, so the saved session can go."""
     return asu.sign_out(db, _org_id(org))
 
 

@@ -4,7 +4,7 @@ An integration is an account or a service outside Platform, such as Notion or Ru
 
 The page shows the cards in two groups:
 
-- Accounts: the org's accounts at other services. Discord, GitHub, Google, Notion, RunPod and the ASU sign-in.
+- Accounts: the org's accounts at other services. Discord, GitHub, Google, Notion and RunPod. The ASU sign-in is on the ASU submodule card (see [Sign in to ASU](#sign-in-to-asu)).
 - Services: servers that Platform calls for search and page reads. Embeddings, Firecrawl, OpenRouter and SearXNG.
 
 The description of a card says what the officer connects, not what each module does with it. The "Used by" links show the modules.
@@ -94,17 +94,17 @@ Some MCP servers take no API key. The officer signs in with the service, and the
 
 ### Sign in to ASU
 
-Sun Devil Central, the ASU club system, needs an ASU sign-in. An officer signs in one time, and agents then search its clubs and events. The code is in `submodules/asu/signin/`.
+Sun Devil Central, the ASU club system, needs an ASU sign-in. An officer signs in one time, and agents then search its clubs and events. Only an org that subscribes to the ASU submodule can sign in; the routes and tools refuse the others. The code is in `submodules/asu/signin/`.
 
-1. On the Integrations tab of Explore, click **Sign in to ASU** on the ASU card.
+1. On the Submodules tab of Explore, subscribe to Arizona State University, then click **Sign in to ASU** on its card.
 2. Type your NetID and password, and click **Sign in**.
 3. Approve the Duo push on your phone. If Duo shows a code, the card shows the same code. Type it in the Duo app.
 4. When the card shows **Signed in**, give a token the `asu:read` scope.
 
 - Platform keeps only the browser cookies, as the org secret `asu_session`, encrypted with `SECRETS_KEY`. It does not keep, log or audit the NetID or the password.
-- The tools `asu.clubs` and `asu.events` show only when the org has a saved sign-in. They are read-only. Their results go only to the caller. Platform never adds them to knowledge.
+- The tools `asu.clubs` and `asu.events` show only when the org subscribes to ASU and has a saved sign-in. They are read-only. Their results go only to the caller. Platform never adds them to knowledge.
 - `asu.events` also reads the public ASU events calendar. If the sign-in expired, it returns the calendar and says that it did not read Sun Devil Central.
-- When a page load ends on a sign-in page, the sign-in has expired. The tools return an error, the card shows **Sign-in expired**, and Platform sends the event `asu.session_expired` one time. The notification links to the Integrations tab of Explore. Sign in again to clear it.
+- When a page load ends on a sign-in page, the sign-in has expired. The tools return an error, the card shows **Sign-in expired**, and Platform sends the event `asu.session_expired` one time. The notification links to the Submodules tab of Explore. Sign in again to clear it.
 - **Sign out** removes the saved cookies.
 - The sign-in runs in a browser on the API. The API process keeps the state of each attempt in memory, so run one API worker (the default).
 
@@ -125,14 +125,14 @@ All routes are under `/api/dashboard/<org>`, for officers of the org.
 
 | Route | Does |
 | --- | --- |
-| `GET /integrations` | Each integration, its fields, its state and the modules that use it, the OAuth sign-ins (`oauth`) and the ASU sign-in (`asu`) |
+| `GET /integrations` | Each integration, its fields, its state and the modules that use it, and the OAuth sign-ins (`oauth`) |
 | `PUT /integrations/<key>` | Body `{"fields": {"<secret name>": "<value>" or null}}`. null removes that key |
 | `POST /integrations/<key>/test` | `{"ok": true or false, "message": "..."}` |
 | `POST /integrations/<key>/oauth` | Starts a sign-in. Returns `{"url": "..."}` to open in the browser |
 | `DELETE /integrations/<key>/oauth` | Removes the saved sign-in |
-| `GET /integrations/asu/signin` | The ASU sign-in: `signed_in`, `signed_in_by`, `signed_in_at`, `expired_at`, `blocked` and the latest `attempt`. The dashboard polls it during a sign-in |
-| `POST /integrations/asu/signin` | Body `{"netid": "...", "password": "..."}`. Starts a sign-in and returns 202 with the state. 409 when one is running or the API cannot sign in |
-| `DELETE /integrations/asu/signin` | Removes the saved ASU sign-in |
+| `GET /submodules/asu/signin` | The ASU sign-in: `signed_in`, `signed_in_by`, `signed_in_at`, `expired_at`, `blocked` and the latest `attempt`. The dashboard polls it during a sign-in |
+| `POST /submodules/asu/signin` | Body `{"netid": "...", "password": "..."}`. Starts a sign-in and returns 202 with the state. 404 when the org does not subscribe to ASU. 409 when one is running or the API cannot sign in |
+| `DELETE /submodules/asu/signin` | Removes the saved ASU sign-in. Allowed after the subscription ends |
 
 An `attempt` has a `state`: `running`, `duo_code` (`code` has the number to type in Duo), `done` or `failed` (`reason` says why, such as a NetID or password that ASU did not accept).
 

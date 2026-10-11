@@ -63,7 +63,7 @@ const SCREENS = [
   },
   {
     name: 'asu-signed-out',
-    path: 'explore?tab=integrations',
+    path: 'explore?tab=submodules',
     before: async (page) => {
       await page.getByRole('button', { name: 'Sign in to ASU' }).scrollIntoViewIfNeeded();
       await page.mouse.wheel(0, 200);
@@ -71,7 +71,7 @@ const SCREENS = [
   },
   {
     name: 'asu-duo',
-    path: 'explore?tab=integrations',
+    path: 'explore?tab=submodules',
     fixtures: asuDuoFixtures,
     before: async (page) => {
       await page.getByLabel('Duo code').scrollIntoViewIfNeeded();

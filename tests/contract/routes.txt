@@ -132,9 +132,6 @@
 /api/dashboard/<string:org_prefix>/integrations/<string:key>/oauth DELETE,OPTIONS dashboard.stop_oauth
 /api/dashboard/<string:org_prefix>/integrations/<string:key>/oauth OPTIONS,POST dashboard.start_oauth
 /api/dashboard/<string:org_prefix>/integrations/<string:key>/test OPTIONS,POST dashboard.test_integration
-/api/dashboard/<string:org_prefix>/integrations/asu/signin DELETE,OPTIONS dashboard.stop_asu_signin
-/api/dashboard/<string:org_prefix>/integrations/asu/signin GET,HEAD,OPTIONS dashboard.asu_signin
-/api/dashboard/<string:org_prefix>/integrations/asu/signin OPTIONS,POST dashboard.start_asu_signin
 /api/dashboard/<string:org_prefix>/knowledge/crawls/<path:key> OPTIONS,PUT dashboard.schedule_crawl
 /api/dashboard/<string:org_prefix>/knowledge/crawls/<path:key>/run OPTIONS,POST dashboard.run_crawl
 /api/dashboard/<string:org_prefix>/knowledge/documents OPTIONS,POST dashboard.upload_documents
@@ -158,6 +155,9 @@
 /api/dashboard/<string:org_prefix>/submodules GET,HEAD,OPTIONS dashboard.list_shared_submodules
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription DELETE,OPTIONS dashboard.unsubscribe_submodule
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription OPTIONS,PUT dashboard.subscribe_submodule
+/api/dashboard/<string:org_prefix>/submodules/asu/signin DELETE,OPTIONS dashboard.stop_asu_signin
+/api/dashboard/<string:org_prefix>/submodules/asu/signin GET,HEAD,OPTIONS dashboard.asu_signin
+/api/dashboard/<string:org_prefix>/submodules/asu/signin OPTIONS,POST dashboard.start_asu_signin
 /api/dashboard/<string:org_prefix>/trends GET,HEAD,OPTIONS dashboard.trends
 /api/dashboard/<string:org_prefix>/webhooks GET,HEAD,OPTIONS alerts.list_webhooks
 /api/dashboard/<string:org_prefix>/webhooks OPTIONS,POST alerts.create_webhook

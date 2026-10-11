@@ -41,7 +41,7 @@ Pages that render with JavaScript (class search, events) need Firecrawl. The `we
 
 ## ASU sign-in
 
-An officer signs in to ASU on the Integrations tab of the dashboard Explore page with a NetID, a password and Duo. Platform keeps only the browser cookies, as the org secret `asu_session`. Agents with the `asu:read` scope then get two read-only tools:
+An officer of an org that subscribes to ASU signs in on the ASU card of the Submodules tab of the dashboard Explore page with a NetID, a password and Duo. Platform keeps only the browser cookies, as the org secret `asu_session`. Agents with the `asu:read` scope then get two read-only tools:
 
 | Tool | Parameters | Reads |
 | --- | --- | --- |

@@ -42,7 +42,6 @@ export type OAuthState = {
 export type IntegrationList = {
   integrations: Integration[];
   oauth?: Record<string, OAuthState>;
-  asu?: AsuState;
   secrets_key: boolean;
 };
 

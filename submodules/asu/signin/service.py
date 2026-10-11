@@ -33,8 +33,10 @@ logger = get_logger("asu.signin")
 SECRET = "asu_session"  # nosec B105 - the name of an org secret, not its value
 MAX_NETID = 64
 MAX_PASSWORD = 256
-EXPIRED = "The ASU sign-in has expired. An officer must sign in to ASU again on the Integrations tab of Explore"
-NOT_SIGNED_IN = "No ASU sign-in. An officer must sign in to ASU on the Integrations tab of Explore"
+EXPIRED = "The ASU sign-in has expired. An officer must sign in again on the ASU card of Explore, Submodules"
+NOT_SIGNED_IN = "No ASU sign-in. An officer must sign in on the ASU card of Explore, Submodules"
+NOT_SUBSCRIBED = "The org does not subscribe to the ASU submodule. Subscribe on Explore, Submodules"
+SUBMODULE = "asu"
 
 secrets.declare(SECRET, "ASU: the browser cookies of the officer who signed in to ASU")
 webhooks.declare(
@@ -108,9 +110,22 @@ def _save(db, org_id: int, value: dict, actor: str | None) -> None:
         raise AsuError(str(e), 409) from e
 
 
+def subscribed(db, org_id: int) -> bool:
+    """Whether the org subscribes to the ASU submodule. Only those orgs can sign in to ASU."""
+    from modules.submodules.service import subscribed_names
+
+    return SUBMODULE in subscribed_names(db, org_id)
+
+
+def require_subscribed(db, org_id: int) -> None:
+    if not subscribed(db, org_id):
+        raise AsuError(NOT_SUBSCRIBED, 404)
+
+
 def usable(db, org_id: int) -> bool:
-    """Whether the API has the browser and the org saved an ASU session. The session can be expired."""
-    return browsers.missing() is None and _saved(db, org_id) is not None
+    """Whether the API has the browser, the org subscribes to ASU and saved an ASU session. The session can be
+    expired."""
+    return browsers.missing() is None and subscribed(db, org_id) and _saved(db, org_id) is not None
 
 
 def status(db, org_id: int) -> dict:
@@ -132,6 +147,7 @@ def status(db, org_id: int) -> dict:
 
 def start(db, org_id: int, netid: object, password: object, actor: str | None) -> dict:
     """Starts a sign-in attempt in a thread and returns the status. Raises AsuError when it cannot start."""
+    require_subscribed(db, org_id)
     if not isinstance(netid, str) or not netid.strip() or len(netid) > MAX_NETID:
         raise AsuError("Send netid, your ASU NetID")
     if not isinstance(password, str) or not password or len(password) > MAX_PASSWORD:
@@ -215,13 +231,15 @@ def _expire(db, org_id: int, org_prefix: str) -> None:
             return
         saved["expired_at"] = _now()
         _save(db, org_id, saved, saved.get("signed_in_by"))
-    link = f"{config.DASHBOARD_URL}/{org_prefix}/integrations" if config.DASHBOARD_URL and org_prefix else None
+    link = (
+        f"{config.DASHBOARD_URL}/{org_prefix}/explore?tab=submodules" if config.DASHBOARD_URL and org_prefix else None
+    )
     message = webhooks.Message(
         title="ASU sign-in expired",
-        text="Agents cannot read Sun Devil Central. Sign in to ASU again on the Integrations tab of Explore.",
+        text="Agents cannot read Sun Devil Central. Sign in again on the ASU card of Explore, Submodules.",
         url=link,
         color=webhooks.AMBER,
-        footer="Integrations",
+        footer="Submodules",
     )
     webhooks.emit(org_id, "asu.session_expired", message)
     logger.info("asu session expired org=%s", org_id)
@@ -229,6 +247,7 @@ def _expire(db, org_id: int, org_prefix: str) -> None:
 
 def read(db, org_id: int, org_prefix: str, url: str) -> Fetched:
     """The page at url, loaded with the org's ASU session. Raises SessionExpired when the session has expired."""
+    require_subscribed(db, org_id)
     saved = _saved(db, org_id)
     if saved is None:
         raise AsuError(NOT_SIGNED_IN, 409)

@@ -1384,10 +1384,9 @@ export function fixtures(now = Date.now()) {
         notion: { title: 'Notion', connected: true, connected_by: 'ash', connected_at: at(-2 * DAY), blocked: null },
         google: { title: 'Google', connected: false, connected_by: null, connected_at: null, blocked: null },
       },
-      asu: asuSignedOut,
       secrets_key: true,
     },
-    [`/api/dashboard/${ORG.prefix}/integrations/asu/signin`]: asuSignedOut,
+    [`/api/dashboard/${ORG.prefix}/submodules/asu/signin`]: asuSignedOut,
     [`/api/dashboard/${ORG.prefix}/notifications`]: { notifications, open: notifications.filter((n) => !n.resolved_at).length },
     [`/api/dashboard/${ORG.prefix}/ci`]: ci,
     [`/api/dashboard/${ORG.prefix}/errors`]: { errors: orgErrors, open: orgErrors.length, events: orgErrors.reduce((n, e) => n + e.count, 0), webhook_set: true },
@@ -1535,12 +1534,12 @@ export function fixtures(now = Date.now()) {
 
 // The same org with long lists, for perf.mjs: 2,000 knowledge sources, 1,500 members, 200 knowledge runs,
 // 600 store orders and 1,000 audit log entries.
-// The ASU card while Duo shows a code, for the asu-duo screenshot.
+// The ASU sign-in while Duo shows a code, for the asu-duo screenshot.
 export function asuDuoFixtures(now = Date.now()) {
   const data = fixtures(now);
-  const path = `/api/dashboard/${ORG.prefix}/integrations`;
+  const path = `/api/dashboard/${ORG.prefix}/submodules/asu/signin`;
   const asu = {
-    ...data[path].asu,
+    ...data[path],
     attempt: {
       state: 'duo_code',
       message: 'Enter the code 482916 in the Duo app.',
@@ -1550,7 +1549,7 @@ export function asuDuoFixtures(now = Date.now()) {
       finished_at: null,
     },
   };
-  return { ...data, [path]: { ...data[path], asu }, [`${path}/asu/signin`]: asu };
+  return { ...data, [path]: asu };
 }
 
 export function largeFixtures(now = Date.now()) {

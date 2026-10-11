@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, LogIn, PlugZap, SearchX } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { AsuCard } from '../../components/asu-card';
 import { IntegrationIcon } from '../../components/integration-icons';
 import {
   Badge,
@@ -293,7 +292,6 @@ export function IntegrationsTab({ query }: { query: string }) {
   if (error || !data) return <ErrorNote error={error ?? 'No data'} />;
   const q = query.trim().toLowerCase();
   const found = data.integrations.filter((i) => !q || `${i.key} ${i.title} ${i.description}`.toLowerCase().includes(q));
-  const asu = data.asu && (!q || 'asu sun devil'.includes(q) || q.includes('asu'));
   return (
     <>
       {!data.secrets_key ? (
@@ -301,7 +299,7 @@ export function IntegrationsTab({ query }: { query: string }) {
           <ErrorNote error="SECRETS_KEY is not set on the API, so keys cannot be saved." />
         </div>
       ) : null}
-      {!found.length && !asu ? (
+      {!found.length ? (
         <Card>
           <EmptyState icon={SearchX} title="No integration matches" />
         </Card>
@@ -310,15 +308,13 @@ export function IntegrationsTab({ query }: { query: string }) {
         {GROUPS.map((g, n) => {
           const last = n === GROUPS.length - 1;
           const items = found.filter((i) => g.keys.includes(i.key) || (last && !GROUPS.some((o) => o.keys.includes(i.key))));
-          const extra = n === 0 && asu && data.asu ? <AsuCard prefix={prefix} initial={data.asu} /> : null;
-          return items.length || extra ? (
+          return items.length ? (
             <section key={g.title} aria-label={g.title}>
               <h2 className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">{g.title}</h2>
               <div className="grid items-start gap-4 md:grid-cols-2">
                 {items.map((i) => (
                   <IntegrationCard key={i.key} prefix={prefix} i={i} canSave={data.secrets_key} oauth={data.oauth?.[i.key]} />
                 ))}
-                {extra}
               </div>
             </section>
           ) : null;
