@@ -1,6 +1,6 @@
 # submodules
 
-Loads the submodules in the `submodules/` folder and keeps each org's subscriptions. A submodule is a domain, such as a campus or careers: content, not a feature. An org subscribes to it once, and each module that reads it gets its part:
+Loads the submodules in the `submodules/` folder and keeps each org's subscriptions. A submodule is a domain, such as a campus or careers: content, not a feature. The dashboard calls submodules shared content. An org subscribes to it once, and each module that reads it gets its part:
 
 - knowledge searches its pages, which are the submodule's own sources: crawled and embedded once by the deployment, with no org;
 - [feeds](../feeds/README.md) offers its feeds as presets;

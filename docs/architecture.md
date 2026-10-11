@@ -71,20 +71,20 @@ Orgs can turn on and off the optional modules: `points`, `storefront`, `calendar
 
 ### Modules, submodules, apps and integrations
 
-Platform has four kinds of part. Each one lives in one place.
+Platform has four kinds of part. Each one lives in one place. The dashboard and the site use plain names; the code keeps its own:
 
-| Kind | Is | Where | Example | Who adds it |
-| --- | --- | --- | --- | --- |
-| Module | A feature with code | `modules/<name>/`; a card on Explore | `knowledge`, `feeds`, `godfather` | A developer, by pull request |
-| Submodule | A domain: content and presets with no code of their own | `submodules/<name>/`; the Submodules tab of Explore | `asu` (campus pages, live queries, Canvas URL), `careers` (job and hackathon feeds) | A developer, by pull request |
-| App | Something that runs: a container or a pod | The Hosting page | Hermes, Sparky, Vaultwarden | The org, from a manifest or a template |
-| Integration | A connection to an outside service | The Integrations tab of Explore | RunPod, OpenRouter, Firecrawl, Embeddings | The org with its own keys, or the deployment as the default |
+| Kind (dashboard name) | Code name | Is | Where | Example | Who adds it |
+| --- | --- | --- | --- | --- | --- |
+| Feature | module | Something Platform does, with code. Its data belongs to each org | `modules/<name>/`; the Features tab of Explore | `knowledge`, `feeds`, `godfather` | A developer, by pull request |
+| Shared content | submodule | Content made once for every org, with no code of its own | `submodules/<name>/`; the Shared tab of Explore | `asu` (campus pages, live queries, Canvas URL), `careers` (job and hackathon feeds) | A developer, by pull request |
+| App | app | A program in its own container or pod | The Hosting page | Hermes, Vaultwarden | The org, from a manifest or a template |
+| Integration | integration | A connection to an outside service | The Integrations tab of Explore | RunPod, OpenRouter, Firecrawl, Embeddings | The org with its own keys, or the deployment as the default |
 
 ```mermaid
 flowchart LR
-  org["Org (a Discord server)"] -->|"turns on"| modules["Modules: knowledge, feeds, uptime..."]
-  org -->|"subscribes to"| subs["Submodules: asu, careers"]
-  org -->|"deploys or links"| apps["Apps: Hosting page"]
+  org["Org (a Discord server)"] -->|"turns on"| modules["Features (modules): knowledge, feeds, uptime..."]
+  org -->|"subscribes to"| subs["Shared content (submodules): asu, careers"]
+  org -->|"deploys"| apps["Apps: Hosting page"]
   org -->|"connects"| integrations["Integrations: own keys or the deployment's"]
   subs -->|"pages"| knowledge["knowledge search"]
   subs -->|"presets"| feeds["feeds"]
@@ -102,14 +102,21 @@ An org turns modules on and subscribes to submodules. Each module that is on get
 | Core | `alerts`, `auth`, `bot`, `dashboard`, `mcp`, `organizations`, `public`, `submodules`, `superadmin`, `users`. Always on and not on Explore |
 | Storage | `knowledge`, `points`, `storefront`, `accounts` |
 | AI and agents | `agents`, `integrations` |
-| Webhooks | `feeds` |
-| Automations | `calendar`, `uptime` |
+| Automations | `feeds`, `calendar`, `uptime` |
 | Bots | `leetcode`, `games` |
 | Compute | `godfather`, `runpod` (Hosting) |
 
 The dashboard sidebar has one section for each category except Core. Submodule subscriptions need no module switch; live queries need `knowledge`. `GET /api/dashboard/<org>/modules` returns the catalog with the org's switches, whether each need is connected, and the limits that each module's use counts against.
 
 ### Sharing and isolation
+
+A thing is either isolated or shared:
+
+| | Isolated | Shared |
+| --- | --- | --- |
+| Owner | One org | The deployment |
+| Examples | An org's points, documents, pods, apps, monitors | Shared content, the bot, the MCP server, the embedder |
+| Counts against the org's limits | Yes, as counts | Only the org's use of it, as rates; shared content does not count |
 
 Every org shares the same processes, containers and database. Three layers keep one org from using up the server for the others:
 

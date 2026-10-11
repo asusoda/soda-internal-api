@@ -33,9 +33,9 @@ logger = get_logger("asu.signin")
 SECRET = "asu_session"  # nosec B105 - the name of an org secret, not its value
 MAX_NETID = 64
 MAX_PASSWORD = 256
-EXPIRED = "The ASU sign-in has expired. An officer must sign in again on the ASU card of Explore, Submodules"
-NOT_SIGNED_IN = "No ASU sign-in. An officer must sign in on the ASU card of Explore, Submodules"
-NOT_SUBSCRIBED = "The org does not subscribe to the ASU submodule. Subscribe on Explore, Submodules"
+EXPIRED = "The ASU sign-in has expired. An officer must sign in again on the ASU card of Explore, Shared"
+NOT_SIGNED_IN = "No ASU sign-in. An officer must sign in on the ASU card of Explore, Shared"
+NOT_SUBSCRIBED = "The org does not subscribe to the ASU shared content. Subscribe on Explore, Shared"
 SUBMODULE = "asu"
 
 secrets.declare(SECRET, "ASU: the browser cookies of the officer who signed in to ASU")
@@ -231,15 +231,13 @@ def _expire(db, org_id: int, org_prefix: str) -> None:
             return
         saved["expired_at"] = _now()
         _save(db, org_id, saved, saved.get("signed_in_by"))
-    link = (
-        f"{config.DASHBOARD_URL}/{org_prefix}/explore?tab=submodules" if config.DASHBOARD_URL and org_prefix else None
-    )
+    link = f"{config.DASHBOARD_URL}/{org_prefix}/explore?tab=shared" if config.DASHBOARD_URL and org_prefix else None
     message = webhooks.Message(
         title="ASU sign-in expired",
-        text="Agents cannot read Sun Devil Central. Sign in again on the ASU card of Explore, Submodules.",
+        text="Agents cannot read Sun Devil Central. Sign in again on the ASU card of Explore, Shared.",
         url=link,
         color=webhooks.AMBER,
-        footer="Submodules",
+        footer="Shared",
     )
     webhooks.emit(org_id, "asu.session_expired", message)
     logger.info("asu session expired org=%s", org_id)

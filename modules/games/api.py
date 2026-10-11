@@ -22,7 +22,7 @@ def require_officer():
     if denial:
         return jsonify({"message": denial[0]}), denial[1]
     if not _games_on():
-        return jsonify({"message": "The games module is off for your organization"}), 404
+        return jsonify({"message": "The games feature is off for your organization"}), 404
     return None
 
 

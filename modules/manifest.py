@@ -23,8 +23,7 @@ CATEGORIES = {
     ],
     "Storage": ["knowledge", "points", "storefront", "accounts"],
     "AI and agents": ["agents", "integrations"],
-    "Webhooks": ["feeds"],
-    "Automations": ["calendar", "uptime"],
+    "Automations": ["feeds", "calendar", "uptime"],
     "Bots": ["leetcode", "games"],
     "Compute": ["godfather", "runpod"],
 }
@@ -108,8 +107,9 @@ CATALOG = {
     "mcp": ModuleInfo("MCP", "The MCP server that gives agents and apps the tools of each module."),
     "organizations": ModuleInfo("Organizations", "The org record, module switches, secrets and machine tokens."),
     "submodules": ModuleInfo(
-        "Submodules",
-        "Loads submodules: campus pages and live queries for knowledge, and feeds for the webhook modules.",
+        "Shared content",
+        "Content made once for every org: campus pages and live queries for Knowledge, and job and hackathon sources "
+        "for Feeds. The code name is submodules.",
         needs=(Need("searxng", "Web search (SearXNG)", optional=True),),
         submodules=("asu", "careers"),
     ),

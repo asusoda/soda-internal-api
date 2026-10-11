@@ -5,10 +5,12 @@ import { cx } from './ui';
 export type Tab<T extends string> = { id: T; label: string };
 
 // The tab named by the ?tab= query parameter, and a function to change it. The first tab has no parameter.
-export function useTabParam<T extends string>(tabs: readonly Tab<T>[]): [T, (id: T) => void] {
+// aliases maps an old ?tab= value to the tab that replaced it, so old links still open the right tab.
+export function useTabParam<T extends string>(tabs: readonly Tab<T>[], aliases: Record<string, T> = {}): [T, (id: T) => void] {
   const [params, setParams] = useSearchParams();
   const first = tabs[0].id;
-  const tab = tabs.find((t) => t.id === params.get('tab'))?.id ?? first;
+  const asked = params.get('tab') ?? '';
+  const tab = tabs.find((t) => t.id === (aliases[asked] ?? asked))?.id ?? first;
   return [tab, (id: T) => setParams(id === first ? {} : { tab: id }, { replace: true })];
 }
 

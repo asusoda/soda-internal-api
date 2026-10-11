@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: 'Platform: infrastructure for student organizations',
     template: '%s | Platform',
   },
-  description: 'One open-source deployment for many student orgs, each with the modules it needs.',
+  description: 'One open-source deployment for many student orgs, each with the features it needs.',
 };
 
 export default function Layout({ children }: LayoutProps<'/'>) {

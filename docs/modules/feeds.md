@@ -1,6 +1,6 @@
 # Feeds
 
-The Feeds module (`feeds`) posts listings to Discord channels: new internship and new grad roles from GitHub job lists, and upcoming hackathons. It is in the Webhooks category and starts off. Each feed reads one source on a schedule and posts the new items to one Discord destination of [Alerts](../webhooks.md). Org events such as errors go through Alerts too.
+The Feeds module (`feeds`) posts listings to Discord channels: new internship and new grad roles from GitHub job lists, and upcoming hackathons. It is in the Automations category and starts off. Each feed reads one source on a schedule and posts the new items to one Discord destination of [Alerts](../webhooks.md). Org events such as errors go through Alerts too.
 
 ```mermaid
 flowchart LR
@@ -27,7 +27,7 @@ The first run of a feed records all current items and posts none. Thus a new fee
 
 The Job alerts page (`job-alerts`) shows the `github_jobs` feeds. The Hackathons page (`hackathons`) shows the `hackathons` feeds. Both are pages of the Feeds module. The old path `alerts` opens the Job alerts page. On each page:
 
-- **New feed** > **Start from** fills the form from a feed of that kind in a submodule the org subscribes to.
+- **New feed** > **Start from** fills the form from a feed of that kind in shared content the org subscribes to.
 - `?new=<submodule>/<feed>` opens the new feed form with that feed.
 - Each feed has pause, run now, delete, and its history.
 

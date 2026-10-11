@@ -1,26 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Bell,
-  Bot,
-  CalendarDays,
-  Code,
-  Cpu,
-  FileSearch,
-  Gamepad2,
-  KeyRound,
-  Lock,
-  Plug,
-  Rocket,
-  ScrollText,
-  ShieldCheck,
-  ShoppingBag,
-  Timer,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Bell, Bot, CalendarDays, Code, Cpu, FileSearch, Gamepad2, KeyRound, Lock, Newspaper, Plug, Rocket, ScrollText, ShieldCheck, ShoppingBag, Timer, Users } from 'lucide-react';
 import { DemoVideo } from '@/components/demo-video';
 import { Contributors } from '@/components/contributors';
 import { BuiltBy, OrgMarks } from '@/components/org-marks';
@@ -47,7 +28,8 @@ const modules: Module[] = [
     text: 'Notion events go to Google Calendar and a public feed.',
     href: '/docs/modules/calendar',
   },
-  { icon: Bell, name: 'Alerts', text: 'Job and hackathon posts in your Discord channels.', href: '/docs/modules/feeds' },
+  { icon: Bell, name: 'Alerts', text: 'Org events, such as a failed job or a site that is down, in your Discord channels.', href: '/docs/codebase/webhooks' },
+  { icon: Newspaper, name: 'Feeds', text: 'Job and hackathon posts in your Discord channels.', href: '/docs/modules/feeds' },
   {
     icon: Gamepad2,
     name: 'Discord bot',
@@ -69,27 +51,27 @@ const modules: Module[] = [
   { icon: Bot, name: 'Agent memory', text: 'Conversations and memories for each member.', href: '/docs/modules/agents' },
   {
     icon: KeyRound,
-    name: 'Linked accounts',
+    name: 'Member accounts',
     text: 'Canvas, Google Calendar and Outlook, for agents to use.',
     href: '/docs/modules/accounts',
   },
   { icon: Cpu, name: 'Godfather pods', text: 'GPU and CPU pods that members reach over SSH.', href: '/docs/modules/godfather' },
   {
     icon: Rocket,
-    name: 'RunPod apps',
+    name: 'Hosting',
     text: 'Deploy org apps with health checks and rollback.',
     href: '/docs/modules/runpod-apps',
   },
   {
     icon: Plug,
     name: 'MCP tools',
-    text: 'Module tools for agents, with scoped tokens.',
+    text: 'The tools of each feature for agents, with scoped tokens.',
     href: '/docs/codebase/architecture#tools-and-the-mcp-server',
   },
 ];
 
 const shots = [
-  { name: 'settings', title: 'Module switches', alt: 'Settings page with a switch for each module' },
+  { name: 'explore', title: 'Features', alt: 'Explore page with the features an org can add' },
   { name: 'tokens', title: 'Scoped tokens', alt: 'Tokens page with a new agent token and its scopes' },
   { name: 'godfather', title: 'Godfather pods', alt: 'Godfather page with the org pods and their sessions' },
 ];
@@ -110,14 +92,14 @@ export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col">
       <Hero />
-      <Section eyebrow="Modules" title="Turn on what your org uses." text="Each org is a Discord server with its own modules.">
+      <Section eyebrow="Features" title="Turn on what your org uses." text="Each org is a Discord server with its own features.">
         <div className="grid gap-px overflow-hidden rounded-xl border bg-fd-border grid-cols-2 lg:grid-cols-4">
           {modules.map((m) => (
             <Feature key={m.name} {...m} />
           ))}
         </div>
       </Section>
-      <Section eyebrow="Dashboard" title="One dashboard for each org." text="Officers manage modules, tokens and pods.">
+      <Section eyebrow="Dashboard" title="One dashboard for each org." text="Officers manage features, tokens and pods.">
         <div className="grid gap-6 md:grid-cols-3">
           {shots.map((s) => (
             <figure key={s.name}>
@@ -161,7 +143,7 @@ function Hero() {
           Infrastructure for student organizations
         </h1>
         <p className="mt-5 max-w-xl text-base text-pretty text-fd-muted-foreground md:text-lg">
-          One deployment for many orgs, each with the modules it needs.
+          One deployment for many orgs, each with the features it needs.
         </p>
         <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <Link href="/docs" className={primaryButton}>

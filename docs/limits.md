@@ -26,7 +26,7 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `runpod.apps` | runpod | Hosting apps | 25 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |
 | `alerts.destinations` | alerts | Alert destinations | 20 |
-| `submodules.subscriptions` | submodules | Submodules the org subscribes to. Their shared pages count against no org | 20 |
+| `submodules.subscriptions` | submodules | Shared content the org subscribes to. Its pages count against no org | 20 |
 | `mcp.calls_per_minute` | mcp | Tool calls a minute, over MCP and `/api/tools`. Each call in a batch counts | 300 |
 
 Each embedding counts, whichever service the org uses. A search over the embedding limit searches on text only and does not fail. A crawl or an upload over a limit records the error on the source or the file, and the other sources and files go on.
@@ -47,7 +47,7 @@ The dashboard shows who pays:
 
 - Settings > Limits puts the org's own limits and the metered ones in two groups.
 - A module card on Explore lists the limits that its use counts against.
-- The Submodules tab marks each part of a submodule: its pages are shared, its live query results and feeds are the org's own.
+- The Shared tab of Explore marks each part of shared content: its pages are shared, its live query results and feeds are the org's own.
 - The Integrations tab shows "Platform's key" and the limits it counts against, or the org's own key.
 
 ## The value of a limit

@@ -33,7 +33,7 @@ const CATALOG = [
   { name: 'accounts', title: 'Member accounts', description: "Members connect Canvas, Google and Outlook, and agents read them for the member.", category: 'Storage', switchable: true, needs: [need('ACCOUNTS_BASE_URL', 'ACCOUNTS_BASE_URL setting', true, { kind: 'setting' })], submodules: [] },
   { name: 'agents', title: 'Agent memory', description: "Conversations, memories and pending actions that the org's agents keep for each member, through the API.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
   { name: 'integrations', title: 'Integration tools', description: "Gives agents the tools of the services that the org connects.", category: 'AI and agents', switchable: true, needs: [], submodules: [] },
-  { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
+  { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Automations', switchable: true, needs: [], submodules: ['careers'] },
   { name: 'calendar', title: 'Calendar sync', description: "Copies Notion events to Google Calendar and the public events feed.", category: 'Automations', switchable: true, needs: [need('notion', 'Notion', false), need('google', 'Google service account', true)], submodules: [] },
   { name: 'uptime', title: 'Uptime', description: "Checks the org's sites and Hosting apps, with an event when one goes down or comes back.", category: 'Automations', switchable: true, needs: [], submodules: [] },
   { name: 'leetcode', title: 'LeetCode', description: "Posts the daily LeetCode question in a Discord channel and checks who solved it.", category: 'Bots', switchable: true, needs: [need('discord', 'Discord bot', true)], submodules: [] },
@@ -41,7 +41,7 @@ const CATALOG = [
   { name: 'godfather', title: 'Godfather', description: "GPU and CPU pods that members connect to with the Godfather CLI.", category: 'Compute', switchable: true, needs: [need('runpod', 'RunPod', true)], submodules: [] },
   { name: 'runpod', title: 'Hosting', description: "Deploys the org's apps to a hosting provider, and rolls back to an earlier tag.", category: 'Compute', switchable: true, needs: [need('runpod', 'RunPod', true), need('github', 'GitHub', true, { optional: true })], submodules: [] },
 ];
-const CATEGORIES = ['Storage', 'AI and agents', 'Webhooks', 'Automations', 'Bots', 'Compute'];
+const CATEGORIES = ['Storage', 'AI and agents', 'Automations', 'Bots', 'Compute'];
 const SUBMODULES = {
   asu: { name: 'asu', title: 'Arizona State University', description: 'Public ASU pages and live queries: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports.' },
   careers: { name: 'careers', title: 'Internships and hackathons', description: 'Alert feeds for software internships, new grad roles and upcoming hackathons.' },

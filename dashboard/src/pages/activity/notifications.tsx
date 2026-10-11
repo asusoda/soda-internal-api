@@ -29,8 +29,8 @@ export function NotificationsTab() {
   const filters = (
     <>
       {modules.length > 1 ? (
-        <Select value={module} onChange={(e) => setModule(e.target.value)} aria-label="Module" className="h-8 w-40! text-xs">
-          <option value="">All modules</option>
+        <Select value={module} onChange={(e) => setModule(e.target.value)} aria-label="Feature" className="h-8 w-40! text-xs">
+          <option value="">All features</option>
           {modules.map((m) => (
             <option key={m} value={m}>
               {moduleLabel(m)}

@@ -1,6 +1,6 @@
-# Submodules
+# Shared content (submodules)
 
-A submodule is a domain, such as one campus or careers, that an org subscribes to. Each module that reads the submodule gets its part: public pages for [knowledge](./knowledge.md), live queries for agents, feeds for the [webhook modules](./feeds.md), and the school's Canvas URL for [accounts](./accounts.md). Submodules are folders in [`submodules/`](../../submodules/README.md) of the repo. A submodule holds content and settings, not new behavior. Features are [modules](../writing-a-module.md).
+Shared content is content made once for every org, such as one campus or careers, that an org subscribes to. The dashboard calls it shared content; the code calls each one a submodule. Each module that reads the submodule gets its part: public pages for [knowledge](./knowledge.md), live queries for agents, feeds for [Feeds](./feeds.md), and the school's Canvas URL for [accounts](./accounts.md). Submodules are folders in [`submodules/`](../../submodules/README.md) of the repo. A submodule holds content and settings, not new behavior. Features are [modules](../writing-a-module.md).
 
 The deployment crawls and embeds a submodule's pages once, for every org that subscribes. The pages are the submodule's own sources: they have no org, and they count against no org's limits.
 
@@ -24,7 +24,7 @@ flowchart LR
 
 ## Subscribe an org
 
-1. On the Explore page of the dashboard, open the Submodules tab.
+1. On the Explore page of the dashboard, open the Shared tab.
 2. Click **Subscribe** next to the submodule.
 
 A subscription does these things:
