@@ -96,11 +96,12 @@ discard-local-changes:
 	@printf "$(GREEN)[INFO]$(NC) Local changes discarded successfully!\n"
 
 # Deploy to production
-# web, dashboard and bot are created with --requires on the api container. When the api image changes,
-# all four are recreated together: recreating api alone makes podman-compose remove web and dashboard and
-# then fail to replace api ("has dependent containers"), which leaves the old api running. soda-mcp (profile
-# mcp) also requires api, so when it exists it is recreated with them. Docker Compose gets --profile mcp;
-# podman-compose 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
+# web, dashboard, bot and mcp are created with --requires on the api container. When any image changes,
+# all of them are recreated together. podman-compose 1.0.6 recreates a service's dependencies with it, so
+# `up -d dashboard` also tries to replace api. It then removes the other containers that require api and
+# fails to replace api ("has dependent containers"), which leaves only api and dashboard running.
+# soda-mcp (profile mcp) is recreated when it exists. Docker Compose gets --profile mcp; podman-compose
+# 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
@@ -174,9 +175,8 @@ deploy:
 		echo -e "$(GREEN)[INFO]$(NC) Running database migrations..."; \
 		uv run alembic upgrade head || { echo -e "$(RED)[ERROR]$(NC) Database migration failed!"; exit 1; }; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
-			SERVICES_TO_START="$$SERVICES_TO_BUILD"; \
-			if [ "$$BUILD_API" -eq 1 ]; then SERVICES_TO_START="api bot web dashboard"; fi; \
-			if [ "$$BUILD_API" -eq 1 ] && [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
+			SERVICES_TO_START="api bot web dashboard"; \
+			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
 			echo -e "$(GREEN)[INFO]$(NC) Recreating changed services:$$SERVICES_TO_START"; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --remove-orphans $$SERVICES_TO_START; \
 		else \
@@ -213,28 +213,26 @@ deploy:
 			fi; \
 			echo -e "$(GREEN)[INFO]$(NC) $$1 runs the new $$2 image."; \
 		}; \
-		if [ "$$BUILD_API" -eq 1 ]; then \
+		if [ -n "$$SERVICES_TO_BUILD" ]; then \
 			wait_for_health soda-internal-api 60; \
 			wait_for_health soda-bot 60; \
+			wait_for_health soda-web 60; \
+			wait_for_health soda-dashboard 60; \
 			check_image soda-internal-api soda-internal-api:latest; \
 			check_image soda-bot soda-internal-api:latest; \
+			check_image soda-web soda-web:latest; \
+			check_image soda-dashboard soda-dashboard:latest; \
 			if [ "$$MCP_ON" -eq 1 ]; then \
 				wait_for_health soda-mcp 60; \
 				check_image soda-mcp soda-internal-api:latest; \
 			fi; \
+		fi; \
+		if [ "$$BUILD_API" -eq 1 ]; then \
 			if ! curl -fsS http://127.0.0.1:8000/health | grep -q "$$NEW_HEAD"; then \
 				echo -e "$(RED)[ERROR]$(NC) /health does not report commit $$NEW_HEAD."; \
 				exit 1; \
 			fi; \
 			echo -e "$(GREEN)[INFO]$(NC) /health reports commit $$NEW_HEAD."; \
-		fi; \
-		if [ "$$BUILD_WEB" -eq 1 ] || [ "$$BUILD_API" -eq 1 ]; then \
-			wait_for_health soda-web 60; \
-			check_image soda-web soda-web:latest; \
-		fi; \
-		if [ "$$BUILD_DASHBOARD" -eq 1 ] || [ "$$BUILD_API" -eq 1 ]; then \
-			wait_for_health soda-dashboard 60; \
-			check_image soda-dashboard soda-dashboard:latest; \
 		fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Container status:"; \
 		$(COMPOSE_CMD) ps; \
