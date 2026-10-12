@@ -11,7 +11,6 @@ Platform is a Flask API with a Discord bot, a job worker and an MCP server. All 
 | Job worker | `worker_main.py` | | Runs jobs from the Procrastinate queue. Postgres only |
 | MCP server | `mcp_main.py` | 8001 | Module tools for agents, over MCP |
 | Dashboard | `dashboard/` | 5001 (5173 in dev) | The officer pages for each org and the member store (Vite, React) |
-| Web | `web/` | 5000 | The old officer app (Vite and TypeScript), kept for SoDA at admin.thesoda.io |
 
 The database is Postgres in production, or SQLite for a small deployment. Alembic makes the schema.
 
@@ -20,7 +19,6 @@ This diagram shows the processes, their clients and the outside services.
 ```mermaid
 flowchart LR
   dashboard["dashboard/"] --> api["API: main.py, port 8000"]
-  web["web/"] --> api
   website["thesoda.io"] --> api
   agents["Apps and agents"] -->|"Bearer plat_..."| mcp["MCP server: mcp_main.py, port 8001"]
   agents -->|"/api/tools"| api

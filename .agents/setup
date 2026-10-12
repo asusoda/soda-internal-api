@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Prepare a fresh Amp orb: the Node version in .nvmrc, Python 3.12 and the uv
-# environment, the npm dependencies of dashboard/ and site/, and the pnpm
-# dependencies of web/. Safe to run
+# environment, and the npm dependencies of dashboard/ and site/. Safe to run
 # again on a warm orb.
 set -euo pipefail
 
@@ -107,6 +106,3 @@ npm_install() {
 
 step "npm ci dashboard" npm_install dashboard
 step "npm ci site" npm_install site
-# pnpm runs the version in web/package.json and skips the install when
-# node_modules matches the lockfile.
-step "pnpm install web" bash -c 'cd web && pnpm install --frozen-lockfile --prefer-offline'

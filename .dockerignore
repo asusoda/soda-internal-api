@@ -40,12 +40,9 @@ docker-compose*.yml
 Dockerfile*
 .dockerignore
 
-# Node: the web and dashboard images build web/ and dashboard/; the site deploys on its own
+# Node: the dashboard image builds dashboard/; the site deploys on its own
 **/node_modules/
 dashboard/dist/
-web/build/
-web/.env
-web/.env.*
 site/
 
 # Documentation

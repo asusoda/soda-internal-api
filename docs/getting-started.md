@@ -21,7 +21,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
    ```
 
 2. Copy `.env.template` to `.env`. Set the values in the table below.
-3. Start the containers with `make dev`. The API is at http://localhost:8000, the dashboard at http://localhost:5001 and the old `web/` app at http://localhost:5000.
+3. Start the containers with `make dev`. The API is at http://localhost:8000, and the dashboard at http://localhost:5001.
 4. Create an org:
 
    ```bash

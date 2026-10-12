@@ -48,11 +48,11 @@ The `users` columns are `student_id` and `class_standing`; each membership has `
 
 ## Platform dashboard (dashboard/)
 
-The dashboard replaces the older `web/` app and calls the same routes. Officer pages send the platform JWT from login. The member store pages (`/store/<org>`) send the session cookie.
+Officer pages send the platform JWT from login. The member store pages (`/store/<org>`) send the session cookie.
 
 | Area | Endpoints |
 |---|---|
-| Auth | GET /api/auth/login, GET /api/auth/store_login (the member store of `web/`), GET /api/auth/callback (redirects to /auth/?code=…, or to /store/<org> after a store sign-in), POST /api/auth/exchange, GET and DELETE /api/auth/appTokens (new, no client yet), GET /api/auth/name, GET /api/auth/validToken, POST /api/auth/refresh, POST /api/auth/logout |
+| Auth | GET /api/auth/login, GET /api/auth/store_login (the member store), GET /api/auth/callback (redirects to /auth/?code=…, or to /store/<org> after a store sign-in), POST /api/auth/exchange, GET and DELETE /api/auth/appTokens (new, no client yet), POST /api/auth/refresh, POST /api/auth/logout |
 | Organizations | GET /api/organizations/, PUT /api/organizations/{id}/settings, GET and PUT /api/organizations/{id}/calendar |
 | Points | GET and POST /api/points/{org}/users, PUT /api/points/{org}/users/{user}, GET /api/points/{org}/users/{user}/points, POST /api/points/{org}/assign_points, DELETE /api/points/{org}/delete_points, POST /api/points/{org}/uploadEventCSV, POST /api/points/{org}/member_login, GET /api/points/{org}/member_profile |
 | Public | GET /api/public/{org}/leaderboard |
@@ -66,6 +66,7 @@ The contract cases cover the read paths of each area plus assign_points and chec
 
 - Deploys and container health checks call GET /health.
 - The Discord bot runs in the API process and calls no HTTP endpoint.
+- No client calls GET /api/auth/name or GET /api/auth/validToken. The removed `web/` app called them. Their contract cases have the client `none`.
 - No other caller is known. The request log (below) is how unknown ones show up.
 
 ## Request log

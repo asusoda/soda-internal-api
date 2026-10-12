@@ -1,8 +1,8 @@
 # Frontends
 
-Platform has two officer frontends. `dashboard/` is the new one. Officers use it to see and control what each org runs. Members use its store pages, `/store/<org>`. `web/` is the old officer app, kept for SoDA at admin.thesoda.io.
+Platform has one frontend, `dashboard/`. Officers use it to see and control what each org runs. Members use its store pages, `/store/<org>`. SoDA serves it at admin.thesoda.io.
 
-This diagram shows the API routes that each frontend calls and the credential it sends.
+This diagram shows the API routes that each part of the dashboard calls and the credential it sends.
 
 ```mermaid
 flowchart LR
@@ -10,9 +10,7 @@ flowchart LR
   officer -->|"platform token"| mods["/api/points, /api/storefront, /api/calendar and other module routes"]
   store["dashboard/ member store, /store/#lt;org#gt;"] --> login["GET /api/auth/store_login (Discord sign-in)"]
   store -->|"session cookie"| orders["/api/storefront/#lt;org#gt;/members/..."]
-  web["web/"] -->|"platform token"| mods
   officer --> auth["/api/auth/login, /api/auth/exchange"]
-  web --> auth
 ```
 
 ## Officer dashboard
@@ -157,11 +155,3 @@ The member store is two open pages of `dashboard/`, outside the officer pages:
 - `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?org=<org>&client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`. If `DASHBOARD_URL` is not set, it returns them to `CLIENT_URL`.
 
 These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need the Discord session that the sign-in starts. The browser sends the cookie only when the dashboard and the API are on the same site.
-
-## Old officer app
-
-`web/` is the old officer app (Vite and TypeScript). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
-
-The member store of `web/` (`/store/<org>`) signs members in with Discord at `GET /api/auth/store_login?org=<org>`. It sends its requests with the API session cookie.
-
-The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. `web/` has no Jeopardy or bot pages. Those pages called paths that the API does not have, so they were removed, and the dashboard does not have them.
