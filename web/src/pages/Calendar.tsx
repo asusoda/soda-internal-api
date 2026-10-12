@@ -16,7 +16,7 @@ interface CalendarEvent {
   location?: string;
   description?: string;
   gcal_id?: string;
-  // The events route does not send this key, so the button opens '#'.
+  // The event's Google Calendar link, when a sync copied it there
   jump_url?: string;
 }
 
@@ -217,15 +217,19 @@ const Calendar = () => {
                     )}
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => window.open(event.jump_url || '#', '_blank')}
-                    className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
-                    title="Open in Google Calendar"
-                  >
-                    <FaExternalLinkAlt className="w-4 h-4" />
-                  </button>
-                </div>
+                {event.jump_url && (
+                  <div className="flex space-x-2">
+                    <a
+                      href={event.jump_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
+                      title="Open in Google Calendar"
+                    >
+                      <FaExternalLinkAlt className="w-4 h-4" />
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           ))
