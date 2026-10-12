@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc -p scripts && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p scripts",
     "test": "vitest run",
-    "screenshots": "vite build && node scripts/screenshots.mjs",
-    "demo-video": "vite build && node scripts/demo-video.mjs",
-    "perf": "vite build && node scripts/perf.mjs"
+    "screenshots": "vite build && node scripts/screenshots.ts",
+    "demo-video": "vite build && node scripts/demo-video.ts",
+    "perf": "vite build && node scripts/perf.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -27,10 +27,12 @@
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.2",
     "jsdom": "^30.1.2",
+    "playwright": "^1.64.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
     "vite": "^8.3.3",

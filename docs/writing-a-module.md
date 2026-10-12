@@ -34,7 +34,7 @@ If `service.py` has more than one concern, split it into more Flask-free files. 
 | Routes | `tests/contract/routes.txt`: run `UPDATE_ROUTES=1 uv run pytest tests/contract/test_routes.py` |
 | Docs | The module `README.md`, a row under its category in `modules/README.md` and in the module table of `README.md`, the `Modules:` line in `AGENTS.md` and `CLAUDE.md`, and each table in `docs/data-model.md` |
 
-If the module needs more than its README, add `docs/modules/<name>.md`, a row in `docs/README.md`, and the page in `site/scripts/sync-docs.mjs`.
+If the module needs more than its README, add `docs/modules/<name>.md`, a row in `docs/README.md`, and the page in `site/scripts/sync-docs.ts`.
 
 `tests/test_module_layout.py` checks the categories, the catalog entries, the manifest lists, `MOUNTS`, the Flask-free contract, the module switches, the docs rows, and that each README and `docs/data-model.md` name the module's jobs, tools and tables. If you forget a place, the test names the file to change.
 

@@ -2,67 +2,42 @@
   "name": "soda-admin",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.3.7",
-    "@mui/material": "^7.1.0",
     "@tabler/icons-react": "^3.34.1",
-    "@testing-library/jest-dom": "^6.7.0",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "autoprefixer": "^10.4.20",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
-    "discord-oauth2": "^2.12.1",
-    "dotenv": "^17.2.3",
-    "jsonwebtoken": "^9.0.2",
     "motion": "^12.23.12",
     "ogl": "^1.0.11",
-    "postcss": "^8.5.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-dropzone": "^14.3.8",
     "react-icons": "^5.3.0",
     "react-router-dom": "^7.14.2",
-    "react-scripts": "5.0.1",
     "react-toastify": "^11.0.5",
-    "serve": "^14.2.4",
-    "soda-admin": "file:",
-    "tailwind-merge": "^3.3.1",
-    "web-vitals": "^5.1.0"
-  },
-  "scripts": {
-    "start": "PORT=5000 react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "jest": {
-    "moduleNameMapper": {
-      "^react-router/dom$": "react-router/dist/development/dom-export.js"
-    }
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.7"
+    "@testing-library/jest-dom": "^6.7.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "jsdom": "^30.1.2",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^3.4.7",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
   },
   "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
 }

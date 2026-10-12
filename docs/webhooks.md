@@ -63,7 +63,7 @@ To add a kind, such as Slack, add a `Kind` to `KINDS` in `core/webhooks.py`: a U
    ```
 
    `emit()` takes an org id or an org prefix. It never raises.
-3. Add the event to the table on this page and to `webhookEvents` in `dashboard/scripts/fixtures.mjs`.
+3. Add the event to the table on this page and to `webhookEvents` in `dashboard/scripts/fixtures.ts`.
 4. Add a test in `tests/contract/test_webhooks.py`. The `sent` fixture sends in the test thread and keeps each post.
 
 ## Routes

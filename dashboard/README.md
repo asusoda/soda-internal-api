@@ -43,10 +43,12 @@ src/
     <page>/index.tsx       a large page; the other files in the folder are its parts
 public/orgs/               logos for the org marks
 scripts/
-  fixtures.mjs             API responses for a fictional org, and largeFixtures() with long lists
-  screenshots.mjs          screenshots for the landing page
-  demo-video.mjs           the demo video for the landing page
-  perf.mjs                 timing and long tasks of the long lists
+  fixtures.ts             API responses for a fictional org, and largeFixtures() with long lists
+  screenshots.ts          screenshots for the landing page
+  demo-video.ts           the demo video for the landing page
+  perf.ts                 timing and long tasks of the long lists
 ```
+
+Node runs the TypeScript in `scripts/` directly, so those files use only types that Node can remove. `npm run typecheck` checks them with `scripts/tsconfig.json`.
 
 To add a page, write the page file and add one entry to `PAGES` in `src/pages/registry.tsx`. See [docs/frontends.md](../docs/frontends.md) for all the steps, the routes, sign-in and deployment.
