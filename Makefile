@@ -10,6 +10,21 @@ BRANCH ?= main
 DEPLOY_FROM ?=
 # The commit that passed Check. When set, check out this commit instead of origin/$(BRANCH).
 DEPLOY_SHA ?=
+# Where make deploy gets the images. registry: pull $(IMAGE_REPO)-<service>:<commit>, which images.yml
+# pushes, and build on this server only when the pull fails. build: always build on this server.
+IMAGE_SOURCE ?= registry
+IMAGE_REPO ?= ghcr.io/asusoda/platform
+# The last lines of each container's log. podman-compose 1.0.6 logs stops with exit code 125 when a
+# service has no container (worker, postgres), so this reads each container that exists.
+CONTAINERS := soda-internal-api soda-bot soda-worker soda-mcp soda-dashboard soda-site soda-postgres
+define container_logs
+for CONTAINER_NAME in $(CONTAINERS); do \
+	if $(CONTAINER_CMD) inspect "$$CONTAINER_NAME" >/dev/null 2>&1; then \
+		echo "--- $$CONTAINER_NAME"; \
+		$(CONTAINER_CMD) logs --tail=$(1) "$$CONTAINER_NAME" 2>&1 || true; \
+	fi; \
+done
+endef
 COMPOSE_CMD := $(shell if command -v podman-compose > /dev/null 2>&1; then echo "podman-compose"; elif docker compose version > /dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 CONTAINER_CMD := $(shell if command -v podman > /dev/null 2>&1; then echo "podman"; else echo "docker"; fi)
 
@@ -29,7 +44,7 @@ help:
 	@echo "  make logs-follow            - Follow container logs continuously"
 	@echo "  make shell                  - Open shell in API container"
 	@echo "  make clean                  - Clean up containers and images"
-	@echo "  make deploy                 - Deploy to production (pull, build, restart)"
+	@echo "  make deploy                 - Deploy to production (pull images, migrate, restart)"
 	@echo "  make discard-local-changes  - Discard local git changes (used by CD)"
 	@echo "  make dev                    - Start development environment with hot reloading"
 	@echo "  make rollback               - Rollback to previous version"
@@ -70,7 +85,7 @@ down:
 
 # View logs (batch-friendly, last 50 lines)
 logs:
-	@$(COMPOSE_CMD) logs --tail=50
+	@$(call container_logs,50)
 
 # Follow logs (continuous)
 logs-follow:
@@ -142,8 +157,10 @@ deploy:
 				echo -e "$(RED)[ERROR]$(NC) DEPLOY_SHA is not a 40-character sha."; \
 				exit 1; \
 			fi; \
-			git fetch origin "$(DEPLOY_SHA)" || git fetch origin "$(BRANCH)"; \
-			git checkout --detach --force "$(DEPLOY_SHA)"; \
+			if [ "$$(git rev-parse HEAD 2>/dev/null)" != "$(DEPLOY_SHA)" ]; then \
+				git fetch origin "$(DEPLOY_SHA)" || git fetch origin "$(BRANCH)"; \
+				git checkout --detach --force "$(DEPLOY_SHA)"; \
+			fi; \
 		else \
 			git fetch origin "$(BRANCH)"; \
 			git checkout "$(BRANCH)"; \
@@ -203,10 +220,32 @@ deploy:
 			echo -e "$(GREEN)[INFO]$(NC) Tagging dashboard image as previous..."; \
 			$(CONTAINER_CMD) tag soda-dashboard:latest soda-dashboard:previous 2>/dev/null || true; \
 		fi; \
+		local_image() { \
+			case "$$1" in api) echo soda-internal-api:latest ;; *) echo "soda-$$1:latest" ;; esac; \
+		}; \
+		pull_image() { \
+			[ "$(IMAGE_SOURCE)" = "registry" ] || return 1; \
+			REF="$(IMAGE_REPO)-$$1:$$NEW_HEAD"; \
+			echo -e "$(GREEN)[INFO]$(NC) Pulling $$REF..."; \
+			if $(CONTAINER_CMD) pull -q "$$REF" >/dev/null && $(CONTAINER_CMD) tag "$$REF" "$$(local_image "$$1")"; then \
+				$(CONTAINER_CMD) rmi "$$REF" >/dev/null 2>&1 || true; \
+				return 0; \
+			fi; \
+			echo -e "$(YELLOW)[WARNING]$(NC) Could not pull $$REF. Building $$1 on this server."; \
+			return 1; \
+		}; \
+		build_images() { \
+			echo -e "$(GREEN)[INFO]$(NC) Building on this server:$$*"; \
+			export COMMIT_HASH="$$NEW_HEAD"; \
+			BUILDAH_LAYERS=true DOCKER_BUILDKIT=1 $(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build "$$@"; \
+		}; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
-			echo -e "$(GREEN)[INFO]$(NC) Building changed service images:$$SERVICES_TO_BUILD"; \
-			export COMMIT_HASH=$$(git rev-parse HEAD 2>/dev/null || echo "unknown"); \
-			BUILDAH_LAYERS=true DOCKER_BUILDKIT=1 $(COMPOSE_CMD) -f docker-compose.yml build $$SERVICES_TO_BUILD; \
+			echo -e "$(GREEN)[INFO]$(NC) Getting changed service images:$$SERVICES_TO_BUILD"; \
+			LOCAL_BUILDS=""; \
+			for SERVICE in $$SERVICES_TO_BUILD; do \
+				pull_image "$$SERVICE" || LOCAL_BUILDS="$$LOCAL_BUILDS $$SERVICE"; \
+			done; \
+			if [ -n "$$LOCAL_BUILDS" ]; then build_images $$LOCAL_BUILDS; fi; \
 		fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Running database migrations..."; \
 		uv run alembic upgrade head || { echo -e "$(RED)[ERROR]$(NC) Database migration failed!"; exit 1; }; \
@@ -227,6 +266,7 @@ deploy:
 		wait_for_health() { \
 			CONTAINER_NAME="$$1"; \
 			MAX_SECONDS="$$2"; \
+			PROBE_URL="$${3:-}"; \
 			ELAPSED=0; \
 			echo -e "$(GREEN)[INFO]$(NC) Waiting for $$CONTAINER_NAME to become healthy..."; \
 			while [ "$$ELAPSED" -lt "$$MAX_SECONDS" ]; do \
@@ -240,6 +280,10 @@ deploy:
 						echo -e "$(RED)[ERROR]$(NC) $$CONTAINER_NAME reported $$STATUS."; \
 						return 1 ;; \
 				esac; \
+				if [ "$$STATUS" = "starting" ] && [ -n "$$PROBE_URL" ] && [ "$(CONTAINER_CMD)" = "podman" ] && \
+					curl -fsS -o /dev/null --max-time 2 "$$PROBE_URL" 2>/dev/null; then \
+					podman healthcheck run "$$CONTAINER_NAME" >/dev/null 2>&1 || true; \
+				fi; \
 				sleep 2; \
 				ELAPSED=$$((ELAPSED + 2)); \
 			done; \
@@ -259,9 +303,9 @@ deploy:
 			if $(CONTAINER_CMD) inspect "$$1" >/dev/null 2>&1; then check_image "$$1" "$$2"; fi; \
 		}; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
-			wait_for_health soda-internal-api 60; \
+			wait_for_health soda-internal-api 60 http://127.0.0.1:8000/health; \
 			wait_for_health soda-bot 60; \
-			wait_for_health soda-dashboard 60; \
+			wait_for_health soda-dashboard 60 http://127.0.0.1:5001; \
 			check_image soda-internal-api soda-internal-api:latest; \
 			check_image soda-bot soda-internal-api:latest; \
 			check_image soda-dashboard soda-dashboard:latest; \
@@ -282,14 +326,14 @@ deploy:
 			if $(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null; then \
 				write_file .deploy/rollback-site site; \
 			fi; \
-			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build site; \
+			pull_image site || build_images site; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
-			wait_for_health soda-site 90; \
+			wait_for_health soda-site 90 http://127.0.0.1:3010; \
 			check_image soda-site soda-site:latest; \
 		elif [ "$$SITE_IMAGE" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Starting the site..."; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
-			wait_for_health soda-site 90; \
+			wait_for_health soda-site 90 http://127.0.0.1:3010; \
 			check_image soda-site soda-site:latest; \
 		elif [ "$$SITE_ON" -eq 1 ]; then \
 			check_image soda-site soda-site:latest; \
@@ -297,7 +341,7 @@ deploy:
 		echo -e "$(GREEN)[INFO]$(NC) Container status:"; \
 		$(COMPOSE_CMD) ps; \
 		echo -e "$(GREEN)[INFO]$(NC) Recent logs:"; \
-		$(COMPOSE_CMD) logs --tail=20; \
+		$(call container_logs,20); \
 		echo -e "$(GREEN)[INFO]$(NC) Cleaning up unused container images..."; \
 		$(CONTAINER_CMD) image prune -f 2>/dev/null || true; \
 		if [ -z "$$SERVICES_TO_BUILD" ]; then \
@@ -443,6 +487,6 @@ health:
 	done; \
 	if [ "$$FAILED" -eq 1 ]; then \
 		echo -e "$(RED)[ERROR]$(NC) Recent logs:"; \
-		$(COMPOSE_CMD) logs --tail=50; \
+		$(call container_logs,50); \
 		exit 1; \
 	fi
