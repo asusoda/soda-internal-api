@@ -26,10 +26,10 @@ flowchart LR
 - [ ] Provider-neutral Hosting: a `memory` field, `cpu` optional, no RunPod words where an app can run elsewhere.
 - [x] This server: a hosting provider that runs each app as a capped container on the deployment's server, through the runner (`deploy/runner/`), with per-org app limits.
 - [ ] An address for each This server app at `<app>-<org>.apps.thesoda.io`: a wildcard DNS record and certificate. Until then an app keeps a domain that Nginx Proxy Manager sends to its published port.
-- [ ] Move SoDA's services into This server apps, one at a time (see [Operations](./operations.md#move-a-service-that-already-runs-on-the-server)). Done: wiki and wtc. Next: the website and Wayfinder, which need an image; then the CRM, which is four containers.
+- [x] Move SoDA's services into This server apps: wiki, wtc, the website, Wayfinder and its database, the CRM (four parts), and the vault as a shared app.
 - [x] Shared apps: apps the deployment owns on This server, which every org subscribes to. A vault subscription invites the org's people; each org keeps its items in its own Vaultwarden organization.
 - [x] Move the vault (vault.thesoda.io) into a shared app.
-- [ ] Add the embedding server with Qwen3-Embedding-0.6B as the second shared app.
+- [x] Add the embedding server (Qwen3-Embedding-0.6B, llama.cpp) as a shared app. It is off by default: the deployment and the orgs keep their embedder until someone points theirs at it, which needs a re-embed.
 - [ ] Templates that make several apps and link them.
 - [ ] Take `canvas_url` from the org's subscribed submodules, not the deployment.
 - [ ] Deployment-wide limits on shared submodule passages and embeddings.

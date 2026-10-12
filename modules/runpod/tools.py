@@ -36,7 +36,10 @@ def apps_get(db, org, caller, name: str):
 
 @tool(
     "apps.register",
-    description="Create an app or replace its manifest. Send a manifest object, or a repo whose manifest file is read.",
+    description="Create an app or replace its manifest. Send a manifest object, or a repo whose manifest file is read. "
+    "provider runpod (default) takes gpu or cpu; provider server (This server) takes memory in MB, and optionally "
+    "publish, volumes, command, workdir, and group with alias for the parts of one app. health is a path, or "
+    "{port, tcp: true} for a database, or {running: true} for a part with no port.",
     scope="apps:manage",
     input_schema={
         "type": "object",
