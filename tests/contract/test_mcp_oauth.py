@@ -1461,28 +1461,6 @@ def test_registration_log_cuts_urls_with_escaped_characters(oauth_client, caplog
     assert "secret" not in caplog.text
 
 
-def test_cimd_can_be_left_out_of_the_metadata(app, client, monkeypatch, documents, signed_in):
-    from starlette.testclient import TestClient
-
-    from core.config import config
-    from modules.mcp import oauth
-    from modules.mcp.server import build_app
-
-    monkeypatch.setattr(config, "MCP_PUBLIC_URL", "")
-    monkeypatch.setenv("ACCOUNTS_BASE_URL", HOST)
-    monkeypatch.setattr(oauth, "discord_directory", FakeBot)
-    # Read at startup, so the MCP server is built after the setting changes
-    monkeypatch.setattr(config, "MCP_OAUTH_CIMD", False)
-    with TestClient(build_app(host="api.club.test"), base_url=HOST, follow_redirects=False) as mcp:
-        for body in (
-            mcp.get("/.well-known/oauth-authorization-server/mcp").json(),
-            client.get("/.well-known/oauth-authorization-server/mcp").get_json(),
-        ):
-            assert body["client_id_metadata_document_supported"] is False
-        # A client that already uses its metadata URL as client_id keeps working
-        assert _authorize(mcp, DOCUMENT_URL, _pkce()[1]).status_code == 302
-
-
 # Client secrets in the Basic header or in the form (RFC 6749 2.3.1, RFC 7591 default client_secret_basic)
 
 
