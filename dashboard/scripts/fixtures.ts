@@ -322,6 +322,9 @@ const SCOPES = {
   'apps:manage': 'Register app manifests and roll apps back',
   'godfather:manage': "List the org's Godfather pods and start, stop, restart or terminate them",
   'org:read': "Read the org's name, description and enabled modules",
+  'members:read': "Read the org's members with emails, student IDs, profile fields and points history",
+  'points:write': 'Award points, delete point entries and import event attendance CSVs',
+  'tokens:manage': 'List, make and revoke machine tokens. A token made with a tool gets only scopes that the calling token has',
   'github:read': "Read the org's GitHub repos, issues, pull requests and Actions runs",
   'github:write': 'Create and change issues, pull requests, comments and files on GitHub (with confirm)',
   'google:read': "Read the org's Google Calendar events, Drive files and Sheets",
@@ -334,6 +337,21 @@ const SCOPES = {
   'runpod:write': 'Create, change, start, stop and delete pods and endpoints on RunPod (with confirm)',
   'web:read': "Search the web through the org's SearXNG",
 };
+
+// The scopes that no integration owns, in the groups that the API sends
+const SCOPE_GROUPS = [
+  { title: 'Org', scopes: ['org:read'] },
+  { title: 'Members', scopes: ['members:read', 'points:read', 'points:write'] },
+  { title: 'Content and agents', scopes: ['calendar:read', 'knowledge:read', 'knowledge:write', 'agents:read', 'agents:write'] },
+  { title: 'Hosting', scopes: ['apps:read', 'apps:deploy', 'apps:manage', 'godfather:manage'] },
+  { title: 'Access and keys', scopes: ['tokens:manage'] },
+];
+const ADMIN_SCOPES = ['tokens:manage'];
+const SCOPE_PRESETS = [
+  { key: 'read', label: 'Read only', scopes: Object.keys(SCOPES).filter((s) => s.endsWith(':read')).sort() },
+  { key: 'write', label: 'Read and write', scopes: Object.keys(SCOPES).filter((s) => !ADMIN_SCOPES.includes(s)).sort() },
+  { key: 'all', label: 'All', scopes: Object.keys(SCOPES).sort() },
+];
 
 const GOOGLE_TOOLS = {
   'google:read': ['google.calendar_events', 'google.calendar_list', 'google.drive_read', 'google.drive_search', 'google.sheets_read'],
@@ -1816,7 +1834,15 @@ export function fixtures(now: number = Date.now()) {
         },
       ],
     },
-    [`/api/organizations/${ORG.id}/tokens` as const]: { tokens, scopes: SCOPES, integrations: INTEGRATIONS, uses: SCOPE_USES },
+    [`/api/organizations/${ORG.id}/tokens` as const]: {
+      tokens,
+      scopes: SCOPES,
+      integrations: INTEGRATIONS,
+      uses: SCOPE_USES,
+      groups: SCOPE_GROUPS,
+      admin: ADMIN_SCOPES,
+      presets: SCOPE_PRESETS,
+    },
     [`/api/organizations/${ORG.id}/audit` as const]: { entries: [...activity, ...jobs].sort((a, b) => b.id - a.id) },
     [`/api/organizations/${ORG.id}/modules` as const]: { modules: MODULES },
     [`/api/dashboard/${ORG.prefix}/hosting/providers` as const]: {

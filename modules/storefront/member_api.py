@@ -6,7 +6,7 @@ register before the blueprint is mounted.
 
 from datetime import UTC, datetime
 
-from flask import jsonify, request
+from flask import g, jsonify, request
 from sqlalchemy import func
 
 from core.db import db_connect
@@ -29,7 +29,7 @@ __all__ = ["storefront_blueprint"]
 def get_member_store(org_prefix, **kwargs):
     """Get store front for organization members (may include member-only products)"""
     user_discord_id = kwargs.get("user_discord_id")
-    organization = kwargs.get("organization")
+    organization = kwargs["organization"]
 
     user = get_or_create_user(user_discord_id, organization.id)
 
@@ -71,7 +71,7 @@ def get_member_store(org_prefix, **kwargs):
 def get_member_orders(org_prefix, **kwargs):
     """Get orders for the authenticated member"""
     user_discord_id = kwargs.get("user_discord_id")
-    organization = kwargs.get("organization")
+    organization = kwargs["organization"]
 
     user = get_or_create_user(user_discord_id, organization.id)
 
@@ -120,7 +120,7 @@ def get_member_orders(org_prefix, **kwargs):
 def create_member_order(org_prefix, **kwargs):
     """Create a new order for authenticated member"""
     user_discord_id = kwargs.get("user_discord_id")
-    organization = kwargs.get("organization")
+    organization = kwargs["organization"]
 
     user = get_or_create_user(user_discord_id, organization.id)
 
@@ -193,7 +193,7 @@ def create_member_order(org_prefix, **kwargs):
 def get_member_order(org_prefix, order_id, **kwargs):
     """Get a specific order for the authenticated member"""
     user_discord_id = kwargs.get("user_discord_id")
-    organization = kwargs.get("organization")
+    organization = kwargs["organization"]
 
     db = next(db_connect.get_db())
     try:
@@ -237,10 +237,7 @@ def get_user_points_public(org_prefix, **kwargs):
     db = next(db_connect.get_db())
     try:
         user_discord_id = kwargs.get("user_discord_id")
-        organization = kwargs.get("organization")
-
-        if not organization:
-            return jsonify({"error": "Organization not found"}), 404
+        organization = kwargs["organization"]
 
         if not user_discord_id:
             return jsonify({"error": "User not found"}), 404
@@ -296,7 +293,7 @@ def get_user_orders_clerk(org_prefix, user_email):
     """Get user's orders using dual authentication"""
     db = next(db_connect.get_db())
     try:
-        if request.clerk_user_email != user_email:  # type: ignore[attr-defined]
+        if g.get("clerk_user_email") != user_email:
             return jsonify({"error": "Unauthorized: Email mismatch"}), 403
 
         organization = find_by_prefix(db, org_prefix)
@@ -305,8 +302,8 @@ def get_user_orders_clerk(org_prefix, user_email):
 
         user = db.query(User).filter_by(email=user_email).first()
 
-        if not user and hasattr(request, "clerk_user"):
-            user = get_or_create_user_from_clerk(db, organization.id, request.clerk_user, user_email)  # type: ignore[attr-defined]
+        if not user and g.get("clerk_user"):
+            user = get_or_create_user_from_clerk(db, organization.id, g.clerk_user, user_email)
             if not user:
                 return jsonify({"error": "Failed to create user account"}), 500
 
@@ -354,7 +351,7 @@ def get_user_wallet_clerk(org_prefix, user_email):
     """Get user wallet/points using dual authentication"""
     db = next(db_connect.get_db())
     try:
-        if request.clerk_user_email != user_email:  # type: ignore[attr-defined]
+        if g.get("clerk_user_email") != user_email:
             return jsonify({"error": "Unauthorized: Email mismatch"}), 403
 
         organization = find_by_prefix(db, org_prefix)
@@ -363,8 +360,8 @@ def get_user_wallet_clerk(org_prefix, user_email):
 
         user = db.query(User).filter_by(email=user_email).first()
 
-        if not user and hasattr(request, "clerk_user"):
-            user = get_or_create_user_from_clerk(db, organization.id, request.clerk_user, user_email)  # type: ignore[attr-defined]
+        if not user and g.get("clerk_user"):
+            user = get_or_create_user_from_clerk(db, organization.id, g.clerk_user, user_email)
             if not user:
                 return jsonify({"error": "Failed to create user account"}), 500
 
@@ -411,7 +408,7 @@ def get_user_wallet_clerk(org_prefix, user_email):
 def clerk_checkout(org_prefix):
     """Checkout endpoint using dual authentication"""
     data = request.get_json()
-    user_email = request.clerk_user_email  # type: ignore[attr-defined]
+    user_email = g.get("clerk_user_email")
 
     if not data.get("total_amount"):
         return jsonify({"error": "Total amount is required"}), 400
@@ -426,8 +423,8 @@ def clerk_checkout(org_prefix):
 
         user = db.query(User).filter(User.email == user_email).first()
 
-        if not user and hasattr(request, "clerk_user"):
-            user = get_or_create_user_from_clerk(db, org.id, request.clerk_user, user_email)  # type: ignore[attr-defined]
+        if not user and g.get("clerk_user"):
+            user = get_or_create_user_from_clerk(db, org.id, g.clerk_user, user_email)
 
         if not user:
             return jsonify({"error": "User not found"}), 404

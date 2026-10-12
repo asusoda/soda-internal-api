@@ -213,7 +213,7 @@ def assignments(client: Client) -> dict:
 
 
 def grades(client: Client) -> dict:
-    shown = []
+    shown: list[dict[str, Any]] = []
     params = [("enrollment_state", "active"), ("include[]", "total_scores"), _per_page()]
     for c in client.items("courses", params):
         found = c.get("enrollments")

@@ -78,6 +78,7 @@ def runner(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "SOCKET", path)
     fake = runner_fake.start(path, monkeypatch)
     yield fake
+    assert fake.server is not None
     fake.server.shutdown()
     fake.server.server_close()
 

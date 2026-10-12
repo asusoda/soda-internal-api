@@ -99,7 +99,7 @@ def delete_session(db, org_id: int, pod_id: str, session_id: int) -> None:
         raise service.GodfatherError("Session not found", 404)
     if row.started and not row.finished:
         # Ending it now lets the next run stop the pod
-        row.stop_at = utcnow()  # type: ignore[assignment]
+        row.stop_at = utcnow()
     else:
         db.delete(row)
     db.commit()
@@ -124,7 +124,7 @@ def run(db, now=None, client_for: Callable[[Any, int, str], hosting.HostingClien
     )
     pods: dict[tuple[int, str], list[ComputeSession]] = {}
     for row in due:
-        pods.setdefault((int(row.organization_id), str(row.pod_id)), []).append(row)  # type: ignore[arg-type]
+        pods.setdefault((int(row.organization_id), str(row.pod_id)), []).append(row)
     clients: dict[tuple[int, str], hosting.HostingClient] = {}
     result = {"started": [], "stopped": [], "failed": []}
     for (org_id, pod_id), rows in pods.items():
@@ -134,7 +134,7 @@ def run(db, now=None, client_for: Callable[[Any, int, str], hosting.HostingClien
             pod = db.query(ComputePod).filter_by(organization_id=org_id, pod_id=pod_id).first()
             if pod is None:
                 for r in rows:
-                    r.finished = True  # type: ignore[assignment]
+                    r.finished = True
                 continue
             provider = str(pod.provider)
             if (org_id, provider) not in clients:
@@ -146,13 +146,13 @@ def run(db, now=None, client_for: Callable[[Any, int, str], hosting.HostingClien
                     result["started"].append(pod_id)
                     service.announce(org_id, str(pod.name), pod_id, "start", "the session schedule")
                 for r in active:
-                    r.started = True  # type: ignore[assignment]
+                    r.started = True
             if ended and not active and any(r.started for r in ended):
                 service._call(client.stop_pod, pod_id)
                 result["stopped"].append(pod_id)
                 service.announce(org_id, str(pod.name), pod_id, "stop", "the session schedule")
             for r in ended:
-                r.finished = True  # type: ignore[assignment]
+                r.finished = True
         except service.GodfatherError as e:
             logger.warning("godfather schedule failed org=%s pod=%s: %s", org_id, pod_id, e.message)
             result["failed"].append(pod_id)

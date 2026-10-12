@@ -23,9 +23,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base, session
 from core.errors import ServiceError
@@ -82,12 +83,14 @@ class OrgLimit(Base):
 
     __tablename__ = "org_limits"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    key = Column(String(100), nullable=False)
-    value = Column(BigInteger, nullable=True)
-    updated_at = Column(DateTime, nullable=False, default=utcnow)
-    updated_by = Column(String(255), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_org_limit_key"),)
 
@@ -97,11 +100,13 @@ class UsageCounter(Base):
 
     __tablename__ = "usage_counters"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    key = Column(String(100), nullable=False)
-    window_start = Column(DateTime, nullable=False, index=True)
-    count = Column(BigInteger, nullable=False, default=0)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    window_start: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
+    count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
     __table_args__ = (UniqueConstraint("organization_id", "key", "window_start", name="uq_usage_counter_window"),)
 

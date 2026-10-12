@@ -2,7 +2,6 @@
 
 import datetime
 import json
-from typing import cast
 
 import pytest
 import requests
@@ -20,7 +19,7 @@ def _soda_id() -> int:
 
     db = db_connect.SessionLocal()
     try:
-        return cast(int, db.query(Organization).filter_by(prefix="soda").one().id)
+        return db.query(Organization).filter_by(prefix="soda").one().id
     finally:
         db.close()
 

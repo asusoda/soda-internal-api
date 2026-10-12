@@ -1,7 +1,5 @@
 """Member tools: list, add and change the org's members, and add the members of its Discord server."""
 
-from typing import cast
-
 from core.tools import ToolError, tool
 from modules.points import service as points
 from modules.users import service
@@ -42,7 +40,7 @@ def members_list(db, org, caller, query: str | None = None, limit: int = 500):
     for membership, user in service.active_members(db, int(org.id)):
         if text and not any(text in str(value or "").lower() for value in (user.name, user.username, user.email)):
             continue
-        found.append(service.member_dict(user, membership) | {"points": totals.get(cast(int, user.id)) or 0})
+        found.append(service.member_dict(user, membership) | {"points": totals.get(user.id) or 0})
     return {"total": len(found), "members": found[:limit]}
 
 

@@ -1,6 +1,6 @@
 """Agent conversations and their messages, scoped to one member. No Flask here."""
 
-from typing import Any, cast
+from typing import Any
 
 from core import limits
 from core.time import iso, utcnow
@@ -106,7 +106,7 @@ def _write(
     ]
     db.add_all(messages)
     service.save(db, commit)
-    return [cast(int, m.seq) for m in messages]
+    return [m.seq for m in messages]
 
 
 def append(db, who: Owner, conversation_id: object, messages: Any, *, commit: bool = True) -> list[int]:

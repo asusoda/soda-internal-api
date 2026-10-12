@@ -11,7 +11,8 @@ import os
 from datetime import UTC, datetime
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
 from core.log import get_logger
@@ -31,12 +32,12 @@ class SecretsError(ValueError):
 class OrgSecret(Base):
     __tablename__ = "org_secrets"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    ciphertext = Column(Text, nullable=False)
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    updated_by = Column(String(255), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_org_secret_name"),)
 
@@ -46,10 +47,10 @@ class DeploymentSecret(Base):
 
     __tablename__ = "deployment_secrets"
 
-    name = Column(String(100), primary_key=True)
-    ciphertext = Column(Text, nullable=False)
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    updated_by = Column(String(255), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 def declare(name: str, description: str) -> None:

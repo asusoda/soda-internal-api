@@ -1,8 +1,9 @@
 import json
+from collections.abc import Hashable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-from cachetools import TTLCache, cached, keys
+from cachetools import TTLCache, cachedmethod, keys
 from sentry_sdk import start_transaction
 
 from core import secrets
@@ -48,7 +49,7 @@ def _lookup_start(frontend_events: list[dict[str, Any]]) -> str | None:
 
 
 # Events per org for the website, kept 5 minutes
-_FRONTEND_CACHE = TTLCache(maxsize=100, ttl=300)
+_FRONTEND_CACHE: TTLCache[tuple[Hashable, ...], dict[str, Any]] = TTLCache(maxsize=100, ttl=300)
 
 
 class MultiOrgCalendarService:
@@ -207,7 +208,7 @@ class MultiOrgCalendarService:
             gcal or self.gcal_client, parsed_events, calendar_id, parent_transaction, self.logger
         )
 
-    @cached(cache=_FRONTEND_CACHE, key=lambda self, org_id, transaction=None: keys.hashkey(org_id))
+    @cachedmethod(cache=lambda _self: _FRONTEND_CACHE, key=lambda _self, org_id, transaction=None: keys.hashkey(org_id))
     def get_organization_events_for_frontend(self, organization_id: int, parent_transaction=None) -> dict[str, Any]:
         """Get events for frontend display for a specific organization."""
         op_name = "get_organization_events_for_frontend"
@@ -425,12 +426,12 @@ def list_events(db, org: Organization, transaction=None) -> dict[str, Any]:
 
 def sync_organization(db, org: Organization, transaction=None) -> dict[str, Any]:
     """Copy the org's Notion events into its Google Calendar."""
-    return get_service().sync_organization_notion_to_google(cast(int, org.id), transaction)
+    return get_service().sync_organization_notion_to_google(org.id, transaction)
 
 
 def setup_calendar(db, org: Organization, transaction=None) -> str | None:
     """Create the org's Google Calendar if it has none. Returns the calendar id."""
-    return get_service().ensure_organization_calendar(cast(int, org.id), cast(str, org.name), transaction)
+    return get_service().ensure_organization_calendar(org.id, org.name, transaction)
 
 
 def sync_all(transaction=None) -> dict[str, Any]:

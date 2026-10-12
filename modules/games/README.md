@@ -7,7 +7,7 @@ Runs Jeopardy games in an org's Discord server. Officers upload games, select th
 | File | Holds |
 | --- | --- |
 | `api.py` | Game controls: upload, list, set and start the active game, show questions and answers, give team points |
-| `service.py` | The game JSON check, and reads of a game file from `./data` |
+| `service.py` | The game JSON check, the stored games (`list_games`, `get_game`, `save_game`), and reads of a game file from `./data` |
 | `cog.py` | `GameCog`: game channels and roles, sign-up, questions, scoreboard |
 | `ui.py` | Discord views for question posts |
 | `jeopardy/` | `JeopardyGame`, `JeopardyQuestion`, `Team` |
@@ -22,5 +22,5 @@ Runs Jeopardy games in an org's Discord server. Officers upload games, select th
 
 ## Known gaps
 
-- The game logic is in `api.py` and `cog.py`, not in `service.py`. The routes need the bot in the API process, so the AIS deployment turns them off with `DISABLED_ROUTES`.
+- The logic that runs a game is in `api.py` and `cog.py`, not in `service.py`. The routes need the bot in the API process, so the AIS deployment turns them off with `DISABLED_ROUTES`.
 - Game state is in memory and is for the whole deployment, not for one org.

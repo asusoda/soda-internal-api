@@ -72,7 +72,7 @@ def _feeds(db, org: Organization) -> list[dict]:
             "last_run_at": f["last_run_at"],
             "last_error": f["last_error"],
         }
-        for f in feeds.list_feeds(db, cast(int, org.id))
+        for f in feeds.list_feeds(db, org.id)
     ]
 
 
@@ -141,7 +141,7 @@ def create(db, org: Organization, body: dict, actor: str | None) -> dict:
     name = _name(body.get("name"))
     chosen = _events(org, body.get("events"))
     _unique(db, org, name)
-    limits.check(db, cast(int, org.id), WEBHOOKS_LIMIT)
+    limits.check(db, org.id, WEBHOOKS_LIMIT)
     ciphertext, hint = _url(kind, body.get("url"))
     row = webhooks.Webhook(
         organization_id=org.id,

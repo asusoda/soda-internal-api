@@ -131,7 +131,7 @@ def provider_callback(provider):
 
 @accounts_blueprint.route("/<string:org_prefix>/me", methods=["GET"])
 @member_required
-def my_accounts(org_prefix, user_discord_id=None, organization=None):
+def my_accounts(org_prefix, user_discord_id, organization):
     db = db_connect.SessionLocal()
     try:
         return jsonify({"accounts": service.list_grants(db, int(organization.id), str(user_discord_id))})
@@ -141,7 +141,7 @@ def my_accounts(org_prefix, user_discord_id=None, organization=None):
 
 @accounts_blueprint.route("/<string:org_prefix>/me/<string:provider>", methods=["DELETE"])
 @member_required
-def remove_my_account(org_prefix, provider, user_discord_id=None, organization=None):
+def remove_my_account(org_prefix, provider, user_discord_id, organization):
     db = db_connect.SessionLocal()
     try:
         return jsonify({"removed": service.disconnect(db, int(organization.id), str(user_discord_id), provider)})

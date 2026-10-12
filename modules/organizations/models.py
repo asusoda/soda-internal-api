@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base
 
@@ -11,26 +12,33 @@ class Organization(Base):
 
     __tablename__ = "organizations"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    prefix = Column(String(20), nullable=False, unique=True)  # URL-friendly prefix for the organization
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # URL-friendly prefix for the organization
+    prefix: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
 
-    guild_id = Column(String(50), nullable=False, unique=True)
-    description = Column(String(500))
-    icon_url = Column(String(255))
-    is_active = Column(Boolean, default=True)
-    config = Column(JSON, default=dict)  # Store organization-specific settings
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-    officer_role_id = Column(String(50), nullable=True)  # Changed to String since Discord role IDs are strings
-    points_per_message = Column(Integer, default=1)  # Default points per message
-    points_cooldown = Column(Integer, default=60)  # Default cooldown in seconds
+    guild_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    description: Mapped[str | None] = mapped_column(String(500))
+    icon_url: Mapped[str | None] = mapped_column(String(255))
+    is_active: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    config: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=dict)  # Store organization-specific settings
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
+    # Changed to String since Discord role IDs are strings
+    officer_role_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    points_per_message: Mapped[int | None] = mapped_column(Integer, default=1)  # Default points per message
+    points_cooldown: Mapped[int | None] = mapped_column(Integer, default=60)  # Default cooldown in seconds
 
     # Calendar-related fields
-    google_calendar_id = Column(String(255), nullable=True)  # Google Calendar ID for this org
-    notion_database_id = Column(String(255), nullable=True)  # Notion database ID for this org
-    calendar_sync_enabled = Column(Boolean, default=False)  # Whether calendar sync is enabled
-    last_sync_at = Column(DateTime, nullable=True)  # Last successful sync timestamp
+    # Google Calendar ID for this org
+    google_calendar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Notion database ID for this org
+    notion_database_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Whether calendar sync is enabled
+    calendar_sync_enabled: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # Last successful sync timestamp
 
     def __repr__(self):
         return f"<Organization(name='{self.name}', guild_id='{self.guild_id}')>"
@@ -63,12 +71,14 @@ class OrganizationConfig(Base):
 
     __tablename__ = "organization_configs"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    key = Column(String(100), nullable=False)
-    value = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[Any] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     organization = relationship("Organization", backref="configurations")
 
@@ -92,10 +102,12 @@ class Officer(Base):
 
     __tablename__ = "officers"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    user_id = Column(String(50), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     organization = relationship("Organization", backref="officers")
