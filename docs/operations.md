@@ -126,7 +126,7 @@ flowchart TD
 
 `make deploy` does these steps:
 
-1. Check out `DEPLOY_SHA` when it is set. Get `origin/main` when `DEPLOY_SHA` is empty. Compare the new commit with the SHA in `data/deployed-sha`. If the file is absent or the text is not a 40-character sha, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
+1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `data/deployed-sha`. If the file is absent or the text is not a 40-character sha, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
 2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all four. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
