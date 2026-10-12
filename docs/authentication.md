@@ -98,9 +98,9 @@ To turn it on:
 
 The deploy on a push to `main` runs the migration and recreates the `mcp` container. When OAuth is on, `/mcp` returns 401 with `WWW-Authenticate: Bearer resource_metadata="...", scope="org:read"` for a request with no valid token. A client reads that URL to find the sign-in, and asks for the scopes in `scope` first.
 
-Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`.
+Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
 
-The issuer is the host alone, such as `https://api.thesoda.io`, not the public URL. RFC 8414 puts the metadata of an issuer with no path at `/.well-known/oauth-authorization-server`. A client that follows the MCP spec reads the issuer from `authorization_servers` and looks there. A client that only reads the root of the host, such as Composio, looks there too. The routes in the metadata stay under the public URL, such as `/mcp/authorize`. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+The issuer is the host alone, such as `https://api.thesoda.io`, not the public URL. RFC 8414 puts the metadata of an issuer with no path at `/.well-known/oauth-authorization-server`. A client that follows the MCP spec reads the issuer from `authorization_servers` and looks there. A client that only reads the root of the host, such as Composio, looks there too. The routes in the metadata stay under the public URL, such as `/mcp/authorize`, and only the MCP server serves them.
 
 | Route | Served by | Does |
 | --- | --- | --- |
