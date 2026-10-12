@@ -308,9 +308,12 @@ def _app_url(app: App) -> tuple[str | None, str | None]:
     if app.pod_id and health.get("port") and health.get("path"):
         try:
             provider = hosting.get(str(app.provider or hosting.DEFAULT))
+            return provider.proxy_url(str(app.pod_id), int(health["port"]), str(health["path"])), None
         except hosting.ProviderError as e:
             return None, e.message
-        return provider.proxy_url(str(app.pod_id), int(health["port"]), str(health["path"])), None
+        except hosting.HostingError as e:
+            if not manifest.get("url"):
+                return None, e.message
     if manifest.get("url"):
         return str(manifest["url"]), None
     return None, f"The app {app.name} has no pod and no url yet"

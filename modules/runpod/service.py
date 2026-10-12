@@ -90,6 +90,29 @@ MANIFEST_SCHEMA: dict = {
             "additionalProperties": {"type": "string", "pattern": r"^app_[a-z0-9_]{1,96}$"},
         },
         "mounts": {"type": "object"},
+        "memory": {"description": "This server: the memory cap in MB", "type": "integer", "minimum": 16},
+        "cpus": {"description": "This server: the CPU cap", "type": "number", "minimum": 0.05, "maximum": 16},
+        "publish": {
+            "description": "This server: container port to host port, for Nginx Proxy Manager",
+            "type": "object",
+            "propertyNames": {"pattern": r"^[0-9]{1,5}$"},
+            "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 65535},
+        },
+        "volumes": {
+            "description": "This server: a named folder of the app, or a host path the server allows for the org",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "pattern": r"^[a-z0-9][a-z0-9-]{0,62}$"},
+                    "host": {"type": "string", "pattern": r"^/[^\s]{1,250}$"},
+                    "path": {"type": "string", "pattern": r"^/[^\s]{0,250}$"},
+                    "read_only": {"type": "boolean"},
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+        },
         "health": {
             "type": "object",
             "properties": {
@@ -101,7 +124,6 @@ MANIFEST_SCHEMA: dict = {
         },
     },
     "required": ["image", "health"],
-    "oneOf": [{"required": ["gpu"]}, {"required": ["cpu"]}],
     "additionalProperties": False,
 }
 
@@ -114,6 +136,36 @@ limits.declare(
     25,
     unit="apps",
     usage=lambda db, org_id: db.query(App).filter_by(organization_id=org_id).count(),
+)
+SERVER = "server"
+SERVER_APPS_LIMIT = "runpod.server_apps"
+SERVER_MEMORY_LIMIT = "runpod.server_memory_mb"
+
+
+def _server_apps(db, org_id: int) -> list[App]:
+    return db.query(App).filter_by(organization_id=org_id, provider=SERVER).all()
+
+
+def server_memory(db, org_id: int, skip: str | None = None) -> int:
+    """The memory in MB of the org's apps on This server, from their manifests, without the app named skip."""
+    return sum(int(json.loads(str(a.manifest)).get("memory") or 0) for a in _server_apps(db, org_id) if a.name != skip)
+
+
+limits.declare(
+    SERVER_APPS_LIMIT,
+    "runpod",
+    "Apps on This server",
+    2,
+    unit="apps",
+    usage=lambda db, org_id: len(_server_apps(db, org_id)),
+)
+limits.declare(
+    SERVER_MEMORY_LIMIT,
+    "runpod",
+    "Memory of the apps on This server",
+    1024,
+    unit="MB",
+    usage=server_memory,
 )
 
 
@@ -164,12 +216,28 @@ def _manifest(app: App) -> dict:
     return json.loads(str(app.manifest))
 
 
-def _validated(manifest: Any) -> dict:
+def _validated(manifest: Any, provider: str | None = None) -> dict:
+    """The manifest after the schema check and, with provider, that provider's own check."""
     try:
         jsonschema.validate(manifest, MANIFEST_SCHEMA)
     except jsonschema.ValidationError as e:
         raise AppError(f"Invalid manifest: {e.message}") from e
+    if provider is not None:
+        try:
+            _provider(provider).validate(manifest)
+        except hosting.HostingError as e:
+            raise AppError(f"Invalid manifest: {e.message}") from e
     return manifest
+
+
+def _check_server(db, org_id: int, name: str, manifest: dict, new: bool) -> None:
+    """The org's This server limits, for an app that takes the memory in its manifest."""
+    if new:
+        limits.check(db, org_id, SERVER_APPS_LIMIT)
+    memory = int(manifest.get("memory") or 0)
+    current = server_memory(db, org_id)
+    after = server_memory(db, org_id, skip=name) + memory
+    limits.check(db, org_id, SERVER_MEMORY_LIMIT, add=after - current)
 
 
 def _safe_path(value: str, pattern: re.Pattern, name: str) -> str:
@@ -268,11 +336,13 @@ def put_app(
         repo = _safe_path(repo, REPO_PATTERN, "repo (owner/name)")
         path = _safe_path(manifest_path or DEFAULT_MANIFEST_PATH, PATH_PATTERN, "manifest_path")
         manifest = fetch_manifest(db, org_id, repo, path, None)
-    else:
-        _validated(manifest)
     app = db.query(App).filter_by(organization_id=org_id, name=name).first()
     new = app is None
     chosen = _provider(provider).name if provider is not None else None
+    target = chosen or (str(app.provider) if app is not None else hosting.DEFAULT)
+    _validated(manifest, target)
+    if target == SERVER:
+        _check_server(db, org_id, name, manifest, new or app.provider != SERVER)
     if app is None:
         limits.check(db, org_id, APPS_LIMIT)
         app = App(organization_id=org_id, name=name, provider=chosen or hosting.DEFAULT)
@@ -299,9 +369,17 @@ def get_app(db, org_id: int, name: str) -> dict:
 
 
 def delete_app(db, org_id: int, name: str) -> dict:
-    """Forget the app. The pod keeps running; terminate it on its provider. Commits."""
+    """Forget the app. On This server its container goes too; a RunPod pod keeps running until it is terminated
+    on RunPod. Commits."""
     app = _find(db, org_id, name)
     pod_id = app.pod_id
+    if pod_id and app.provider == SERVER:
+        try:
+            client_for(db, org_id, SERVER).delete_pod(str(pod_id))
+        except hosting.HostingError as e:
+            if e.status != 404:
+                raise AppError(f"The container was not removed: {e.message}", 502) from e
+        pod_id = None
     db.query(AppDeployment).filter_by(app_id=app.id).delete(synchronize_session=False)
     uptime.forget_app(db, org_id, name)
     db.delete(app)
@@ -349,17 +427,9 @@ def _request(
 ) -> tuple[str, str, dict]:
     """The provider call a deploy makes: create the pod, or change the existing one."""
     image = f"{manifest['image']}@{tag}" if tag.startswith("sha256:") else f"{manifest['image']}:{tag}"
-    body: dict[str, Any] = {"image": image, "env": _env(db, org_id, manifest, redact)}
-    for field in ("disk", "ports", "args", "registry"):
-        if field in manifest:
-            body[field] = manifest[field]
-    if app.pod_id:
-        return "PATCH", f"/pods/{app.pod_id}", body
-    body["name"] = f"{org_prefix}-{app.name}"
-    for field in ("gpu", "cpu", "cloud", "dataCenterIds", "mounts"):
-        if field in manifest:
-            body[field] = manifest[field]
-    return "POST", "/pods", body
+    env = _env(db, org_id, manifest, redact)
+    pod_id = str(app.pod_id) if app.pod_id else None
+    return _provider_of(app).request(str(app.name), org_prefix, pod_id, manifest, image, env)
 
 
 def deploy(
@@ -387,6 +457,9 @@ def deploy(
     elif ref is not None and manifest is None:
         raise AppError("ref applies only to apps registered with a repo")
     manifest = manifest if manifest is not None else _manifest(app)
+    _validated(manifest, str(app.provider))
+    if app.provider == SERVER:
+        _check_server(db, org_id, name, manifest, new=False)
     if dry_run:
         method, path, body = _request(db, org_id, org_prefix, app, manifest, tag, redact=True)
         return {
@@ -397,7 +470,7 @@ def deploy(
         }
 
     client = client_for(db, org_id, str(app.provider))
-    method, _, body = _request(db, org_id, org_prefix, app, manifest, tag, redact=False)
+    _, _, body = _request(db, org_id, org_prefix, app, manifest, tag, redact=False)
     db.query(AppDeployment).filter_by(app_id=app.id, status="deploying").update(
         {"status": "failed", "finished_at": utcnow(), "error": "Replaced by a later deployment"},
         synchronize_session=False,
@@ -409,7 +482,7 @@ def deploy(
     app.manifest = stored
     db.add(deployment)
     try:
-        if method == "POST":
+        if not app.pod_id:
             created = client.create_pod(body)
             app.pod_id = str(created["id"])
         else:
@@ -442,13 +515,6 @@ def rollback(db, org_id: int, org_prefix: str, name: str, actor: str | None, dry
     return deploy(db, org_id, org_prefix, name, str(previous.tag), actor, dry_run, manifest=manifest)
 
 
-def _healthy(url: str) -> bool:
-    try:
-        return requests.get(url, timeout=10).status_code < 400
-    except requests.RequestException:
-        return False
-
-
 def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     """Mark running deployments healthy when their health path answers, failed after HEALTH_TIMEOUT. Commits."""
     now = now or utcnow()
@@ -457,8 +523,7 @@ def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     running = db.query(AppDeployment, App).join(App, App.id == AppDeployment.app_id)
     for deployment, app in running.filter(AppDeployment.status == "deploying").all():
         health = _manifest(app)["health"]
-        url = _provider_of(app).proxy_url(str(app.pod_id), health["port"], health["path"]) if app.pod_id else None
-        if url and _healthy(url):
+        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health["port"], health["path"]):
             deployment.status, deployment.finished_at = "healthy", now
             counts["healthy"] += 1
             ended.append((app, deployment))

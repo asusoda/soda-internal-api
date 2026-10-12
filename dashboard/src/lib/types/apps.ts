@@ -56,6 +56,17 @@ export type RunPodPod = {
   [field: string]: unknown;
 };
 
+// A container on This server, as the runner describes it.
+export type ServerPod = {
+  id: string;
+  state: string;
+  image: string | null;
+  started_at: string | null;
+  memory_mb: number;
+  cpus: number;
+  ports: { container: number; host: number }[];
+};
+
 // An app template from GET /api/dashboard/<org>/apps/templates. Secret inputs become org secrets.
 export type AppTemplateInput = {
   key: string;

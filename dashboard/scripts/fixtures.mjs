@@ -533,6 +533,28 @@ export function fixtures(now = Date.now()) {
       latest_deployment: telemetryDeployments[0],
       updated_at: at(-2 * HOUR),
     },
+    {
+      name: 'vault',
+      kind: 'service',
+      description: 'Password manager for officers',
+      url: 'https://vault.robotics.example.org',
+      host: 'server',
+      provider: 'server',
+      manifest: {
+        image: 'docker.io/vaultwarden/server',
+        memory: 256,
+        ports: ['80/http'],
+        publish: { 80: 8081 },
+        volumes: [{ host: '/var/www/vaultwarden/data', path: '/data' }],
+        health: { path: '/alive', port: 80 },
+      },
+      repo: null,
+      manifest_path: null,
+      pod_id: 'app-robotics-vault',
+      current_tag: '1.32.0',
+      latest_deployment: deployment(61, '1.32.0', 'healthy', -1 * DAY, { actor: 'officer:1290000000000000101' }),
+      updated_at: at(-1 * DAY),
+    },
   ];
 
   const telemetryPod = {
@@ -1425,7 +1447,16 @@ export function fixtures(now = Date.now()) {
     [`/api/organizations/${ORG.id}/tokens`]: { tokens, scopes: SCOPES, integrations: INTEGRATIONS, uses: SCOPE_USES },
     [`/api/organizations/${ORG.id}/audit`]: { entries: [...activity, ...jobs].sort((a, b) => b.id - a.id) },
     [`/api/organizations/${ORG.id}/modules`]: { modules: MODULES },
-    [`/api/dashboard/${ORG.prefix}/hosting/providers`]: { providers: [{ name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true }] },
+    [`/api/dashboard/${ORG.prefix}/hosting/providers`]: {
+      providers: [
+        { name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true },
+        { name: 'server', title: 'This server', integration: '', configured: true },
+      ],
+    },
+    [`/api/dashboard/${ORG.prefix}/apps/vault`]: { ...appList[3], deployments: [appList[3].latest_deployment] },
+    [`/api/dashboard/${ORG.prefix}/apps/vault/pod`]: {
+      pod: { id: 'app-robotics-vault', state: 'running', image: 'docker.io/vaultwarden/server:1.32.0', started_at: at(-1 * DAY), memory_mb: 256, cpus: 0.5, ports: [{ container: 80, host: 8081 }] },
+    },
     [`/api/dashboard/${ORG.prefix}/apps`]: { apps: appList },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry`]: { ...appList[2], deployments: telemetryDeployments },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/pod`]: { pod: telemetryPod },

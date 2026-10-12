@@ -1,6 +1,6 @@
 # Operations
 
-This page tells you how to deploy Platform, roll it back, move it to Postgres, and turn off routes. To run Platform on one RunPod pod, see [Getting started](./getting-started.md).
+This page tells you how to deploy Platform, roll it back, move it to Postgres, run org apps on the server, and turn off routes. To run Platform on one RunPod pod, see [Getting started](./getting-started.md).
 
 ## Compose services
 
@@ -49,6 +49,33 @@ The host agent lists each container and host process on the server for the Servi
 3. Start it: `systemctl daemon-reload && systemctl enable --now platform-host-agent`.
 
 A container started by `docker-compose.yml` is Platform's. A container with the label `platform.org=<prefix>` is that org's. The superadmin sets the owner of each other service on the Services card (`PUT /api/superadmin/server/services/<name>`). If the file is older than 2 minutes, the card shows "Agent stopped".
+
+## This server runner
+
+The runner lets orgs deploy apps to this server (provider `server` on the Hosting page). It runs on the host as root, because podman runs the server's containers as root. The API reaches it over the Unix socket `data/runner.sock`, which only uid 1000 (Platform's containers) can open. The runner checks each request against `/etc/platform-runner.json` and refuses the rest, so the API cannot start a container that the policy does not allow.
+
+| Policy key | Means |
+| --- | --- |
+| `socket`, `socket_gid` | The socket path and the group that may use it (1000, the containers' user) |
+| `data_root` | The folder that holds each app's named volumes: `<data_root>/<org>/<app>/<name>` |
+| `bind_ips` | The addresses a published port binds to. Keep them private: `127.0.0.1` and the podman gateway `10.88.0.1`, where Nginx Proxy Manager reaches it |
+| `registries` | The image prefixes allowed, such as `ghcr.io/` |
+| `memory_mb_total`, `memory_mb_max`, `cpus_max` | The memory of all app containers together, and the caps of one container |
+| `port_range` | The host ports any org may publish |
+| `orgs.<prefix>.host_paths`, `orgs.<prefix>.host_ports` | Host paths and host ports that only this org may use, for services it ran on the server before |
+
+1. Copy `deploy/runner/platform-runner.example.json` to `/etc/platform-runner.json` and edit it. Make it `root:root`, mode 600.
+2. Copy `deploy/runner/platform-runner.service` to `/etc/systemd/system/`.
+3. Start it: `systemctl daemon-reload && systemctl enable --now platform-runner`.
+
+The Hosting page then lists This server as a provider. An app container is named `app-<org>-<app>` and has the labels `platform.managed=1`, `platform.org` and `platform.app`, so the [host agent](#host-agent) gives it to its org.
+
+### Move a service that already runs on the server
+
+1. Add the service's host paths and host port to the org in `/etc/platform-runner.json`, and restart the runner.
+2. Register the app with `provider: server` and a manifest with the same image, env, `publish` and `volumes` as the old container.
+3. Stop the old container (for a systemd unit, `systemctl disable --now <unit>`), then deploy the same tag at once. The domain does not change, because the new container takes the same host port. The service is down for a few seconds.
+4. To go back, delete the app and start the old container or unit again.
 
 ## Images and CI
 

@@ -138,7 +138,7 @@ flowchart TB
 | Data | Each query filters on `organization_id`. A submodule's shared pages have no org, and only subscribers search them | [Data model](./data-model.md) |
 | Per-org limits | Each module declares count and rate limits; the superadmin sets them for each org; each says who pays | [Limits](./limits.md) |
 | Container caps | A memory and CPU cap on each service | [Operations](./operations.md#container-limits) |
-| Apps | Each app is its own container or pod, never a Platform process | [RunPod apps](./modules/runpod-apps.md) |
+| Apps | Each app is its own container or pod, never a Platform process | [Hosting apps](./modules/runpod-apps.md) |
 
 The superadmins (`SYS_ADMIN`) see the server's health and each org's use on the Superadmin page, and set each org's limits. Superadmin routes refuse every other caller.
 

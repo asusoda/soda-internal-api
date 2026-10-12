@@ -173,7 +173,12 @@ export function DeletePanel({
       <div className="space-y-1 text-sm text-pretty">
         <p className="font-medium">Delete {app.name} and its deployment history?</p>
         <p className="text-muted">
-          {app.pod_id ? (
+          {app.pod_id && app.provider === 'server' ? (
+            <>
+              The container <Mono className="text-fg">{app.pod_id}</Mono> stops and is removed. Its data folders stay on
+              the server.
+            </>
+          ) : app.pod_id ? (
             <>
               The pod <Mono className="text-fg">{app.pod_id}</Mono> is not deleted. It keeps running and billing until you
               terminate it on {host}.

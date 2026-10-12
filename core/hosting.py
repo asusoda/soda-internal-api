@@ -3,7 +3,8 @@
 A provider gives an org a client for its own account, tells whether the org configured it, and reads the
 provider's pod shape: status, hardware, SSH address and public URL of a port. Modules store the provider
 name with each pod and app and call get() with it. A module in PROVIDER_MODULES calls register() when it
-is imported. RunPod (core/integrations/runpod.py) is the only provider.
+is imported. The providers are RunPod (core/integrations/runpod.py), on the org's own account, and This server
+(core/integrations/server.py), capped containers on the deployment's server.
 """
 
 import importlib
@@ -50,8 +51,10 @@ class HostingProvider(Protocol):
 
     name: str
     title: str
-    # The key in core.integrations.registry where an org saves its keys for this provider
+    # The key in core.integrations.registry where an org saves its keys for this provider, or "" for none
     integration: str
+    # Whether Godfather can run member pods here: they need an SSH address
+    godfather: bool
 
     def configured(self, db, org_id: int) -> bool:
         """Whether the org saved the keys this provider needs."""
@@ -74,13 +77,27 @@ class HostingProvider(Protocol):
         ...
 
     def proxy_url(self, pod_id: str, port: int, path: str) -> str:
-        """The public HTTPS address of an http port of a pod."""
+        """The address of an http port of a pod that Platform can reach. Raises HostingError when there is none."""
+        ...
+
+    def healthy(self, pod_id: str, port: int, path: str) -> bool:
+        """Whether the pod answers path on port with a status below 400."""
+        ...
+
+    def validate(self, manifest: dict) -> None:
+        """Raise HostingError when the app manifest has fields this provider cannot run, or lacks one it needs."""
+        ...
+
+    def request(
+        self, app_name: str, org_prefix: str, pod_id: str | None, manifest: dict, image: str, env: dict
+    ) -> tuple[str, str, dict]:
+        """The call a deploy makes, as (method, path, body): create the pod, or change the one in pod_id."""
         ...
 
 
 PROVIDERS: dict[str, HostingProvider] = {}
 # Importing these registers their providers
-PROVIDER_MODULES = ["core.integrations.runpod"]
+PROVIDER_MODULES = ["core.integrations.runpod", "core.integrations.server"]
 
 
 def register(provider: HostingProvider) -> None:

@@ -24,6 +24,8 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `agents.memories` | agents | Agent memories, for Agent memory | 20,000 |
 | `godfather.pods` | godfather | Pods | 10 |
 | `runpod.apps` | runpod | Hosting apps | 25 |
+| `runpod.server_apps` | runpod | Apps on This server | 2 |
+| `runpod.server_memory_mb` | runpod | Memory of the apps on This server, from their manifests, in MB | 1,024 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |
 | `alerts.destinations` | alerts | Alert destinations | 20 |
 | `submodules.subscriptions` | submodules | Shared content the org subscribes to. Its pages count against no org | 20 |

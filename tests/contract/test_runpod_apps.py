@@ -47,7 +47,11 @@ def healthy(monkeypatch):
         state["urls"].append(url)
         return state["up"]
 
-    monkeypatch.setattr(service, "_healthy", check)
+    from core.integrations import runpod
+
+    monkeypatch.setattr(
+        runpod.RunPodProvider, "healthy", lambda self, pod_id, port, path: check(runpod.proxy_url(pod_id, port, path))
+    )
     return state
 
 
