@@ -29,8 +29,9 @@ class Config:
             self.CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "test-client-secret")
             self.REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:5000/callback")
             self.CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:3000")
-            # Officer dashboard (dashboard/). Login sends officers back here when they start from it
-            self.DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+            # Officer dashboard (dashboard/). Login sends officers back here when they start from it.
+            # The default is SoDA's deployment.
+            self.DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://admin.thesoda.io").rstrip("/")
 
             self.DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/user.db")
 

@@ -44,6 +44,7 @@ To run the API with no container, run `uv run alembic upgrade head`, then `uv ru
 | `CLIENT_ID`, `CLIENT_SECRET` | The Discord OAuth app for officer sign-in. It must be the app of `BOT_TOKEN` |
 | `REDIRECT_URI` | `<API URL>/api/auth/callback`. It must be a redirect of the Discord app |
 | `CLIENT_URL` | Sign-in from a client other than the dashboard sends the browser back to it |
+| `DASHBOARD_URL` | The dashboard URL, for the sign-in return, links in messages and CORS. Default `https://admin.thesoda.io`, SoDA's dashboard. For local work, set `http://localhost:5173` |
 | `SYS_ADMIN` | The Discord user id of the superadmin. For more than one superadmin, a comma-separated list of ids |
 | `SECRET_KEY` or `FLASK_SECRET_KEY` | Signs session cookies. If neither is set, a random key is used and sessions end at each restart |
 | `SECRETS_KEY` | A Fernet key that encrypts org secrets. If it is not set, orgs cannot save secrets |

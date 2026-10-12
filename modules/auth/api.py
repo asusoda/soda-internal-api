@@ -40,9 +40,8 @@ def _issue_login_code(access_token: str, refresh_token: str) -> str:
 
 
 def _client_url(client: str | None) -> str:
-    """Where the browser goes after login: the dashboard when it started there and DASHBOARD_URL is set."""
-    dashboard = getattr(config, "DASHBOARD_URL", "")
-    return dashboard if client == "dashboard" and dashboard else config.CLIENT_URL
+    """Where the browser goes after login: DASHBOARD_URL when it started in the dashboard, else CLIENT_URL."""
+    return config.DASHBOARD_URL if client == "dashboard" else config.CLIENT_URL
 
 
 @auth_blueprint.route("/login", methods=["GET"])

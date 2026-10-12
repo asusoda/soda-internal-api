@@ -109,7 +109,7 @@ To deploy the dashboard:
 
 1. Host `dashboard/` as a static site. On Vercel, set the root folder to `dashboard`, the build to `npm run build` and the output to `dist`. Send every path to `index.html`.
 2. Set `VITE_API_URL` to the API URL.
-3. Set `DASHBOARD_URL` on the API to the dashboard URL. The API adds it to CORS and uses it for the sign-in return.
+3. Set `DASHBOARD_URL` on the API to the dashboard URL. The API adds it to CORS and uses it for the sign-in return. If it is not set, the API uses `https://admin.thesoda.io`, SoDA's dashboard.
 
 ### Code layout
 
@@ -154,7 +154,7 @@ An old path that opens another page goes in `REDIRECTS` in the same file.
 The member store is two open pages of `dashboard/`, outside the officer pages:
 
 - `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order or sign out.
-- `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?org=<org>&client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`. If `DASHBOARD_URL` is not set, it returns them to `CLIENT_URL`.
+- `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?org=<org>&client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`.
 
 These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need the Discord session that the sign-in starts. The browser sends the cookie only when the dashboard and the API are on the same site.
 

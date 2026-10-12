@@ -143,7 +143,7 @@ def oauth_callback():
         return _oauth_page(e.message, e.status)
     finally:
         db.close()
-    if config.DASHBOARD_URL and prefix:
+    if prefix:
         return redirect(f"{config.DASHBOARD_URL}/{prefix}/explore?tab=integrations&connected={key}")
     return _oauth_page(f"{oauth.SERVICES[key].title} is connected. You can close this page.", 200)
 

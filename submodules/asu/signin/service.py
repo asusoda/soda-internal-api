@@ -231,7 +231,7 @@ def _expire(db, org_id: int, org_prefix: str) -> None:
             return
         saved["expired_at"] = _now()
         _save(db, org_id, saved, saved.get("signed_in_by"))
-    link = f"{config.DASHBOARD_URL}/{org_prefix}/explore?tab=shared" if config.DASHBOARD_URL and org_prefix else None
+    link = f"{config.DASHBOARD_URL}/{org_prefix}/explore?tab=shared" if org_prefix else None
     message = webhooks.Message(
         title="ASU sign-in expired",
         text="Agents cannot read Sun Devil Central. Sign in again on the ASU card of Explore, Shared.",
