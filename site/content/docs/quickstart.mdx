@@ -30,7 +30,7 @@ The API runs at `http://localhost:8000` and the dashboard at `http://localhost:5
 An organization maps to one Discord server.
 
 ```bash
-flask --app main org create \
+doppler run -- uv run flask --app main org create \
   --name "Robotics Club" \
   --prefix robotics \
   --guild-id <server id> \

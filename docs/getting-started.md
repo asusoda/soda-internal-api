@@ -33,7 +33,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
 5. Create an org:
 
    ```bash
-   flask --app main org create --name "Robotics Club" --prefix robotics --guild-id <server id> --officer-role-id <role id>
+   doppler run -- uv run flask --app main org create --name "Robotics Club" --prefix robotics --guild-id <server id> --officer-role-id <role id>
    ```
 
    The optional modules of a new org start off. Add them on the dashboard Explore page, or with `--on points,storefront`.

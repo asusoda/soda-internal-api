@@ -54,7 +54,7 @@ doppler login && doppler setup   # the settings: Discord app, bot token, secrets
 make dev
 ```
 
-The API is at http://localhost:8000 and the dashboard at http://localhost:5001. Create an org with `flask --app main org create`. [Getting started](docs/getting-started.md) has the settings and the steps to run Platform on one RunPod pod.
+The API is at http://localhost:8000 and the dashboard at http://localhost:5001. Create an org with `doppler run -- uv run flask --app main org create`. [Getting started](docs/getting-started.md) has the settings and the steps to run Platform on one RunPod pod.
 
 ## Commands
 

@@ -1,4 +1,4 @@
-.PHONY: help doppler-check build up down logs shell clean deploy dev prod rollback status health discard-local-changes check ci backup migrate
+.PHONY: help doppler-check doppler-check-server build up down logs shell clean deploy dev prod rollback status health discard-local-changes check ci backup migrate
 
 # Use bash as the shell for all commands
 SHELL := /usr/bin/env bash
@@ -16,9 +16,12 @@ CONTAINER_CMD := $(shell if command -v podman > /dev/null 2>&1; then echo "podma
 # Settings come from Doppler. See docs/operations.md, "Settings".
 # On the host, Compose reads the build args, POSTGRES_PASSWORD and the container caps from Doppler, and Alembic
 # reads DATABASE_URL. Each container gets DOPPLER_TOKEN and reads its settings itself (deploy/docker-entrypoint.sh).
-# DOPPLER_TOKEN comes from the environment, or from the Doppler CLI configuration of this directory.
+# DOPPLER_TOKEN comes from the environment, or from the Doppler CLI configuration of this directory. For deploy it
+# comes from the configuration of PROJECT_DIR. deploy and rollback accept only a service token (doppler-check-server).
 ifndef DOPPLER_TOKEN
-DOPPLER_TOKEN := $(shell command -v doppler > /dev/null 2>&1 && doppler configure get token --plain 2>/dev/null)
+doppler_token = $(shell command -v doppler > /dev/null 2>&1 && doppler configure get token --plain --scope "$(1)" 2>/dev/null)
+DOPPLER_TOKEN := $(call doppler_token,$(CURDIR))
+deploy: DOPPLER_TOKEN := $(call doppler_token,$(PROJECT_DIR))
 endif
 export DOPPLER_TOKEN
 WITH_SETTINGS := doppler run --no-fallback --no-check-version --
@@ -58,6 +61,12 @@ doppler-check:
 		echo -e "$(RED)[ERROR]$(NC) The Doppler CLI is not installed. Run deploy/install-doppler.sh."; exit 1; }
 	@[ -n "$$DOPPLER_TOKEN" ] || { \
 		echo -e "$(RED)[ERROR]$(NC) No Doppler token. Run doppler setup in this directory, or set DOPPLER_TOKEN. See docs/operations.md."; exit 1; }
+
+# The containers get DOPPLER_TOKEN. On a server it must be a service token, which reads only one config.
+doppler-check-server: doppler-check
+	@case "$$DOPPLER_TOKEN" in dp.st.*) ;; *) \
+		echo -e "$(RED)[ERROR]$(NC) This target needs a Doppler service token (dp.st.). See docs/operations.md, \"Settings\"."; \
+		exit 1 ;; esac
 
 # Build container images
 build: doppler-check
@@ -134,7 +143,7 @@ discard-local-changes:
 # .deploy/deployed-sha stores the last commit that finished this target.
 # .deploy/rollback-sha stores that commit when a later deploy finishes, so rollback can restore it.
 # .deploy/rollback-api and .deploy/rollback-site record that this deploy tagged that image as previous.
-deploy: doppler-check
+deploy: doppler-check-server
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
 		if [ "$$(pwd)" != "$(PROJECT_DIR)" ]; then \
@@ -357,7 +366,7 @@ dev: doppler-check
 
 
 # Rollback to previous version
-rollback: doppler-check
+rollback: doppler-check-server
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
 	@set -e; \
 	ROLLED=0; \
