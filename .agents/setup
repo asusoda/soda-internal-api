@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Prepare a fresh Amp orb: Python 3.12 and the uv environment, and the npm
+# dependencies of dashboard/ and site/. Safe to run again on a warm orb.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+step() {
+  local name="$1"
+  shift
+  local start=$SECONDS
+  echo "==> $name"
+  "$@"
+  echo "<== $name ($((SECONDS - start))s)"
+}
+
+# uv installs Python 3.12 (pyproject.toml needs >=3.12,<3.13) when it is missing.
+step "uv sync" uv sync --frozen --python 3.12
+
+# npm ci deletes node_modules each time, so skip it when the installed tree
+# still matches the lockfile. npm writes node_modules/.package-lock.json after
+# an install.
+npm_install() {
+  local dir="$1"
+  if [ -f "$dir/node_modules/.package-lock.json" ] &&
+    [ "$dir/node_modules/.package-lock.json" -nt "$dir/package-lock.json" ]; then
+    echo "$dir/node_modules is up to date"
+    return
+  fi
+  (cd "$dir" && npm ci --no-audit --no-fund --prefer-offline)
+}
+
+step "npm ci dashboard" npm_install dashboard
+step "npm ci site" npm_install site
