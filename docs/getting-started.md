@@ -10,7 +10,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
 | Podman and podman-compose, or Docker | The containers. The Makefile finds the one you have |
 | make | Every command |
 | Node 26 (`.nvmrc`) | Only to run `dashboard/` or `site/` outside a container |
-| Doppler CLI | The settings. `deploy/install-doppler.sh ~/.local/bin` installs it |
+| Doppler CLI | The settings. `deploy/install-doppler.sh ~/.local/bin` installs it. `~/.local/bin` must be on `PATH` |
 
 ## Run it on your machine
 

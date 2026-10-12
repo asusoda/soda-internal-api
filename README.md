@@ -50,6 +50,7 @@ cd platform
 uv sync
 uv run pre-commit install
 deploy/install-doppler.sh ~/.local/bin   # the Doppler CLI, if you do not have it
+export PATH="$HOME/.local/bin:$PATH"
 doppler login && doppler setup   # the settings: Discord app, bot token, secrets
 doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"
 make dev

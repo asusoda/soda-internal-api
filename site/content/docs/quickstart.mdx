@@ -18,6 +18,7 @@ git clone https://github.com/theaisocietyasu/bedrock.git
 cd bedrock
 uv sync
 deploy/install-doppler.sh ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"
 doppler login
 doppler setup
 doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"
