@@ -1,5 +1,5 @@
 import { cn } from "../utils/utils";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import { IconUpload } from "@tabler/icons-react";
 import { useDropzone } from "react-dropzone";
@@ -36,22 +36,18 @@ export const FileUpload = ({
   accept
 }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (newFiles: File[]) => {
     setFiles((prevFiles) => [...prevFiles, ...newFiles]);
     onChange && onChange(newFiles);
   };
 
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const { getRootProps, isDragActive } = useDropzone({
+  // The drop zone also runs the file picker, so both check the files against accept
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     multiple: false,
     noClick: true,
     accept,
-    onDrop: handleFileChange,
+    onDropAccepted: handleFileChange,
     onDropRejected: (error) => {
       console.log(error);
     },
@@ -60,16 +56,10 @@ export const FileUpload = ({
   return (
     <div className="w-full" {...getRootProps()}>
       <motion.div
-        onClick={handleClick}
+        onClick={open}
         whileHover="animate"
         className="p-10 group/file block rounded-lg cursor-pointer w-full relative overflow-hidden">
-        <input
-          ref={fileInputRef}
-          id="file-upload-handle"
-          type="file"
-          accept={accept ? Object.entries(accept).flatMap(([type, extensions]) => [type, ...extensions]).join(",") : undefined}
-          onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
-          className="hidden" />
+        <input {...getInputProps()} id="file-upload-handle" className="hidden" />
         <div
           className="absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]">
           <GridPattern />
