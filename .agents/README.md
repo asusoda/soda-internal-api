@@ -6,6 +6,9 @@ Instructions and skills for AI coding agents working in this repository. `AGENTS
 `.claude/skills` is a link to `.agents/skills`, so Claude Code loads the same skills. Other agents
 read the `SKILL.md` files directly.
 
+`setup` prepares a new Amp orb. It installs Python 3.12, the uv environment and the npm
+dependencies of `dashboard/` and `site/`.
+
 ## Skills
 
 | Skill | Use it to | Origin |
