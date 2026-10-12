@@ -29,6 +29,9 @@
       "Read(.env.production)",
       "Read(.env.prod)",
       "Read(.env.dev)",
+      "Read(.env.preview)",
+      "Read(.env.ci)",
+      "Read(.env.keys)",
       "Read(.env.backup)",
       "Read(.env.bak)",
       "Read(.env.old)"
