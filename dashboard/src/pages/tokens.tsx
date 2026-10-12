@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ChevronDown, Copy, KeyRound, Plus } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import { IntegrationIcon } from '../components/integration-icons';
 import { Tooltip } from '../components/tooltip';
 import {
@@ -38,9 +38,18 @@ type TokenList = {
   integrations: TokenIntegration[];
   // Platform scopes and the integrations each one calls for the agent
   uses?: Record<string, string[]>;
+  // The scopes that no integration owns, in groups
+  groups?: ScopeGroupInfo[];
+  // The scopes that give tokens, secrets, keys or the access tokens of members
+  admin?: string[];
+  // Sets of scopes that the form chooses with one click
+  presets?: ScopePreset[];
   // The public URL of the MCP server (null when it has none) and whether clients can connect with OAuth
   mcp?: { url: string | null; oauth: boolean };
 };
+
+type ScopeGroupInfo = { title: string; scopes: string[] };
+type ScopePreset = { key: string; label: string; scopes: string[] };
 
 // What each limit takes, with an example.
 const LIMIT_HINTS: Record<string, { label: string; placeholder: string; hint: string }> = {
@@ -77,6 +86,7 @@ function ScopeBox({
   integrations = [],
   disabled = false,
   tools,
+  admin = false,
 }: {
   scope: string;
   description: string;
@@ -85,6 +95,8 @@ function ScopeBox({
   uses?: string[];
   integrations?: TokenIntegration[];
   disabled?: boolean;
+  // The scope gives tokens, secrets, keys or the access tokens of members
+  admin?: boolean;
   // The tools the scope gives, shown under the description
   tools?: string;
 }) {
@@ -97,7 +109,10 @@ function ScopeBox({
     >
       <Checkbox checked={on} onChange={() => !disabled && onChange(!on)} label={scope} className="mt-0.5" />
       <span className="min-w-0 flex-1">
-        <span className="block font-mono text-xs">{scope}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="font-mono text-xs">{scope}</span>
+          <ScopeTag scope={scope} admin={admin} />
+        </span>
         <span className="mt-0.5 block text-xs text-muted">{description}</span>
         {tools ? <span className="mt-1 block font-mono text-[11px] leading-relaxed text-muted">{tools}</span> : null}
       </span>
@@ -111,6 +126,100 @@ function ScopeBox({
         </Tooltip>
       ) : null}
     </label>
+  );
+}
+
+// Read scopes change nothing. Admin scopes give access to other things, so they get a stronger tag.
+function ScopeTag({ scope, admin }: { scope: string; admin: boolean }) {
+  if (admin) return <Badge tone="bad">admin</Badge>;
+  if (scope.endsWith(':read')) return <Badge tone="ok">read</Badge>;
+  return <Badge tone="warn">write</Badge>;
+}
+
+// A group of scopes that opens and closes. The box in the header chooses or clears every scope of the group.
+function ScopeGroup({
+  title,
+  names,
+  chosen,
+  open,
+  onOpen,
+  onChoose,
+  children,
+}: {
+  title: string;
+  names: string[];
+  chosen: string[];
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  onChoose: (names: string[], on: boolean) => void;
+  children: ReactNode;
+}) {
+  const count = names.filter((scope) => chosen.includes(scope)).length;
+  const all = count === names.length;
+  return (
+    <div>
+      <div className="flex items-center gap-3 px-3 py-2 text-sm">
+        <Checkbox
+          checked={all}
+          mixed={count > 0 && !all}
+          onChange={() => onChoose(names, !all)}
+          label={`Every ${title} scope`}
+        />
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => onOpen(!open)}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+        >
+          <span className="font-medium">{title}</span>
+          <span className="text-xs text-muted tabular-nums">
+            {count} of {names.length}
+          </span>
+          <ChevronDown className={cx('ml-auto size-4 text-muted transition-transform', open && 'rotate-180')} />
+        </button>
+      </div>
+      {open ? <div className="divide-y divide-line border-t border-line bg-panel-2/30">{children}</div> : null}
+    </div>
+  );
+}
+
+// One button for each preset, and None. The button of the preset that matches the chosen scopes is pressed.
+function PresetBar({
+  presets,
+  chosen,
+  total,
+  onPick,
+}: {
+  presets: ScopePreset[];
+  chosen: string[];
+  total: number;
+  onPick: (names: string[]) => void;
+}) {
+  const all = [...presets, { key: 'none', label: 'None', scopes: [] }];
+  const same = (names: string[]) => names.length === chosen.length && names.every((scope) => chosen.includes(scope));
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-3">
+      <div role="group" aria-label="Presets" className="flex flex-wrap rounded-md border border-line p-0.5">
+        {all.map((preset) => (
+          <button
+            key={preset.key}
+            type="button"
+            aria-pressed={same(preset.scopes)}
+            onClick={() => onPick(preset.scopes)}
+            className={cx(
+              'h-7 cursor-pointer rounded px-2.5 text-xs transition-colors',
+              same(preset.scopes) ? 'bg-panel-2 font-medium text-fg' : 'text-muted hover:text-fg',
+            )}
+          >
+            {preset.label}
+            {preset.scopes.length ? <span className="ml-1 text-muted tabular-nums">{preset.scopes.length}</span> : null}
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-muted tabular-nums">
+        {chosen.length} of {total} scopes chosen
+      </span>
+    </div>
   );
 }
 
@@ -131,12 +240,18 @@ function NewToken({
   scopes,
   integrations,
   uses,
+  groups,
+  admin,
+  presets,
   onDone,
 }: {
   orgId: number;
   scopes: Record<string, string>;
   integrations: TokenIntegration[];
   uses: Record<string, string[]>;
+  groups: ScopeGroupInfo[];
+  admin: string[];
+  presets: ScopePreset[];
   onDone: () => void;
 }) {
   const client = useQueryClient();
@@ -167,8 +282,27 @@ function NewToken({
       client.invalidateQueries({ queryKey: ['tokens', orgId] });
     },
   });
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const owned = new Set(integrations.flatMap((i) => i.scopes));
+  // The scopes of an integration that is not connected cannot be chosen
+  const blocked = new Set(integrations.filter((i) => !i.connected).flatMap((i) => i.scopes));
+  const choosable = (names: string[]) => names.filter((scope) => !blocked.has(scope));
+  const shown = (presets.length ? presets : [{ key: 'all', label: 'All', scopes: Object.keys(scopes) }])
+    .map((preset) => ({ ...preset, scopes: choosable(preset.scopes) }));
+  const platformGroups = groups.length
+    ? groups
+    : [{ title: 'Platform', scopes: Object.keys(scopes).filter((scope) => !owned.has(scope)) }];
+  const adminScopes = new Set(admin);
   const toggle = (scope: string) => (on: boolean) => setChosen(on ? [...chosen, scope] : chosen.filter((s) => s !== scope));
+  const choose = (names: string[], on: boolean) =>
+    setChosen(on ? [...new Set([...chosen, ...choosable(names)])] : chosen.filter((s) => !names.includes(s)));
+  // A preset opens each group where it chooses a scope, so the officer sees what it chose
+  const pick = (names: string[]) => {
+    setChosen(names);
+    const opened = { ...open };
+    for (const group of platformGroups) if (group.scopes.some((scope) => names.includes(scope))) opened[group.title] = true;
+    setOpen(opened);
+  };
   if (value) {
     return (
       <div className="space-y-4">
@@ -211,20 +345,41 @@ function NewToken({
         </div>
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">Platform scopes</legend>
+          <PresetBar
+            presets={shown}
+            chosen={chosen}
+            total={choosable(Object.keys(scopes)).length}
+            onPick={pick}
+          />
+          <p className="mb-2 text-xs text-muted">
+            Read only and Read and write leave out the admin scopes, which give tokens, secrets, keys or the access
+            tokens of members. Presets also choose the tools of each connected integration below.
+          </p>
           <div className="divide-y divide-line rounded-lg border border-line">
-            {Object.entries(scopes)
-              .filter(([scope]) => !owned.has(scope))
-              .map(([scope, description]) => (
-                <ScopeBox
-                  key={scope}
-                  scope={scope}
-                  description={description}
-                  on={chosen.includes(scope)}
-                  onChange={toggle(scope)}
-                  uses={uses[scope]}
-                  integrations={integrations}
-                />
-              ))}
+            {platformGroups.map((group) => (
+              <ScopeGroup
+                key={group.title}
+                title={group.title}
+                names={group.scopes}
+                chosen={chosen}
+                open={open[group.title] ?? false}
+                onOpen={(on) => setOpen({ ...open, [group.title]: on })}
+                onChoose={choose}
+              >
+                {group.scopes.map((scope) => (
+                  <ScopeBox
+                    key={scope}
+                    scope={scope}
+                    description={scopes[scope] ?? ''}
+                    on={chosen.includes(scope)}
+                    onChange={toggle(scope)}
+                    uses={uses[scope]}
+                    integrations={integrations}
+                    admin={adminScopes.has(scope)}
+                  />
+                ))}
+              </ScopeGroup>
+            ))}
           </div>
         </fieldset>
         <h3 className="text-sm font-medium">Integration tools</h3>
@@ -328,6 +483,9 @@ export function TokensPage() {
             scopes={list.data.scopes}
             integrations={list.data.integrations ?? []}
             uses={list.data.uses ?? {}}
+            groups={list.data.groups ?? []}
+            admin={list.data.admin ?? []}
+            presets={list.data.presets ?? []}
             onDone={() => setAdding(false)}
           />
         ) : null}

@@ -68,6 +68,7 @@ An officer makes a machine token with `POST /api/organizations/<id>/tokens` (`na
 - A machine token belongs to one org. A route for a different org refuses it with 403.
 - A module declares its scopes with `scopes.declare(name, description, integration=None, uses=())` from `modules/auth/scopes.py`. `integration` names the service whose own tools the scope gives. `uses` names the services that the scope calls with the org's keys, such as `knowledge:read` and `embeddings`.
 - `GET .../tokens` lists all scopes and, under `uses`, the services each scope calls. Under `integrations` it lists every integration: whether the org connected it, its own scopes, the tools each scope gives (`tools`), whether the tools come from the service's MCP server (`remote`), the Platform scopes that call it (`through`), the modules that use it (`used_by`), and its limits. The Tokens page shows each integration's scopes with their tools, and marks a Platform scope that calls a service with the service icon.
+- `GET .../tokens` also puts the scopes that no integration owns in `groups`, lists the admin scopes under `admin`, and sends the `presets`: read only, read and write (no admin scopes) and all. The Tokens page shows the groups with a box that chooses each scope of a group, and a button for each preset. A preset does not choose the scopes of an integration that the org did not connect.
 - Officer routes do not accept a machine token. It is not a JWT, so they return 401.
 - `GET /api/auth/machine/whoami` returns the org, name, kind and scopes of a token.
 
@@ -159,6 +160,8 @@ These steps show the flow.
 ### Rules
 
 - The access token is a machine token of kind `oauth`, with the org, scopes and limits that the officer chose and the officer's Discord id as `created_by`. It is on the Tokens page. Revoke it there to disconnect the client: its refresh token also stops working.
+- The consent page shows the scopes in the same groups as the Tokens page: the groups of `GROUPS` in `modules/auth/scopes.py`, then one group for each integration. Each scope has a tag: read, write or admin. A new scope needs a group in `GROUPS`, or a test fails.
+- A preset of the consent page chooses a set of scopes: the scopes that the client asked for, the read scopes, all but the admin scopes (`ADMIN` in `modules/auth/scopes.py`), all or none. The officer can then change single scopes. The presets and the All and None buttons of each group use a script. The CSP lets only that script run, by its hash. With no script, the check boxes still work.
 - The limits are the same as the limits of a token from the Tokens page, such as `repos` and `tools` for GitHub. The consent page has a field for each one. An empty field gives no limit.
 - A refresh gives a new access token and a new refresh token, and the old ones stop working. The machine token keeps its id, so the Tokens page shows one row for each connection.
 - Each refresh checks that the officer who approved the connection still has the officer role in the org. If not, the server revokes the token and the refresh fails. If Discord does not answer, the refresh works when the last check is less than 24 hours old. An access token lasts 1 hour, so a connection stops within an hour after the officer loses the role. If Discord does not answer at that refresh, it can continue for up to 24 hours more.

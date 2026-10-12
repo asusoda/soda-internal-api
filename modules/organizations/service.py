@@ -278,7 +278,8 @@ def token_list(db, org_id: int) -> dict:
 
     An integration's scopes give its own tools: tools names the Platform tools under each scope, and remote is true
     when the tools come from the service's own MCP server. Its through scopes are Platform scopes that call it for
-    the agent, and used_by names the modules that use it.
+    the agent, and used_by names the modules that use it. groups puts the other scopes in groups, admin lists the
+    scopes that give access, and presets are the sets of scopes that the form chooses with one click.
     """
     from core.integrations import registry
     from core.tools import TOOLS
@@ -316,6 +317,9 @@ def token_list(db, org_id: int) -> dict:
     return {
         "tokens": machine_tokens.list_active(db, org_id),
         "scopes": scopes.SCOPES,
+        "groups": [{"title": title, "scopes": names} for title, names in scopes.groups()],
+        "admin": sorted(scopes.ADMIN),
+        "presets": [{"key": key, "label": label, "scopes": names} for key, (label, names) in scopes.presets().items()],
         "integrations": integrations,
         "uses": uses,
         "mcp": mcp_connection(),

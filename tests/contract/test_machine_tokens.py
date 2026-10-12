@@ -42,6 +42,18 @@ def test_issue_list_whoami_revoke(client, officer_headers, soda_id):
     assert client.get("/api/auth/machine/whoami", headers=_bearer(token)).status_code == 401
 
 
+def test_the_list_groups_scopes_and_has_presets(client, officer_headers, soda_id):
+    listing = client.get(f"/api/organizations/{soda_id}/tokens", headers=officer_headers).get_json()
+    owned = {s for i in listing["integrations"] for s in i["scopes"]}
+    grouped = [s for group in listing["groups"] for s in group["scopes"]]
+    assert sorted(grouped) == sorted(set(listing["scopes"]) - owned)
+    assert listing["groups"][0]["title"] == "Org" and "Other" not in [g["title"] for g in listing["groups"]]
+    presets = {p["key"]: set(p["scopes"]) for p in listing["presets"]}
+    assert set(presets) == {"read", "write", "all"}
+    assert "tokens:manage" in listing["admin"]
+    assert not presets["write"] & set(listing["admin"])
+
+
 def test_only_the_hash_is_stored(client, officer_headers, soda_id):
     from core.db import db_connect
     from modules.auth.models import MachineToken
