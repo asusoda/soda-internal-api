@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Minus, Package, Plus, ShoppingCart } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { AuthFrame } from '../../components/auth-frame';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorNote, OkNote, SkeletonRows } from '../../components/ui';
 import { compact, timeAgo } from '../../lib/format';
@@ -26,6 +26,7 @@ function loadCart(prefix: string): CartLine[] {
 // The org store for members: products for everyone, and the cart, points and orders after sign-in.
 export function MemberStorePage() {
   const prefix = useParams().prefix ?? '';
+  const signInError = useSearchParams()[0].get('error');
   const client = useQueryClient();
   const [cart, setCart] = useState<CartLine[]>(() => loadCart(prefix));
   const [placed, setPlaced] = useState(false);
@@ -55,6 +56,12 @@ export function MemberStorePage() {
     queryFn: () => memberApi<MemberProfile>(`/api/points/${prefix}/member_profile`),
     enabled: signedIn,
     retry: false,
+  });
+
+  // Ends the API session, which holds the Discord sign-in
+  const signOut = useMutation({
+    mutationFn: () => memberApi('/api/auth/logout', { method: 'POST', body: '{}' }),
+    onSuccess: () => client.resetQueries({ queryKey: ['member-store', prefix] }),
   });
 
   const total = cart.reduce((n, line) => n + line.product.price * line.quantity, 0);
@@ -104,6 +111,14 @@ export function MemberStorePage() {
             <div className="text-muted tabular-nums">
               {profile.data ? `${compact(profile.data.current_organization.points)} points` : ''}
             </div>
+            <button
+              type="button"
+              className="text-muted underline hover:text-fg"
+              onClick={() => signOut.mutate()}
+              disabled={signOut.isPending}
+            >
+              Sign out
+            </button>
           </div>
         ) : (
           <Link
@@ -114,6 +129,11 @@ export function MemberStorePage() {
           </Link>
         )}
       </div>
+      {signInError || signOut.error ? (
+        <div className="mb-4">
+          <ErrorNote error={signOut.error ?? signInError} />
+        </div>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <Card>
           <CardHeader title="Products" hint="Prices are in points." />

@@ -153,10 +153,10 @@ An old path that opens another page goes in `REDIRECTS` in the same file.
 
 The member store is two open pages of `dashboard/`, outside the officer pages:
 
-- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order.
-- `/store/<org>/login` signs a member in with `POST /api/points/<org>/member_login`.
+- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order or sign out.
+- `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`.
 
-These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need a Discord session on the API. The browser sends the cookie only when the dashboard and the API are on the same site.
+These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need the Discord session that the sign-in starts. The browser sends the cookie only when the dashboard and the API are on the same site.
 
 ## Old officer app
 
