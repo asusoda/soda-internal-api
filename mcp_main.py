@@ -51,14 +51,14 @@ def main() -> None:
     error_alerts.setup("mcp")
     load_tools()
     port = int(os.environ.get("MCP_PORT", "8001"))
-    trusted = forwarded_allow_ips()
-    logger.info("Starting MCP server on port %s; X-Forwarded-For trusted from %s", port, trusted)
+    proxies = forwarded_allow_ips()
+    logger.info("Starting MCP server on port %s; X-Forwarded-For trusted from %s", port, proxies)
     uvicorn.run(
         build_app(),
         host="0.0.0.0",  # nosec B104 - the container binds all interfaces; compose publishes on 127.0.0.1
         port=port,
         log_level="info",
-        forwarded_allow_ips=trusted,
+        forwarded_allow_ips=proxies,
     )
 
 
