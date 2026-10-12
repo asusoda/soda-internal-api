@@ -142,8 +142,8 @@ flowchart TD
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.
-6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d --remove-orphans`, and `mcp` too when its container exists. Then wait up to 60 seconds for each to be healthy and check that each runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container: podman-compose 1.0.6 recreates a service's dependencies with it, and it cannot replace `api` while other containers require it. `--remove-orphans` removes containers of services that are no longer in `docker-compose.yml`, so an old container does not keep a port.
-7. If it built `site` and the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. It does not require `api`, so the other containers keep running.
+6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d`, and `mcp` too when its container exists. Docker Compose gets `--remove-orphans`, so a container of a removed service does not keep a port. podman-compose 1.0.6 does not get that flag. That flag removes every project container this command did not name, including `soda-site`. Then wait up to 60 seconds for each container to be healthy. Check that each container runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container. podman-compose 1.0.6 recreates a service's dependencies with it. It cannot replace `api` while other containers require it.
+7. If this deploy built `site`, and `soda-site:latest` or the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. If this deploy did not build `site` and `soda-site:latest` exists, start `soda-site` with the same command. `site` does not require `api`, so the other containers keep running.
 8. If an image was not built and its container exists, that container must run the `:latest` tag. Copy the current SHA to `.deploy/rollback-sha` when it differs from the new commit. Write the new commit to `.deploy/deployed-sha`. Each write replaces the file in one step.
 
 Caution: set `VITE_API_URL` in `.env` before you build the dashboard. If it is empty, `Dockerfile.dashboard` stops the build and the deploy fails.
@@ -195,7 +195,7 @@ The `site` service serves `site/` with `next start`, because the site uses redir
 1. Build and start it once: `docker compose --profile site up -d --no-deps site`. podman-compose 1.0.6 ignores profiles: use `podman-compose -f docker-compose.yml up -d --no-deps site`.
 2. Point the domain at the server, and forward it in the reverse proxy to `http://127.0.0.1:3010`.
 
-After this, `make deploy` rebuilds the site when `site/` or `docs/` changes, and `make health` checks it.
+After this, `make deploy` rebuilds the site when `site/` or `docs/` changes. A deploy that does not rebuild the site starts `soda-site` again when `soda-site:latest` exists. `make health` checks the site.
 
 ## Command-line tools
 

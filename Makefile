@@ -104,8 +104,13 @@ discard-local-changes:
 # fails to replace api ("has dependent containers"), which leaves only api and dashboard running.
 # soda-mcp (profile mcp) is recreated when it exists. Docker Compose gets --profile mcp; podman-compose
 # 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
-# soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
-# and recreated on its own with --no-deps, after the other containers.
+# soda-site (profile site) does not require api. When soda-site:latest or the soda-site
+# container exists and site/ or docs/ changes, this target rebuilds site and recreates it
+# with --no-deps. When this deploy does not rebuild site and soda-site:latest exists, it
+# starts soda-site with --no-deps.
+# podman-compose 1.0.6 --remove-orphans removes every project container this up did not
+# name, including soda-site. This target omits that flag for podman-compose.
+# Docker Compose still gets --remove-orphans.
 # .deploy/ is not mounted into the API container, and chown of data/ does not change it.
 # .deploy/deployed-sha stores the last commit that finished this target.
 # .deploy/rollback-sha stores that commit when a later deploy finishes, so rollback can restore it.
@@ -187,9 +192,12 @@ deploy:
 		MCP_ON=0; PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then MCP_ON=1; fi; \
 		if [ "$$MCP_ON" -eq 1 ] && [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="--profile mcp"; fi; \
-		SITE_ON=0; SITE_PROFILE_ARGS=""; \
+		SITE_ON=0; SITE_IMAGE=0; SITE_PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-site >/dev/null 2>&1; then SITE_ON=1; fi; \
+		if $(CONTAINER_CMD) image inspect soda-site:latest >/dev/null 2>&1; then SITE_IMAGE=1; fi; \
 		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then SITE_PROFILE_ARGS="--profile site"; fi; \
+		ORPHAN_ARGS="--remove-orphans"; \
+		if [ "$(COMPOSE_CMD)" = "podman-compose" ]; then ORPHAN_ARGS=""; fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Setting up data directory permissions..."; \
 		mkdir -p data; \
 		chmod -R 755 data; \
@@ -219,7 +227,7 @@ deploy:
 			SERVICES_TO_START="api bot web dashboard"; \
 			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
 			echo -e "$(GREEN)[INFO]$(NC) Recreating changed services:$$SERVICES_TO_START"; \
-			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --remove-orphans $$SERVICES_TO_START; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d $$ORPHAN_ARGS $$SERVICES_TO_START; \
 		else \
 			echo -e "$(YELLOW)[WARNING]$(NC) No deploy-impacting service changes detected. Skipping build/restart."; \
 		fi; \
@@ -278,7 +286,7 @@ deploy:
 			fi; \
 			echo -e "$(GREEN)[INFO]$(NC) /health reports commit $$NEW_HEAD."; \
 		fi; \
-		if [ "$$BUILD_SITE" -eq 1 ] && [ "$$SITE_ON" -eq 1 ]; then \
+		if [ "$$BUILD_SITE" -eq 1 ] && { [ "$$SITE_ON" -eq 1 ] || [ "$$SITE_IMAGE" -eq 1 ]; }; then \
 			echo -e "$(GREEN)[INFO]$(NC) Building and recreating the site..."; \
 			if $(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null; then \
 				write_file .deploy/rollback-site site; \
@@ -286,6 +294,13 @@ deploy:
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build site; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
 			wait_for_health soda-site 90; \
+			check_image soda-site soda-site:latest; \
+		elif [ "$$SITE_IMAGE" -eq 1 ]; then \
+			echo -e "$(GREEN)[INFO]$(NC) Starting the site..."; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
+			wait_for_health soda-site 90; \
+			check_image soda-site soda-site:latest; \
+		elif [ "$$SITE_ON" -eq 1 ]; then \
 			check_image soda-site soda-site:latest; \
 		fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Container status:"; \
@@ -300,9 +315,6 @@ deploy:
 			check_if_present soda-web soda-web:latest; \
 			check_if_present soda-dashboard soda-dashboard:latest; \
 			if [ "$$MCP_ON" -eq 1 ]; then check_if_present soda-mcp soda-internal-api:latest; fi; \
-		fi; \
-		if [ "$$BUILD_SITE" -eq 0 ] && [ "$$SITE_ON" -eq 1 ]; then \
-			check_image soda-site soda-site:latest; \
 		fi; \
 		if [[ ! "$$NEW_HEAD" =~ ^[0-9a-f]{40}$$ ]]; then \
 			echo -e "$(RED)[ERROR]$(NC) The deploy commit is not a sha."; \
