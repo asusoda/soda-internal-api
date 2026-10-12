@@ -197,7 +197,8 @@ def server_metadata_model():
     from modules.mcp import client_auth
 
     metadata = build_metadata(AnyHttpUrl(public_url()), None, REGISTRATION, REVOCATION)
-    metadata.client_id_metadata_document_supported = True
+    # Off with MCP_OAUTH_CIMD=false; a client_id that is a metadata document URL still works
+    metadata.client_id_metadata_document_supported = config.MCP_OAUTH_CIMD
     metadata.authorization_response_iss_parameter_supported = True
     metadata.scopes_supported = sorted(SCOPES)
     methods = ["client_secret_post", "client_secret_basic", KEY_CLIENT, PUBLIC_CLIENT]
