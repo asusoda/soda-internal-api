@@ -29,7 +29,7 @@ The sidebar collapses to a 56px rail of icons. To collapse or expand it, use the
 
 The top bar above each page shows where the page is: Org / Section / Page. Each page starts with `PageHeader`: the title is the sidebar label of the page, one short line of description, a Docs link (`docs`) and the page actions on the right. A page does not explain itself in long text: it links to its page in `docs/`.
 
-The pages use the same parts from `dashboard/src/components/ui/`: `CardHeader` with a title and a count, `TabBar` with a search field or filters on the right (`action`), icon buttons for row actions, and `Dialog` for every form that adds or edits. A list that can select rows uses `useSelection`, `Checkbox` and `SelectionBar` from `components/selection.tsx`: the row checkbox shows on hover, and the actions for the selected rows show in a bar at the bottom of the screen.
+The pages use the same parts from `dashboard/src/components/ui/`: `CardHeader` with a title and a count, `TabBar` with a search field or filters on the right (`action`), icon buttons for row actions, and `Dialog` for every form that adds or edits. A delete, stop, restart or discard asks in a confirm dialog before it runs. A list that can select rows uses `useSelection`, `Checkbox` and `SelectionBar` from `components/selection.tsx`: the row checkbox shows on hover, and the actions for the selected rows show in a bar at the bottom of the screen.
 
 Lists that can be long (knowledge sources, points members and events, knowledge runs, store orders) show 100 rows, or 50 runs, and a button that shows more. A search field filters with `useDeferredValue`, so typing does not wait for the list. The audit log rows use `content-visibility: auto`.
 

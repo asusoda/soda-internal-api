@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { CalendarClock, FolderOpen, Play, RotateCw, ShieldCheck, Square, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useConfirm } from '../../components/confirm';
 import {
   Badge,
   Button,
@@ -55,13 +56,16 @@ export function StatusBadge({ status }: { status: string | null }) {
 
 function PodRow({ prefix, pod, open, providers }: { prefix: string; pod: Pod; open: (d: PodDialog) => void; providers?: HostingProvider[] }) {
   const action = usePodAction(prefix, pod.id);
+  const confirm = useConfirm();
   const running = pod.status === 'RUNNING';
   const gone = pod.status === 'GONE';
   const machine = machineLabel(pod.machine);
   const cost = costLabel(pod.cost_per_hour);
   const power = () => {
     if (!running) return action.mutate('start');
-    if (confirm(`Stop ${pod.name}? Members are disconnected and files outside the volume are lost.`)) action.mutate('stop');
+    void confirm(`Stop ${pod.name}? Members are disconnected and files outside the volume are lost.`, 'Stop').then((yes) => {
+      if (yes) action.mutate('stop');
+    });
   };
   return (
     <Tr>
@@ -160,7 +164,9 @@ function PodRow({ prefix, pod, open, providers }: { prefix: string; pod: Pod; op
                     icon={RotateCw}
                     disabled={!running || action.isPending}
                     onClick={pick(() => {
-                      if (confirm(`Restart ${pod.name}? Members are disconnected.`)) action.mutate('restart');
+                      void confirm(`Restart ${pod.name}? Members are disconnected.`, 'Restart').then((yes) => {
+                        if (yes) action.mutate('restart');
+                      });
                     })}
                   >
                     Restart

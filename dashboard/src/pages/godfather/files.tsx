@@ -16,6 +16,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { useConfirm } from '../../components/confirm';
 import {
   Button,
   cx,
@@ -161,13 +162,20 @@ function Editor({ prefix, pod, path, onBack }: { prefix: string; pod: Pod; path:
   const value = draft ?? file.data ?? '';
   const changed = draft !== null && draft !== file.data;
   const tooLarge = file.error instanceof ApiError && file.error.status === 413;
+  const confirm = useConfirm();
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="ghost"
           onClick={() => {
-            if (!changed || confirm('Discard your changes?')) onBack();
+            if (!changed) {
+              onBack();
+              return;
+            }
+            void confirm('Discard your changes?', 'Discard').then((yes) => {
+              if (yes) onBack();
+            });
           }}
         >
           <ArrowLeft className="size-4" /> Back
@@ -216,6 +224,7 @@ export function FilesDialog({ prefix, pod, onClose }: { prefix: string; pod: Pod
   const [pending, setPending] = useState<Pending>(null);
   const upload = useRef<HTMLInputElement>(null);
   const start = usePodAction(prefix, pod.id);
+  const confirm = useConfirm();
   const list = useQuery({
     queryKey: ['godfather', prefix, 'files', pod.id, path],
     queryFn: () => api<{ path: string; files: PodFile[] }>(`${base}/files?path=${encodeURIComponent(path)}`).then((b) => b.files),
@@ -395,7 +404,10 @@ export function FilesDialog({ prefix, pod, onClose }: { prefix: string; pod: Pod
                               title="Delete"
                               disabled={remove.isPending}
                               onClick={() => {
-                                if (confirm(dir ? `Delete ${target} and everything in it?` : `Delete ${target}?`)) remove.mutate(target);
+                                const question = dir ? `Delete ${target} and everything in it?` : `Delete ${target}?`;
+                                void confirm(question, 'Delete').then((yes) => {
+                                  if (yes) remove.mutate(target);
+                                });
                               }}
                             >
                               <Trash2 className="size-4" />
