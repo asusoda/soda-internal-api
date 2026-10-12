@@ -107,7 +107,7 @@ discard-local-changes:
 # soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
 # and recreated on its own with --no-deps, after the other containers.
 # data/deployed-sha stores the last commit that finished this target.
-# data/rollback-site is present after this deploy tags soda-site:previous. make rollback reads that file.
+# data/rollback-api and data/rollback-site record that this deploy tagged that image as previous.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
@@ -115,7 +115,7 @@ deploy:
 			echo -e "$(YELLOW)[WARNING]$(NC) Not in project directory, changing to $(PROJECT_DIR)"; \
 			cd "$(PROJECT_DIR)"; \
 		fi; \
-		rm -f data/rollback-site; \
+		rm -f data/rollback-api data/rollback-site; \
 		RECORDED=""; \
 		if [ -f data/deployed-sha ]; then RECORDED=$$(tr -d '[:space:]' < data/deployed-sha); fi; \
 		if [[ ! "$$RECORDED" =~ ^[0-9a-f]{40}$$ ]]; then RECORDED=""; fi; \
@@ -182,7 +182,9 @@ deploy:
 		chown -R 1000:1000 data; \
 		if [ "$$BUILD_API" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Tagging API image as previous..."; \
-			$(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:previous 2>/dev/null || true; \
+			if $(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:previous 2>/dev/null; then \
+				printf 'api\n' > data/rollback-api; \
+			fi; \
 		fi; \
 		if [ "$$BUILD_WEB" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Tagging web image as previous..."; \
@@ -293,9 +295,10 @@ dev:
 # Rollback to previous version
 rollback:
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
-	@ROLLED=0; \
-	if $(CONTAINER_CMD) images | grep -q "soda-internal-api:previous"; then \
-		echo -e "$(GREEN)[INFO]$(NC) Found previous version, rolling back..."; \
+	@set -e; \
+	ROLLED=0; \
+	if [ -f data/rollback-api ] && $(CONTAINER_CMD) image inspect soda-internal-api:previous >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[INFO]$(NC) Found previous API image, rolling back..."; \
 		$(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:rollback-$$(date +%Y%m%d-%H%M%S); \
 		$(CONTAINER_CMD) tag soda-internal-api:previous soda-internal-api:latest; \
 		$(COMPOSE_CMD) up -d; \
