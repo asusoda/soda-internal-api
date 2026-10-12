@@ -27,6 +27,10 @@ permissions: {}
 jobs:
   deploy:
     name: Deploy to Production
+    # GitHub records each run as a deployment to this environment, with its result, on the Deployments page.
+    environment:
+      name: production
+      url: https://api.thesoda.io/health
     permissions: {}
     timeout-minutes: 45
     runs-on: ubuntu-latest
