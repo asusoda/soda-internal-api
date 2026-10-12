@@ -2,22 +2,33 @@
   "socket": "/var/www/soda-internal-api/data/runner.sock",
   "socket_gid": 1000,
   "data_root": "/var/lib/platform-apps",
-  "bind_ips": ["127.0.0.1", "10.88.0.1"],
-  "registries": ["ghcr.io/", "docker.io/vaultwarden/server:", "docker.io/library/nginx:"],
+  "bind_ips": [
+    "127.0.0.1",
+    "10.88.0.1"
+  ],
+  "registries": [
+    "ghcr.io/",
+    "docker.io/library/nginx:"
+  ],
   "memory_mb_total": 1536,
   "memory_mb_max": 1024,
   "cpus_max": 1.0,
-  "port_range": [20000, 20999],
+  "port_range": [
+    20000,
+    20999
+  ],
   "orgs": {
     "soda": {
       "host_paths": [
-        "/var/www/vaultwarden/data",
         "/var/www/asu-cs-wiki/dist",
         "/var/www/wiki-static/nginx.conf",
         "/var/www/ada-lovelace-conf-website/out",
         "/var/www/wtc-static/nginx.conf"
       ],
-      "host_ports": [8081, 3001, 3003]
+      "host_ports": [
+        3001,
+        3003
+      ]
     }
   }
 }

@@ -10,7 +10,8 @@ Restart=always
 RestartSec=30
 Nice=10
 ProtectSystem=strict
-ReadWritePaths=/var/www/soda-internal-api/data
+# podman writes its locks and state even to list containers
+ReadWritePaths=/var/www/soda-internal-api/data /run/containers /run/libpod /var/lib/containers /run/lock
 ProtectHome=read-only
 PrivateTmp=true
 NoNewPrivileges=true
