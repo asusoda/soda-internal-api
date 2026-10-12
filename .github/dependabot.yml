@@ -21,3 +21,27 @@ updates:
       npm-deps:
         patterns:
           - "*"
+  - package-ecosystem: npm
+    directory: "/site"
+    schedule:
+      interval: "daily"
+    groups:
+      site-npm:
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: "/web"
+    schedule:
+      interval: "daily"
+    groups:
+      web-npm:
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"

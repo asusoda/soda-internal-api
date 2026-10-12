@@ -8,6 +8,8 @@ PROJECT_DIR ?= /var/www/soda-internal-api
 BRANCH ?= main
 # The commit before this deploy, to find the changed files. cd.yml sets it.
 DEPLOY_FROM ?=
+# The commit that passed Check. When set, check out this commit instead of origin/$(BRANCH).
+DEPLOY_SHA ?=
 COMPOSE_CMD := $(shell if command -v podman-compose > /dev/null 2>&1; then echo "podman-compose"; elif docker compose version > /dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 CONTAINER_CMD := $(shell if command -v podman > /dev/null 2>&1; then echo "podman"; else echo "docker"; fi)
 
@@ -104,20 +106,33 @@ discard-local-changes:
 # 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
 # soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
 # and recreated on its own with --no-deps, after the other containers.
+# data/deployed-sha stores the last commit that finished this target.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
 		if [ "$$(pwd)" != "$(PROJECT_DIR)" ]; then \
 			echo -e "$(YELLOW)[WARNING]$(NC) Not in project directory, changing to $(PROJECT_DIR)"; \
-			cd $(PROJECT_DIR); \
+			cd "$(PROJECT_DIR)"; \
 		fi; \
-		OLD_HEAD="$(DEPLOY_FROM)"; \
+		RECORDED=""; \
+		if [ -f data/deployed-sha ]; then RECORDED=$$(tr -d '[:space:]' < data/deployed-sha); fi; \
+		if [[ ! "$$RECORDED" =~ ^[0-9a-f]{40}$$ ]]; then RECORDED=""; fi; \
+		OLD_HEAD="$$RECORDED"; \
+		if [ -z "$$OLD_HEAD" ]; then OLD_HEAD="$(DEPLOY_FROM)"; fi; \
 		if [ -z "$$OLD_HEAD" ]; then OLD_HEAD=$$(git rev-parse HEAD 2>/dev/null || echo ""); fi; \
-		echo -e "$(GREEN)[INFO]$(NC) Fetching latest changes from repository..."; \
-		git fetch origin $(BRANCH); \
-		echo -e "$(GREEN)[INFO]$(NC) Checking out $(BRANCH) branch..."; \
-		git checkout $(BRANCH); \
-		git reset --hard origin/$(BRANCH); \
+		echo -e "$(GREEN)[INFO]$(NC) Fetching the deploy commit..."; \
+		if [ -n "$(DEPLOY_SHA)" ]; then \
+			if [[ ! "$(DEPLOY_SHA)" =~ ^[0-9a-f]{40}$$ ]]; then \
+				echo -e "$(RED)[ERROR]$(NC) DEPLOY_SHA is not a 40-character sha."; \
+				exit 1; \
+			fi; \
+			git fetch origin "$(DEPLOY_SHA)" || git fetch origin "$(BRANCH)"; \
+			git checkout --detach --force "$(DEPLOY_SHA)"; \
+		else \
+			git fetch origin "$(BRANCH)"; \
+			git checkout "$(BRANCH)"; \
+			git reset --hard "origin/$(BRANCH)"; \
+		fi; \
 		NEW_HEAD=$$(git rev-parse HEAD 2>/dev/null || echo ""); \
 		CHANGED_FILES=""; \
 		if [ -n "$$OLD_HEAD" ] && [ -n "$$NEW_HEAD" ] && [ "$$OLD_HEAD" != "$$NEW_HEAD" ]; then \
@@ -256,6 +271,12 @@ deploy:
 		$(COMPOSE_CMD) logs --tail=20; \
 		echo -e "$(GREEN)[INFO]$(NC) Cleaning up unused container images..."; \
 		$(CONTAINER_CMD) image prune -f 2>/dev/null || true; \
+		if [[ ! "$$NEW_HEAD" =~ ^[0-9a-f]{40}$$ ]]; then \
+			echo -e "$(RED)[ERROR]$(NC) The deploy commit is not a sha."; \
+			exit 1; \
+		fi; \
+		printf '%s\n' "$$NEW_HEAD" > data/deployed-sha; \
+		echo -e "$(GREEN)[INFO]$(NC) Recorded deployed commit $$NEW_HEAD."; \
 		echo -e "$(GREEN)[INFO]$(NC) Deployment completed successfully!"
 
 # Development environment

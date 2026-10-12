@@ -1,26 +1,40 @@
 name: CD
 
-# Deploys SoDA's production server. Runs only in asusoda/platform, never in forks,
-# and only after the Check workflow has passed on the same commit of main.
+# Deploys the SoDA server. check.yml calls this workflow after its jobs pass
+# on a push to main in asusoda/platform. The deploy checks out that commit.
 
 on:
-  workflow_run:
-    workflows: [Check]
-    types: [completed]
-    branches: [main]
+  workflow_call:
+    inputs:
+      deploy_sha:
+        description: The commit that passed Check
+        required: true
+        type: string
+    secrets:
+      VPS_HOST:
+        required: true
+      VPS_USERNAME:
+        required: true
+      VPS_SSH_PORT:
+        required: true
+      VPS_SSH_KEY:
+        required: false
+      VPS_SSH_PASSWORD:
+        required: false
 
-concurrency:
-  group: cd-production
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
   deploy:
     name: Deploy to Production
-    if: github.repository == 'asusoda/platform' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions: {}
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
     - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1
+      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+      env:
+        DEPLOY_SHA: ${{ inputs.deploy_sha }}
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
@@ -28,8 +42,11 @@ jobs:
         # A deploy key (VPS_SSH_KEY) is used when set; the password stays as a fallback until it is.
         key: ${{ secrets.VPS_SSH_KEY }}
         password: ${{ secrets.VPS_SSH_PASSWORD }}
+        version: "1.8.2"
+        command_timeout: 30m
+        envs: DEPLOY_SHA
         script: |
-          set -e
+          set -eu
 
           PROJECT_DIR="${PROJECT_DIR:-/var/www/soda-internal-api}"
           if [ ! -d "$PROJECT_DIR" ]; then
@@ -38,20 +55,37 @@ jobs:
           fi
           cd "$PROJECT_DIR"
 
-          # Update the checkout first, so the next steps use the Makefile of this commit.
-          # DEPLOY_FROM gives make deploy the old commit, to find the changed files.
+          if ! printf '%s' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "The commit from Check is not a 40-character sha."
+            exit 1
+          fi
+
           DEPLOY_FROM="$(git rev-parse HEAD)"
-          echo "Updating the checkout from $DEPLOY_FROM..."
-          git fetch origin main
-          git checkout main
-          git reset --hard origin/main
+          PREVIOUS_SHA=""
+          if [ -f data/deployed-sha ]; then
+            PREVIOUS_SHA="$(tr -d '[:space:]' < data/deployed-sha)"
+          fi
+
+          # Update the checkout first, so the next steps use the Makefile of this commit.
+          echo "Updating the checkout from $DEPLOY_FROM to $DEPLOY_SHA..."
+          git fetch origin "$DEPLOY_SHA" || git fetch origin main
+          git checkout --detach --force "$DEPLOY_SHA"
 
           echo "Backing up the database..."
           make backup
 
+          restore_deployed_sha() {
+            if [ -n "$PREVIOUS_SHA" ]; then
+              printf '%s\n' "$PREVIOUS_SHA" > data/deployed-sha
+            else
+              rm -f data/deployed-sha
+            fi
+          }
+
           echo "Starting deployment..."
-          if ! make deploy DEPLOY_FROM="$DEPLOY_FROM"; then
+          if ! make deploy DEPLOY_FROM="$DEPLOY_FROM" DEPLOY_SHA="$DEPLOY_SHA"; then
             echo "Deployment failed, rolling back..."
+            restore_deployed_sha
             make logs || true
             make rollback || true
             exit 1
@@ -60,6 +94,7 @@ jobs:
           echo "Verifying deployment health..."
           if ! make health; then
             echo "Health check failed, rolling back..."
+            restore_deployed_sha
             make status || true
             make rollback || true
             exit 1

@@ -86,9 +86,9 @@ The `shared` key of the policy has `host_paths` and `host_ports` too: the ones t
 
 | Workflow | Does |
 | --- | --- |
-| `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard tests and build |
-| `images.yml` | Builds the API, web and dashboard images on each PR. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-web` and `-dashboard` |
-| `cd.yml` | Deploys the example SoDA server after `check.yml` passes on `main`. It runs only in `asusoda/platform` |
+| `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard and site builds; workflow lint. A push to `main` in `asusoda/platform` then runs `cd.yml` |
+| `images.yml` | Builds the API, web, dashboard and site images on each PR. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-web`, `-dashboard` and `-site` |
+| `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform` |
 
 The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvector) from `mirror.gcr.io`, Google's copy of Docker Hub. It has no pull limit for anonymous users, so CI does not stop with `429 Too Many Requests`. Platform's own images go to GHCR.
 
@@ -100,22 +100,23 @@ The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvecto
 
 ```bash
 DEPLOY_FROM="$(git rev-parse HEAD)"          # the commit that runs now
-git fetch origin main && git checkout main && git reset --hard origin/main
+git fetch origin "$DEPLOY_SHA"               # the commit that passed Check
+git checkout --detach --force "$DEPLOY_SHA"
 make backup                                  # copy data/user.db to data/backups/, keep the last 14
-make deploy DEPLOY_FROM="$DEPLOY_FROM"
+make deploy DEPLOY_FROM="$DEPLOY_FROM" DEPLOY_SHA="$DEPLOY_SHA"
 make health
 ```
 
-`cd.yml` updates the checkout before `make backup`. Thus the server uses the `Makefile` of the new commit, also when the old `Makefile` has no `backup` target. If `make deploy` or `make health` fails, `cd.yml` runs `make rollback`.
+`cd.yml` deploys the commit that passed Check. The server stays on that commit when `main` has moved ahead. `cd.yml` updates the checkout before `make backup`, so the server uses the `Makefile` of that commit. The server stores the commit in `data/deployed-sha` after `make deploy` finishes. When `make deploy` or `make health` fails, `cd.yml` writes the previous commit back and runs `make rollback`.
 
 This diagram shows the deploy.
 
 ```mermaid
 flowchart TD
-  push["Push to main"] --> check["check.yml passes"]
+  push["Push to main"] --> check["Check jobs pass"]
   check --> cd["cd.yml connects to the server over SSH"]
-  cd --> reset["git reset --hard origin/main"]
-  reset --> backup["make backup"]
+  cd --> checkout["git checkout the commit that passed Check"]
+  checkout --> backup["make backup"]
   backup --> deploy["make deploy: build changed images, alembic upgrade head, up -d"]
   deploy -->|fails| rollback["make rollback"]
   deploy -->|passes| health["make health"]
@@ -125,13 +126,14 @@ flowchart TD
 
 `make deploy` does these steps:
 
-1. Get `origin/main` and find the files changed since `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, it uses the commit that was checked out before the fetch.
+1. Check out `DEPLOY_SHA` when Check sets it. Otherwise get `origin/main`. Compare that commit with `data/deployed-sha`, or with `DEPLOY_FROM` when the file is absent.
 2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all four. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.
 6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d --remove-orphans`, and `mcp` too when its container exists. Then wait up to 60 seconds for each to be healthy and check that each runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container: podman-compose 1.0.6 recreates a service's dependencies with it, and it cannot replace `api` while other containers require it. `--remove-orphans` removes containers of services that are no longer in `docker-compose.yml`, so an old container does not keep a port.
 7. If it built `site` and the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. It does not require `api`, so the other containers keep running.
+8. Write the new commit to `data/deployed-sha`.
 
 Caution: set `VITE_API_URL` in `.env` before you build the dashboard. If it is empty, `Dockerfile.dashboard` stops the build and the deploy fails.
 
@@ -146,8 +148,9 @@ Do the first deploy after a large upgrade by hand. For an upgrade from `asusoda/
 5. If the database has no `alembic_version` table (`create_all` made it), run `uv run alembic stamp a1b2c3d4e5f6`. If you do not, `alembic upgrade head` stops with "table already exists".
 6. Keep the current commit for a rollback: `OLD=$(git rev-parse HEAD)`.
 7. Run `git fetch origin main`, then `git reset --hard origin/main`.
-8. Run `make deploy DEPLOY_FROM="$OLD"`. If `DEPLOY_FROM` is not set, `make deploy` finds no changed files and builds nothing.
-9. Run `flask --app main config check` in the API container. It must show `migrations at head` and no `FAIL`.
+8. If `data/deployed-sha` is present, delete it. `make deploy` uses that file and ignores `DEPLOY_FROM`.
+9. Run `make deploy DEPLOY_FROM="$OLD"`. If `DEPLOY_FROM` is not set and the file is absent, `make deploy` finds no changed files and builds nothing.
+10. Run `flask --app main config check` in the API container. It must show `migrations at head` and no `FAIL`.
 
 LeetCode: the API now posts the daily question as a job and keeps the "posted today" record in the `leetcode_daily` table. If you deploy after `LEETCODE_DAILY_TIME` on a day that already had a post, the channel gets a second post. Deploy before that time to prevent it.
 
