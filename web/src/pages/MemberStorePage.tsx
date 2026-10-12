@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import apiClient from "../components/utils/axios";
+import { useParams, useSearchParams } from "react-router-dom";
+import memberClient, { storeLoginUrl } from "../components/utils/memberClient";
 import { FaShoppingCart, FaPlus, FaMinus, FaSpinner, FaCheck, FaUser, FaHistory, FaCoins, FaStore, FaEnvelope, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { errorDetail, type Order, type Product } from "../storefrontTypes";
@@ -17,7 +17,7 @@ interface StoreResponse {
   products: Product[];
 }
 
-// The user that POST /api/points/<org>/member_login returns. The member login page keeps it in localStorage.
+// The member in GET /api/points/<org>/member_profile.
 interface MemberUser {
   id: number;
   name: string | null;
@@ -60,6 +60,7 @@ interface CartItem {
 
 const MemberStorePage = () => {
   const { orgPrefix } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [organization, setOrganization] = useState<StoreOrganization | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -72,27 +73,12 @@ const MemberStorePage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
 
-  const checkMemberSession = useCallback(() => {
-    const memberUser = localStorage.getItem('memberUser');
-    const memberOrg = localStorage.getItem('memberOrg');
-    
-    if (memberUser && memberOrg) {
-      const org: { prefix: string } = JSON.parse(memberOrg);
-      
-      if (org.prefix === orgPrefix) {
-        setIsAuthenticated(true);
-        return true;
-      }
-    }
-    return false;
-  }, [orgPrefix]);
-
   const fetchUserPoints = useCallback(async () => {
     // Callers run this only after the member has signed in.
     if (!orgPrefix) return;
     
     try {
-      const response = await apiClient.get<MemberProfile>(`/api/points/${orgPrefix}/member_profile`);
+      const response = await memberClient.get<MemberProfile>(`/api/points/${orgPrefix}/member_profile`);
       setMemberProfile(response.data);
       setUserPoints(response.data.current_organization?.points || 0);
     } catch (err) {
@@ -101,28 +87,9 @@ const MemberStorePage = () => {
   }, [orgPrefix]);
 
   const checkAuthentication = useCallback(async () => {
-    // First check member session
-    if (checkMemberSession()) {
-      try {
-        // If member session exists, try to get orders using member API
-        const memberUser: MemberUser | null = JSON.parse(localStorage.getItem('memberUser') || 'null');
-        if (!memberUser) throw new Error("No member session");
-        const response = await apiClient.get<Order[]>(`/api/storefront/${orgPrefix}/members/orders`, {
-          headers: {
-            'X-Member-User-Id': memberUser.id
-          }
-        });
-        setOrders(Array.isArray(response.data) ? response.data : []);
-        fetchUserPoints();
-        return;
-      } catch (err) {
-        console.log("Member API failed, trying Discord auth");
-      }
-    }
-    
     try {
-      // Try Discord auth for members
-      const response = await apiClient.get<Order[]>(`/api/storefront/${orgPrefix}/members/orders`);
+      // The orders route answers only for a member signed in with Discord
+      const response = await memberClient.get<Order[]>(`/api/storefront/${orgPrefix}/members/orders`);
       setIsAuthenticated(true);
       setOrders(Array.isArray(response.data) ? response.data : []);
       fetchUserPoints();
@@ -130,7 +97,7 @@ const MemberStorePage = () => {
       setIsAuthenticated(false);
       // User can still browse without auth
     }
-  }, [orgPrefix, checkMemberSession, fetchUserPoints]);
+  }, [orgPrefix, fetchUserPoints]);
 
   const fetchStoreData = useCallback(async () => {
     if (!orgPrefix) {
@@ -145,10 +112,10 @@ const MemberStorePage = () => {
       // Try member store first, fallback to public store
       let response;
       try {
-        response = await apiClient.get<StoreResponse>(`/api/storefront/${orgPrefix}/members/store`);
+        response = await memberClient.get<StoreResponse>(`/api/storefront/${orgPrefix}/members/store`);
       } catch (memberErr) {
         // Fallback to public store data
-        response = await apiClient.get<StoreResponse>(`/api/storefront/${orgPrefix}/store`);
+        response = await memberClient.get<StoreResponse>(`/api/storefront/${orgPrefix}/store`);
       }
       
       setOrganization(response.data.organization);
@@ -168,6 +135,15 @@ const MemberStorePage = () => {
     checkAuthentication();
     fetchStoreData();
   }, [checkAuthentication, fetchStoreData]);
+
+  // The API sends the member back with ?error= when the Discord sign-in fails
+  useEffect(() => {
+    const signInError = searchParams.get('error');
+    if (signInError) {
+      toast.error(signInError);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Load cart from sessionStorage when component mounts
   useEffect(() => {
@@ -190,14 +166,17 @@ const MemberStorePage = () => {
   }, [cart, orgPrefix]);
 
   const handleLogin = () => {
-    // Redirect to member login page
-    window.location.href = `/store/${orgPrefix}/login`;
+    if (orgPrefix) window.location.href = storeLoginUrl(orgPrefix);
   };
 
-  const handleLogout = () => {
-    // Clear member session
-    localStorage.removeItem('memberUser');
-    localStorage.removeItem('memberOrg');
+  const handleLogout = async () => {
+    try {
+      // Ends the API session, which holds the Discord sign-in
+      await memberClient.post('/api/auth/logout', {});
+    } catch (err) {
+      toast.error(`Failed to log out: ${errorDetail(err)}`);
+      return;
+    }
     sessionStorage.removeItem(`cart_${orgPrefix}`);
     
     // Reset state
@@ -284,19 +263,7 @@ const MemberStorePage = () => {
         }))
       };
 
-      // Check if using member session
-      const memberUser = localStorage.getItem('memberUser');
-      
-      if (memberUser) {
-        const user: MemberUser = JSON.parse(memberUser);
-        await apiClient.post(`/api/storefront/${orgPrefix}/members/orders`, orderData, {
-          headers: {
-            'X-Member-User-Id': user.id
-          }
-        });
-      } else {
-        await apiClient.post(`/api/storefront/${orgPrefix}/members/orders`, orderData);
-      }
+      await memberClient.post(`/api/storefront/${orgPrefix}/members/orders`, orderData);
       
       toast.success("Order placed successfully!");
       setCart([]);

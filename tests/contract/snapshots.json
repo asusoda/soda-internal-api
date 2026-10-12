@@ -179,9 +179,39 @@
     "caller": "web",
     "request": "GET /api/points/soda/member_profile",
     "shape": {
-      "error": "string"
+      "current_organization": {
+        "id": "number",
+        "name": "string",
+        "points": "number",
+        "prefix": "string"
+      },
+      "organizations": [
+        {
+          "description": "null",
+          "id": "number",
+          "is_current": "bool",
+          "name": "string",
+          "points": "number",
+          "prefix": "string"
+        }
+      ],
+      "total_points_all_orgs": "number",
+      "user": {
+        "academic_standing": "null",
+        "asu_id": "string",
+        "class_standing": "null",
+        "created_at": "string",
+        "discord_linked": "bool",
+        "email": "string",
+        "id": "number",
+        "major": "null",
+        "name": "string",
+        "profile_fields": {},
+        "student_id": "string",
+        "username": "string"
+      }
     },
-    "status": 401
+    "status": 200
   },
   "member-store-clerk": {
     "caller": "website",
