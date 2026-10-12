@@ -1,5 +1,6 @@
+import { Popover } from '@base-ui/react/popover';
 import { ArrowUpRight, Bell, Check, CheckCheck, RotateCcw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { timeAgo } from '../lib/format';
 import { useCurrentOrg } from '../lib/org';
@@ -113,33 +114,17 @@ export function NotificationsBell() {
   const { data } = useNotifications(prefix);
   const change = useNotificationChange(prefix);
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   const list = (data?.notifications ?? []).filter((n) => !n.resolved_at);
   const count = data?.open ?? 0;
 
   useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => box.current && !box.current.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   return (
-    <div ref={box} className="relative">
-      <Tooltip label="Notifications" side="bottom">
-        <button
-          type="button"
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Tooltip label="Notifications" side="bottom" disabled={open}>
+        <Popover.Trigger
           aria-label={count ? `Notifications, ${count} open` : 'Notifications'}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          onClick={() => setOpen(!open)}
           className={cx(
             'relative flex size-8 cursor-pointer items-center justify-center rounded-md text-muted transition-colors duration-150 hover:bg-panel-2 hover:text-fg',
             open && 'bg-panel-2 text-fg',
@@ -151,47 +136,49 @@ export function NotificationsBell() {
               {count > 99 ? '99+' : count}
             </span>
           ) : null}
-        </button>
+        </Popover.Trigger>
       </Tooltip>
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Notifications"
-          className="absolute top-10 right-0 z-30 w-[min(400px,calc(100vw-24px))] origin-top-right animate-in overflow-hidden rounded-xl border border-line bg-panel shadow-xl"
-        >
-          <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-            <span className="text-sm font-medium">Notifications</span>
-            {list.length ? (
-              <Button
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                disabled={change.isPending}
-                onClick={() => change.mutate({ action: 'resolve', ids: list.map((n) => n.id) })}
-              >
-                <CheckCheck className="size-3.5" /> Resolve all
-              </Button>
-            ) : null}
-          </div>
-          {list.length ? (
-            <ul className="max-h-[60vh] divide-y divide-line overflow-y-auto overscroll-contain">
-              {list.slice(0, PREVIEW).map((n) => (
-                <NotificationItem key={n.id} n={n} compact onOpen={() => setOpen(false)} />
-              ))}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
-              <CheckCheck className="size-5 text-muted" />
-              <span className="text-sm">Nothing needs attention</span>
-            </div>
-          )}
-          <Link
-            to={`/${prefix}/activity`}
-            className="block border-t border-line px-4 py-2.5 text-center text-xs text-muted transition-colors hover:bg-panel-2/60 hover:text-fg"
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="end" sideOffset={8} className="z-50 outline-none">
+          <Popover.Popup
+            aria-label="Notifications"
+            initialFocus={false}
+            className="w-[min(400px,calc(100vw-24px))] origin-(--transform-origin) overflow-hidden rounded-xl border border-line bg-panel text-fg shadow-xl outline-none transition duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0"
           >
-            {list.length > PREVIEW ? `View all ${list.length}` : 'View all notifications'}
-          </Link>
-        </div>
-      ) : null}
-    </div>
+            <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+              <span className="text-sm font-medium">Notifications</span>
+              {list.length ? (
+                <Button
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  disabled={change.isPending}
+                  onClick={() => change.mutate({ action: 'resolve', ids: list.map((n) => n.id) })}
+                >
+                  <CheckCheck className="size-3.5" /> Resolve all
+                </Button>
+              ) : null}
+            </div>
+            {list.length ? (
+              <ul className="max-h-[60vh] divide-y divide-line overflow-y-auto overscroll-contain">
+                {list.slice(0, PREVIEW).map((n) => (
+                  <NotificationItem key={n.id} n={n} compact onOpen={() => setOpen(false)} />
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
+                <CheckCheck className="size-5 text-muted" />
+                <span className="text-sm">Nothing needs attention</span>
+              </div>
+            )}
+            <Link
+              to={`/${prefix}/activity`}
+              className="block border-t border-line px-4 py-2.5 text-center text-xs text-muted transition-colors hover:bg-panel-2/60 hover:text-fg"
+            >
+              {list.length > PREVIEW ? `View all ${list.length}` : 'View all notifications'}
+            </Link>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

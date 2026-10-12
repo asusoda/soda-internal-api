@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { useConfirm } from '../../components/confirm';
 import { Button, Dialog, Field, FormActions, Select, Table, Td, Textarea, Th, Tr } from '../../components/ui';
 import { send } from '../../lib/api';
 import { compact, when } from '../../lib/format';
@@ -38,6 +39,7 @@ export function OrderDialog({
 
 function OrderForm({ prefix, order, products, onDone }: { prefix: string; order: Order; products: Map<number, Product>; onDone: () => void }) {
   const client = useQueryClient();
+  const confirm = useConfirm();
   const [status, setStatus] = useState(order.status);
   const [message, setMessage] = useState(order.message ?? '');
   const changed = status !== order.status || message !== (order.message ?? '');
@@ -126,7 +128,9 @@ function OrderForm({ prefix, order, products, onDone }: { prefix: string; order:
           disabled={remove.isPending}
           onClick={() => {
             const stock = CLOSED.has(order.status) ? 'Stock does not change.' : 'Its items go back into stock.';
-            if (confirm(`Delete order #${order.id}? ${stock} The member does not get the points back.`)) remove.mutate();
+            void confirm(`Delete order #${order.id}? ${stock} The member does not get the points back.`, 'Delete').then((yes) => {
+              if (yes) remove.mutate();
+            });
           }}
         >
           <Trash2 className="size-4" /> Delete

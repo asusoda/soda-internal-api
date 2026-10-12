@@ -1,5 +1,6 @@
 import { CheckCheck, RotateCcw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useConfirm } from '../../components/confirm';
 import { moduleLabel, NotificationItem } from '../../components/notifications';
 import { SelectionBar, useSelection } from '../../components/selection';
 import { Button, Card, EmptyState, ErrorNote, Select, ShowMore, SkeletonRows, useShowMore } from '../../components/ui';
@@ -25,6 +26,7 @@ export function NotificationsTab() {
   const events = new Set(all.filter((n) => n.kind === 'event').map((n) => n.id));
   const deletable = pick.ids.filter((id) => events.has(id));
   const run = (action: NotificationAction, ids: string[]) => change.mutate({ action, ids }, { onSuccess: pick.clear });
+  const confirm = useConfirm();
 
   const filters = (
     <>
@@ -75,9 +77,12 @@ export function NotificationsTab() {
             disabled={change.isPending || !deletable.length}
             title={deletable.length ? undefined : 'Only events can be deleted. Resolve a problem instead.'}
             onClick={() => {
-              if (confirm(`Delete ${deletable.length} ${deletable.length === 1 ? 'event' : 'events'}? This cannot be undone.`)) {
-                run('delete', deletable);
-              }
+              void confirm(
+                `Delete ${deletable.length} ${deletable.length === 1 ? 'event' : 'events'}? This cannot be undone.`,
+                'Delete',
+              ).then((yes) => {
+                if (yes) run('delete', deletable);
+              });
             }}
           >
             <Trash2 className="size-4" /> Delete{deletable.length && deletable.length !== pick.count ? ` ${deletable.length}` : ''}

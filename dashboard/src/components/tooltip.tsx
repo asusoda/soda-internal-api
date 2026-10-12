@@ -1,19 +1,14 @@
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
+import { cloneElement, isValidElement, type ReactNode, useId } from 'react';
+import { cx } from './ui/cx';
 
 type Side = 'right' | 'top' | 'bottom';
 
+// How long a tooltip waits before it opens on hover. A later tooltip in the same group opens at once.
+const HOVER_MS = 350;
+
 // The key name of Ctrl on this computer: the Command sign on a Mac.
 export const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
-
-// Time of the last hide. A tooltip that opens soon after another one opens with no delay.
-let lastHide = 0;
-
-const position: Record<Side, (r: DOMRect) => { left: number; top: number; transform: string }> = {
-  right: (r) => ({ left: r.right + 8, top: r.top + r.height / 2, transform: 'translateY(-50%)' }),
-  top: (r) => ({ left: r.left + r.width / 2, top: r.top - 6, transform: 'translate(-50%, -100%)' }),
-  bottom: (r) => ({ left: r.left + r.width / 2, top: r.bottom + 6, transform: 'translateX(-50%)' }),
-};
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
@@ -23,8 +18,15 @@ export function Kbd({ children }: { children: ReactNode }) {
   );
 }
 
+// One delay for every tooltip. Adjacent tips open at once while one is open.
+export function TooltipProvider({ children }: { children: ReactNode }) {
+  return <BaseTooltip.Provider delay={HOVER_MS}>{children}</BaseTooltip.Provider>;
+}
+
+type TriggerState = { open: boolean };
+
 // A label that shows next to its child on hover and keyboard focus. The child keeps its own aria-label.
-// The tooltip is fixed to the viewport in a portal, so a scroll box does not clip it.
+// The tooltip is in a portal, so a scroll box does not clip it.
 export function Tooltip({
   label,
   keys,
@@ -38,75 +40,52 @@ export function Tooltip({
   disabled?: boolean;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const timer = useRef<number | undefined>(undefined);
-  const [rect, setRect] = useState<DOMRect | null>(null);
   const id = useId();
-
-  const show = (delay: number) => {
-    window.clearTimeout(timer.current);
-    const target = ref.current?.firstElementChild;
-    if (!target) return;
-    const wait = Date.now() - lastHide < 400 ? 0 : delay;
-    timer.current = window.setTimeout(() => setRect(target.getBoundingClientRect()), wait);
-  };
-  const hide = () => {
-    window.clearTimeout(timer.current);
-    setRect((r) => {
-      if (r) lastHide = Date.now();
-      return null;
-    });
-  };
-
-  // Moves the tooltip back into the viewport when it goes past the left or right edge.
-  const tip = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    const el = tip.current;
-    if (!el) return;
-    const box = el.getBoundingClientRect();
-    const shift = box.left < 8 ? 8 - box.left : box.right > innerWidth - 8 ? innerWidth - 8 - box.right : 0;
-    if (shift) el.style.marginLeft = `${shift}px`;
-  }, [rect]);
-
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  useEffect(() => {
-    if (!rect) return;
-    window.addEventListener('scroll', hide, true);
-    return () => window.removeEventListener('scroll', hide, true);
-  }, [rect]);
-
   return (
-    <span
-      ref={ref}
-      className="contents"
-      onMouseEnter={disabled ? undefined : () => show(350)}
-      onMouseLeave={hide}
-      onFocus={disabled ? undefined : (e) => (e.target as HTMLElement).matches(':focus-visible') && show(0)}
-      onBlur={hide}
-      onPointerDown={hide}
-    >
+    <BaseTooltip.Root disabled={disabled} disableHoverablePopup>
+      <BaseTooltip.Trigger
+        delay={HOVER_MS}
+        render={(props, state: TriggerState) => renderTrigger(children, props, state.open ? id : undefined)}
+      />
+      <BaseTooltip.Portal>
+        <BaseTooltip.Positioner side={side} sideOffset={side === 'right' ? 8 : 6} className="z-50">
+          <BaseTooltip.Popup
+            id={id}
+            role="tooltip"
+            className="pointer-events-none flex origin-(--transform-origin) items-center gap-2 rounded-md bg-fg px-2 py-1 text-xs font-medium whitespace-nowrap text-bg shadow-md outline-none transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0"
+          >
+            {label}
+            {keys?.length ? (
+              <span className="flex gap-0.5">
+                {keys.map((k) => (
+                  <Kbd key={k}>{k}</Kbd>
+                ))}
+              </span>
+            ) : null}
+          </BaseTooltip.Popup>
+        </BaseTooltip.Positioner>
+      </BaseTooltip.Portal>
+    </BaseTooltip.Root>
+  );
+}
+
+function renderTrigger(
+  children: ReactNode,
+  props: React.ComponentProps<'button'>,
+  describedBy: string | undefined,
+) {
+  const described = [props['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined;
+  const next = { ...props, 'aria-describedby': described };
+  if (isValidElement<{ className?: string }>(children) && typeof children.type === 'string') {
+    return cloneElement(children, {
+      ...next,
+      className: cx(children.props.className, props.className),
+    });
+  }
+  const { type: _type, ...spanProps } = next;
+  return (
+    <span {...spanProps} className={cx('contents', props.className)}>
       {children}
-      {rect && !disabled
-        ? createPortal(
-            <span
-              ref={tip}
-              id={id}
-              role="tooltip"
-              style={{ position: 'fixed', ...position[side](rect) }}
-              className="pointer-events-none z-50 flex animate-[ui-fade_120ms_var(--ease-out)] items-center gap-2 rounded-md bg-fg px-2 py-1 text-xs font-medium whitespace-nowrap text-bg shadow-md"
-            >
-              {label}
-              {keys?.length ? (
-                <span className="flex gap-0.5">
-                  {keys.map((k) => (
-                    <Kbd key={k}>{k}</Kbd>
-                  ))}
-                </span>
-              ) : null}
-            </span>,
-            document.body,
-          )
-        : null}
     </span>
   );
 }

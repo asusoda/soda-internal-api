@@ -5,3 +5,4 @@ export * from './data';
 export * from './controls';
 export * from './feedback';
 export * from './overlays';
+export { ConfirmProvider, DeleteButton, useConfirm } from '../confirm';

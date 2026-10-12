@@ -6,6 +6,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { App } from './app';
+import { ConfirmProvider } from './components/confirm';
+import { TooltipProvider } from './components/tooltip';
 import { ApiError } from './lib/api';
 import { startErrorReports } from './lib/error-report';
 import { createQueryClient } from './lib/query-client';
@@ -23,10 +25,14 @@ queryClient.getQueryCache().subscribe((event) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
+    <TooltipProvider>
+      <ConfirmProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ConfirmProvider>
+    </TooltipProvider>
   </StrictMode>,
 );

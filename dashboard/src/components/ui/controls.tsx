@@ -1,5 +1,5 @@
 // Buttons and form fields.
-import { Check, Minus, Search, Trash2 } from 'lucide-react';
+import { Check, Minus, Search } from 'lucide-react';
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react';
 import { cx } from './cx';
 
@@ -97,39 +97,6 @@ export function Switch({
         )}
       />
     </button>
-  );
-}
-
-// An icon button that deletes after the officer confirms the question.
-export function DeleteButton({
-  label,
-  question,
-  onDelete,
-  title = 'Delete',
-  disabled,
-  className,
-}: {
-  label: string;
-  question: string;
-  onDelete: () => void;
-  title?: string;
-  disabled?: boolean;
-  className?: string;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      title={title}
-      aria-label={label}
-      className={cx('hover:text-bad', className)}
-      disabled={disabled}
-      onClick={() => {
-        if (confirm(question)) onDelete();
-      }}
-    >
-      <Trash2 className="size-4" />
-    </Button>
   );
 }
 

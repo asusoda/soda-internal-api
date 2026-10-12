@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CalendarClock, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { useConfirm } from '../../components/confirm';
 import { Badge, Button, Dialog, EmptyState, ErrorNote, Field, FormActions, Input, SkeletonRows } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { duration, localToIso, toLocalInput, when } from '../../lib/format';
@@ -35,6 +36,7 @@ function SessionState({ s }: { s: PodSession }) {
 
 function SessionRow({ prefix, pod, s }: { prefix: string; pod: Pod; s: PodSession }) {
   const refresh = useRefreshGodfather(prefix);
+  const confirm = useConfirm();
   const remove = useMutation({
     mutationFn: () => send(`${podPath(prefix, pod.id)}/sessions/${s.id}`, 'DELETE'),
     onSuccess: refresh,
@@ -61,7 +63,9 @@ function SessionRow({ prefix, pod, s }: { prefix: string; pod: Pod; s: PodSessio
           disabled={remove.isPending}
           onClick={() => {
             const note = s.started ? ' The pod stops at the next schedule run.' : '';
-            if (confirm(`Delete ${s.title || 'this session'}?${note}`)) remove.mutate();
+            void confirm(`Delete ${s.title || 'this session'}?${note}`, 'Delete').then((yes) => {
+              if (yes) remove.mutate();
+            });
           }}
         >
           <Trash2 className="size-4" />

@@ -1,6 +1,7 @@
 import { Bug, CheckCheck, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { useConfirm } from '../../components/confirm';
 import { ErrorList } from '../../components/error-list';
 import { SelectionBar, useSelection } from '../../components/selection';
 import { Button, Card, EmptyState, ErrorNote, Select, SkeletonRows } from '../../components/ui';
@@ -16,6 +17,7 @@ export function ErrorsTab() {
   const errors = list.data?.errors ?? [];
   const pick = useSelection(errors.map((e) => e.id));
   const run = (action: ErrorAction, ids: number[]) => change.mutate({ action, ids }, { onSuccess: pick.clear });
+  const confirm = useConfirm();
 
   return (
     <div className="grid gap-4">
@@ -51,9 +53,12 @@ export function ErrorsTab() {
             className="hover:text-bad"
             disabled={change.isPending}
             onClick={() => {
-              if (confirm(`Delete ${pick.count} ${pick.count === 1 ? 'error' : 'errors'}? An error that happens again starts a new row.`)) {
-                run('delete', pick.ids);
-              }
+              void confirm(
+                `Delete ${pick.count} ${pick.count === 1 ? 'error' : 'errors'}? An error that happens again starts a new row.`,
+                'Delete',
+              ).then((yes) => {
+                if (yes) run('delete', pick.ids);
+              });
             }}
           >
             <Trash2 className="size-4" /> Delete
