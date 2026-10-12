@@ -6,11 +6,11 @@ search runs in Python, which is enough for development and tests.
 """
 
 import json
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    Column,
     DateTime,
     ForeignKey,
     Index,
@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator, UserDefinedType
 
 from core.db import Base, new_uuid
@@ -88,24 +89,27 @@ class Embedding(TypeDecorator):
 class KnowledgeSource(Base):
     __tablename__ = "knowledge_sources"
 
-    id = Column(String(36), primary_key=True, default=new_uuid)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     # Null for a shared submodule's source, which submodule_id names instead
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
-    submodule_id = Column(Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True, index=True)
-    key = Column(String(255), nullable=False)  # stable name the writer chooses
-    url = Column(Text, nullable=True)
-    title = Column(String(500), nullable=True)
-    category = Column(String(100), nullable=False)
-    public = Column(Boolean, nullable=False, default=False)  # readable by every org
-    current_version_id = Column(String(36), nullable=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=True)
+    submodule_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    key: Mapped[str] = mapped_column(String(255), nullable=False)  # stable name the writer chooses
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)  # readable by every org
+    current_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     # Crawled sources: the platform fetches url on this schedule. None means a writer sends chunks.
-    fetch_every_hours = Column(Integer, nullable=True)
-    extractor = Column(String(100), nullable=True)  # a name registered in modules/knowledge/extract.py
-    enabled = Column(Boolean, nullable=False, default=True)
-    last_attempt_at = Column(DateTime, nullable=True)
-    last_error = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=utcnow)
-    updated_at = Column(DateTime, nullable=False, default=utcnow)
+    fetch_every_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # a name registered in modules/knowledge/extract.py
+    extractor: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (
         UniqueConstraint("organization_id", "key", name="uq_knowledge_source_key"),
@@ -117,31 +121,40 @@ class KnowledgeSource(Base):
 class KnowledgeVersion(Base):
     __tablename__ = "knowledge_versions"
 
-    id = Column(String(36), primary_key=True, default=new_uuid)
-    source_id = Column(String(36), ForeignKey("knowledge_sources.id", ondelete="CASCADE"), nullable=False, index=True)
-    content_hash = Column(String(64), nullable=False)
-    embedding_model = Column(String(200), nullable=True)
-    chunk_count = Column(Integer, nullable=False, default=0)
-    text_chars = Column(Integer, nullable=True)  # extracted text length, for crawled sources
-    fetched_at = Column(DateTime, nullable=False, default=utcnow)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    source_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("knowledge_sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    text_chars: Mapped[int | None] = mapped_column(Integer, nullable=True)  # extracted text length, for crawled sources
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
 
-    id = Column(String(36), primary_key=True, default=new_uuid)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)  # null: a shared submodule's
-    submodule_id = Column(Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True)
-    source_id = Column(String(36), ForeignKey("knowledge_sources.id", ondelete="CASCADE"), nullable=False)
-    version_id = Column(String(36), ForeignKey("knowledge_versions.id", ondelete="CASCADE"), nullable=False)
-    category = Column(String(100), nullable=False)
-    public = Column(Boolean, nullable=False, default=False)
-    ordinal = Column(Integer, nullable=False)
-    level = Column(Integer, nullable=False, default=0)  # 0 page text, 1+ summaries of rows below
-    parent_ordinal = Column(Integer, nullable=True)  # the summary row that covers this one
-    content = Column(Text, nullable=False)
-    embedding = Column(Embedding(), nullable=True)
-    fetched_at = Column(DateTime, nullable=False, default=utcnow)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    # null: a shared submodule's
+    organization_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=True)
+    submodule_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("submodules.id", ondelete="CASCADE"), nullable=True
+    )
+    source_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("knowledge_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("knowledge_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 page text, 1+ summaries of rows below
+    parent_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the summary row that covers this one
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Embedding(), nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (
         UniqueConstraint("version_id", "ordinal", name="uq_knowledge_chunk_ordinal"),
@@ -156,12 +169,14 @@ class KnowledgeRun(Base):
 
     __tablename__ = "knowledge_runs"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    source_key = Column(String(255), nullable=False)
-    kind = Column(String(16), nullable=False)  # crawl or upload
-    started_at = Column(DateTime, nullable=False, default=utcnow)
-    duration_ms = Column(Integer, nullable=False, default=0)
-    changed = Column(Boolean, nullable=False, default=False)
-    chunks = Column(Integer, nullable=True)
-    error = Column(String(1000), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # crawl or upload
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    changed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    chunks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)

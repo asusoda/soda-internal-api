@@ -9,7 +9,7 @@ This page lists the files a module can have, the places to register it, and the 
 | `README.md` | What the module does, a Files table and a Surface list (routes, jobs, tools, tables). A Known gaps list if the module breaks a rule on this page | always |
 | `service.py` | The logic. It takes a database session and plain values, returns plain values and raises a `ServiceError`. It does not import Flask | the module does more than read a table |
 | `api.py` | A Flask blueprint. Each route reads the request, calls `service.py` and returns JSON | the module has routes |
-| `models.py` | SQLAlchemy tables that use `Base` from `core/db/base.py` | the module keeps data |
+| `models.py` | SQLAlchemy tables that use `Base` from `core/db/base.py`, with `Mapped[...]` columns from `mapped_column` | the module keeps data |
 | `jobs.py` | Background work with `@job` from `core/jobs.py` | the module runs on a schedule or in the background |
 | `tools.py` | Tools for agents with `@tool` from `core/tools.py` | agents call the module |
 

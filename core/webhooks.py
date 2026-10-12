@@ -12,12 +12,13 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
-from typing import cast
+from datetime import datetime, timedelta
+from typing import Any
 
 import requests
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, column
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, column
 from sqlalchemy import table as sql_table
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core import secrets
 from core.db import Base, session
@@ -112,18 +113,18 @@ class Webhook(Base):
 
     __tablename__ = "webhooks"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    kind = Column(String(20), nullable=False)
-    url_ciphertext = Column(Text, nullable=False)
-    url_hint = Column(String(100), nullable=False)
-    events = Column(JSON, nullable=False, default=list)
-    enabled = Column(Boolean, nullable=False, default=True)
-    last_sent_at = Column(DateTime, nullable=True)
-    last_error = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=utcnow)
-    created_by = Column(String(255), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    url_ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    url_hint: Mapped[str] = mapped_column(String(100), nullable=False)
+    events: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_webhook_name"),)
 
@@ -133,13 +134,13 @@ class Notification(Base):
 
     __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
-    event = Column(String(50), nullable=False)
-    title = Column(String(256), nullable=False)
-    text = Column(Text, nullable=False, default="")
-    color = Column(Integer, nullable=False, default=BLUE)
-    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    event: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    color: Mapped[int] = mapped_column(Integer, nullable=False, default=BLUE)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, index=True)
 
 
 declare("job.failed", "Failed job runs", "A background job for the org fails, such as a crawl or a reindex.")
@@ -249,7 +250,7 @@ def deliver(org: int | str, event: str, message: Message) -> int:
                 return 0
             rows = db.query(Webhook).filter_by(organization_id=org_id, enabled=True).all()
             targets = [
-                (cast(int, row.id), str(row.kind), url)
+                (row.id, str(row.kind), url)
                 for row in rows
                 if event in (row.events or []) and (url := secrets.decrypt(str(row.url_ciphertext)))
             ]
@@ -266,7 +267,7 @@ def record(results: dict[int, str | None]) -> None:
     """Save the time and the error of the last message of each webhook."""
     with session() as db:
         for row in db.query(Webhook).filter(Webhook.id.in_(list(results))).all():
-            error = results[cast(int, row.id)]
+            error = results[row.id]
             row.last_sent_at = utcnow()
             row.last_error = error[:500] if error else None
             if error:
