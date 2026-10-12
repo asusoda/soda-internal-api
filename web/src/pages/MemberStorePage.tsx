@@ -172,9 +172,13 @@ const MemberStorePage = () => {
   // Load cart from sessionStorage when component mounts
   useEffect(() => {
     const savedCart = sessionStorage.getItem(`cart_${orgPrefix}`);
-    if (savedCart) {
-      const parsedCart: CartItem[] = JSON.parse(savedCart);
-      setCart(parsedCart);
+    if (!savedCart) return;
+    try {
+      const parsedCart: unknown = JSON.parse(savedCart);
+      if (Array.isArray(parsedCart)) setCart(parsedCart);
+    } catch {
+      // A cart that is not valid JSON is dropped; the store opens with an empty cart.
+      sessionStorage.removeItem(`cart_${orgPrefix}`);
     }
   }, [orgPrefix]);
 

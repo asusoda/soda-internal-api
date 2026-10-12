@@ -74,11 +74,17 @@ const AddStorefrontProductPage = () => {
       return;
     }
 
+    const stockCount = parseInt(String(stock));
+    if (Number.isNaN(stockCount) || stockCount < 0) {
+      toast.error("Stock must be a whole number of 0 or more");
+      return;
+    }
+
     const productData = {
       name,
       description,
       price: parseFloat(price), // Use parseFloat for decimal prices
-      stock: parseInt(String(stock)),
+      stock: stockCount,
       image_url: imageUrl,
       category: category || null,
     };
