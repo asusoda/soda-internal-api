@@ -270,11 +270,13 @@ class RateLimit:
     async def __call__(self, scope, receive, send):
         rule = self._rule(scope.get("path", "")) if scope["type"] == "http" else None
         if rule is None:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         client = scope.get("client") or ("unknown", 0)
         wait = self.allow(rule, str(client[0]))
         if not wait:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         body = json.dumps({"error": "too_many_requests", "error_description": "Too many requests. Try again later"})
         await send(
             {

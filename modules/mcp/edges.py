@@ -79,7 +79,8 @@ class OriginCheck:
     async def __call__(self, scope, receive, send):
         origin = _header(scope, b"origin") if _is_mcp(scope, self.path) else None
         if origin is None or origin_allowed(origin):
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         logger.warning("mcp request refused: origin %s is not allowed", origin)
         body = {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Origin not allowed"}}
         await _send_json(send, 403, body)
@@ -309,7 +310,8 @@ class RegistrationLog:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope.get("path") != self.register or scope.get("method") != "POST":
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         kept, cut = bytearray(), False
 
         async def copied():
