@@ -9,13 +9,9 @@ import {
   FaChartLine,
   FaPlus,
   FaCogs,
-  FaGamepad,
-  FaPlay,
-  FaTrophy,
   FaSignOutAlt,
   FaTachometerAlt,
   FaCalendarAlt,
-  FaRobot,
   FaStore,
   FaChevronDown,
   FaChevronUp,
@@ -29,10 +25,6 @@ const HomePage = () => {
     goToUsers,
     goToLeaderboard,
     goToAddPoints,
-    goToPanel,
-    goToJeopardy,
-    goToGamePanel,
-    goToActiveGame,
     goToAddProducts,
     goToOrders,
   } = useOrgNavigation();
@@ -168,43 +160,6 @@ const HomePage = () => {
         },
       ],
     },
-    {
-      id: "discordBots",
-      title: "Discord Bots",
-      icon: FaRobot,
-      color: "from-purple-500 to-purple-600",
-      description: "Manage Discord bot settings and game systems",
-      features: [
-        {
-          title: "Bot Control Panel",
-          description: "Manage Discord bot settings and configurations",
-          icon: FaRobot,
-          color: "from-purple-500 to-purple-600",
-          action: goToPanel,
-        },
-        {
-          title: "Jeopardy Game",
-          description: "Host and manage Jeopardy game sessions",
-          icon: FaTrophy,
-          color: "from-yellow-500 to-yellow-600",
-          action: goToJeopardy,
-        },
-        {
-          title: "Game Panel",
-          description: "Manage game settings and configurations",
-          icon: FaGamepad,
-          color: "from-pink-500 to-pink-600",
-          action: goToGamePanel,
-        },
-        {
-          title: "Active Game",
-          description: "View and control currently running games",
-          icon: FaPlay,
-          color: "from-teal-500 to-teal-600",
-          action: goToActiveGame,
-        },
-      ],
-    },
   ];
 
   // Switched-off modules are hidden; their routes return 404 for this org.
@@ -337,7 +292,7 @@ const HomePage = () => {
         </div>
 
         {/* Quick Stats Section */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
             <div className="flex items-center justify-center mb-2">
               <FaUsers className="w-8 h-8 text-blue-400" />
@@ -360,14 +315,6 @@ const HomePage = () => {
             </div>
             <h3 className="text-lg font-semibold mb-2 text-white">Calendar</h3>
             <p className="text-gray-400 text-sm">Manage events</p>
-          </div>
-
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6 text-center">
-            <div className="flex items-center justify-center mb-2">
-              <FaRobot className="w-8 h-8 text-purple-400" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2 text-white">Discord Bots</h3>
-            <p className="text-gray-400 text-sm">Manage bot systems</p>
           </div>
         </div>
       </div>

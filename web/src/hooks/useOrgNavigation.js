@@ -30,10 +30,6 @@ const useOrgNavigation = () => {
   const goToUsers = () => navigateToOrg("users");
   const goToLeaderboard = () => navigateToOrg("leaderboard");
   const goToAddPoints = () => navigateToOrg("addpoints");
-  const goToPanel = () => navigateToOrg("panel");
-  const goToJeopardy = () => navigateToOrg("jeopardy");
-  const goToGamePanel = () => navigateToOrg("gamepanel");
-  const goToActiveGame = () => navigateToOrg("activegame");
   const goToStorefrontProducts = () => navigateToOrg("storefront/products");
   const goToAddProducts = () => navigateToOrg("add-storefront-product");
   const goToOrders = () => navigateToOrg("transactions");
@@ -47,10 +43,6 @@ const useOrgNavigation = () => {
     goToUsers,
     goToLeaderboard,
     goToAddPoints,
-    goToPanel,
-    goToJeopardy,
-    goToGamePanel,
-    goToActiveGame,
     goToStorefrontProducts,
     goToAddProducts,
     goToOrders,
