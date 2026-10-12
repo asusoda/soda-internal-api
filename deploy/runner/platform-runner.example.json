@@ -9,9 +9,14 @@
   "registries": [
     "ghcr.io/",
     "docker.io/library/nginx:",
-    "docker.io/vaultwarden/server:"
+    "docker.io/vaultwarden/server:",
+    "docker.io/postgis/postgis:",
+    "docker.io/library/postgres:",
+    "docker.io/library/redis:",
+    "docker.io/twentycrm/twenty:",
+    "docker.io/library/ubuntu:"
   ],
-  "memory_mb_total": 1536,
+  "memory_mb_total": 6144,
   "memory_mb_max": 1024,
   "cpus_max": 1.0,
   "port_range": [
@@ -24,11 +29,30 @@
         "/var/www/asu-cs-wiki/dist",
         "/var/www/wiki-static/nginx.conf",
         "/var/www/ada-lovelace-conf-website/out",
-        "/var/www/wtc-static/nginx.conf"
+        "/var/www/wtc-static/nginx.conf",
+        "/var/www/asu-soda-newsite/dist",
+        "/var/www/asu-soda-newsite/nginx-platform.conf",
+        "/opt/wayfinder/data/postgres",
+        "/opt/wayfinder/backend",
+        "/etc/ssl/certs",
+        "/var/lib/containers/storage/volumes/twenty_db-data/_data",
+        "/var/lib/containers/storage/volumes/twenty_server-local-data/_data"
       ],
       "host_ports": [
         3001,
-        3003
+        3003,
+        3002,
+        5433,
+        8080,
+        2020
+      ],
+      "public_ports": [
+        8080
+      ],
+      "no_new_privileges_off": [
+        "wayfinder-db",
+        "crm-db",
+        "crm-redis"
       ]
     }
   },
@@ -39,5 +63,17 @@
     "host_ports": [
       8081
     ]
+  },
+  "host_control": {
+    "containers": [
+      "nginx-proxy-manager",
+      "tle_tle_1",
+      "soda-bot",
+      "soda-mcp",
+      "soda-web",
+      "soda-dashboard",
+      "soda-site"
+    ],
+    "units": []
   }
 }

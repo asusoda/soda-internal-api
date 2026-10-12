@@ -84,6 +84,17 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 - Deleting the app stops and removes its container. Its data folders stay on the server.
 - Godfather does not use This server: its pods need SSH.
 
+An app of several parts is one app for each part, with the same `group`. SoDA's CRM is four:
+
+| App | Image | Group, alias | Health |
+| --- | --- | --- | --- |
+| `crm-db` | `postgres:16` | `crm`, `db` | `{"port": 5432, "tcp": true}` |
+| `crm-redis` | `redis` | `crm`, `redis` | `{"port": 6379, "tcp": true}` |
+| `crm-server` | `twentycrm/twenty`, publishes 2020 | `crm`, `server` | `{"port": 2020, "path": "/healthz"}` |
+| `crm-worker` | `twentycrm/twenty`, `command: ["yarn", "worker:prod"]` | `crm`, `worker` | `{"running": true}` |
+
+The server reaches the database as `db:5432` and Redis as `redis:6379`. Deploy the database first. A database also needs the steps in [Operations](../operations.md#move-a-service-that-already-runs-on-the-server).
+
 ## Shared apps
 
 A shared app is an app that the deployment owns on This server and every org uses, such as the vault. It is an app with no org: the superadmin registers, deploys, rolls back and sets its secrets on the Shared apps card of the Superadmin page (`/api/superadmin/shared-apps`). Its container is `shared-<name>`, on the network `platform-shared`, and the runner checks it against the `shared` section of its policy. Its secrets are deployment secrets named `shared_<app>_<key>`. A dash in the app name is written as two underscores, so one app's secret cannot match another's. Name the secret in `secret_env`.
