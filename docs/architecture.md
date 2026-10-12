@@ -120,7 +120,7 @@ Every org shares the same processes, containers and database. Three layers keep 
 
 ```mermaid
 flowchart TB
-  subgraph server["One server: api, bot, mcp, worker, web, dashboard, site"]
+  subgraph server["One server: api, bot, mcp, worker, dashboard, site"]
     caps["Container caps: memory and CPU for each service"]
     subgraph process["Each process"]
       limits["Per-org limits: counts and rates for each module"]
