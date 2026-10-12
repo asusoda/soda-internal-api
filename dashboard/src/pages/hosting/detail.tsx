@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { GitBranch, History, Rocket, Trash2 } from 'lucide-react';
+import { GitBranch, History, Rocket, ScrollText, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, Card, Dot, EmptyState, ErrorNote, Mono, SkeletonRows, Table, Td, Th, Tr } from '../../components/ui';
 import { api } from '../../lib/api';
@@ -7,7 +7,9 @@ import { deployTone, duration, podTone, timeAgo } from '../../lib/format';
 import type { App, AppDetail, RunPodPod, ServerPod } from '../../lib/types';
 import { providerTitle, useProviders } from './providers';
 import { DeletePanel, DeployPanel, RollbackPanel } from './actions';
+import { RunControls } from './controls';
 import { ManifestSection } from './manifest';
+import { LogsView } from '../../components/logs';
 import { actorLabel, Fact, Label } from './shared';
 
 // A container of This server: state, caps, published ports and image.
@@ -160,7 +162,7 @@ function Deployments({ app }: { app: AppDetail }) {
   );
 }
 
-type Panel = 'deploy' | 'rollback' | 'delete' | null;
+type Panel = 'deploy' | 'rollback' | 'delete' | 'logs' | null;
 
 // deployTag, when set, opens the deploy form with that tag.
 export function AppPanel({
@@ -216,6 +218,12 @@ export function AppPanel({
         <Button onClick={() => setPanel(panel === 'rollback' ? null : 'rollback')} title="Deploy the last healthy tag again">
           <History className="size-4" /> Roll back
         </Button>
+        <RunControls prefix={prefix} app={app} />
+        {app.provider === 'server' && app.pod_id ? (
+          <Button variant={panel === 'logs' ? 'primary' : 'secondary'} onClick={() => setPanel(panel === 'logs' ? null : 'logs')}>
+            <ScrollText className="size-4" /> Logs
+          </Button>
+        ) : null}
         <Button variant="danger" className="sm:ml-auto" onClick={() => setPanel(panel === 'delete' ? null : 'delete')}>
           <Trash2 className="size-4" /> Delete
         </Button>
@@ -223,6 +231,7 @@ export function AppPanel({
       {panel === 'deploy' ? <DeployPanel prefix={prefix} app={app} initialTag={deployTag ?? ''} onDone={close} /> : null}
       {panel === 'rollback' ? <RollbackPanel prefix={prefix} app={app} onDone={close} /> : null}
       {panel === 'delete' ? <DeletePanel prefix={prefix} app={app} onDone={close} onDeleted={onDeleted} /> : null}
+      {panel === 'logs' ? <LogsView url={`/api/dashboard/${prefix}/apps/${app.name}/logs`} /> : null}
 
       <section>
         <Label>{app.provider === 'server' ? 'Container' : 'Pod'}</Label>

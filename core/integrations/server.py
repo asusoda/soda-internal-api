@@ -118,6 +118,12 @@ class ServerClient:
     def delete_pod(self, pod_id: str) -> Any:
         return call("DELETE", _app_path(pod_id, self.org))
 
+    def restart_pod(self, pod_id: str) -> Any:
+        return call("POST", _app_path(pod_id, self.org) + "/restart")
+
+    def logs(self, pod_id: str, lines: int) -> str:
+        return str(call("GET", _app_path(pod_id, self.org) + f"/logs?lines={int(lines)}")["logs"])
+
 
 def _prefix(db, org_id: int | None) -> str | None:
     """The org's prefix, or None for the shared apps."""
@@ -209,10 +215,21 @@ class ServerProvider:
             "ports": ports,
             "volumes": manifest.get("volumes") or [],
         }
-        if "cpus" in manifest:
-            body["cpus"] = manifest["cpus"]
+        for field in ("cpus", "command", "workdir", "group", "alias"):
+            if field in manifest:
+                body[field] = manifest[field]
         path = f"{_base(org_prefix)}/{app_name}"
         return ("PUT", path, body) if pod_id else ("PUT", path, {**body, "name": app_name})
 
 
 hosting.register(ServerProvider())
+
+
+def host_action(kind: str, name: str, action: str) -> dict:
+    """Start, stop or restart a container or systemd unit that is not an app, if the runner's policy lists it."""
+    return call("POST", f"/host/{quote(kind, safe='')}/{quote(name, safe='')}/{quote(action, safe='')}")
+
+
+def host_logs(kind: str, name: str, lines: int) -> str:
+    path = f"/host/{quote(kind, safe='')}/{quote(name, safe='')}/logs?lines={int(lines)}"
+    return str(call("GET", path)["logs"])

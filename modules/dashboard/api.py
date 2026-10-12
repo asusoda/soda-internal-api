@@ -270,6 +270,17 @@ def get_app_pod(db, org, name):
     return {"pod": apps.pod(db, _org_id(org), name)}
 
 
+@_route("/apps/<string:name>/action", ["POST"], module="runpod")
+def app_action(db, org, name):
+    """Start, stop or restart the app. Body: {"action": "restart"}."""
+    return apps.app_action(db, _org_id(org), name, json_body().get("action"))
+
+
+@_route("/apps/<string:name>/logs", ["GET"], module="runpod")
+def app_logs(db, org, name):
+    return apps.app_logs(db, _org_id(org), name, request.args.get("lines", 200, type=int))
+
+
 @_route("/apps/<string:name>/deploy", ["POST"], module="runpod")
 def deploy_app(db, org, name):
     data = json_body()

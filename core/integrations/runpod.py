@@ -18,7 +18,7 @@ BASE_URL = "https://api.runpod.io/v2"
 TIMEOUT_SECONDS = 30
 SECRET_NAME = "runpod_api_key"  # nosec B105 - the name of an org secret, not its value
 # Manifest fields that only This server reads
-SERVER_ONLY = ("memory", "cpus", "publish", "volumes")
+SERVER_ONLY = ("memory", "cpus", "publish", "volumes", "command", "workdir", "group", "alias")
 
 
 class RunPodError(hosting.HostingError):

@@ -36,8 +36,10 @@
 /api/apps/<string:name> DELETE,OPTIONS apps.delete_app
 /api/apps/<string:name> GET,HEAD,OPTIONS apps.get_app
 /api/apps/<string:name> OPTIONS,PUT apps.put_app
+/api/apps/<string:name>/action OPTIONS,POST apps.app_action
 /api/apps/<string:name>/deploy OPTIONS,POST apps.deploy
 /api/apps/<string:name>/deployments GET,HEAD,OPTIONS apps.list_deployments
+/api/apps/<string:name>/logs GET,HEAD,OPTIONS apps.app_logs
 /api/apps/<string:name>/pod GET,HEAD,OPTIONS apps.get_pod
 /api/apps/<string:name>/rollback OPTIONS,POST apps.rollback
 /api/apps/templates GET,HEAD,OPTIONS apps.list_templates
@@ -112,7 +114,9 @@
 /api/dashboard/<string:org_prefix>/apps/<string:name> DELETE,OPTIONS dashboard.delete_app
 /api/dashboard/<string:org_prefix>/apps/<string:name> GET,HEAD,OPTIONS dashboard.get_app
 /api/dashboard/<string:org_prefix>/apps/<string:name> OPTIONS,PUT dashboard.put_app
+/api/dashboard/<string:org_prefix>/apps/<string:name>/action OPTIONS,POST dashboard.app_action
 /api/dashboard/<string:org_prefix>/apps/<string:name>/deploy OPTIONS,POST dashboard.deploy_app
+/api/dashboard/<string:org_prefix>/apps/<string:name>/logs GET,HEAD,OPTIONS dashboard.app_logs
 /api/dashboard/<string:org_prefix>/apps/<string:name>/pod GET,HEAD,OPTIONS dashboard.get_app_pod
 /api/dashboard/<string:org_prefix>/apps/<string:name>/rollback OPTIONS,POST dashboard.rollback_app
 /api/dashboard/<string:org_prefix>/apps/templates GET,HEAD,OPTIONS dashboard.list_app_templates
@@ -267,11 +271,15 @@
 /api/superadmin/server GET,HEAD,OPTIONS superadmin.get_server
 /api/superadmin/server/services GET,HEAD,OPTIONS superadmin.get_server_services
 /api/superadmin/server/services/<string:name> OPTIONS,PUT superadmin.put_server_service
+/api/superadmin/server/services/<string:name>/action OPTIONS,POST superadmin.server_service_action
+/api/superadmin/server/services/<string:name>/logs GET,HEAD,OPTIONS superadmin.server_service_logs
 /api/superadmin/shared-apps GET,HEAD,OPTIONS superadmin.list_shared_apps
 /api/superadmin/shared-apps/<string:name> DELETE,OPTIONS superadmin.delete_shared_app
 /api/superadmin/shared-apps/<string:name> GET,HEAD,OPTIONS superadmin.get_shared_app
 /api/superadmin/shared-apps/<string:name> OPTIONS,PUT superadmin.put_shared_app
+/api/superadmin/shared-apps/<string:name>/action OPTIONS,POST superadmin.shared_app_action
 /api/superadmin/shared-apps/<string:name>/deploy OPTIONS,POST superadmin.deploy_shared_app
+/api/superadmin/shared-apps/<string:name>/logs GET,HEAD,OPTIONS superadmin.shared_app_logs
 /api/superadmin/shared-apps/<string:name>/pod GET,HEAD,OPTIONS superadmin.shared_app_pod
 /api/superadmin/shared-apps/<string:name>/rollback OPTIONS,POST superadmin.rollback_shared_app
 /api/superadmin/shared-apps/<string:name>/secrets OPTIONS,PUT superadmin.put_shared_app_secrets

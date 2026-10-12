@@ -19,6 +19,7 @@ POLICY = {
     "port_range": [20000, 20999],
     "orgs": {"soda": {"host_paths": ["/var/www/vaultwarden/data"], "host_ports": [8081]}},
     "shared": {"host_paths": ["/srv/shared/vault"], "host_ports": [8082]},
+    "host_control": {"containers": ["twenty_*"], "units": ["react-website"]},
 }
 
 
@@ -47,9 +48,14 @@ class FakePodman:
         bindings: dict[str, list[dict]] = {}
         env: list[str] = []
         mounts: list[str] = []
+        extra: dict[str, str] = {}
         i = 0
-        while i < len(args) - 1:
-            flag, value = args[i], args[i + 1]
+        while i < len(args) and args[i].startswith("-"):
+            flag = args[i]
+            if flag in ("-d", "--replace"):
+                i += 1
+                continue
+            value = args[i + 1]
             if flag == "--name":
                 name = value
             elif flag == "--label":
@@ -66,15 +72,23 @@ class FakePodman:
                 env.append(value)
             elif flag == "--volume":
                 mounts.append(value)
-            i += 1 if flag in ("-d", "--replace") else 2
+            else:
+                extra[flag] = value
+            i += 2
+        image, command = args[i], args[i + 1 :]
         self.containers[name] = {
             "Name": name,
-            "Config": {"Labels": labels, "Image": args[-1], "Env": env},
+            "Config": {"Labels": labels, "Image": image, "Env": env, "Cmd": command},
             "State": {"Status": "running", "StartedAt": "2026-10-12T00:00:00Z"},
             "HostConfig": {"PortBindings": bindings, "Memory": memory, "NanoCpus": nano},
-            "NetworkSettings": {"Networks": {"platform": {"IPAddress": "10.89.9.2"}}},
+            "NetworkSettings": {"Networks": {extra.get("--network", "platform"): {"IPAddress": "10.89.9.2"}}},
             "Mounts": mounts,
+            "Extra": extra,
         }
+
+    def output(self, *args):
+        self.calls.append(args)
+        return f"log of {args[-1]}\n"
 
     def exists(self, *args):
         return True
@@ -97,6 +111,7 @@ def start(socket_path: str, monkeypatch) -> FakePodman:
     monkeypatch.setattr(runner, "_inspect", fake.inspect)
     monkeypatch.setattr(runner, "managed", fake.managed)
     monkeypatch.setattr(runner, "health", fake.health)
+    monkeypatch.setattr(runner, "_output", fake.output)
     runner.Handler.policy = runner.load_policy_dict(dict(POLICY))
     server = runner.Server(socket_path, runner.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

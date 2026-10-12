@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Container } from 'lucide-react';
-import { Badge, Card, CardHeader, DocsLink, EmptyState, ErrorNote, Mono, Select, SkeletonRows, Table, Td, Th, Tr } from '../../components/ui';
+import { Container, Play, RotateCw, Square } from 'lucide-react';
+import { useState } from 'react';
+import { LogsView } from '../../components/logs';
+import { Badge, Button, Card, CardHeader, Dialog, DocsLink, EmptyState, ErrorNote, Mono, Select, SkeletonRows, Spinner, Table, Td, Th, Tr } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { bytes } from '../../lib/format';
 import type { ServerService, ServerServices } from '../../lib/types';
@@ -12,8 +14,39 @@ const OWNERS: Record<string, string> = { platform: 'Platform', infrastructure: '
 const ownerValue = (s: ServerService) => (!s.set ? 'auto' : s.owner === 'org' ? `org:${s.org?.id}` : (s.owner ?? 'auto'));
 const ownerName = (s: ServerService) => (s.owner === 'org' ? (s.org?.name ?? 'Org') : s.owner ? OWNERS[s.owner] : 'Unassigned');
 
+// Restart, Stop or Start, and the logs of one service. The runner's policy decides which services allow it.
+function ServiceControls({ service }: { service: ServerService }) {
+  const client = useQueryClient();
+  const base = `/api/superadmin/server/services/${encodeURIComponent(service.name)}`;
+  const act = useMutation({
+    mutationFn: (action: 'start' | 'stop' | 'restart') => send(`${base}/action`, 'POST', { action }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: KEY });
+      client.invalidateQueries({ queryKey: ['logs', `${base}/logs`] });
+    },
+  });
+  const running = service.state === 'running';
+  const busy = act.isPending ? act.variables : null;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={running ? 'ok' : 'warn'}>{service.state ?? 'unknown'}</Badge>
+        <Button className="ml-auto" onClick={() => act.mutate('restart')} disabled={act.isPending}>
+          {busy === 'restart' ? <Spinner className="size-3.5" /> : <RotateCw className="size-4" />} Restart
+        </Button>
+        <Button onClick={() => act.mutate(running ? 'stop' : 'start')} disabled={act.isPending}>
+          {running ? <Square className="size-4" /> : <Play className="size-4" />} {running ? 'Stop' : 'Start'}
+        </Button>
+      </div>
+      {act.error ? <ErrorNote error={act.error} /> : null}
+      <LogsView url={`${base}/logs`} />
+    </div>
+  );
+}
+
 // Each container and host process on the server, from the host agent, and who owns it.
 export function ServicesCard({ orgs }: { orgs: { id: number; name: string }[] }) {
+  const [open, setOpen] = useState<ServerService | null>(null);
   const client = useQueryClient();
   const list = useQuery({ queryKey: KEY, queryFn: () => api<ServerServices>('/api/superadmin/server/services'), refetchInterval: 30_000 });
   const owner = useMutation({
@@ -64,7 +97,9 @@ export function ServicesCard({ orgs }: { orgs: { id: number; name: string }[] })
               <Tr key={s.name}>
                 <Td className="w-full max-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{s.name}</span>
+                    <button type="button" className="truncate font-medium hover:underline" onClick={() => setOpen(s)}>
+                      {s.name}
+                    </button>
                     {s.kind === 'process' ? <Badge>process</Badge> : null}
                   </div>
                   <Mono className="block truncate">{s.domains.join(', ') || (s.ports.length ? `port ${s.ports.join(', ')}` : (s.project ?? '-'))}</Mono>
@@ -99,6 +134,9 @@ export function ServicesCard({ orgs }: { orgs: { id: number; name: string }[] })
           </tbody>
         </Table>
       ) : null}
+      <Dialog open={open !== null} onClose={() => setOpen(null)} title={open?.name ?? ''} description={open?.domains.join(', ') || undefined} wide>
+        {open ? <ServiceControls key={open.name} service={open} /> : null}
+      </Dialog>
     </Card>
   );
 }

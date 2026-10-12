@@ -160,6 +160,37 @@ def apps_create_from_template(db, org, caller, template: str, name: str, values=
     return templates.create(db, int(org.id), template, name, values, secrets, provider, caller.actor)
 
 
+@tool(
+    "apps.action",
+    description="Start, stop or restart a deployed app.",
+    scope="apps:manage",
+    confirm=True,
+    input_schema={
+        "type": "object",
+        "properties": {"name": NAME, "action": {"enum": list(service.ACTIONS)}},
+        "required": ["name", "action"],
+        "additionalProperties": False,
+    },
+)
+def apps_action(db, org, caller, name: str, action: str):
+    return service.app_action(db, int(org.id), name, action)
+
+
+@tool(
+    "apps.logs",
+    description="The last lines of a This server app's output.",
+    scope="apps:read",
+    input_schema={
+        "type": "object",
+        "properties": {"name": NAME, "lines": {"type": "integer", "minimum": 1, "maximum": service.MAX_LOG_LINES}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+)
+def apps_logs(db, org, caller, name: str, lines: int = 200):
+    return service.app_logs(db, int(org.id), name, lines)
+
+
 @_tool(
     "shared_apps.list",
     description="The shared apps the deployment runs for every org, such as the vault: what each is, whether the org "
