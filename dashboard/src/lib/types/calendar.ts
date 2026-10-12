@@ -16,6 +16,8 @@ export type CalendarEvent = {
   location?: string;
   description?: string;
   gcal_id?: string;
+  // The event's Google Calendar link, when a sync copied it there
+  jump_url?: string;
 };
 
 export type LeetCodeSettings = { channel_id: string | null; role_ping: string | null; daily_time: string | null };

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from cachetools import TTLCache, cached, keys
@@ -28,6 +28,24 @@ scopes.declare(
     "Change the calendar settings, make the org's Google Calendar, and sync Notion to it now",
     uses=("notion", "google"),
 )
+
+
+def _lookup_start(frontend_events: list[dict[str, Any]]) -> str | None:
+    """One day before the earliest event start, as an RFC 3339 time, or None without events.
+
+    The Google lookup for the links reads only from this time. The day covers all-day events and time zones.
+    """
+    starts = []
+    for event in frontend_events:
+        try:
+            start = datetime.fromisoformat(str(event["start"]).replace("Z", "+00:00"))
+        except (KeyError, ValueError):
+            continue
+        starts.append(start if start.tzinfo else start.replace(tzinfo=UTC))
+    if not starts:
+        return None
+    return (min(starts) - timedelta(days=1)).astimezone(UTC).isoformat().replace("+00:00", "Z")
+
 
 # Events per org for the website, kept 5 minutes
 _FRONTEND_CACHE = TTLCache(maxsize=100, ttl=300)
@@ -218,6 +236,7 @@ class MultiOrgCalendarService:
                 parsed_events = self.parse_notion_events(notion_events)
 
                 frontend_events = [event.to_frontend_format() for event in parsed_events]
+                self._add_event_links(db, org, frontend_events, transaction)
 
                 return {
                     "status": "success",
@@ -235,6 +254,22 @@ class MultiOrgCalendarService:
                     transaction.finish()
                 if "db" in locals():
                     db.close()
+
+    def _add_event_links(self, db, org: Organization, frontend_events: list[dict[str, Any]], transaction) -> None:
+        """Set jump_url on each event that the sync copied to the org's Google Calendar, from the event's htmlLink."""
+        time_min = _lookup_start(frontend_events)
+        if not org.google_calendar_id or time_min is None:
+            return
+        try:
+            links = sync.event_links(self.gcal_for(db, org), cast(str, org.google_calendar_id), time_min, transaction)
+        except Exception as e:
+            # The events are still useful without the links
+            self.logger.warning(f"Could not read Google Calendar links for organization {org.id}: {e}")
+            return
+        for event in frontend_events:
+            link = links.get(event["id"])
+            if link:
+                event["jump_url"] = link
 
     def parse_notion_events(self, notion_events_raw: list[dict]) -> list[CalendarEventDTO]:
         """Parse raw Notion events into CalendarEventDTO objects."""

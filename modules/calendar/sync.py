@@ -9,6 +9,21 @@ def _notion_page_id(event: dict):
     return event.get("extendedProperties", {}).get("private", {}).get("notionPageId")
 
 
+def event_links(gcal: GoogleCalendarClient, calendar_id: str, time_min: str, parent_transaction=None) -> dict[str, str]:
+    """The Google Calendar link of each event that the sync made and that ends after time_min, by Notion page id.
+
+    Empty if Google fails.
+    """
+    links: dict[str, str] = {}
+    events = gcal.get_all_events(calendar_id, time_min=time_min, parent_transaction=parent_transaction)
+    for event in events or []:
+        notion_page_id = _notion_page_id(event)
+        link = event.get("htmlLink")
+        if notion_page_id and link:
+            links.setdefault(notion_page_id, link)
+    return links
+
+
 def update_google_calendar(
     gcal: GoogleCalendarClient,
     parsed_events: list[CalendarEventDTO],
