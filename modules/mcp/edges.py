@@ -6,11 +6,14 @@
   token for a tool that needs a scope the token does not have gets 403 insufficient_scope with that scope, so
   the client can sign in again and ask for it (step-up).
 - IssuerOnErrors: an error redirect from /authorize that the SDK makes gets iss (RFC 9207), as the metadata says.
+- RegistrationLog: a refused /register is logged with the reason and a summary of the request, because the
+  client often shows only a general error. Secrets and keys are never logged.
 """
 
 import json
+import re
 from typing import cast
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from anyio import to_thread
 from mcp.server.auth.provider import construct_redirect_uri
@@ -76,7 +79,8 @@ class OriginCheck:
     async def __call__(self, scope, receive, send):
         origin = _header(scope, b"origin") if _is_mcp(scope, self.path) else None
         if origin is None or origin_allowed(origin):
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         logger.warning("mcp request refused: origin %s is not allowed", origin)
         body = {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Origin not allowed"}}
         await _send_json(send, 403, body)
@@ -227,3 +231,117 @@ class IssuerOnErrors:
             await send(message)
 
         return await self.app(scope, receive, with_iss)
+
+
+# The registration fields whose values RegistrationLog writes. The other fields get their names only
+LOGGED_FIELDS = (
+    "client_name",
+    "redirect_uris",
+    "token_endpoint_auth_method",
+    "grant_types",
+    "response_types",
+    "application_type",
+    "scope",
+    "client_uri",
+    "software_id",
+)
+MAX_LOGGED_BODY = 64 * 1024
+# A URL in a log line: a scheme, then anything up to a space, quote or bracket. It runs through
+# backslashes, so an escaped character cannot end a URL early and leave its query behind
+URL_IN_TEXT = re.compile(r"""\b[A-Za-z][A-Za-z0-9+.\-]*:/[^\s"'<>]*""")
+
+
+def redact_urls(text: str) -> str:
+    """The text with each URL cut to scheme, host, port and path. A user, password, query or fragment can hold
+    a credential, so it becomes ?…"""
+
+    def cut(match: re.Match) -> str:
+        try:
+            parts = urlsplit(match.group(0))
+            port = parts.port
+        except ValueError:
+            return "<url>"
+        host = parts.hostname or ""
+        netloc = f"{host}:{port}" if port else host
+        hidden = "?…" if parts.query or parts.fragment or "@" in parts.netloc else ""
+        return urlunsplit((parts.scheme, netloc, parts.path, "", "")) + hidden
+
+    return URL_IN_TEXT.sub(cut, text)
+
+
+def _cut_values(value):
+    """Each string in a JSON value with its URLs cut, before json.dumps escapes anything."""
+    if isinstance(value, str):
+        return redact_urls(value)
+    if isinstance(value, list):
+        return [_cut_values(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _cut_values(v) for k, v in value.items()}
+    return value
+
+
+def _cut_answer(text: str) -> str:
+    """The error that the client got, with its URLs cut. Text that is not JSON is cut as text."""
+    try:
+        return json.dumps(_cut_values(json.loads(text)))
+    except ValueError:
+        return redact_urls(text)
+
+
+def registration_summary(body: bytes) -> str:
+    """The safe part of a registration request: some field values, and the names of the other fields."""
+    try:
+        request = json.loads(body)
+    except ValueError:
+        return f"body is not JSON ({len(body)} bytes)"
+    if not isinstance(request, dict):
+        return f"body is a JSON {type(request).__name__}, not an object"
+    fields = cast(dict, request)
+    shown = {k: _cut_values(fields[k]) for k in LOGGED_FIELDS if k in fields}
+    others = sorted(str(k) for k in fields if k not in LOGGED_FIELDS)
+    # json.dumps escapes newlines and other control characters, so a field name cannot forge a log line
+    return redact_urls(f"{json.dumps(shown, default=str)[:1000]} other fields: {json.dumps(others)[:500]}")
+
+
+class RegistrationLog:
+    def __init__(self, app, path: str):
+        self.app = app
+        self.register = f"{path.rstrip('/')}/register"
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("path") != self.register or scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+        kept, cut = bytearray(), False
+
+        async def copied():
+            # The handler gets every message unchanged; the log keeps at most MAX_LOGGED_BODY bytes
+            nonlocal cut
+            message = await receive()
+            if message["type"] == "http.request":
+                piece = message.get("body", b"")
+                room = MAX_LOGGED_BODY - len(kept)
+                kept.extend(piece[: max(room, 0)])
+                cut = cut or len(piece) > room
+            return message
+
+        answer: dict = {"status": 0, "body": b""}
+
+        async def watched(message):
+            if message["type"] == "http.response.start":
+                answer["status"] = message["status"]
+            elif message["type"] == "http.response.body" and len(answer["body"]) < 2048:
+                answer["body"] += message.get("body", b"")
+            await send(message)
+
+        await self.app(scope, copied, watched)
+        if answer["status"] >= 400:
+            client = (scope.get("client") or ("unknown", 0))[0]
+            request = f"body larger than {MAX_LOGGED_BODY} bytes" if cut else registration_summary(bytes(kept))
+            logger.warning(
+                "client registration refused ip=%s status=%s answer=%s request=%s",
+                client,
+                answer["status"],
+                _cut_answer(answer["body"].decode("utf-8", "replace"))[:500],
+                request,
+            )

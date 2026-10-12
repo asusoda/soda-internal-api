@@ -125,7 +125,9 @@ def test_discovery(oauth_client, client):
         body = resource.json() if http is oauth_client else resource.get_json()
         assert body["resource"] == PUBLIC
         assert body["authorization_servers"] == [PUBLIC]
-        for where in ("/.well-known/oauth-authorization-server/mcp", "/.well-known/oauth-authorization-server"):
+        # No copy at the root: there the issuer would have to be the host alone (RFC 8414)
+        assert http.get("/.well-known/oauth-authorization-server").status_code == 404
+        for where in ("/.well-known/oauth-authorization-server/mcp",):
             server = http.get(where)
             assert server.status_code == 200
             body = server.json() if http is oauth_client else server.get_json()
@@ -1359,3 +1361,102 @@ def test_the_key_cache_stays_bounded(monkeypatch, client_key):
     assert len(client_auth._jwks_cache) == 3
     # The newest entries stay
     assert "https://agent.example/jwks/9.json" in client_auth._jwks_cache
+
+
+def test_refused_registrations_are_logged(oauth_client, caplog):
+    import logging
+
+    body = {
+        "client_name": "Example Agent",
+        "redirect_uris": ["cursor://x/cb"],
+        "token_endpoint_auth_method": "client_secret_post",
+        "client_secret": "never-logged-secret",
+        "jwks": {"keys": [{"kty": "oct", "k": "never-logged-key"}]},
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+        assert (
+            oauth_client.post(
+                "/mcp/register", content=b"not json", headers={"content-type": "application/json"}
+            ).status_code
+            == 400
+        )
+        _register(oauth_client)
+    refused = [r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage()]
+    assert len(refused) == 2
+    assert "invalid_redirect_uri" in refused[0] and "cursor://x/cb" in refused[0]
+    assert "client_secret_post" in refused[0] and "Example Agent" in refused[0]
+    # Field names only, never secret or key values
+    assert "client_secret" in refused[0] and "jwks" in refused[0]
+    assert "never-logged" not in caplog.text
+    assert "not JSON" in refused[1] or "invalid_client_metadata" in refused[1]
+
+
+def test_registration_log_cuts_urls(oauth_client, caplog):
+    import logging
+
+    body = {
+        "redirect_uris": ["cursor://user:pw-secret@x/cb?token=query-secret#frag-secret"],
+        "client_uri": "https://a.example/?k=uri-secret",
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "cursor://x/cb?…" in line and "https://a.example/?…" in line
+    # Neither in the summary nor in the answer, which repeats the refused URI
+    assert "secret" not in caplog.text
+
+
+def test_redact_urls():
+    from modules.mcp import edges
+
+    assert edges.redact_urls("go to https://h.example:8443/p?q=1 now") == "go to https://h.example:8443/p?… now"
+    assert edges.redact_urls('"myapp:/cb?t=x"') == '"myapp:/cb?…"'
+    assert edges.redact_urls("http://localhost:3000/callback") == "http://localhost:3000/callback"
+    assert edges.redact_urls("no url here: a/b") == "no url here: a/b"
+
+
+def test_registration_log_escapes_field_names(oauth_client, caplog):
+    import logging
+
+    body = {"redirect_uris": ["cursor://x/cb"], "x\nFAKE LINE": 1}
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "\n" not in line
+    assert '"x\\nFAKE LINE"' in line
+
+
+def test_a_large_registration_passes_whole_and_is_not_kept(oauth_client, caplog, monkeypatch):
+    import json
+    import logging
+
+    from modules.mcp import edges
+
+    monkeypatch.setattr(edges, "MAX_LOGGED_BODY", 100)
+    body = json.dumps({"redirect_uris": ["cursor://x/cb"], "pad": "x" * 500}).encode()
+
+    def chunks():
+        for start in range(0, len(body), 64):
+            yield body[start : start + 64]
+
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        response = oauth_client.post("/mcp/register", content=chunks(), headers={"content-type": "application/json"})
+    # The handler read the whole body: it refused the redirect URI, not a cut-off JSON document
+    assert response.status_code == 400 and response.json()["error"] == "invalid_redirect_uri"
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "body larger than 100 bytes" in line
+
+
+def test_registration_log_cuts_urls_with_escaped_characters(oauth_client, caplog):
+    import logging
+
+    body = {
+        "redirect_uris": ["cursor://x/cb?a=1\\&token=redirect-secret"],
+        "client_uri": "https://x.test/?a=1\\&token=uri-secret",
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "https://x.test/?…" in line and "cursor://x/cb?…" in line
+    assert "secret" not in caplog.text

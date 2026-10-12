@@ -63,7 +63,7 @@ def _document(body: dict | None):
 
 def _on(path: str) -> bool:
     """Whether OAuth is on and the request path is one of the MCP server's discovery paths."""
-    return bool(oauth.public_url()) and path in [oauth.resource_metadata_path(), *oauth.server_metadata_paths()]
+    return bool(oauth.public_url()) and path in (oauth.resource_metadata_path(), oauth.server_metadata_path())
 
 
 @well_known_blueprint.route("/oauth-protected-resource/<path:resource>", methods=["GET"])
@@ -72,8 +72,7 @@ def protected_resource(resource):
     return _document(oauth.resource_metadata() if _on(request.path) else None)
 
 
-@well_known_blueprint.route("/oauth-authorization-server", methods=["GET"])
 @well_known_blueprint.route("/oauth-authorization-server/<path:issuer>", methods=["GET"])
-def authorization_server(issuer=None):
+def authorization_server(issuer):
     """Authorization server metadata (RFC 8414) of the MCP server."""
     return _document(oauth.server_metadata() if _on(request.path) else None)

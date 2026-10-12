@@ -172,9 +172,11 @@ def resource_metadata_path() -> str:
     return f"/.well-known/oauth-protected-resource{public_path()}"
 
 
-def server_metadata_paths() -> list[str]:
-    """Where a client looks for the authorization server metadata (RFC 8414) at the root of the host."""
-    return [f"/.well-known/oauth-authorization-server{public_path()}", "/.well-known/oauth-authorization-server"]
+def server_metadata_path() -> str:
+    """Where a client reads the authorization server metadata (RFC 8414): the issuer's path after the well-known
+    name. There is no copy at /.well-known/oauth-authorization-server, because there the issuer must be the
+    host alone."""
+    return f"/.well-known/oauth-authorization-server{public_path()}"
 
 
 def resource_metadata() -> dict:
@@ -268,11 +270,13 @@ class RateLimit:
     async def __call__(self, scope, receive, send):
         rule = self._rule(scope.get("path", "")) if scope["type"] == "http" else None
         if rule is None:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         client = scope.get("client") or ("unknown", 0)
         wait = self.allow(rule, str(client[0]))
         if not wait:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         body = json.dumps({"error": "too_many_requests", "error_description": "Too many requests. Try again later"})
         await send(
             {
