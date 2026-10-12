@@ -9,7 +9,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
 | uv | Python 3.12, dependencies and the virtual environment |
 | Podman and podman-compose, or Docker | The containers. The Makefile finds the one you have |
 | make | Every command |
-| Node 20 | Only to run `dashboard/` or `site/` outside a container |
+| Node 22 (`.nvmrc`) | Only to run `dashboard/` or `site/` outside a container |
 
 ## Run it on your machine
 

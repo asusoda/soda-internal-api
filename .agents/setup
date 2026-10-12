@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Prepare a fresh Amp orb: Python 3.12 and the uv environment, and the npm
-# dependencies of dashboard/ and site/. Safe to run again on a warm orb.
+# Prepare a fresh Amp orb: the Node version in .nvmrc, Python 3.12 and the uv
+# environment, and the npm dependencies of dashboard/ and site/. Safe to run
+# again on a warm orb.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -13,6 +14,67 @@ step() {
   "$@"
   echo "<== $name ($((SECONDS - start))s)"
 }
+
+# CI and the Docker images use the Node major version in .nvmrc. The orb has a
+# different Node in /usr/local/bin that other orb tools use, so install the
+# pinned version next to it and put it first on PATH for shells in this repo.
+repo_root="$PWD"
+node_major="$(tr -d ' v\n' < .nvmrc)"
+node_dir="$HOME/.local/share/node-$node_major"
+
+install_node() {
+  if [ -x "$node_dir/bin/node" ]; then
+    echo "Node $("$node_dir/bin/node" --version) is installed"
+    return
+  fi
+  local arch tmp base tarball
+  case "$(uname -m)" in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) echo "No Node build for $(uname -m)" >&2; return 1 ;;
+  esac
+  tmp="$(mktemp -d)"
+  base="https://nodejs.org/dist/latest-v$node_major.x"
+  curl -fsSL "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
+  tarball="$(grep -o "node-v[0-9.]*-linux-$arch\.tar\.xz" "$tmp/SHASUMS256.txt")"
+  curl -fsSL "$base/$tarball" -o "$tmp/$tarball"
+  (cd "$tmp" && grep " $tarball\$" SHASUMS256.txt | sha256sum -c --quiet -)
+  mkdir -p "$tmp/node"
+  tar -xJf "$tmp/$tarball" -C "$tmp/node" --strip-components=1
+  mkdir -p "$(dirname "$node_dir")"
+  mv "$tmp/node" "$node_dir"
+  rm -rf "$tmp"
+  echo "Installed Node $("$node_dir/bin/node" --version)"
+}
+
+# Login shells that start in the repo read .nvmrc again, so a new pin needs
+# only a new setup run.
+add_node_to_profile() {
+  local marker="# platform: Node from .nvmrc"
+  if grep -Fqx "$marker" "$HOME/.bash_profile" 2>/dev/null; then
+    echo "~/.bash_profile already has the Node hook"
+    return
+  fi
+  cat >> "$HOME/.bash_profile" <<PROFILE
+
+$marker
+case "\$PWD/" in
+  "$repo_root"/*)
+    _node_bin="\$HOME/.local/share/node-\$(tr -d ' v\\n' < "$repo_root/.nvmrc" 2>/dev/null)/bin"
+    case ":\$PATH:" in
+      *":\$_node_bin:"*) ;;
+      *) [ -d "\$_node_bin" ] && export PATH="\$_node_bin:\$PATH" ;;
+    esac
+    unset _node_bin
+    ;;
+esac
+PROFILE
+  echo "Added the Node hook to ~/.bash_profile"
+}
+
+step "install Node $node_major" install_node
+step "Node PATH hook" add_node_to_profile
+export PATH="$node_dir/bin:$PATH"
 
 # uv installs Python 3.12 (pyproject.toml needs >=3.12,<3.13) when it is missing.
 step "uv sync" uv sync --frozen --python 3.12
