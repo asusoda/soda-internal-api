@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Menu, MenuItem, HoveredLink } from '../ui/navbar-menu';
+import { Menu, MenuItem, HoveredLink, type MobileLink } from '../ui/navbar-menu';
 import OrganizationSwitcher from '../OrganizationSwitcher';
 import useOrgModules from '../../hooks/useOrgModules';
 import { 
@@ -35,6 +35,29 @@ const OrganizationNavbar = ({ children }: OrganizationNavbarProps) => {
   const goToCalendar = () => navigate(`/${currentOrg?.prefix}/calendar`);
   const goToCompute = () => navigate(`/${currentOrg?.prefix}/compute`);
 
+  // The pages of the Quick Access menu, for small screens
+  const orgPath = (page: string) => `/${currentOrg?.prefix}/${page}`;
+  const mobileLinks: MobileLink[] = [
+    { name: 'Dashboard', to: orgPath('dashboard') },
+    { name: 'Manage Users', to: orgPath('users') },
+    ...(isEnabled('points')
+      ? [
+          { name: 'Leaderboard', to: orgPath('leaderboard') },
+          { name: 'Add Points', to: orgPath('addpoints') },
+        ]
+      : []),
+    ...(isEnabled('storefront')
+      ? [
+          { name: 'Store Admin Dashboard', to: orgPath('storefront/dashboard') },
+          { name: 'Store & Orders', to: `/store/${currentOrg?.prefix}`, newTab: true },
+          { name: 'Add Products', to: orgPath('add-storefront-product') },
+          { name: 'Manage Orders', to: orgPath('transactions') },
+        ]
+      : []),
+    ...(isEnabled('calendar') ? [{ name: 'Calendar', to: orgPath('calendar') }] : []),
+    ...(isEnabled('godfather') ? [{ name: 'Pods', to: orgPath('compute') }] : []),
+  ];
+
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden">
       {/* Background Effects */}
@@ -44,7 +67,7 @@ const OrganizationNavbar = ({ children }: OrganizationNavbarProps) => {
 
       {/* Navigation */}
       <div className="relative z-20 w-full">
-        <Menu setActive={setActiveNavItem}>
+        <Menu setActive={setActiveNavItem} mobileLinks={mobileLinks}>
           {/* Left side - Org logo and name */}
           <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
             {currentOrg && (

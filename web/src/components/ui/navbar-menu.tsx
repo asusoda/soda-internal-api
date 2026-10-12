@@ -1,14 +1,12 @@
 import {
   useState,
-  Children,
-  isValidElement,
   type AnchorHTMLAttributes,
-  type MouseEventHandler,
   type ReactElement,
   type ReactNode,
 } from "react";
 import { motion, type Transition } from "motion/react";
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { Link } from "react-router-dom";
 
 const transition: Transition = {
   type: "spring",
@@ -62,56 +60,29 @@ export const MenuItem = ({
   );
 };
 
+// One entry of the menu that opens on small screens, where the center slot is hidden
+export interface MobileLink {
+  name: string;
+  // A path of this app
+  to: string;
+  // Opens the page in a new tab
+  newTab?: boolean;
+}
+
 export interface MenuProps {
   setActive: (item: string | null) => void;
   // Three slots: left, center and right
   children: ReactElement[];
-}
-
-interface LinkElementProps {
-  href?: string;
-  onClick?: MouseEventHandler<HTMLAnchorElement>;
-}
-
-interface MobileLink {
-  name: string;
-  href: string;
-  onClick?: MouseEventHandler<HTMLAnchorElement>;
+  mobileLinks: MobileLink[];
 }
 
 export const Menu = ({
   setActive,
-  children
+  children,
+  mobileLinks
 }: MenuProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Extract links for mobile menu
-  // Helper function to extract a link element from a MenuItem's children
-  const extractLinkElement = (menuItemChildren: ReactNode) => {
-    return Children.toArray(menuItemChildren).find(
-      (child): child is ReactElement<LinkElementProps> =>
-        isValidElement<LinkElementProps>(child) &&
-        (child.type === HoveredLink || !!(child.props && child.props.href)) // Look for HoveredLink or a direct href
-    );
-  };
-
-  // Helper function to extract a mobile link from a MenuItem
-  const extractMobileLink = (menuItem: ReactElement): MobileLink | null => {
-    if (isValidElement<Partial<MenuItemProps>>(menuItem) && menuItem.props.item && menuItem.props.children) {
-      const linkElement = extractLinkElement(menuItem.props.children);
-      if (linkElement && linkElement.props && linkElement.props.href) {
-        return {
-          name: menuItem.props.item,
-          href: linkElement.props.href,
-          onClick: linkElement.props.onClick // Preserve onClick for logout, etc.
-        };
-      }
-    }
-    return null;
-  };
-
-  // Extract links for the mobile menu
-  const mobileLinks = Children.map(children, extractMobileLink).filter(Boolean);
   return (
     <>
       <nav
@@ -136,20 +107,18 @@ export const Menu = ({
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-16 bg-white/90 dark:bg-black/90 backdrop-blur-lg z-40 pt-10">
+        <div className="md:hidden fixed inset-0 top-16 overflow-y-auto bg-white/90 dark:bg-black/90 backdrop-blur-lg z-40 pt-10">
           <ul className="flex flex-col items-center space-y-4 p-4">
-            {mobileLinks.map((link, index) => (
-              <li key={index} className="w-full text-center">
-                <a
-                  href={link.href}
-                  onClick={(e) => {
-                    if (link.onClick) link.onClick(e);
-                    setIsMobileMenuOpen(false); // Close menu on link click
-                  }}
+            {mobileLinks.map((link) => (
+              <li key={link.name} className="w-full text-center">
+                <Link
+                  to={link.to}
+                  {...(link.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
                   className="cursor-pointer text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md transition-colors duration-200"
                 >
                   {link.name}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
