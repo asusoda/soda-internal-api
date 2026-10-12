@@ -5,10 +5,10 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.3.7",
+    "@mui/icons-material": "^9.4.0",
     "@mui/material": "^7.1.0",
     "@tabler/icons-react": "^3.34.1",
-    "@testing-library/jest-dom": "^6.7.0",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "autoprefixer": "^10.4.20",
@@ -62,7 +62,7 @@
     ]
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.7"
+    "tailwindcss": "^4.3.3"
   },
   "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
 }
