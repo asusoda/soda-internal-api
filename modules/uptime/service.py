@@ -319,14 +319,24 @@ def _app_url(app: App) -> tuple[str | None, str | None]:
     return None, f"The app {app.name} has no pod and no url yet"
 
 
-def _target_url(db, monitor: UptimeMonitor) -> tuple[str | None, str | None]:
-    """The address a check of the monitor reads. Returns (url, error)."""
+# A check: ("url", url, error) for an HTTP probe, or ("app", provider, pod_id, port, check) for the app's own
+# health check through its provider
+Job = tuple
+
+
+def _target(db, monitor: UptimeMonitor) -> Job:
+    """What a check of the monitor runs. An app on This server has a private address, which the HTTP probe refuses,
+    so its provider runs the app's own health check: an HTTP path, a TCP connect, or its running state."""
     if monitor.target_kind == "url":
-        return str(monitor.target), None
+        return ("url", str(monitor.target), None)
     app = db.query(App).filter_by(organization_id=monitor.organization_id, name=monitor.target).first()
     if app is None:
-        return None, f"No app named {monitor.target} on the Hosting page"
-    return _app_url(app)
+        return ("url", None, f"No app named {monitor.target} on the Hosting page")
+    health = json.loads(str(app.manifest)).get("health") or {}
+    if app.pod_id and app.provider == "server":
+        check = "running" if health.get("running") else health.get("path")
+        return ("app", hosting.get("server"), str(app.pod_id), int(health.get("port") or 0), check)
+    return ("url", *_app_url(app))
 
 
 def status_matches(expected: str, status: int) -> bool:
@@ -336,8 +346,11 @@ def status_matches(expected: str, status: int) -> bool:
     return status == int(expected)
 
 
-def _run(job: tuple[str | None, str | None, int]) -> probe.Result:
-    url, error, timeout = job
+def _run(job: tuple[Job, int]) -> probe.Result:
+    target, timeout = job
+    if target[0] == "app":
+        return probe.provider_check(*target[1:])
+    _, url, error = target
     if url is None:
         return probe.Result(error=error or "No address to check")
     return probe.fetch(url, timeout)
@@ -369,16 +382,15 @@ def check(db, monitors: list[UptimeMonitor], now: datetime.datetime | None = Non
     now = now or utcnow()
     jobs = []
     for monitor in monitors:
-        url, error = _target_url(db, monitor)
-        jobs.append((url, error, cast(int, monitor.timeout_seconds)))
+        jobs.append((_target(db, monitor), cast(int, monitor.timeout_seconds)))
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(_run, jobs))
     changed = []
     out = []
     for monitor, result in zip(monitors, results, strict=True):
         error = result.error
-        up = False
-        if result.status_code is not None:
+        up = bool(result.ok)
+        if result.ok is None and result.status_code is not None:
             up = status_matches(str(monitor.expected_status), result.status_code)
             if not up:
                 error = f"Status {result.status_code}, expected {monitor.expected_status}"

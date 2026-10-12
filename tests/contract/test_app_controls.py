@@ -188,3 +188,45 @@ def test_a_worker_with_no_port_is_healthy_while_it_runs(client, officer_headers,
         db.close()
     detail = client.get(f"/api/dashboard/soda/apps/{name}", headers=officer_headers).get_json()
     assert detail["latest_deployment"]["status"] == "healthy"
+
+
+def test_uptime_checks_a_this_server_app_through_its_health_check(client, officer_headers, runner, apps):
+    from core.db import db_connect
+    from modules.organizations.models import Organization
+    from modules.uptime import service as uptime
+    from modules.uptime.models import UptimeMonitor
+
+    web = _deployed(client, officer_headers, apps, VAULT)
+    worker = _deployed(
+        client,
+        officer_headers,
+        apps,
+        {k: v for k, v in CRM_DB.items() if k not in ("alias", "health")} | {"health": {"running": True}},
+    )
+    db = db_connect.SessionLocal()
+    try:
+        org_id = db.query(Organization.id).filter_by(prefix="soda").scalar()
+        monitors = []
+        for name in (web, worker):
+            row = db.query(UptimeMonitor).filter_by(organization_id=org_id, target_kind="app", target=name).first()
+            if row is None:
+                row = UptimeMonitor(
+                    organization_id=org_id,
+                    name=name,
+                    target_kind="app",
+                    target=name,
+                    expected_status="2xx",
+                    timeout_seconds=10,
+                    interval_minutes=5,
+                    enabled=True,
+                )
+                db.add(row)
+            monitors.append(row)
+        db.commit()
+        results = uptime.check(db, monitors)
+        assert [r["up"] for r in results] == [True, True], results
+        assert ("health", "soda", web, 80, "/alive") in runner.calls
+        runner.up = False
+        assert [r["up"] for r in uptime.check(db, monitors)] == [False, True]
+    finally:
+        db.close()
