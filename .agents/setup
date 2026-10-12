@@ -18,16 +18,18 @@ step() {
 step "uv sync" uv sync --frozen --python 3.12
 
 # npm ci deletes node_modules each time, so skip it when the installed tree
-# still matches the lockfile. npm writes node_modules/.package-lock.json after
-# an install.
+# still matches the lockfile. The marker holds the lockfile hash and the Node
+# version of the last install. npm ls fails when a package is missing.
 npm_install() {
-  local dir="$1"
-  if [ -f "$dir/node_modules/.package-lock.json" ] &&
-    [ "$dir/node_modules/.package-lock.json" -nt "$dir/package-lock.json" ]; then
+  local dir="$1" marker="$1/node_modules/.amp-setup-lock" want
+  want="$(sha256sum "$dir/package-lock.json" | cut -d' ' -f1) node-$(node -p 'process.versions.node.split(".")[0]')"
+  if [ "$(cat "$marker" 2>/dev/null)" = "$want" ] &&
+    (cd "$dir" && npm ls --all >/dev/null 2>&1); then
     echo "$dir/node_modules is up to date"
     return
   fi
   (cd "$dir" && npm ci --no-audit --no-fund --prefer-offline)
+  echo "$want" > "$marker"
 }
 
 step "npm ci dashboard" npm_install dashboard
