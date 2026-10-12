@@ -2,6 +2,8 @@
 # package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Workflow lint rejects a cooldown under 7 days.
 
 version: 2
 updates:
@@ -9,6 +11,8 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       python-deps:
         patterns:
@@ -17,6 +21,8 @@ updates:
     directory: "/dashboard"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       npm-deps:
         patterns:
@@ -25,6 +31,8 @@ updates:
     directory: "/site"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       site-npm:
         patterns:
@@ -33,6 +41,8 @@ updates:
     directory: "/web"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       web-npm:
         patterns:
@@ -41,6 +51,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns:
