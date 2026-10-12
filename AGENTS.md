@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Instructions for AI agents in this repo. `CLAUDE.md` and `AGENTS.md` have the same text; change both.
+Instructions for AI agents in this repo. `CLAUDE.md` is a link to this file, and `.claude/` is a link to `.agents/`.
 
 Platform is shared infrastructure for student orgs: a Flask API, a Discord bot, a job worker and an MCP server on one database. Each org is a Discord server and turns modules on or off. In prose, call the project "Platform" and use the terms in the `technical-writing` skill.
 
 ## Skills
 
-The procedures are in `.agents/skills/` (linked from `.claude/skills/`) and listed in `.agents/README.md`.
+The procedures are in `.agents/skills/` and listed in `.agents/README.md`. The Claude Code settings are in `.agents/settings.json`.
 
 - `check`: before each commit.
 - `new-module`: to add a module.

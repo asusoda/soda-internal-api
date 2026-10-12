@@ -154,7 +154,7 @@ def test_module_is_documented(name):
         assert f"`{item}`" in text, f"Name `{item}` in the Surface list of modules/{name}/README.md"
     assert f"[{name}]({name}/README.md)" in (MODULES / "README.md").read_text(), f"Add {name} to modules/README.md"
     modules_line = next(line for line in (ROOT / "AGENTS.md").read_text().splitlines() if line.startswith("Modules:"))
-    assert re.search(rf"\b{name}\b", modules_line), f"Add {name} to the Modules line in AGENTS.md and CLAUDE.md"
+    assert re.search(rf"\b{name}\b", modules_line), f"Add {name} to the Modules line in AGENTS.md"
 
 
 def test_data_model_lists_every_table():
@@ -165,7 +165,6 @@ def test_data_model_lists_every_table():
             assert f"`{table}`" in page, f"Add `{table}` to docs/data-model.md"
 
 
-def test_agent_files_match():
-    claude = (ROOT / "CLAUDE.md").read_text().splitlines()[1:]
-    agents = (ROOT / "AGENTS.md").read_text().splitlines()[1:]
-    assert claude == agents, "CLAUDE.md and AGENTS.md must have the same text after the title"
+def test_claude_files_are_links():
+    assert (ROOT / "CLAUDE.md").readlink() == Path("AGENTS.md"), "CLAUDE.md must be a link to AGENTS.md"
+    assert (ROOT / ".claude").readlink() == Path(".agents"), ".claude must be a link to .agents"
