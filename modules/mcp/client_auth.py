@@ -8,12 +8,15 @@ The mcp SDK's ClientAuthenticator does not support private_key_jwt, so ClientAut
 those two routes and leaves the other methods to the SDK.
 """
 
+import base64
 import datetime
 import hashlib
+import hmac
 import json
 import threading
 import time
 from typing import Any, cast
+from urllib.parse import unquote
 
 import jwt
 from anyio import to_thread
@@ -221,14 +224,31 @@ def _verify(client: dict, assertion: str) -> None:
         db.close()
 
 
+def basic_credentials(header: str) -> tuple[str, str] | None:
+    """The client_id and client_secret of an HTTP Basic header (RFC 6749 2.3.1), or None."""
+    if not header.lower().startswith("basic "):
+        return None
+    try:
+        decoded = base64.b64decode(header[6:].strip(), validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    client_id, sep, secret = decoded.partition(":")
+    return (unquote(client_id), unquote(secret)) if sep else None
+
+
 class ClientAuthenticator(sdk_client_auth.ClientAuthenticator):
-    """The SDK's client authentication, plus private_key_jwt."""
+    """Client authentication for /token and /revoke: a client secret, private_key_jwt, or none.
+
+    A client with a secret may send it in the Basic header or in the form, whatever method it registered:
+    RFC 7591 makes client_secret_basic the default, and the SDK records client_secret_post, so a client that
+    follows the RFC would else get 401. client_id may come from the Basic header alone (RFC 6749 2.3.1).
+    """
 
     async def authenticate_request(self, request):
         form = await request.form()
         assertion_type, assertion = form.get("client_assertion_type"), form.get("client_assertion")
         if assertion_type is None and assertion is None:
-            return await super().authenticate_request(request)
+            return await self._secret_or_none(request, form)
         if assertion_type != ASSERTION_TYPE or not isinstance(assertion, str) or not assertion:
             raise sdk_client_auth.AuthenticationError(f"client_assertion_type must be {ASSERTION_TYPE}")
         client_id = form.get("client_id")
@@ -242,4 +262,31 @@ class ClientAuthenticator(sdk_client_auth.ClientAuthenticator):
         except InvalidAssertion as e:
             logger.warning("client assertion refused client_id=%s: %s", client_id, e)
             raise sdk_client_auth.AuthenticationError(str(e)) from e
+        return client
+
+    async def _secret_or_none(self, request, form):
+        basic = basic_credentials(request.headers.get("authorization", ""))
+        form_id = form.get("client_id")
+        client_id = form_id if isinstance(form_id, str) and form_id else (basic[0] if basic else None)
+        if not client_id:
+            raise sdk_client_auth.AuthenticationError("Missing client_id")
+        if basic and basic[0] != client_id:
+            raise sdk_client_auth.AuthenticationError("Client ID mismatch in Basic auth")
+        client = await self.provider.get_client(client_id)
+        if client is None:
+            raise sdk_client_auth.AuthenticationError("Invalid client_id")
+        if client.token_endpoint_auth_method == oauth.KEY_CLIENT:
+            raise sdk_client_auth.AuthenticationError("This client must send client_assertion")
+        if not client.client_secret:
+            if client.token_endpoint_auth_method not in (None, oauth.PUBLIC_CLIENT):
+                raise sdk_client_auth.AuthenticationError("The client has no stored secret")
+            return client
+        form_secret = form.get("client_secret")
+        secret = basic[1] if basic else (form_secret if isinstance(form_secret, str) else None)
+        if not secret:
+            raise sdk_client_auth.AuthenticationError("Client secret is required")
+        if not hmac.compare_digest(client.client_secret.encode(), secret.encode()):
+            raise sdk_client_auth.AuthenticationError("Invalid client_secret")
+        if client.client_secret_expires_at and client.client_secret_expires_at < int(time.time()):
+            raise sdk_client_auth.AuthenticationError("Client secret has expired")
         return client

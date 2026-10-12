@@ -185,9 +185,13 @@ Other machine tokens get no step-up: they see only the tools of their scopes, an
 
 Each sign-in makes a new connection. The connection that the client had before stays on the Tokens page until its refresh token expires or an officer revokes it.
 
-### Refused registrations
+### Client secrets
 
-A client often shows only a general error, such as "Failed to register dynamic client", when `/mcp/register` refuses it. So the MCP server logs each refused registration as a warning: `client registration refused ip=... status=... answer=... request=...`. `answer` is the error that the client got. `request` has the client name, redirect URIs, `token_endpoint_auth_method`, grant and response types, `application_type`, `scope`, `client_uri` and `software_id`, and the names of the other fields. It never has the values of secrets or keys. Each URL in the line is cut to scheme, host, port and path, because a user, password, query or fragment can hold a credential. Read it with `podman logs soda-mcp 2>&1 | grep "registration refused"`.
+A client with a secret can send it in the HTTP Basic header or as `client_secret` in the form, whatever method it registered. RFC 7591 makes `client_secret_basic` the default, but the SDK records `client_secret_post` for a client that names no method. A client that follows the RFC would otherwise get 401 at `/mcp/token`. With Basic, `client_id` can be in the header only (RFC 6749 2.3.1); the server then puts it in the form for the SDK. If the header and the form name different clients, the request gets 401.
+
+### Refused requests
+
+A client often shows only a general error, such as "Failed to register dynamic client" or "OAuth provider rejected the token exchange", when the server refuses it. So the MCP server logs each refusal of `/mcp/register`, `/mcp/token` and `/mcp/revoke` as a warning: `client registration refused ...`, `token request refused ...` or `token revocation refused ...`, with `ip=... status=... answer=... request=...`. For `/mcp/token` and `/mcp/revoke`, `request` has `grant_type`, `client_id`, `redirect_uri`, `scope`, `resource` and the kind of `authorization` header, and only the names of the other fields: never a code, verifier, token, secret or assertion. `answer` is the error that the client got. For a registration, `request` has the client name, redirect URIs, `token_endpoint_auth_method`, grant and response types, `application_type`, `scope`, `client_uri` and `software_id`, and the names of the other fields. It never has the values of secrets or keys. Each URL in the line is cut to scheme, host, port and path, because a user, password, query or fragment can hold a credential. The warnings also reach Sentry. Read them with `podman logs soda-mcp 2>&1 | grep "refused"`.
 
 ### Rate limits
 
