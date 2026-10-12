@@ -68,9 +68,15 @@ export function Dot({ tone }: { tone: Tone }) {
   return <span className={cx('inline-block size-2 shrink-0 rounded-full', toneDot[tone])} />;
 }
 
-export function Badge({ tone = 'muted', children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
+export function Badge({
+  tone = 'muted',
+  children,
+  className,
+  ...props
+}: { tone?: Tone; children: ReactNode } & Omit<ComponentProps<'span'>, 'children'>) {
   return (
     <span
+      {...props}
       className={cx(
         'inline-flex h-5 shrink-0 items-center gap-1 rounded-md border px-1.5 text-xs font-medium whitespace-nowrap',
         toneBadge[tone],

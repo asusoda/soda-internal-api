@@ -1,6 +1,6 @@
+import { mergeProps } from '@base-ui/react/merge-props';
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { cloneElement, isValidElement, type ReactNode, useId } from 'react';
-import { cx } from './ui/cx';
 
 type Side = 'right' | 'top' | 'bottom';
 
@@ -69,23 +69,34 @@ export function Tooltip({
   );
 }
 
-function renderTrigger(
-  children: ReactNode,
-  props: React.ComponentProps<'button'>,
-  describedBy: string | undefined,
-) {
+type ChildProps = { className?: unknown; ref?: unknown; type?: unknown };
+
+// Puts the trigger on the child. Event handlers from the child and from Base UI both run.
+function renderTrigger(children: ReactNode, props: React.ComponentPropsWithRef<'button'>, describedBy: string | undefined) {
   const described = [props['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined;
-  const next = { ...props, 'aria-describedby': described };
-  if (isValidElement<{ className?: string }>(children) && typeof children.type === 'string') {
-    return cloneElement(children, {
-      ...next,
-      className: cx(children.props.className, props.className),
-    });
+  const triggerProps = { ...props, 'aria-describedby': described };
+  if (isValidElement<ChildProps>(children)) {
+    const childProps = children.props;
+    const merged = mergeProps(childProps, triggerProps);
+    merged.ref = composeRef(childProps.ref, props.ref);
+    if (typeof childProps.className === 'function') merged.className = childProps.className;
+    if (children.type !== 'button') delete merged.type;
+    return cloneElement(children, merged);
   }
-  const { type: _type, ...spanProps } = next;
-  return (
-    <span {...spanProps} className={cx('contents', props.className)}>
-      {children}
-    </span>
-  );
+  const { type: _type, ...spanProps } = triggerProps;
+  return <span {...spanProps}>{children}</span>;
+}
+
+function composeRef(childRef: unknown, triggerRef: unknown) {
+  if (!childRef) return triggerRef;
+  if (!triggerRef) return childRef;
+  return (node: Element | null) => {
+    writeRef(childRef, node);
+    writeRef(triggerRef, node);
+  };
+}
+
+function writeRef(ref: unknown, node: Element | null) {
+  if (typeof ref === 'function') ref(node);
+  else if (ref && typeof ref === 'object' && 'current' in ref) (ref as { current: Element | null }).current = node;
 }

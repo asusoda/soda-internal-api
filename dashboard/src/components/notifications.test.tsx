@@ -57,7 +57,10 @@ describe('NotificationsBell', () => {
 
     const button = await screen.findByRole('button', { name: /Notifications/ });
     await user.hover(button);
-    expect((await screen.findByRole('tooltip')).textContent).toContain('Notifications');
+    const tip = await screen.findByRole('tooltip');
+    expect(tip.textContent).toContain('Notifications');
+    expect(button.getAttribute('aria-describedby')).toBe(tip.id);
+    expect(button.parentElement?.classList.contains('contents')).toBe(false);
     await user.click(button);
 
     const panel = await screen.findByRole('dialog', { name: 'Notifications' });
