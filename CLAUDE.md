@@ -64,6 +64,14 @@ Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games,
 - ruff (line length 120) and ty check the code. Comments are plain ASCII and say what the code does.
 - Commit subjects are imperative and 72 characters or fewer. The body says why.
 
+## Cloud Agent
+
+Cloud Agents do not use Docker. `uv` and Node 22 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps.
+
+On boot, the API listens on port 8000 and the dashboard listens on port 5173. The database is SQLite at `data/user.db`. `RUN_BOT_IN_API` is `false`. The boot script creates an org with prefix `robotics` when that prefix is missing.
+
+Discord sign-in needs `BOT_TOKEN`, `CLIENT_ID` and `CLIENT_SECRET` in `.env`. `make ci` does not need them.
+
 ## Docs
 
 When you change what a doc describes, change the doc in the same commit: the module `README.md`, the page in `docs/`, and this file. `site/scripts/sync-docs.mjs` copies `docs/` to the site; a new or renamed page goes there too.
