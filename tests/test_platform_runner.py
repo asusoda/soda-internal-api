@@ -96,6 +96,25 @@ def test_only_a_listed_database_runs_without_no_new_privileges(policy):
     assert runner.check(policy, "ais", "crm-db", BODY)["no_new_privileges"] is True
 
 
+def test_a_deploy_counts_memory_again_under_the_lock(policy, monkeypatch):
+    seen = {"n": 0}
+
+    def managed():
+        seen["n"] += 1
+        if seen["n"] == 1:
+            return []
+        return [{"Name": "app-other-big", "HostConfig": {"Memory": 1500 * 1024 * 1024}}]
+
+    monkeypatch.setattr(runner, "managed", managed)
+    monkeypatch.setattr(runner, "ensure_bridge", lambda _policy: None)
+    monkeypatch.setattr(runner, "exists", lambda *_args: True)
+    ran = []
+    monkeypatch.setattr(runner, "podman", lambda *args, **_kw: ran.append(args) or "")
+    with pytest.raises(runner.Refused, match="MB left"):
+        runner.run(policy, "soda", "web", BODY)
+    assert ran == []
+
+
 def test_the_bridge_container_is_made_once(monkeypatch):
     calls = []
     state = {"exists": False}
