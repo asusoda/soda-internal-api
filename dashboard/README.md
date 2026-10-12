@@ -3,7 +3,6 @@
 Officer dashboard for Platform: the pages officers use to see and control one org, and a Superadmin page for the superadmin. Vite, React, Tailwind and TanStack Query.
 
 ```bash
-cp .env.example .env   # VITE_API_URL
 npm install
 npm run dev
 npm test

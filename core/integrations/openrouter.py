@@ -1,6 +1,6 @@
 """The OpenRouter integration: an org API key for OpenRouter's OpenAI-compatible API. No Flask here.
 
-The org's key replaces OPENROUTER_API_KEY from .env. The Embeddings integration uses this key when its base
+The org's key replaces OPENROUTER_API_KEY from Doppler. The Embeddings integration uses this key when its base
 URL is BASE_URL and it has no key of its own.
 """
 
@@ -19,7 +19,7 @@ TIMEOUT_SECONDS = 10
 
 
 def deployment_key() -> str | None:
-    """The deployment default key from .env, or None."""
+    """The deployment default key from Doppler, or None."""
     return os.environ.get("OPENROUTER_API_KEY", "").strip() or None
 
 

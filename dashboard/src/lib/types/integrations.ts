@@ -12,7 +12,7 @@ export type IntegrationField = {
   updated_at: string | null;
 };
 
-// An outside service. source is org (the org's keys), deployment (the default in .env) or null (not connected).
+// An outside service. source is org (the org's keys), deployment (the default in Doppler) or null (not connected).
 export type Integration = {
   key: string;
   title: string;

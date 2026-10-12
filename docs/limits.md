@@ -57,7 +57,7 @@ The dashboard shows who pays:
 The value for an org is the first of these that is set:
 
 1. The org's override. The superadmin sets it on the Superadmin page or with `PUT /api/superadmin/limits/<org_id>`. The `org_limits` table keeps it.
-2. `LIMIT_<KEY>` in `.env`: the key in upper case, with `_` for `.`. For example, `LIMIT_KNOWLEDGE_SOURCES=200`. The value `unlimited` removes the limit.
+2. `LIMIT_<KEY>` in Doppler: the key in upper case, with `_` for `.`. For example, `LIMIT_KNOWLEDGE_SOURCES=200`. The value `unlimited` removes the limit.
 3. The default in the table above.
 
 An override can be a whole number, `null` (no limit) or `"default"` (remove the override).

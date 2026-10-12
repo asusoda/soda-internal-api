@@ -16,7 +16,7 @@ Keeps an org's knowledge sources and searches them. Writers send a source as chu
 | `settings.py` | Per-org passage size and search settings, kept in the org config |
 | `runs.py` | The log of crawls and uploads |
 | `reembed.py` | Passage counts by embedding model; embeds passages of another model again from their stored text |
-| `embedder.py` | The OpenAI-compatible embeddings client; registers the Embeddings integration; `for_org()` picks the org's service or the `.env` default, and the OpenRouter key for an OpenRouter URL with no key |
+| `embedder.py` | The OpenAI-compatible embeddings client; registers the Embeddings integration; `for_org()` picks the org's service or the default in Doppler, and the OpenRouter key for an OpenRouter URL with no key |
 | `models.py`, `jobs.py` | Sources, versions, chunks (pgvector on Postgres), runs; the crawl and reindex jobs |
 
 ## Surface

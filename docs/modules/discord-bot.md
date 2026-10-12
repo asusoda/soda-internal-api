@@ -15,7 +15,7 @@ flowchart LR
   helper & game & leet --> servers["Discord servers of the orgs"]
 ```
 
-Set these in `.env`:
+Set these in Doppler:
 
 | Setting | Use |
 | --- | --- |

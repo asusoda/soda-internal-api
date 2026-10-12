@@ -8,7 +8,7 @@ type Publishers = { publishers: Publisher[] };
 
 const KEY = ['superadmin-publishers'];
 
-// Orgs that may write knowledge every org can search. KNOWLEDGE_PUBLISHERS in .env adds orgs the page cannot remove.
+// Orgs that may write knowledge every org can search. KNOWLEDGE_PUBLISHERS in Doppler adds orgs the page cannot remove.
 export function PublishersCard({ orgs }: { orgs: OrganizationDetail[] }) {
   const client = useQueryClient();
   const list = useQuery({ queryKey: KEY, queryFn: () => api<Publishers>('/api/superadmin/publishers') });
@@ -51,7 +51,7 @@ export function PublishersCard({ orgs }: { orgs: OrganizationDetail[] }) {
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end gap-2">
-                      {p?.source === 'env' ? <Badge>Set in .env</Badge> : null}
+                      {p?.source === 'env' ? <Badge>Set in Doppler</Badge> : null}
                       <Switch
                         checked={Boolean(p)}
                         disabled={p?.source === 'env' || change.isPending}

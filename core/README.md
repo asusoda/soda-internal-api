@@ -6,7 +6,7 @@ Shared code that modules use: config, database, logs, HTTP hooks, Discord and Ru
 
 | File | Holds |
 | --- | --- |
-| `config.py` | `Config` and the `config` instance: settings from `.env` and the environment |
+| `config.py` | `Config` and the `config` instance: settings from the environment, which Doppler sets |
 | `db/` | `Base` (`base.py`), `DBConnect`, the `db_connect` instance and `session()` (`session.py`) |
 | `errors.py`, `time.py` | `ServiceError`, the error a service raises with an HTTP status; `utcnow()` and `iso()` for naive UTC times |
 | `jobs.py` | `@job` and `defer()`: Procrastinate on Postgres, threads on SQLite (at most `JOB_THREADS` at a time). A job with `once` runs once at a time for the same arguments; a second `defer()` raises `JobBusy`. A failed job with an org argument sends the `job.failed` webhook event |

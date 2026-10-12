@@ -30,7 +30,6 @@ yarn-error.log*
 .env
 .env.*
 !.env.template
-!**/.env.example
 credentials.json
 token.json
 google-secret.json

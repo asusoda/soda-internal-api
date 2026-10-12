@@ -1,8 +1,6 @@
 import json
 import os
 
-from dotenv import load_dotenv
-
 from core.log import SentrySettings, get_logger
 
 logger = get_logger(__name__)
@@ -18,11 +16,27 @@ def _rate(name: str, default: float) -> float:
     return min(max(value, 0.0), 1.0)
 
 
+def _service_account() -> dict | None:
+    """The Google service account key in GOOGLE_SERVICE_ACCOUNT, a JSON object. None turns Google Calendar off."""
+    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT", "").strip()
+    if not raw:
+        logger.warning("GOOGLE_SERVICE_ACCOUNT is not set. Google Calendar features will be disabled.")
+        return None
+    try:
+        info = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.warning("GOOGLE_SERVICE_ACCOUNT is not valid JSON (%s). Google Calendar features will be disabled.", e)
+        return None
+    if not isinstance(info, dict):
+        logger.warning("GOOGLE_SERVICE_ACCOUNT is not a JSON object. Google Calendar features will be disabled.")
+        return None
+    return info
+
+
 class Config:
-    """Centralized configuration management for the application"""
+    """The settings from the environment. Doppler sets the environment (docs/operations.md, "Settings")."""
 
     def __init__(self) -> None:
-        load_dotenv()
         try:
             # Discord OAuth app and client URLs
             self.CLIENT_ID = os.environ.get("CLIENT_ID", "test-client-id")
@@ -43,16 +57,7 @@ class Config:
             )
 
             # Google Calendar Integration
-            try:
-                with open("google-secret.json") as file:
-                    self.GOOGLE_SERVICE_ACCOUNT = json.load(file)
-                    logger.info("Google service account credentials loaded successfully")
-            except FileNotFoundError:
-                logger.warning("google-secret.json not found. Google Calendar features will be disabled.")
-                self.GOOGLE_SERVICE_ACCOUNT = None
-            except Exception as e:
-                logger.warning(f"Error loading Google credentials: {e}. Google Calendar features will be disabled.")
-                self.GOOGLE_SERVICE_ACCOUNT = None
+            self.GOOGLE_SERVICE_ACCOUNT = _service_account()
 
             self.NOTION_API_KEY = os.environ.get("NOTION_API_KEY", "")
             self.TIMEZONE = os.environ.get("TIMEZONE", "America/Phoenix")

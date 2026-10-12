@@ -15,7 +15,7 @@ flowchart LR
 ## Setup
 
 1. Set the org's calendar settings: `PUT /api/organizations/<org_id>/calendar` with `notion_database_id`, `calendar_sync_enabled` and, optional, `google_calendar_id`.
-2. Connect Notion and Google on the Integrations tab of the dashboard Explore page (see [Integrations](../integrations.md)). If an org has no keys, Platform uses the deployment's `NOTION_API_KEY` and `google-secret.json`.
+2. Connect Notion and Google on the Integrations tab of the dashboard Explore page (see [Integrations](../integrations.md)). If an org has no keys, Platform uses the deployment's `NOTION_API_KEY` and `GOOGLE_SERVICE_ACCOUNT`.
 
 3. Share the Notion database with the Notion integration.
 4. Start a sync: `POST /api/calendar/<org_prefix>/sync`.

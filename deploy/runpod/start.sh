@@ -2,7 +2,9 @@
 # Runs the platform on one RunPod pod: API on 8000, dashboard on 5000, MCP server on 8001, bot when BOT_TOKEN is set.
 # RUN_BOT=false skips the bot, for a BOT_TOKEN that another bot process already uses.
 # The pod clones PLATFORM_BRANCH into /workspace on each start, so a restart deploys the branch head.
-# State (SQLite database, generated keys) lives in /workspace/data on the pod's volume.
+# State (the SQLite database) lives in /workspace/data on the pod's volume.
+# Settings come from Doppler: set DOPPLER_TOKEN in the pod environment. The script runs again in `doppler run`
+# with --with-settings, so each command below gets the settings. Doppler values replace pod values of the same name.
 set -euo pipefail
 
 REPO="${PLATFORM_REPO:-https://github.com/theaisocietyasu/bedrock.git}"
@@ -11,23 +13,34 @@ ROOT=/workspace/platform
 DATA=/workspace/data
 mkdir -p "$DATA"
 
-if [ -d "$ROOT/.git" ]; then
-  git -C "$ROOT" fetch --depth 1 origin "$BRANCH"
-  git -C "$ROOT" checkout -q -B "$BRANCH" FETCH_HEAD
-else
-  git clone --depth 1 --branch "$BRANCH" "$REPO" "$ROOT"
+if [ "${1:-}" != "--with-settings" ]; then
+  if [ -z "${DOPPLER_TOKEN:-}" ]; then
+    echo "Set DOPPLER_TOKEN in the pod environment. See docs/getting-started.md, \"Run it on one RunPod pod\"." >&2
+    exit 1
+  fi
+  if [ -d "$ROOT/.git" ]; then
+    git -C "$ROOT" fetch --depth 1 origin "$BRANCH"
+    git -C "$ROOT" checkout -q -B "$BRANCH" FETCH_HEAD
+  else
+    git clone --depth 1 --branch "$BRANCH" "$REPO" "$ROOT"
+  fi
+  "$ROOT/deploy/install-doppler.sh" /usr/local/bin
+  exec doppler run --no-fallback --no-check-version -- bash "$ROOT/deploy/runpod/start.sh" --with-settings
 fi
 cd "$ROOT"
 
-# Keys generated once and kept on the volume, so sessions and encrypted secrets survive restarts
-if [ ! -f "$DATA/keys.env" ]; then
-  python3 -c 'import base64, os, secrets; print(f"SECRET_KEY={secrets.token_urlsafe(48)}"); print("SECRETS_KEY=" + base64.urlsafe_b64encode(os.urandom(32)).decode())' > "$DATA/keys.env"
-  chmod 600 "$DATA/keys.env"
+# Older versions of this script wrote SECRET_KEY and SECRETS_KEY to keys.env. SECRETS_KEY decrypts the stored org
+# secrets, so the pod does not start when the SECRETS_KEY list in Doppler does not have the key in that file.
+if [ -f "$DATA/keys.env" ]; then
+  old_key="$(sed -n 's/^SECRETS_KEY=//p' "$DATA/keys.env")"
+  case ",${SECRETS_KEY:-}," in
+    *",$old_key,"*)
+      echo "Doppler has the SECRETS_KEY of $DATA/keys.env. Remove that file." >&2 ;;
+    *)
+      echo "Copy SECRET_KEY and SECRETS_KEY from $DATA/keys.env to Doppler, then restart the pod." >&2
+      exit 1 ;;
+  esac
 fi
-set -a
-# shellcheck disable=SC1091
-. "$DATA/keys.env"
-set +a
 
 API_URL="${API_URL:-https://${RUNPOD_POD_ID}-8000.proxy.runpod.net}"
 WEB_URL="${WEB_URL:-https://${RUNPOD_POD_ID}-5000.proxy.runpod.net}"

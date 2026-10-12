@@ -81,6 +81,6 @@ All routes are under `/api/dashboard/<org>/webhooks`, for officers of the org. T
 ## Feeds and the server webhook
 
 - A feed posts to the Discord destination in its `destination_id`. Pick it in the new feed form on the Job alerts and Hackathons pages. A feed made before migration `c6e8a0b2d4f6` can still post to its own webhook secret `alert_webhook_<key>`. See [Feeds](./modules/feeds.md).
-- `ERROR_WEBHOOK_URL` in `.env` gets every new error of every org and of the server. It is not an org webhook and does not show on the page.
+- `ERROR_WEBHOOK_URL` in Doppler gets every new error of every org and of the server. It is not an org webhook and does not show on the page.
 
 The `webhooks` table is in [Data model](./data-model.md). Migration `c6e8a0b2d4f6` made `alerts` from the `event_webhook` module; an org that had that switch off got its destinations turned off. Migration `a1358e0da9ef` moved each org secret `error_webhook_url` to a webhook named Errors that sends `errors`.

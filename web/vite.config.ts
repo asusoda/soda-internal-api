@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
-  // Docker, CI and .env set REACT_APP_API_URL, the name from Create React App.
+  // Docker, CI and Doppler set REACT_APP_API_URL, the name from Create React App.
   envPrefix: 'REACT_APP_',
   css: { postcss: { plugins: [tailwindcss(), autoprefixer()] } },
   // Dockerfile.web serves build/.

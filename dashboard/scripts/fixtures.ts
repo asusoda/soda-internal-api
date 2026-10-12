@@ -1091,7 +1091,7 @@ export function fixtures(now: number = Date.now()) {
     {
       key: 'discord',
       title: 'Discord',
-      description: "Connect the org's Discord server. One Discord app serves every org; the deployment sets it in .env.",
+      description: "Connect the org's Discord server. One Discord app serves every org; the deployment sets it in Doppler.",
       docs: 'modules/discord-bot',
       fields: [],
       editable: false,

@@ -6,7 +6,7 @@ GPU and CPU pods on an org's own hosting provider account that members connect t
 
 1. Connect RunPod on the Integrations tab of the dashboard Explore page. This saves the org secret `runpod_api_key`. The runpod module uses the same key. `SECRETS_KEY` must be set.
 2. Add the `godfather` module on Explore for the org.
-3. Optional: set these in the server's `.env`.
+3. Optional: set these in Doppler.
    - `GODFATHER_CLI_NAME`: the CLI name in sign-in pages and errors. Default `godfather`. The old name `COMPUTE_CLI_NAME` still works.
    - `GODFATHER_POD_IMAGE`: the deployment default pod image. The old name `COMPUTE_POD_IMAGE` still works. Default `ghcr.io/theaisocietyasu/godfather-base:latest`.
 4. Optional: set the org's own default pod image under Godfather > Settings on the dashboard (`PUT /api/compute/<org>/settings` with `{"pod_image": "..."}`, null to clear). A pod gets the image of its create body, else the org default, else `GODFATHER_POD_IMAGE`.

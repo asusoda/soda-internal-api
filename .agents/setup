@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepare a fresh Amp orb: the Node version in .nvmrc, Python 3.12 and the uv
-# environment, the npm dependencies of dashboard/ and site/, and the pnpm
-# dependencies of web/. Safe to run
+# environment, the Doppler CLI, the npm dependencies of dashboard/ and site/,
+# and the pnpm dependencies of web/. Safe to run
 # again on a warm orb.
 set -euo pipefail
 
@@ -89,6 +89,10 @@ export PATH="$node_dir/bin:$PATH"
 
 # uv installs Python 3.12 (pyproject.toml needs >=3.12,<3.13) when it is missing.
 step "uv sync" uv sync --frozen --python 3.12
+
+# The settings come from Doppler (docs/operations.md, "Settings"). make ci does
+# not need them.
+step "Doppler CLI" deploy/install-doppler.sh "$HOME/.local/bin"
 
 # npm ci deletes node_modules each time, so skip it when the installed tree
 # still matches the lockfile. The marker holds the lockfile hash and the Node

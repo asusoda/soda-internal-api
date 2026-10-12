@@ -1,9 +1,9 @@
 """The outside services an org connects, the keys each one needs, and the modules that use it. No Flask here.
 
 An integration has fields, each one an org secret, so its keys are saved encrypted with core.secrets. Some
-integrations have a default for the whole deployment from .env; the org's own keys replace it. The org's keys
+integrations have a default for the whole deployment from Doppler; the org's own keys replace it. The org's keys
 replace the deployment default as a whole, never field by field. An integration with no fields is set
-only in .env, and the dashboard shows its state. Modules call register() for the
+only in Doppler, and the dashboard shows its state. Modules call register() for the
 services they own and use() for the services they read.
 """
 
@@ -46,7 +46,7 @@ class Integration:
     fields: tuple[Field, ...] = ()
     # The page of the docs site under /docs, such as modules/calendar
     docs: str | None = None
-    # Whether .env gives a default for the whole deployment
+    # Whether Doppler gives a default for the whole deployment
     deployment: Callable[[], bool] | None = None
     # Connects with the org's keys, or the deployment default, and returns a short result
     test: Callable[[object, int], str] | None = None

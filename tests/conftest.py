@@ -1,6 +1,6 @@
 """Test setup shared by every test.
 
-The app reads its database location, signing keys and .env from the working directory at
+The app reads its database location and signing keys from the working directory at
 import time, so the tests run from a fresh temporary directory with their own SQLite file.
 Set TEST_DATABASE_URL to run them against Postgres instead; its schema is dropped and recreated.
 """

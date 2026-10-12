@@ -13,7 +13,7 @@ export type LimitEntry = {
   label: string;
   unit: string;
   window: LimitWindow;
-  // The value from .env or the declared default. null means no limit.
+  // The value from Doppler or the declared default. null means no limit.
   default: number | null;
   paid_by: 'org' | 'metered';
   integrations: string[];

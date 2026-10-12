@@ -2,7 +2,7 @@
 
 core/error_log.py stores the errors. setup() installs its handler in a process and adds the org lookup and
 the alert. A new error group, or a resolved one that comes back, sends the errors webhook event to the org's
-webhooks (core/webhooks.py), and posts to ERROR_WEBHOOK_URL from .env, at most ALERTS_PER_HOUR per process.
+webhooks (core/webhooks.py), and posts to ERROR_WEBHOOK_URL from Doppler, at most ALERTS_PER_HOUR per process.
 No Flask here.
 """
 

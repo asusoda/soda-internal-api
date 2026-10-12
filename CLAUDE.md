@@ -19,6 +19,7 @@ The procedures are in `.agents/skills/` (linked from `.claude/skills/`) and list
 
 ```bash
 uv sync                          # install dependencies
+doppler setup                    # select the Doppler config that holds the settings
 make dev                         # start the containers with logs and the reloader
 make up | down | logs | status | shell | build
 make check                       # fix lint and format, then ty, pytest, alembic check
@@ -39,7 +40,7 @@ flask --app main org|jobs|config ...
 | `modules/<name>/` | One module: `README.md`, `service.py`, `api.py`, `models.py`, `jobs.py`, `tools.py`, only the files it needs |
 | `modules/registry.py`, `modules/manifest.py` | Blueprint mounts and module switches; categories, the module catalog, the modules of a new org, and model, job and tool modules |
 | `apps/` | App templates that officers create apps from on the Hosting page. No Platform code |
-| `deploy/` | The SQLite to Postgres copy script, the RunPod start script, the read-only host agent (`deploy/host-agent/`) and the This server runner (`deploy/runner/`) |
+| `deploy/` | The SQLite to Postgres copy script, the API image entrypoint (`doppler run`), the Doppler CLI installer, the RunPod start script, the read-only host agent (`deploy/host-agent/`) and the This server runner (`deploy/runner/`) |
 | `alembic/` | Migrations. Nothing creates tables at startup |
 | `tests/contract/` | Route tests, `snapshots.json`, and `routes.txt`, the list of every route |
 | `tests/test_module_layout.py` | Checks that each module is registered and documented in every place |
@@ -60,7 +61,7 @@ Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games,
 - A route change updates `tests/contract/routes.txt` (`UPDATE_ROUTES=1`). A change to a route that a client uses follows the `api-contract` skill.
 - Use `get_logger(__name__)` from `core/log.py`. Do not use `print()`.
 - Do not add `# noqa`, `# type: ignore` or `# nosec` to get a green run. `# nosec` is only for a false positive, with the reason.
-- Settings come from `.env` through `core/config.py`. A new setting goes in `.env.template`. Never write a secret in code, docs or commits.
+- Settings come from Doppler through the environment, and `core/config.py` reads them. Platform reads no `.env` file. A new setting goes in `.env.template` and in Doppler. Never write a secret in code, docs or commits.
 - ruff (line length 120) and ty check the code. Comments are plain ASCII and say what the code does.
 - Commit subjects are imperative and 72 characters or fewer. The body says why.
 
@@ -68,11 +69,11 @@ Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games,
 
 Cloud Agents do not use Docker. `uv` and Node 26 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps. `pnpm install --frozen-lockfile` in `web/` installs the old officer app.
 
-Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs the Node version in `.nvmrc`, Python 3.12, the uv environment, the npm dependencies of `dashboard/` and `site/`, and the pnpm dependencies of `web/`. Login shells in the repo put that Node first on `PATH`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
+Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs the Node version in `.nvmrc`, Python 3.12, the uv environment, the Doppler CLI, the npm dependencies of `dashboard/` and `site/`, and the pnpm dependencies of `web/`. Login shells in the repo put that Node first on `PATH`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
 
 On boot, the API listens on port 8000 and the dashboard listens on port 5173. The database is SQLite at `data/user.db`. `RUN_BOT_IN_API` is `false`. The boot script creates an org with prefix `robotics` when that prefix is missing.
 
-Discord sign-in needs `BOT_TOKEN`, `CLIENT_ID` and `CLIENT_SECRET` in `.env`. `make ci` does not need them.
+Discord sign-in needs `BOT_TOKEN`, `CLIENT_ID` and `CLIENT_SECRET` in the environment, from Doppler or the orb settings. `make ci` does not need them.
 
 ## Docs
 

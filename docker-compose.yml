@@ -24,8 +24,6 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-      - ./.env:/app/.env:ro
-      - ./google-secret.json:/app/google-secret.json:ro
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=0
@@ -36,6 +34,10 @@ services:
       - RUN_BOT_IN_API=false
       # One JSON object per log line
       - LOG_FORMAT=json
+      # The entrypoint gets the settings from Doppler with these. See docs/operations.md, "Settings".
+      - DOPPLER_TOKEN
+      - DOPPLER_PROJECT
+      - DOPPLER_CONFIG
     logging:
       driver: json-file
       options:
@@ -63,10 +65,13 @@ services:
       - api
     volumes:
       - ./data:/app/data
-      - ./.env:/app/.env:ro
     environment:
       - IS_PROD=true
       - LOG_FORMAT=json
+      # The entrypoint gets the settings from Doppler with these. See docs/operations.md, "Settings".
+      - DOPPLER_TOKEN
+      - DOPPLER_PROJECT
+      - DOPPLER_CONFIG
     logging:
       driver: json-file
       options:
@@ -88,12 +93,13 @@ services:
     command: ["python3", "worker_main.py"]
     depends_on:
       - api
-    volumes:
-      - ./.env:/app/.env:ro
-      - ./google-secret.json:/app/google-secret.json:ro
     environment:
       - IS_PROD=true
       - LOG_FORMAT=json
+      # The entrypoint gets the settings from Doppler with these. See docs/operations.md, "Settings".
+      - DOPPLER_TOKEN
+      - DOPPLER_PROJECT
+      - DOPPLER_CONFIG
     logging:
       driver: json-file
       options:
@@ -119,10 +125,13 @@ services:
       - "8001:8001"
     volumes:
       - ./data:/app/data
-      - ./.env:/app/.env:ro
     environment:
       - IS_PROD=true
       - LOG_FORMAT=json
+      # The entrypoint gets the settings from Doppler with these. See docs/operations.md, "Settings".
+      - DOPPLER_TOKEN
+      - DOPPLER_PROJECT
+      - DOPPLER_CONFIG
     logging:
       driver: json-file
       options:
@@ -170,7 +179,7 @@ services:
       cache_from:
         - soda-web:latest
       args:
-        - REACT_APP_API_URL=${REACT_APP_API_URL}
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-}
     image: soda-web:latest
     container_name: soda-web
     restart: unless-stopped

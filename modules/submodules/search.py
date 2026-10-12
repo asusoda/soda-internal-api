@@ -1,7 +1,7 @@
 """Settings that submodule queries read, and the SearXNG integration for web search. No Flask here.
 
 Web search goes through SearXNG. An org sets its own SearXNG on the Integrations page; else SEARXNG_URL
-and SEARXNG_ENGINES in .env give the deployment default. query_scope() sets the org's SearXNG and
+and SEARXNG_ENGINES in Doppler give the deployment default. query_scope() sets the org's SearXNG and
 Firecrawl for the live query it wraps.
 """
 

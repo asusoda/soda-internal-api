@@ -50,7 +50,7 @@ git clone https://github.com/asusoda/platform.git
 cd platform
 uv sync
 uv run pre-commit install
-cp .env.template .env      # Discord app, bot token, secrets
+doppler login && doppler setup   # the settings: Discord app, bot token, secrets
 make dev
 ```
 

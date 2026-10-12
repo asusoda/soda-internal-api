@@ -35,7 +35,7 @@ CORE = "Core"
 class Need:
     """An integration or a setting that a module needs."""
 
-    # The key of an integration in core.integrations.registry, or the name of a setting in .env
+    # The key of an integration in core.integrations.registry, or the name of a setting in Doppler
     key: str
     # The name the dashboard shows, such as "Google service account"
     label: str

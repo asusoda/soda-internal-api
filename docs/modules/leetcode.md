@@ -50,7 +50,7 @@ sequenceDiagram
 
 ## Deployment-wide post
 
-`LEETCODE_CHANNEL_ID`, `LEETCODE_ROLE_PING` and `LEETCODE_DAILY_TIME` in `.env` set one more post for the whole deployment. If you set an org's channel, remove `LEETCODE_CHANNEL_ID`. If you do not, the channel gets two posts.
+`LEETCODE_CHANNEL_ID`, `LEETCODE_ROLE_PING` and `LEETCODE_DAILY_TIME` in Doppler set one more post for the whole deployment. If you set an org's channel, remove `LEETCODE_CHANNEL_ID`. If you do not, the channel gets two posts.
 
 ## Tables
 

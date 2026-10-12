@@ -129,7 +129,7 @@ flowchart LR
   embed --> commit["Commit one source at a time"]
 ```
 
-The job commits one source at a time. A source that fails keeps its old vectors. A change to the deployment default in `.env` starts no job; start it from the Knowledge page. Public sources of other orgs keep the model of the org that wrote them.
+The job commits one source at a time. A source that fails keeps its old vectors. A change to the deployment default in Doppler starts no job; start it from the Knowledge page. Public sources of other orgs keep the model of the org that wrote them.
 
 ## Submodules
 

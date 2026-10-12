@@ -7,7 +7,7 @@ Instructions and skills for AI coding agents working in this repository. `AGENTS
 read the `SKILL.md` files directly.
 
 `setup` prepares a new Amp orb. It installs the Node version in `.nvmrc`, Python 3.12, the uv
-environment and the npm dependencies of `dashboard/` and `site/`.
+environment, the Doppler CLI and the npm dependencies of `dashboard/` and `site/`.
 
 ## Skills
 

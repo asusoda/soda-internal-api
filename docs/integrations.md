@@ -11,19 +11,19 @@ The description of a card says what the officer connects, not what each module d
 
 ## The integrations
 
-| Integration | Keys (optional in brackets) | Default from .env | Used by |
+| Integration | Keys (optional in brackets) | Default from Doppler | Used by |
 | --- | --- | --- | --- |
 | Discord | none for the org | `BOT_TOKEN` | Sign-in, LeetCode |
 | Embeddings | `embeddings_url`, `embeddings_model`, [`embeddings_api_key`, `embeddings_query_prefix`] | `EMBEDDINGS_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_API_KEY`, `EMBEDDINGS_QUERY_PREFIX` | Knowledge, MCP |
 | Firecrawl | `firecrawl_url`, [`firecrawl_api_key`] | `FIRECRAWL_URL`, `FIRECRAWL_API_KEY` | Knowledge, ASU |
 | GitHub | `github_token` | none | CI runs, Apps, `github.*` agent tools |
-| Google | `google_service_account` (JSON key) | `google-secret.json` | Calendar sync |
+| Google | `google_service_account` (JSON key) | `GOOGLE_SERVICE_ACCOUNT` | Calendar sync |
 | Notion | `notion_api_key` | `NOTION_API_KEY` | Calendar sync |
 | OpenRouter | `openrouter_api_key` | `OPENROUTER_API_KEY` | Knowledge, MCP (through Embeddings) |
 | RunPod | `runpod_api_key` | none | Godfather, Hosting |
 | Web search (SearXNG) | `searxng_url`, [`searxng_engines`] | `SEARXNG_URL`, `SEARXNG_ENGINES` | ASU |
 
-The keys are org secrets, encrypted with `SECRETS_KEY`. The API never returns a secret key. It returns the value of a field that is not secret, such as a URL or a model name, so the form can show it. When an org saves its own keys, they replace the deployment default for that org as a whole: Platform never mixes an org URL with a deployment key. An org must set every required field. Discord is set only in `.env`, for every org.
+The keys are org secrets, encrypted with `SECRETS_KEY`. The API never returns a secret key. It returns the value of a field that is not secret, such as a URL or a model name, so the form can show it. When an org saves its own keys, they replace the deployment default for that org as a whole: Platform never mixes an org URL with a deployment key. An org must set every required field. Discord is set only in Doppler, for every org.
 
 This diagram shows how Platform saves and reads the keys.
 
@@ -36,17 +36,17 @@ flowchart LR
   module["Module, such as knowledge"] --> values["org_values(db, org_id, key)"]
   values --> get["secrets.get_secret decrypts"]
   get --> table
-  module -->|"org_values returns None"| env[".env default"]
+  module -->|"org_values returns None"| env["Doppler default"]
 ```
 
-A URL that an org saves must be http or https on a host with only public addresses. Platform checks this when the org saves the URL and again before each call, and does not follow redirects. A deployment default in `.env` can be on the private network, such as `http://firecrawl:3002`.
+A URL that an org saves must be http or https on a host with only public addresses. Platform checks this when the org saves the URL and again before each call, and does not follow redirects. A deployment default in Doppler can be on the private network, such as `http://firecrawl:3002`.
 
 Search compares only vectors of the same embedding model. An org with its own model searches its own vectors, and the vectors of public sources only if the publisher used the same model. Text search still covers every source. On Postgres the vector column holds 1024 numbers, so the model must return 1024. Test says so when it does not.
 
 A card has one of three states:
 
 - **Connected**: the org saved its own keys.
-- **Deployment default**: the org has no keys, and `.env` gives a default.
+- **Deployment default**: the org has no keys, and Doppler gives a default.
 - **Not connected**: neither.
 
 Test connects with the key the module uses and shows the result. It does not change anything.
@@ -71,12 +71,12 @@ Platform gives tools in two ways:
 | Notion | The Notion API, with the org's integration token | `notion:read`: `search`, `read_page`, `query_database`. `notion:write`: `create_page` |
 | Notion, signed in | `NOTION_MCP_URL`, default `https://mcp.notion.com/mcp`, as the officer who signed in | `notion:read`: the tools the server marks read-only, such as `notion.notion-search`. `notion:write`: the other tools |
 | Google, signed in | Google's Gmail, Drive and Calendar MCP servers (`gmailmcp`, `drivemcp`, `calendarmcp.googleapis.com`), as the officer who signed in | `gmail.*`: `gmail:read` and `gmail:send`. `drive.*` and `calendar.*`: `google:read` and `google:write` |
-| Web search | The org's SearXNG, or the one in `.env` | `web:read`: `search` |
+| Web search | The org's SearXNG, or the one in Doppler | `web:read`: `search` |
 | ASU, signed in | Sun Devil Central in a headless browser, with the cookies of the officer who signed in | `asu:read`: `asu.clubs`, `asu.events` |
 
 - A tool name starts with the service key, such as `github.list_issues` or `google.drive_search`.
 - A tool that changes something runs only with `confirm=true`. Without it, the call returns what it would do.
-- Google and Notion tools use only the org's own keys, never a default in `.env`. So an agent reads only its own org's data.
+- Google and Notion tools use only the org's own keys, never a default in Doppler. So an agent reads only its own org's data.
 - Google: share a calendar, Drive file or Sheet with the service account's email to let the tools see it. A service account has no mailbox, so the Gmail tools show only when the org sets **Act as Workspace user**. That works only in a Google Workspace domain whose admin allows the service account's client ID these scopes under domain-wide delegation: `calendar`, `drive.readonly`, `spreadsheets`, `gmail.readonly`, `gmail.send`.
 - Notion: share each page or database with the integration in Notion.
 - Token limits narrow a token further. `repos` lists the GitHub repos a call may act on, as `owner/name` or `owner/*`. With `repos`, the token sees only tools that take one repo. `tools` lists GitHub tool name patterns, such as `github.*issue*`. Set both on the Tokens page.
@@ -140,9 +140,9 @@ An `attempt` has a `state`: `running`, `duo_code` (`code` has the number to type
 
 The older routes `/api/organizations/<id>/secrets/<name>` still work and write the same secrets.
 
-## What stays in .env
+## What stays in Doppler
 
-A setting stays in `.env` when it is the same for every org or when it is about the server itself:
+A setting stays in Doppler when it is the same for every org or when it is about the server itself:
 
 - Server and security: `DATABASE_URL`, `SECRET_KEY`, `SECRETS_KEY`, `ACCESS_ENFORCE`, `DISABLED_ROUTES`, `SENTRY_DSN`, `LOG_FORMAT`, `JOBS_BACKEND`, `MCP_PORT`.
 - The one Discord app and the sign-in: `BOT_TOKEN`, `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, `SYS_ADMIN`, the Clerk keys.
@@ -151,21 +151,21 @@ A setting stays in `.env` when it is the same for every org or when it is about 
 - Limits and schedules of jobs: `CALENDAR_SYNC_CRON`, `AUDIT_RETENTION_DAYS`, `ERROR_RETENTION_DAYS`, `ERROR_WEBHOOK_URL`, `AGENT_RETENTION_DAYS`, `UPTIME_RETENTION_DAYS`, `KNOWLEDGE_CRAWL_*`, `SUBMODULE_QUERY_MAX_CHARS`.
 - `GODFATHER_CLI_NAME`: the name of the one CLI that talks to this API.
 
-These settings moved to the dashboard, and the `.env` value is now the default for orgs that set none:
+These settings moved to the dashboard, and the Doppler value is now the default for orgs that set none:
 
-| `.env` | Dashboard |
+| Doppler | Dashboard |
 | --- | --- |
 | `EMBEDDINGS_*`, `FIRECRAWL_*`, `SEARXNG_*`, `NOTION_API_KEY`, `OPENROUTER_API_KEY` | Integrations |
 | `GODFATHER_POD_IMAGE` | Godfather > Settings |
-| `KNOWLEDGE_PUBLISHERS` | Superadmin > Knowledge publishers. Orgs in `.env` stay publishers |
+| `KNOWLEDGE_PUBLISHERS` | Superadmin > Knowledge publishers. Orgs in Doppler stay publishers |
 | `KNOWLEDGE_CHUNK_CHARS`, `KNOWLEDGE_MAX_DISTANCE` | Knowledge > Search settings |
-| `LEETCODE_*` | LeetCode. The `.env` post is the older post for one server |
+| `LEETCODE_*` | LeetCode. The Doppler post is the older post for one server |
 
 ## Add an integration
 
 1. Write a test function `(db, org_id) -> str` that connects and returns a short result. It raises `IntegrationError` with the reason when it fails. It never puts a key in the message.
 2. Call `register(Integration(...))` from `core/integrations/registry.py` in the file that owns the client: a file in `core/integrations/` for a service that core uses, or a module file. Give the key, title, description, fields, docs page and test. The description says what the officer connects, such as "Connect the org's Notion workspace." `register` declares each field as an org secret. Give a field `secret=False` when the dashboard may show its value, `optional=True` when the org may leave it empty, and `kind="url"` for a URL that must be public.
-3. Read the org's values with `org_values(db, org_id, key)`. It returns None when the org did not set every required field; then use the `.env` default.
+3. Read the org's values with `org_values(db, org_id, key)`. It returns None when the org did not set every required field; then use the default in Doppler.
 4. In each module that reads the service, call `use("<key>", "<module>")` at the top of the file.
 5. Add the module name to `MODULES` in `dashboard/src/pages/explore/integrations.tsx` if it has a dashboard page, and an icon to `ICONS`. If it is an account, add its key to the Accounts group in `GROUPS`. A key in no group shows under Services.
 6. Add a row to the table on this page.

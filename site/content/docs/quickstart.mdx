@@ -16,11 +16,12 @@ description: Run Platform locally and create an organization.
 git clone https://github.com/theaisocietyasu/bedrock.git
 cd bedrock
 uv sync
-cp .env.template .env
+doppler login
+doppler setup
 make dev
 ```
 
-Fill in `.env` before `make dev`. The values you need first are `CLIENT_ID` and `CLIENT_SECRET` from the Discord application, `BOT_TOKEN`, and `SYS_ADMIN` set to your own Discord user id.
+Platform gets its settings from [Doppler](https://www.doppler.com). `doppler setup` selects the project and config. Set the settings in that config before `make dev`. The values you need first are `CLIENT_ID` and `CLIENT_SECRET` from the Discord application, `BOT_TOKEN`, and `SYS_ADMIN` set to your own Discord user id.
 
 The API runs at `http://localhost:8000` and the dashboard at `http://localhost:5001`.
 

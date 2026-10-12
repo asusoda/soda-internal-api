@@ -102,9 +102,9 @@ def ready(key: str) -> str | None:
     """Why the sign-in cannot start on this server, or None when it can."""
     service = _service(key)
     if not providers.base_url():
-        return "Set ACCOUNTS_BASE_URL, the public URL of this API, in .env"
+        return "Set ACCOUNTS_BASE_URL, the public URL of this API, in Doppler"
     if service.kind == "google" and providers.get("google") is None:
-        return "Set ACCOUNTS_GOOGLE_CLIENT_ID and ACCOUNTS_GOOGLE_CLIENT_SECRET in .env"
+        return "Set ACCOUNTS_GOOGLE_CLIENT_ID and ACCOUNTS_GOOGLE_CLIENT_SECRET in Doppler"
     return None
 
 

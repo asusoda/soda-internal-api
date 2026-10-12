@@ -98,12 +98,13 @@ Officers sign in at `/api/auth/login?client=dashboard`. After Discord, the API s
 
 ```bash
 cd dashboard
-cp .env.example .env     # VITE_API_URL=http://localhost:8000
 npm install
 npm run dev              # http://localhost:5173
 npm test
 npm run build            # dist/
 ```
+
+`npm run dev` uses the API at http://localhost:8000. To use a different API, set `VITE_API_URL`, for example with `doppler run -- npm run dev`.
 
 To deploy the dashboard:
 

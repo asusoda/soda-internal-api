@@ -41,7 +41,6 @@ dependencies = [
     "werkzeug==3.1.8",
     "yarl>=1.23.0",
     "zipp==3.23.1",
-    "python-dotenv>=1.2.2",
     "google-auth>=2.49.2",
     "google-api-python-client>=2.194.0",
     "cryptography>=46.0.7",

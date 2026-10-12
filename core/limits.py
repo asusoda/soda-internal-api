@@ -7,7 +7,7 @@ A module declares its limits with declare(). There are two kinds:
 - A rate limit caps how much an org uses in a window of a minute, an hour or a day, such as embedded texts a day.
   The module calls consume(), which adds to the org's counter for the current window in usage_counters.
 
-The value of a limit is, in order: the org's override (the superadmin sets it), LIMIT_<KEY> in .env (the key in
+The value of a limit is, in order: the org's override (the superadmin sets it), LIMIT_<KEY> in Doppler (the key in
 upper case, with _ for . and -), the declared default. None means no limit. An org over a limit gets a LimitError:
 409 for a count, 429 for a rate. consume() flushes and does not commit, so a call that fails later is not counted.
 
@@ -159,7 +159,7 @@ def _overrides(db, org_id: int) -> dict[str, int | None]:
 
 
 def value(db, org_id: int, key: str) -> int | None:
-    """The limit for the org: its override, else .env, else the default. None means no limit."""
+    """The limit for the org: its override, else Doppler, else the default. None means no limit."""
     spec = _spec(key)
     row = db.query(OrgLimit).filter_by(organization_id=org_id, key=key).first()
     return cast(int | None, row.value) if row is not None else _env_value(spec)
@@ -230,7 +230,7 @@ def consume(db, org_id: int, key: str, amount: int = 1, now: datetime.datetime |
 
 
 def catalog() -> list[dict]:
-    """Every declared limit with its value in .env or its default."""
+    """Every declared limit with its value in Doppler or its default."""
     return [
         {
             "key": spec.key,

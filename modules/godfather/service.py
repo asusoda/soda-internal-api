@@ -4,7 +4,7 @@ Officers create, share, start, stop and terminate pods. Members list the
 running pods shared with them and get a short-lived certificate for their own SSH key. Each pod
 keeps the name of its provider (core.hosting). Only RunPod gives pods an SSH address, with the org secret
 runpod_api_key, shared with the runpod apps module. The default pod image is an org setting;
-without one, GODFATHER_POD_IMAGE in .env gives it.
+without one, GODFATHER_POD_IMAGE in Doppler gives it.
 """
 
 import datetime

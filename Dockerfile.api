@@ -12,6 +12,10 @@ RUN apt-get update && \
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Install the Doppler CLI. The entrypoint gets the settings from Doppler with it.
+COPY deploy/install-doppler.sh /tmp/install-doppler.sh
+RUN /tmp/install-doppler.sh /opt/doppler
+
 # Set working directory
 WORKDIR /app
 
@@ -39,6 +43,8 @@ WORKDIR /app
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /opt/doppler/doppler /usr/local/bin/doppler
+COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Set commit hash as environment variable
@@ -59,5 +65,6 @@ USER appuser
 # Expose the port
 EXPOSE 8000
 
-# Run the application
+# Run the application with the settings from Doppler
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python3", "main.py"]

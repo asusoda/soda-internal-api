@@ -4,7 +4,7 @@ import { Button, Dialog, Field, FormActions, Input, Spinner } from '../../compon
 import { send } from '../../lib/api';
 import { type GodfatherSettings, godfatherPath, useGodfatherSettings } from './shared';
 
-// The org's default pod image. Empty uses the deployment default from .env.
+// The org's default pod image. Empty uses the deployment default from Doppler.
 export function GodfatherSettingsDialog({ prefix, onClose }: { prefix: string; onClose: () => void }) {
   const current = useGodfatherSettings(prefix);
   return (

@@ -2,7 +2,7 @@
 
 Pages come
 through Firecrawl when one is set (JavaScript rendered, markdown out), else through a plain GET. An org
-sets its own Firecrawl on the Integrations page; else FIRECRAWL_URL and FIRECRAWL_API_KEY in .env give
+sets its own Firecrawl on the Integrations page; else FIRECRAWL_URL and FIRECRAWL_API_KEY in Doppler give
 the deployment default. Every URL, and every redirect, must resolve to a public address, so a source
 cannot make the platform read its own network.
 """
@@ -161,7 +161,7 @@ class Firecrawl:
 
 
 def deployment_firecrawl() -> Firecrawl | None:
-    """The deployment default from .env, or None."""
+    """The deployment default from Doppler, or None."""
     url = os.environ.get("FIRECRAWL_URL", "").strip()
     return Firecrawl(url, os.environ.get("FIRECRAWL_API_KEY") or None) if url else None
 

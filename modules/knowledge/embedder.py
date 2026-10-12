@@ -100,7 +100,7 @@ class Embedder:
 
 
 def configured() -> Embedder | None:
-    """The deployment default from .env, or None."""
+    """The deployment default from Doppler, or None."""
     url = os.environ.get("EMBEDDINGS_URL", "").strip()
     if not url:
         return None

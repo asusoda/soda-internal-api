@@ -160,8 +160,8 @@ def config_check():
     ):
         if not os.environ.get(var):
             report("WARN", f"{var} missing: {feature} off")
-    if not os.path.exists("google-secret.json"):
-        report("WARN", "google-secret.json missing: Google Calendar off")
+    if not config.GOOGLE_SERVICE_ACCOUNT:
+        report("WARN", "GOOGLE_SERVICE_ACCOUNT missing or not valid: Google Calendar off")
 
     from core import secrets
 
