@@ -12,8 +12,6 @@ from tests.contract.conftest import FakeBot
 HOST = "https://api.club.test"
 # Derived from ACCOUNTS_BASE_URL: the API URL with /mcp
 PUBLIC = f"{HOST}/mcp"
-# The issuer is the host alone, so its metadata is at the root of the host, where every client looks
-ISSUER = HOST
 REDIRECT = "https://client.test/callback"
 INIT = {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}
 
@@ -102,7 +100,7 @@ def _approve(oauth_client, consent_key: str, org_id: int, scopes: list[str]) -> 
     assert f"{location.scheme}://{location.netloc}{location.path}" == REDIRECT
     query = parse_qs(location.query)
     assert query["state"] == ["xyz"]
-    assert query["iss"] == [ISSUER]
+    assert query["iss"] == [PUBLIC]
     return query["code"][0]
 
 
@@ -126,22 +124,20 @@ def test_discovery(oauth_client, client):
         assert resource.status_code == 200
         body = resource.json() if http is oauth_client else resource.get_json()
         assert body["resource"] == PUBLIC
-        assert body["authorization_servers"] == [ISSUER]
-        # The issuer has no path: the metadata is at the root, and there is no copy with the path inserted
-        assert http.get("/.well-known/oauth-authorization-server/mcp").status_code == 404
-        server = http.get("/.well-known/oauth-authorization-server")
-        assert server.status_code == 200
-        body = server.json() if http is oauth_client else server.get_json()
-        assert body["issuer"] == ISSUER
-        # The routes stay under the public URL
-        assert body["authorization_endpoint"] == f"{PUBLIC}/authorize"
-        assert body["token_endpoint"] == f"{PUBLIC}/token"
-        assert body["registration_endpoint"] == f"{PUBLIC}/register"
-        assert body["revocation_endpoint"] == f"{PUBLIC}/revoke"
-        assert body["code_challenge_methods_supported"] == ["S256"]
-        assert body["client_id_metadata_document_supported"] is True
-        assert body["authorization_response_iss_parameter_supported"] is True
-    assert oauth_client.get("/mcp/.well-known/oauth-authorization-server").status_code == 404
+        assert body["authorization_servers"] == [PUBLIC]
+        # Spec clients insert the issuer's path; Composio reads only the root and needs this same issuer
+        for where in ("/.well-known/oauth-authorization-server/mcp", "/.well-known/oauth-authorization-server"):
+            server = http.get(where)
+            assert server.status_code == 200
+            body = server.json() if http is oauth_client else server.get_json()
+            assert body["issuer"] == PUBLIC
+            assert body["authorization_endpoint"] == f"{PUBLIC}/authorize"
+            assert body["registration_endpoint"] == f"{PUBLIC}/register"
+            assert body["code_challenge_methods_supported"] == ["S256"]
+            assert body["client_id_metadata_document_supported"] is True
+            assert body["authorization_response_iss_parameter_supported"] is True
+    under_path = oauth_client.get("/mcp/.well-known/oauth-authorization-server").json()
+    assert under_path["issuer"] == PUBLIC and under_path["client_id_metadata_document_supported"] is True
     assert client.get("/.well-known/oauth-protected-resource/other").status_code == 404
 
 
@@ -152,7 +148,6 @@ def test_the_api_has_no_documents_when_oauth_is_off(client, monkeypatch):
     monkeypatch.delenv("ACCOUNTS_BASE_URL", raising=False)
     assert client.get("/.well-known/oauth-protected-resource/mcp").status_code == 404
     assert client.get("/.well-known/oauth-authorization-server").status_code == 404
-    assert client.get("/.well-known/oauth-authorization-server/mcp").status_code == 404
 
 
 @pytest.mark.parametrize(
@@ -295,7 +290,7 @@ def test_deny_sends_access_denied(oauth_client):
     assert parse_qs(urlparse(response.headers["location"]).query) == {
         "error": ["access_denied"],
         "state": ["xyz"],
-        "iss": [ISSUER],
+        "iss": [PUBLIC],
     }
 
 
@@ -1001,7 +996,7 @@ def test_sdk_error_redirects_have_iss(oauth_client):
     response = _authorize(oauth_client, registered["client_id"], _pkce()[1], resource="https://other.example/mcp")
     query = parse_qs(urlparse(response.headers["location"]).query)
     assert query["error"] == ["invalid_target"]
-    assert query["iss"] == [ISSUER]
+    assert query["iss"] == [PUBLIC]
     # A redirect to the sign-in page is not an error and gets no iss
     ok = _authorize(oauth_client, registered["client_id"], _pkce()[1])
     assert "iss" not in parse_qs(urlparse(ok.headers["location"]).query)
@@ -1077,10 +1072,7 @@ def test_a_key_client_connects(oauth_client, client, officer_headers, documents,
     replayed = _token(oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=assertion)
     assert replayed.status_code == 401
     assert "used before" in replayed.json()["error_description"]
-    # The issuer is a valid audience too (RFC 7523bis)
-    fresh = _token(
-        oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=_assertion(private, aud=ISSUER)
-    )
+    fresh = _token(oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=_assertion(private))
     assert fresh.status_code == 200, fresh.text
     # Revoke takes the same client authentication; the issuer is also a valid audience
     revoked = oauth_client.post(
@@ -1210,7 +1202,7 @@ def test_a_private_ec_key_is_refused(oauth_client, documents, client_key, caplog
 
 
 def test_metadata_has_private_key_jwt(oauth_client):
-    body = oauth_client.get("/.well-known/oauth-authorization-server").json()
+    body = oauth_client.get("/.well-known/oauth-authorization-server/mcp").json()
     assert "private_key_jwt" in body["token_endpoint_auth_methods_supported"]
     assert "ES256" in body["token_endpoint_auth_signing_alg_values_supported"]
 

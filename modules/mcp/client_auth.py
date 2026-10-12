@@ -147,9 +147,8 @@ def _candidates(keys: list[tuple[dict, jwt.PyJWK]], header: dict) -> list[jwt.Py
 
 
 def _audiences() -> list[str]:
-    """The issuer (RFC 7523bis), and the URLs of /token and /revoke. The public URL too, as clients used it before."""
     public = oauth.public_url()
-    return [oauth.issuer_url(), public, f"{public}/token", f"{public}/revoke"]
+    return [public, f"{public}/token", f"{public}/revoke"]
 
 
 def verify_assertion(db, client: dict, assertion: str) -> None:

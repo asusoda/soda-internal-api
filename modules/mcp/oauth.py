@@ -30,9 +30,10 @@ from urllib.parse import urlparse, urlsplit
 
 from anyio import to_thread
 from mcp.server.auth import provider as sdk
+from mcp.server.auth.routes import build_metadata
 from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
-from mcp.shared.auth import OAuthClientInformationFull, OAuthMetadata, OAuthToken, ProtectedResourceMetadata
-from pydantic import AnyUrl, ValidationError
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
+from pydantic import AnyHttpUrl, AnyUrl, ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from core import audit, net
@@ -171,32 +172,21 @@ def resource_metadata_path() -> str:
     return f"/.well-known/oauth-protected-resource{public_path()}"
 
 
-def issuer_url() -> str:
-    """The issuer (RFC 8414): the host of the public URL, such as https://api.thesoda.io.
+def server_metadata_paths() -> list[str]:
+    """Where clients read the authorization server metadata (RFC 8414), at the root of the host.
 
-    With no path, the metadata is at /.well-known/oauth-authorization-server, where every client looks: a client
-    that inserts the issuer's path and a client that only reads the root of the host. The OAuth routes stay under
-    the public URL, such as /mcp/authorize; RFC 8414 does not need them under the issuer.
+    A client that follows the MCP spec inserts the issuer's path: /.well-known/oauth-authorization-server/mcp.
+    Some clients, such as Composio, only read /.well-known/oauth-authorization-server and also need the issuer
+    to be the public URL, so the same document is there too.
     """
-    parts = urlsplit(public_url())
-    return f"{parts.scheme}://{parts.netloc}"
-
-
-def server_metadata_path() -> str:
-    """Where a client reads the authorization server metadata: the issuer has no path, so the root of the host."""
-    return "/.well-known/oauth-authorization-server"
+    return [f"/.well-known/oauth-authorization-server{public_path()}", "/.well-known/oauth-authorization-server"]
 
 
 def resource_metadata() -> dict:
     """The protected resource metadata (RFC 9728). scopes_supported is the minimal set for a new connection."""
-    # From strings: AnyHttpUrl would add a slash to the issuer, and clients compare it as a string
-    metadata = ProtectedResourceMetadata.model_validate(
-        {
-            "resource": public_url(),
-            "authorization_servers": [issuer_url()],
-            "scopes_supported": list(BASE_SCOPES),
-            "resource_name": "Platform",
-        }
+    url = AnyHttpUrl(public_url())
+    metadata = ProtectedResourceMetadata(
+        resource=url, authorization_servers=[url], scopes_supported=list(BASE_SCOPES), resource_name="Platform"
     )
     return metadata.model_dump(mode="json", exclude_none=True)
 
@@ -206,20 +196,7 @@ def server_metadata_model():
     private_key_jwt."""
     from modules.mcp import client_auth
 
-    public = public_url()
-    # From strings, so the issuer keeps no slash; the routes are under the public URL, not the issuer
-    metadata = OAuthMetadata.model_validate(
-        {
-            "issuer": issuer_url(),
-            "authorization_endpoint": f"{public}/authorize",
-            "token_endpoint": f"{public}/token",
-            "registration_endpoint": f"{public}/register",
-            "revocation_endpoint": f"{public}/revoke",
-            "response_types_supported": ["code"],
-            "grant_types_supported": ["authorization_code", "refresh_token"],
-            "code_challenge_methods_supported": ["S256"],
-        }
-    )
+    metadata = build_metadata(AnyHttpUrl(public_url()), None, REGISTRATION, REVOCATION)
     metadata.client_id_metadata_document_supported = True
     metadata.authorization_response_iss_parameter_supported = True
     metadata.scopes_supported = sorted(SCOPES)
