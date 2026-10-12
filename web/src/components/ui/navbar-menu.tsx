@@ -6,6 +6,7 @@ import {
 } from "react";
 import { motion, type Transition } from "motion/react";
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { Link } from "react-router-dom";
 
 const transition: Transition = {
   type: "spring",
@@ -62,7 +63,10 @@ export const MenuItem = ({
 // One entry of the menu that opens on small screens, where the center slot is hidden
 export interface MobileLink {
   name: string;
-  onClick: () => void;
+  // A path of this app
+  to: string;
+  // Opens the page in a new tab
+  newTab?: boolean;
 }
 
 export interface MenuProps {
@@ -103,20 +107,18 @@ export const Menu = ({
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-16 bg-white/90 dark:bg-black/90 backdrop-blur-lg z-40 pt-10">
+        <div className="md:hidden fixed inset-0 top-16 overflow-y-auto bg-white/90 dark:bg-black/90 backdrop-blur-lg z-40 pt-10">
           <ul className="flex flex-col items-center space-y-4 p-4">
             {mobileLinks.map((link) => (
               <li key={link.name} className="w-full text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    link.onClick();
-                    setIsMobileMenuOpen(false); // Close menu on link click
-                  }}
+                <Link
+                  to={link.to}
+                  {...(link.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
                   className="cursor-pointer text-lg text-neutral-700 dark:text-neutral-200 hover:text-soda-blue dark:hover:text-soda-blue py-3 block w-full rounded-md transition-colors duration-200"
                 >
                   {link.name}
-                </button>
+                </Link>
               </li>
             ))}
           </ul>

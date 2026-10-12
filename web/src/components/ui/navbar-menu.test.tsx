@@ -1,23 +1,54 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, test, vi } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { expect, test } from 'vitest';
 import { Menu } from './navbar-menu';
 
-test('the mobile menu lists the links and closes after a click', () => {
-  const goToUsers = vi.fn();
-  render(
-    <Menu setActive={() => {}} mobileLinks={[{ name: 'Dashboard', onClick: vi.fn() }, { name: 'Manage Users', onClick: goToUsers }]}>
-      <div>Org</div>
-      <div>Center</div>
-      <div>Right</div>
-    </Menu>
-  );
-  expect(screen.queryByRole('button', { name: 'Manage Users' })).toBeNull();
+const menu = (
+  <Menu
+    setActive={() => {}}
+    mobileLinks={[
+      { name: 'Manage Users', to: '/soda/users' },
+      { name: 'Store & Orders', to: '/store/soda', newTab: true },
+    ]}
+  >
+    <div>Org</div>
+    <div>Center</div>
+    <div>Right</div>
+  </Menu>
+);
 
+const renderMenu = () =>
+  render(
+    <MemoryRouter initialEntries={['/soda/dashboard']}>
+      <Routes>
+        <Route path="/soda/dashboard" element={menu} />
+        <Route path="/soda/users" element={<p>Users page</p>} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+const openMenu = () => {
   const toggles = screen.getAllByRole('button');
   fireEvent.click(toggles[toggles.length - 1]);
-  expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Manage Users' }));
+};
 
-  expect(goToUsers).toHaveBeenCalledOnce();
-  expect(screen.queryByRole('button', { name: 'Manage Users' })).toBeNull();
+test('the mobile menu lists links that open their pages', () => {
+  renderMenu();
+  expect(screen.queryByRole('link', { name: 'Manage Users' })).toBeNull();
+
+  openMenu();
+  const users = screen.getByRole('link', { name: 'Manage Users' });
+  expect(users.getAttribute('href')).toBe('/soda/users');
+  expect(users.closest('div')?.className).toContain('overflow-y-auto');
+  fireEvent.click(users);
+
+  expect(screen.getByText('Users page')).toBeInTheDocument();
+});
+
+test('the store link opens in a new tab', () => {
+  renderMenu();
+  openMenu();
+  const store = screen.getByRole('link', { name: 'Store & Orders' });
+  expect(store.getAttribute('href')).toBe('/store/soda');
+  expect(store.getAttribute('target')).toBe('_blank');
 });

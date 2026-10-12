@@ -36,25 +36,26 @@ const OrganizationNavbar = ({ children }: OrganizationNavbarProps) => {
   const goToCompute = () => navigate(`/${currentOrg?.prefix}/compute`);
 
   // The pages of the Quick Access menu, for small screens
+  const orgPath = (page: string) => `/${currentOrg?.prefix}/${page}`;
   const mobileLinks: MobileLink[] = [
-    { name: 'Dashboard', onClick: goToDashboard },
-    { name: 'Manage Users', onClick: goToUsers },
+    { name: 'Dashboard', to: orgPath('dashboard') },
+    { name: 'Manage Users', to: orgPath('users') },
     ...(isEnabled('points')
       ? [
-          { name: 'Leaderboard', onClick: goToLeaderboard },
-          { name: 'Add Points', onClick: goToAddPoints },
+          { name: 'Leaderboard', to: orgPath('leaderboard') },
+          { name: 'Add Points', to: orgPath('addpoints') },
         ]
       : []),
     ...(isEnabled('storefront')
       ? [
-          { name: 'Store Admin Dashboard', onClick: goToStorefrontDashboard },
-          { name: 'Store & Orders', onClick: goToMemberStore },
-          { name: 'Add Products', onClick: goToAddStorefrontProduct },
-          { name: 'Manage Orders', onClick: goToTransactions },
+          { name: 'Store Admin Dashboard', to: orgPath('storefront/dashboard') },
+          { name: 'Store & Orders', to: `/store/${currentOrg?.prefix}`, newTab: true },
+          { name: 'Add Products', to: orgPath('add-storefront-product') },
+          { name: 'Manage Orders', to: orgPath('transactions') },
         ]
       : []),
-    ...(isEnabled('calendar') ? [{ name: 'Calendar', onClick: goToCalendar }] : []),
-    ...(isEnabled('godfather') ? [{ name: 'Pods', onClick: goToCompute }] : []),
+    ...(isEnabled('calendar') ? [{ name: 'Calendar', to: orgPath('calendar') }] : []),
+    ...(isEnabled('godfather') ? [{ name: 'Pods', to: orgPath('compute') }] : []),
   ];
 
   return (
