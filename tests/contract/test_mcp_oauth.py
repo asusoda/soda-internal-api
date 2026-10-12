@@ -1390,3 +1390,38 @@ def test_refused_registrations_are_logged(oauth_client, caplog):
     assert "client_secret" in refused[0] and "jwks" in refused[0]
     assert "never-logged" not in caplog.text
     assert "not JSON" in refused[1] or "invalid_client_metadata" in refused[1]
+
+
+def test_registration_log_cuts_urls(oauth_client, caplog):
+    import logging
+
+    body = {
+        "redirect_uris": ["cursor://user:pw-secret@x/cb?token=query-secret#frag-secret"],
+        "client_uri": "https://a.example/?k=uri-secret",
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "cursor://x/cb?…" in line and "https://a.example/?…" in line
+    # Neither in the summary nor in the answer, which repeats the refused URI
+    assert "secret" not in caplog.text
+
+
+def test_redact_urls():
+    from modules.mcp import edges
+
+    assert edges.redact_urls("go to https://h.example:8443/p?q=1 now") == "go to https://h.example:8443/p?… now"
+    assert edges.redact_urls('"myapp:/cb?t=x"') == '"myapp:/cb?…"'
+    assert edges.redact_urls("http://localhost:3000/callback") == "http://localhost:3000/callback"
+    assert edges.redact_urls("no url here: a/b") == "no url here: a/b"
+
+
+def test_registration_log_escapes_field_names(oauth_client, caplog):
+    import logging
+
+    body = {"redirect_uris": ["cursor://x/cb"], "x\nFAKE LINE": 1}
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "\n" not in line
+    assert '"x\\nFAKE LINE"' in line

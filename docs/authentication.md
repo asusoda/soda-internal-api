@@ -185,7 +185,7 @@ Each sign-in makes a new connection. The connection that the client had before s
 
 ### Refused registrations
 
-A client often shows only a general error, such as "Failed to register dynamic client", when `/mcp/register` refuses it. So the MCP server logs each refused registration as a warning: `client registration refused ip=... status=... answer=... request=...`. `answer` is the error that the client got. `request` has the client name, redirect URIs, `token_endpoint_auth_method`, grant and response types, `application_type`, `scope`, `client_uri` and `software_id`, and the names of the other fields. It never has the values of secrets or keys. Read it with `podman logs soda-mcp 2>&1 | grep "registration refused"`.
+A client often shows only a general error, such as "Failed to register dynamic client", when `/mcp/register` refuses it. So the MCP server logs each refused registration as a warning: `client registration refused ip=... status=... answer=... request=...`. `answer` is the error that the client got. `request` has the client name, redirect URIs, `token_endpoint_auth_method`, grant and response types, `application_type`, `scope`, `client_uri` and `software_id`, and the names of the other fields. It never has the values of secrets or keys. Each URL in the line is cut to scheme, host, port and path, because a user, password, query or fragment can hold a credential. Read it with `podman logs soda-mcp 2>&1 | grep "registration refused"`.
 
 ### Rate limits
 

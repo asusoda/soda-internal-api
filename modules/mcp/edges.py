@@ -11,8 +11,9 @@
 """
 
 import json
+import re
 from typing import cast
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from anyio import to_thread
 from mcp.server.auth.provider import construct_redirect_uri
@@ -244,6 +245,26 @@ LOGGED_FIELDS = (
     "software_id",
 )
 MAX_LOGGED_BODY = 64 * 1024
+# A URL in a log line: a scheme, then anything up to a space, quote or bracket
+URL_IN_TEXT = re.compile(r"""\b[A-Za-z][A-Za-z0-9+.\-]*:/[^\s"'\\<>]*""")
+
+
+def redact_urls(text: str) -> str:
+    """The text with each URL cut to scheme, host, port and path. A user, password, query or fragment can hold
+    a credential, so it becomes ?…"""
+
+    def cut(match: re.Match) -> str:
+        try:
+            parts = urlsplit(match.group(0))
+            port = parts.port
+        except ValueError:
+            return "<url>"
+        host = parts.hostname or ""
+        netloc = f"{host}:{port}" if port else host
+        hidden = "?…" if parts.query or parts.fragment or "@" in parts.netloc else ""
+        return urlunsplit((parts.scheme, netloc, parts.path, "", "")) + hidden
+
+    return URL_IN_TEXT.sub(cut, text)
 
 
 def registration_summary(body: bytes) -> str:
@@ -257,7 +278,8 @@ def registration_summary(body: bytes) -> str:
     fields = cast(dict, request)
     shown = {k: fields[k] for k in LOGGED_FIELDS if k in fields}
     others = sorted(str(k) for k in fields if k not in LOGGED_FIELDS)
-    return f"{json.dumps(shown, default=str)[:1000]} other fields: {', '.join(others) or 'none'}"
+    # json.dumps escapes newlines and other control characters, so a field name cannot forge a log line
+    return redact_urls(f"{json.dumps(shown, default=str)[:1000]} other fields: {json.dumps(others)[:500]}")
 
 
 class RegistrationLog:
@@ -294,6 +316,6 @@ class RegistrationLog:
                 "client registration refused ip=%s status=%s answer=%s request=%s",
                 client,
                 answer["status"],
-                answer["body"][:500].decode("utf-8", "replace"),
+                redact_urls(answer["body"][:500].decode("utf-8", "replace")),
                 request,
             )
