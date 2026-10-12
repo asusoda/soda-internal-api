@@ -89,6 +89,13 @@ const SCREENS = [
     },
   },
   { name: 'hosting-apps', path: 'hosting' },
+  {
+    name: 'hosting-server-app',
+    path: 'hosting',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'vault', exact: true }).click();
+    },
+  },
   { name: 'settings', path: 'settings' },
   {
     name: 'settings-limits',

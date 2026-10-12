@@ -6,13 +6,14 @@ import pytest
 from cryptography.fernet import Fernet
 
 from core import hosting
+from core.integrations.runpod import RunPodProvider
 
 from .test_godfather import FakeRunPod
 from .test_runpod_apps import MANIFEST
 
 
-class FakeProvider:
-    """A second provider that keeps its pods in memory, configured for every org."""
+class FakeProvider(RunPodProvider):
+    """A second provider that keeps its pods in memory, configured for every org. It builds RunPod requests."""
 
     name = "fakecloud"
     title = "Fake Cloud"
@@ -20,6 +21,7 @@ class FakeProvider:
 
     def __init__(self):
         self.pods = FakeRunPod()
+        self.checked: list[str] = []
 
     def configured(self, db, org_id):
         return True
@@ -38,6 +40,10 @@ class FakeProvider:
 
     def proxy_url(self, pod_id, port, path):
         return f"https://{pod_id}.fakecloud.example:{port}{path}"
+
+    def healthy(self, pod_id, port, path):
+        self.checked.append(self.proxy_url(pod_id, port, path))
+        return True
 
 
 @pytest.fixture
@@ -107,11 +113,9 @@ def test_a_pod_runs_on_the_provider_it_names(client, officer_headers, fakecloud)
     assert unknown.status_code == 400 and "provider must be one of" in unknown.get_json()["error"]
 
 
-def test_an_app_runs_on_the_provider_it_names(client, officer_headers, fakecloud, monkeypatch):
+def test_an_app_runs_on_the_provider_it_names(client, officer_headers, fakecloud):
     from modules.runpod import service as apps
 
-    healthy = []
-    monkeypatch.setattr(apps, "_healthy", lambda url: healthy.append(url) or True)
     name = "app-" + uuid.uuid4().hex[:8]
     base = f"/api/dashboard/ais/apps/{name}"
     registered = client.put(base, json={"manifest": MANIFEST, "provider": "fakecloud"}, headers=officer_headers)
@@ -125,7 +129,7 @@ def test_an_app_runs_on_the_provider_it_names(client, officer_headers, fakecloud
     db = db_connect.SessionLocal()
     apps.check_deployments(db)
     db.close()
-    assert "https://pod1.fakecloud.example:8080/health" in healthy
+    assert "https://pod1.fakecloud.example:8080/health" in fakecloud.checked
 
     moved = client.put(base, json={"manifest": MANIFEST, "provider": "runpod"}, headers=officer_headers)
     assert moved.status_code == 409

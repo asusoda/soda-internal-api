@@ -1,0 +1,13 @@
+# Runs the This server runner: org app containers for Platform. See docs/operations.md, "This server runner".
+[Unit]
+Description=Platform This server runner
+After=network-online.target podman.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /var/www/soda-internal-api/deploy/runner/platform_runner.py --config /etc/platform-runner.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

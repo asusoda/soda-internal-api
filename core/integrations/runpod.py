@@ -17,6 +17,8 @@ logger = get_logger("runpod")
 BASE_URL = "https://api.runpod.io/v2"
 TIMEOUT_SECONDS = 30
 SECRET_NAME = "runpod_api_key"  # nosec B105 - the name of an org secret, not its value
+# Manifest fields that only This server reads
+SERVER_ONLY = ("memory", "cpus", "publish", "volumes")
 
 
 class RunPodError(hosting.HostingError):
@@ -103,6 +105,7 @@ class RunPodProvider:
     name = "runpod"
     title = "RunPod"
     integration = "runpod"
+    godfather = True
 
     def configured(self, db, org_id: int) -> bool:
         return bool(secrets.get_secret(db, org_id, SECRET_NAME))
@@ -149,6 +152,33 @@ class RunPodProvider:
 
     def proxy_url(self, pod_id: str, port: int, path: str) -> str:
         return proxy_url(pod_id, port, path)
+
+    def healthy(self, pod_id: str, port: int, path: str) -> bool:
+        try:
+            return requests.get(proxy_url(pod_id, port, path), timeout=10).status_code < 400
+        except requests.RequestException:
+            return False
+
+    def validate(self, manifest: dict) -> None:
+        if ("gpu" in manifest) == ("cpu" in manifest):
+            raise hosting.HostingError("A RunPod app needs gpu or cpu, not both")
+        used = [field for field in SERVER_ONLY if field in manifest]
+        if used:
+            raise hosting.HostingError(f"RunPod does not take {', '.join(used)}; those fields are for This server")
+
+    def request(self, app_name: str, org_prefix: str, pod_id: str | None, manifest: dict, image: str, env: dict):
+        """The RunPod v2 call: POST /pods for a new pod, PATCH /pods/<id> to change one."""
+        body: dict[str, Any] = {"image": image, "env": env}
+        for field in ("disk", "ports", "args", "registry"):
+            if field in manifest:
+                body[field] = manifest[field]
+        if pod_id:
+            return "PATCH", f"/pods/{pod_id}", body
+        body["name"] = f"{org_prefix}-{app_name}"
+        for field in ("gpu", "cpu", "cloud", "dataCenterIds", "mounts"):
+            if field in manifest:
+                body[field] = manifest[field]
+        return "POST", "/pods", body
 
 
 hosting.register(RunPodProvider())
