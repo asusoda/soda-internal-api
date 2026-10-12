@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import apiClient from "../components/utils/axios";
 import OrganizationNavbar from "../components/shared/OrganizationNavbar";
-import { FaBox, FaPlus } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { useAuth } from "../components/auth/AuthContext";
 import { PRODUCT_CATEGORIES } from "../constants/productCategories";
@@ -83,7 +83,7 @@ const AddStorefrontProductPage = () => {
 
     try {
       // Updated API endpoint to include organization prefix
-      const response = await apiClient.post(`/api/storefront/${prefixToUse}/products`, productData);
+      await apiClient.post(`/api/storefront/${prefixToUse}/products`, productData);
       toast.success("Product added successfully!");
       // Reset form
       setImageUrl("");

@@ -1,33 +1,14 @@
 import React, { useState } from 'react';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
-import useOrgNavigation from '../hooks/useOrgNavigation';
 import { useAuth } from '../components/auth/AuthContext';
 import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import { FileUpload } from '../components/ui/file-upload';
-import StarBorder from '../components/ui/StarBorder';
-import { 
-  FaFileUpload, 
-  FaUserPlus, 
-  FaSignOutAlt, 
-  FaTachometerAlt, 
-  FaUsers, 
-  FaClipboardList, 
-  FaCogs,
-  FaChartLine,
-  FaArrowLeft
-} from 'react-icons/fa';
+import { FaFileUpload, FaUserPlus } from 'react-icons/fa';
 
 const AddPoints = () => {
   useAuthToken();
   const { currentOrg } = useAuth();
-  const { 
-    goToDashboard,
-    goToUsers, 
-    goToLeaderboard,
-    goToPanel,
-    goToJeopardy 
-  } = useOrgNavigation();
 
   const [eventFile, setEventFile] = useState(null);
   const [eventName, setEventName] = useState('');

@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
-import useOrgNavigation from '../hooks/useOrgNavigation';
 import { useAuth } from '../components/auth/AuthContext';
 import OrganizationNavbar from '../components/shared/OrganizationNavbar';
-import StarBorder from '../components/ui/StarBorder';
-import { FaUsers, FaSignOutAlt, FaTachometerAlt, FaClipboardList, FaTrashAlt, FaTimes, FaCogs, FaEdit, FaSave } from 'react-icons/fa';
+import { FaTrashAlt, FaTimes, FaEdit, FaSave } from 'react-icons/fa';
 
 const LeaderboardPage = () => {
   useAuthToken();
   const { currentOrg } = useAuth();
-  const { 
-    goToDashboard,
-    goToUsers, 
-    goToAddPoints,
-    goToPanel,
-    goToJeopardy 
-  } = useOrgNavigation();
 
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +101,7 @@ const LeaderboardPage = () => {
     setModalError('');
     
     try {
-      const response = await apiClient.put(
+      await apiClient.put(
         `/api/points/${currentOrg.prefix}/users/${encodeURIComponent(selectedUserEmail)}`,
         editFormData
       );
@@ -131,7 +122,7 @@ const LeaderboardPage = () => {
     }
   };
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       if (!currentOrg?.prefix) {
@@ -147,11 +138,11 @@ const LeaderboardPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentOrg]);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [currentOrg]);
+  }, [fetchLeaderboard]);
 
   return (
     <OrganizationNavbar>

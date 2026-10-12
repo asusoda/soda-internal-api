@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import apiClient from "../components/utils/axios";
 import { FaShoppingCart, FaPlus, FaMinus, FaSpinner, FaCheck, FaUser, FaHistory, FaCoins, FaStore, FaEnvelope, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
@@ -15,34 +15,38 @@ const MemberStorePage = () => {
   const [cart, setCart] = useState([]);
   const [activeTab, setActiveTab] = useState('store');
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
-  const [userInfo, setUserInfo] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [memberProfile, setMemberProfile] = useState(null);
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  useEffect(() => {
-    // Clear cart when organization changes to ensure session-based cart management
-    setCart([]);
-    checkAuthentication();
-    fetchStoreData();
+  const checkMemberSession = useCallback(() => {
+    const memberUser = localStorage.getItem('memberUser');
+    const memberOrg = localStorage.getItem('memberOrg');
+    
+    if (memberUser && memberOrg) {
+      const org = JSON.parse(memberOrg);
+      
+      if (org.prefix === orgPrefix) {
+        setIsAuthenticated(true);
+        return true;
+      }
+    }
+    return false;
   }, [orgPrefix]);
 
-  // Load cart from sessionStorage when component mounts
-  useEffect(() => {
-    const savedCart = sessionStorage.getItem(`cart_${orgPrefix}`);
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
+  const fetchUserPoints = useCallback(async () => {
+    // Callers run this only after the member has signed in.
+    if (!orgPrefix) return;
+    
+    try {
+      const response = await apiClient.get(`/api/points/${orgPrefix}/member_profile`);
+      setMemberProfile(response.data);
+      setUserPoints(response.data.current_organization?.points || 0);
+    } catch (err) {
+      console.log("Could not fetch member profile:", err);
     }
   }, [orgPrefix]);
 
-  // Save cart to sessionStorage whenever cart changes
-  useEffect(() => {
-    if (orgPrefix) {
-      sessionStorage.setItem(`cart_${orgPrefix}`, JSON.stringify(cart));
-    }
-  }, [cart, orgPrefix]);
-
-  const checkAuthentication = async () => {
+  const checkAuthentication = useCallback(async () => {
     // First check member session
     if (checkMemberSession()) {
       try {
@@ -71,9 +75,9 @@ const MemberStorePage = () => {
       setIsAuthenticated(false);
       // User can still browse without auth
     }
-  };
+  }, [orgPrefix, checkMemberSession, fetchUserPoints]);
 
-  const fetchStoreData = async () => {
+  const fetchStoreData = useCallback(async () => {
     if (!orgPrefix) {
       setError("Organization not specified");
       setLoading(false);
@@ -87,7 +91,6 @@ const MemberStorePage = () => {
       let response;
       try {
         response = await apiClient.get(`/api/storefront/${orgPrefix}/members/store`);
-        setUserInfo(response.data.user_info);
       } catch (memberErr) {
         // Fallback to public store data
         response = await apiClient.get(`/api/storefront/${orgPrefix}/store`);
@@ -104,40 +107,33 @@ const MemberStorePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orgPrefix]);
 
-  const fetchUserPoints = async () => {
-    if (!isAuthenticated || !orgPrefix) return;
-    
-    try {
-      const response = await apiClient.get(`/api/points/${orgPrefix}/member_profile`);
-      setMemberProfile(response.data);
-      setUserPoints(response.data.current_organization?.points || 0);
-    } catch (err) {
-      console.log("Could not fetch member profile:", err);
+  useEffect(() => {
+    // Clear cart when organization changes to ensure session-based cart management
+    setCart([]);
+    checkAuthentication();
+    fetchStoreData();
+  }, [checkAuthentication, fetchStoreData]);
+
+  // Load cart from sessionStorage when component mounts
+  useEffect(() => {
+    const savedCart = sessionStorage.getItem(`cart_${orgPrefix}`);
+    if (savedCart) {
+      setCart(JSON.parse(savedCart));
     }
-  };
+  }, [orgPrefix]);
+
+  // Save cart to sessionStorage whenever cart changes
+  useEffect(() => {
+    if (orgPrefix) {
+      sessionStorage.setItem(`cart_${orgPrefix}`, JSON.stringify(cart));
+    }
+  }, [cart, orgPrefix]);
 
   const handleLogin = () => {
     // Redirect to member login page
     window.location.href = `/store/${orgPrefix}/login`;
-  };
-
-  const checkMemberSession = () => {
-    const memberUser = localStorage.getItem('memberUser');
-    const memberOrg = localStorage.getItem('memberOrg');
-    
-    if (memberUser && memberOrg) {
-      const user = JSON.parse(memberUser);
-      const org = JSON.parse(memberOrg);
-      
-      if (org.prefix === orgPrefix) {
-        setIsAuthenticated(true);
-        setUserInfo({ user_id: user.id, discord_id: user.discord_id, is_member: true });
-        return true;
-      }
-    }
-    return false;
   };
 
   const handleLogout = () => {
@@ -148,7 +144,6 @@ const MemberStorePage = () => {
     
     // Reset state
     setIsAuthenticated(false);
-    setUserInfo(null);
     setMemberProfile(null);
     setOrders([]);
     setUserPoints(0);

@@ -1,6 +1,5 @@
-import React, { useState, Children, cloneElement } from "react";
+import React, { useState, Children } from "react";
 import { motion } from "motion/react";
-import DotSlashLogo from '../../assets/dotSlash.svg';
 import { FaBars, FaTimes } from 'react-icons/fa';
 
 const transition = {

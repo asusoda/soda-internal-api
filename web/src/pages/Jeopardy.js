@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
-import useOrgNavigation from '../hooks/useOrgNavigation';
-import { useAuth } from '../components/auth/AuthContext';
 import OrganizationNavbar from '../components/shared/OrganizationNavbar';
-import { FaTrophy, FaPlay, FaUsers, FaCog } from 'react-icons/fa';
+import { FaTrophy, FaUsers, FaCog } from 'react-icons/fa';
 
 const Jeopardy = () => {
   useAuthToken();
-  const { currentOrg } = useAuth();
-  const { 
-    goToDashboard,
-    goToUsers, 
-    goToLeaderboard,
-    goToAddPoints,
-    goToPanel 
-  } = useOrgNavigation();
 
   const [jeopardyGames, setJeopardyGames] = useState([]);
   const [loading, setLoading] = useState(true);

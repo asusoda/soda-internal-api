@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/auth/AuthContext';
 import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import ThemedLoading from '../components/ui/ThemedLoading';
@@ -7,20 +7,14 @@ import { FaCalendarAlt, FaSync, FaCog, FaExternalLinkAlt } from 'react-icons/fa'
 import apiClient from '../components/utils/axios';
 
 const Calendar = () => {
-  const { currentOrg, getApiClient } = useAuth();
+  const { currentOrg } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('month'); // 'month', 'week', 'list'
 
-  useEffect(() => {
-    if (currentOrg) {
-      fetchEvents();
-    }
-  }, [currentOrg]);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,7 +59,13 @@ const Calendar = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentOrg]);
+
+  useEffect(() => {
+    if (currentOrg) {
+      fetchEvents();
+    }
+  }, [currentOrg, fetchEvents]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
