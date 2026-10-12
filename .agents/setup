@@ -34,7 +34,7 @@ install_node() {
     echo "Node $("$node_dir/bin/node" --version) is installed"
     return
   fi
-  local arch tmp base tarball
+  local arch tmp base
   case "$(uname -m)" in
     x86_64) arch=x64 ;;
     aarch64) arch=arm64 ;;
@@ -42,15 +42,18 @@ install_node() {
   esac
   tmp="$(mktemp -d)"
   base="https://nodejs.org/dist/latest-v$node_major.x"
-  curl -fsSL "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
-  tarball="$(grep -o "node-v[0-9.]*-linux-$arch\.tar\.xz" "$tmp/SHASUMS256.txt")"
-  curl -fsSL "$base/$tarball" -o "$tmp/$tarball"
-  (cd "$tmp" && grep " $tarball\$" SHASUMS256.txt | sha256sum -c --quiet -)
-  mkdir -p "$tmp/node"
-  tar -xJf "$tmp/$tarball" -C "$tmp/node" --strip-components=1
-  mkdir -p "$(dirname "$node_dir")"
-  mv "$tmp/node" "$node_dir"
-  rm -rf "$tmp"
+  # The subshell removes the download when a step fails, too.
+  (
+    trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
+    tarball="$(grep -o "node-v[0-9.]*-linux-$arch\.tar\.xz" "$tmp/SHASUMS256.txt")"
+    curl -fsSL "$base/$tarball" -o "$tmp/$tarball"
+    (cd "$tmp" && grep " $tarball\$" SHASUMS256.txt | sha256sum -c --quiet -)
+    mkdir -p "$tmp/node"
+    tar -xJf "$tmp/$tarball" -C "$tmp/node" --strip-components=1
+    mkdir -p "$(dirname "$node_dir")"
+    mv "$tmp/node" "$node_dir"
+  )
   echo "Installed Node $("$node_dir/bin/node" --version)"
 }
 

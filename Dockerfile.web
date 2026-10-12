@@ -1,14 +1,21 @@
 # Build stage
 FROM mirror.gcr.io/library/node:26-alpine AS builder
 
-# Install pnpm. Node 25 and later do not include corepack.
-RUN npm install -g pnpm@10.10.0
-
 # Set working directory
 WORKDIR /app
 
 # Copy package files for better caching
 COPY web/package.json web/pnpm-lock.yaml ./
+
+# Install pnpm. Node 25 and later do not include corepack, so download the
+# version in packageManager and check it against the SHA-512 hash there.
+RUN set -e; \
+    pm="$(node -p "require('./package.json').packageManager")"; \
+    version="${pm#pnpm@}"; version="${version%%+*}"; \
+    npm pack "pnpm@$version" --pack-destination /tmp --silent; \
+    mv "/tmp/pnpm-$version.tgz" /tmp/pnpm.tgz; \
+    echo "${pm##*+sha512.}  /tmp/pnpm.tgz" | sha512sum -c -; \
+    npm install -g /tmp/pnpm.tgz
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile --prefer-offline
@@ -25,10 +32,11 @@ RUN pnpm run build
 # Production stage
 FROM mirror.gcr.io/library/node:26-alpine
 
-# Install pnpm and serve globally
+# Install pnpm from the checked tarball of the build stage, and serve globally
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install -g pnpm@10.10.0 && mkdir -p $PNPM_HOME && pnpm add -g serve
+COPY --from=builder /tmp/pnpm.tgz /tmp/pnpm.tgz
+RUN npm install -g /tmp/pnpm.tgz && rm /tmp/pnpm.tgz && mkdir -p $PNPM_HOME && pnpm add -g serve
 
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs
