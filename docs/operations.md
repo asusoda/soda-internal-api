@@ -63,6 +63,7 @@ The runner lets orgs deploy apps to this server (provider `server` on the Hostin
 | `memory_mb_total`, `memory_mb_max`, `cpus_max` | The memory of all app containers together, and the caps of one container |
 | `port_range` | The host ports any org may publish |
 | `orgs.<prefix>.host_paths`, `orgs.<prefix>.host_ports` | Host paths and host ports that only this org may use, for services it ran on the server before |
+| `orgs.<prefix>.public_ports` | Host ports of the org that bind every address, not only `bind_ips`, for a service that clients reach by the server's IP. Keep it short |
 | `shared.host_paths`, `shared.host_ports` | Host paths and host ports that only shared apps may use |
 | `host_control.containers`, `host_control.units` | The other containers and systemd units that the superadmin may start, stop, restart and read the logs of on the Services card. Container names may use `*`, such as `twenty_*`; units are exact names. App containers are controlled through their apps |
 

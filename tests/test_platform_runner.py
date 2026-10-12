@@ -59,3 +59,12 @@ def test_a_shared_app_uses_the_shared_section_and_no_org_can(policy, tmp_path):
     named = runner.check(policy, None, "vault", {**BODY, "volumes": [{"name": "data", "path": "/data"}]})
     assert named["volumes"][0]["host"] == str(tmp_path / ".shared" / "vault" / "data")
     assert runner.container_name(None, "vault") == "shared-vault"
+
+
+def test_only_a_public_port_of_the_policy_binds_every_address(policy):
+    policy["orgs"]["soda"]["host_ports"] = [8081, 8080]
+    policy["orgs"]["soda"]["public_ports"] = [8080]
+    checked = runner.check(
+        policy, "soda", "web", {**BODY, "ports": [{"container": 80, "host": 8080}, {"container": 81, "host": 8081}]}
+    )
+    assert [(p["host"], p["public"]) for p in checked["ports"]] == [(8080, True), (8081, False)]

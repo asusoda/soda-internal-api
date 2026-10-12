@@ -210,7 +210,8 @@ def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
             raise Refused(f"host port {host} is not allowed for {org}: use {low} to {high}")
         if not 1 <= port["container"] <= 65535:
             raise Refused("a container port is from 1 to 65535")
-        ports.append({"container": port["container"], "host": host})
+        public = host is not None and host in set(_section(policy, org).get("public_ports") or [])
+        ports.append({"container": port["container"], "host": host, "public": public})
 
     volumes = []
     for volume in body.get("volumes") or []:
@@ -306,9 +307,11 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
         for key, value in sorted(request["env"].items()):
             args += ["--env", f"{key}={value}"]
         for port in request["ports"]:
-            if port["host"] is not None:
-                for ip in policy["bind_ips"]:
-                    args += ["--publish", f"{ip}:{port['host']}:{port['container']}"]
+            if port["host"] is None:
+                continue
+            # A public port binds every address, as a service that clients reach by the server's IP needs
+            for ip in ["0.0.0.0"] if port["public"] else policy["bind_ips"]:  # nosec B104 - only the policy's public_ports
+                args += ["--publish", f"{ip}:{port['host']}:{port['container']}"]
         for volume in request["volumes"]:
             args += ["--volume", f"{volume['host']}:{volume['path']}:{'ro' if volume['read_only'] else 'rw'}"]
         podman(*args, request["image"], *request["command"])
