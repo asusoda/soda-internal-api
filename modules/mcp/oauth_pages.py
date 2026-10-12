@@ -223,7 +223,8 @@ def _consent_page(db, row, consent_key: str, error: str | None = None, chosen: d
         "</form>"
         "<p>The connection shows on the Tokens page of the org with the kind <code>oauth</code>. "
         "Revoke it there to disconnect the client. If you stop being an officer of the org, "
-        "the connection stops within an hour.</p>"
+        "the connection stops at its next refresh, within an hour. If Discord cannot be reached then, "
+        "it can continue for up to 24 hours more.</p>"
     )
     return _page(f"Connect {oauth.client_name(info)}", body, 400 if error else 200)
 

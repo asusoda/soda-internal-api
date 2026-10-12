@@ -27,3 +27,12 @@ def test_the_setting_wins(tmp_path, monkeypatch):
     routes.write_text(ROUTES)
     monkeypatch.setenv("FORWARDED_ALLOW_IPS", "10.88.0.1")
     assert mcp_main.forwarded_allow_ips(str(routes)) == "10.88.0.1"
+
+
+def test_a_wildcard_is_refused(monkeypatch):
+    import pytest
+
+    for value in ("*", "10.88.0.1, *"):
+        monkeypatch.setenv("FORWARDED_ALLOW_IPS", value)
+        with pytest.raises(ValueError, match="must not be"):
+            mcp_main.forwarded_allow_ips()

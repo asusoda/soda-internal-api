@@ -55,7 +55,9 @@ REFRESH_DAYS = 30
 REQUEST_SECONDS = 600
 CODE_SECONDS = 300
 REFRESH_PREFIX = "platr_"
-MAX_CLIENTS = 5000
+# Self-registered clients and cached metadata documents have separate caps, so one kind cannot fill the other
+MAX_REGISTERED_CLIENTS = 5000
+MAX_DOCUMENT_CLIENTS = 5000
 MAX_CLIENT_BYTES = 8192
 # A refresh needs a new check of the officer role. If Discord does not answer, a check this recent is enough
 RECHECK_GRACE = datetime.timedelta(hours=24)
@@ -231,7 +233,9 @@ class RateLimit:
     def __init__(self, app, prefix: str):
         self.app = app
         self.prefix = prefix.rstrip("/")
-        self.counts: dict[tuple[str, str], tuple[int, int]] = {}
+        # One table per rule, so a flood on one route does not fill the table of another
+        self.counts: dict[str, dict[str, tuple[int, int]]] = {rule: {} for rule in RATE_LIMITS}
+        self.pruned: dict[str, float] = {}
         self.lock = threading.Lock()
 
     def _rule(self, path: str) -> str | None:
@@ -246,13 +250,19 @@ class RateLimit:
         moment = time.time() if now is None else now
         window = int(moment // seconds)
         with self.lock:
-            if len(self.counts) >= self.MAX_KEYS:
-                self.counts = {k: v for k, v in self.counts.items() if v[0] == int(moment // RATE_LIMITS[k[0]][1])}
-            seen_window, seen = self.counts.get((rule, ip), (window, 0))
+            table = self.counts.setdefault(rule, {})
+            if ip not in table and len(table) >= self.MAX_KEYS:
+                # Prune at most once a second; while the table stays full, a new IP waits for the next window
+                if moment - self.pruned.get(rule, 0.0) >= 1:
+                    table = self.counts[rule] = {k: v for k, v in table.items() if v[0] == window}
+                    self.pruned[rule] = moment
+                if len(table) >= self.MAX_KEYS:
+                    return max(1, int((window + 1) * seconds - moment))
+            seen_window, seen = table.get(ip, (window, 0))
             used = seen if seen_window == window else 0
             if used >= count:
                 return max(1, int((window + 1) * seconds - moment))
-            self.counts[(rule, ip)] = (window, used + 1)
+            table[ip] = (window, used + 1)
         return 0
 
     async def __call__(self, scope, receive, send):
@@ -300,7 +310,7 @@ def register_client(db, info: dict) -> None:
         check_redirect_uri(str(uri))
     if len(json.dumps(info, default=str)) > MAX_CLIENT_BYTES:
         raise OAuthError("The client metadata is too large")
-    if db.query(OAuthClient).count() >= MAX_CLIENTS:
+    if db.query(OAuthClient).filter(OAuthClient.cache_until.is_(None)).count() >= MAX_REGISTERED_CLIENTS:
         raise OAuthError("This server cannot register more clients now")
     ciphertext = None
     if secret:
@@ -485,7 +495,7 @@ def resolve_client(db, client_id: str) -> dict | None:
         return None
     until = now + cache_time(fetched.headers)
     if row is None:
-        if db.query(OAuthClient).count() >= MAX_CLIENTS:
+        if db.query(OAuthClient).filter(OAuthClient.cache_until.isnot(None)).count() >= MAX_DOCUMENT_CLIENTS:
             logger.warning("client metadata document refused client_id=%s: too many clients", client_id)
             return None
         db.add(OAuthClient(client_id=client_id, info=info, cache_until=until))
@@ -794,8 +804,19 @@ def cleanup(db) -> dict:
         .filter(OAuthClient.last_used_at <= now - datetime.timedelta(days=7), ~OAuthClient.client_id.in_(in_use))
         .delete(synchronize_session=False)
     )
+    # A document client with no grant and no open request is only a cache: delete it now, not after 7 days
+    open_requests = db.query(OAuthRequest.client_id)
+    documents = (
+        db.query(OAuthClient)
+        .filter(
+            OAuthClient.cache_until.isnot(None),
+            ~OAuthClient.client_id.in_(in_use),
+            ~OAuthClient.client_id.in_(open_requests),
+        )
+        .delete(synchronize_session=False)
+    )
     db.commit()
-    return {"requests": requests, "grants": len(finished), "clients": unused}
+    return {"requests": requests, "grants": len(finished), "clients": unused + documents}
 
 
 # The SDK provider

@@ -18,7 +18,7 @@ Serves the tools of other modules to apps and agents with a machine token: over 
 ## Surface
 
 - Routes: `/api/tools`, machine token required. `/.well-known/oauth-protected-resource/<path>` and `/.well-known/oauth-authorization-server[/<path>]`, open, 404 when OAuth is off. The MCP server (not the API) serves `/mcp` and, when OAuth is on, `/mcp/register`, `/mcp/authorize`, `/mcp/token`, `/mcp/revoke`, `/mcp/oauth/*` and the same discovery documents.
-- Jobs: `mcp.cleanup_oauth`, schedule `15 * * * *`. It deletes expired requests, grants whose token is revoked or whose refresh token expired, clients with no grant that were not used for 7 days, and the `jti` of expired client assertions.
+- Jobs: `mcp.cleanup_oauth`, schedule `15 * * * *`. It deletes expired requests, grants whose token is revoked or whose refresh token expired, registered clients with no grant that were not used for 7 days, cached metadata documents with no grant and no open request, and the `jti` of expired client assertions.
 - Tools: `batch`, which runs 1 to 25 calls of other tools in order. Each call has its own scope check, module switch, confirm step and audit entry. A token sees `batch` when it can call one or more other tools. The other tools are `core.tools.TOOLS`, which the modules in `TOOL_MODULES` in `modules/manifest.py` fill.
 - Tables: `oauth_clients`, `oauth_requests`, `oauth_grants`, `oauth_assertions`.
 - Limits: `RATE_LIMITS` (`oauth.py`) for the OAuth routes, by client IP, in each process. `mcp.calls_per_minute` (`runtime.py`). Each tool call, also each call in a batch, counts. Over the limit the call returns 429. See [docs/limits.md](../../docs/limits.md).

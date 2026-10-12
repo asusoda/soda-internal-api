@@ -39,7 +39,9 @@ JWKS_REFETCH_SECONDS = 60
 # Members of a JWK that only a private key has
 PRIVATE_MEMBERS = ("d", "p", "q", "dp", "dq", "qi", "oth", "k")
 
-_jwks_cache: dict[str, tuple[float, float, dict]] = {}
+JWKS_MAX_ENTRIES = 1000
+# url -> (until, fetched_at, key set). None for a fetch that failed, so that it is not tried again at once
+_jwks_cache: dict[str, tuple[float, float, dict | None]] = {}
 _jwks_lock = threading.Lock()
 
 
@@ -79,25 +81,46 @@ def fetch_jwks(url: str) -> oauth.Fetched:
 
 
 def _remote_keys(url: str, *, refresh: bool = False) -> list[tuple[dict, jwt.PyJWK]]:
-    """The keys at a jwks_uri, cached for the time its headers allow. refresh fetches again after a short wait."""
+    """The keys at a jwks_uri, cached for the time its headers allow. refresh fetches again after a short wait.
+
+    A failed fetch is kept for JWKS_REFETCH_SECONDS, so requests in that time fail at once.
+    """
     now = time.monotonic()
     with _jwks_lock:
         found = _jwks_cache.get(url)
     if found is not None:
         until, fetched_at, jwks = found
-        if now < until and not (refresh and now - fetched_at > JWKS_REFETCH_SECONDS):
+        if jwks is None and now < until:
+            raise oauth.OAuthError(f"{url} failed a moment ago. Try again later")
+        if jwks is not None and now < until and not (refresh and now - fetched_at > JWKS_REFETCH_SECONDS):
             return parse_keys(jwks)
-    fetched = fetch_jwks(url)
-    if fetched.status != 200 or len(fetched.body) > JWKS_MAX_BYTES:
-        raise oauth.OAuthError(f"{url} returned {fetched.status} or is too large")
     try:
-        jwks = json.loads(fetched.body)
-    except ValueError as e:
-        raise oauth.OAuthError(f"{url} is not JSON") from e
-    keys = parse_keys(jwks)
-    with _jwks_lock:
-        _jwks_cache[url] = (now + oauth.cache_time(fetched.headers).total_seconds(), now, jwks)
+        fetched = fetch_jwks(url)
+        if fetched.status != 200 or len(fetched.body) > JWKS_MAX_BYTES:
+            raise oauth.OAuthError(f"{url} returned {fetched.status} or is too large")
+        try:
+            jwks = json.loads(fetched.body)
+        except ValueError as e:
+            raise oauth.OAuthError(f"{url} is not JSON") from e
+        keys = parse_keys(jwks)
+    except oauth.OAuthError:
+        _store(url, now + JWKS_REFETCH_SECONDS, now, None)
+        raise
+    _store(url, now + oauth.cache_time(fetched.headers).total_seconds(), now, jwks)
     return keys
+
+
+def _store(url: str, until: float, fetched_at: float, jwks: dict | None) -> None:
+    """Keep a key set or a failure. Past JWKS_MAX_ENTRIES, expired entries go first, then the oldest."""
+    with _jwks_lock:
+        _jwks_cache[url] = (until, fetched_at, jwks)
+        if len(_jwks_cache) <= JWKS_MAX_ENTRIES:
+            return
+        for key in [k for k, v in _jwks_cache.items() if v[0] <= fetched_at and k != url]:
+            del _jwks_cache[key]
+        while len(_jwks_cache) > JWKS_MAX_ENTRIES:
+            oldest = min((k for k in _jwks_cache if k != url), key=lambda k: _jwks_cache[k][1])
+            del _jwks_cache[oldest]
 
 
 def clear_cache() -> None:

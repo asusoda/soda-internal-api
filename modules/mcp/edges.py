@@ -110,6 +110,16 @@ def _missing_scopes(token: str, names: list[str]) -> tuple[list[str], str | None
         db.close()
 
 
+def _replay(messages: list[dict], receive):
+    """A receive that gives the messages already read, then the rest of the request."""
+    pending = list(messages)
+
+    async def replayed():
+        return pending.pop(0) if pending else await receive()
+
+    return replayed
+
+
 class ScopeChallenge:
     def __init__(self, app, path: str):
         self.app = app
@@ -152,14 +162,18 @@ class ScopeChallenge:
         size = _header(scope, b"content-length")
         if size is not None and size.isdigit() and int(size) > MAX_CHECKED_BODY:
             return receive
-        chunks, more = [], True
+        messages, read, more = [], 0, True
         while more:
             message = await receive()
+            messages.append(message)
             if message["type"] != "http.request":
                 break
-            chunks.append(message.get("body", b""))
+            read += len(message.get("body", b""))
+            if read > MAX_CHECKED_BODY:
+                # Too large to check: the SDK gets the body as it comes, and its own limit applies
+                return _replay(messages, receive)
             more = message.get("more_body", False)
-        body = b"".join(chunks)
+        body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.request")
         try:
             names = _tool_names(json.loads(body))
         except ValueError:
@@ -169,16 +183,7 @@ class ScopeChallenge:
             if missing:
                 await self._challenge(send, missing, names, actor)
                 return None
-        sent = False
-
-        async def replay():
-            nonlocal sent
-            if sent:
-                return await receive()
-            sent = True
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        return replay
+        return _replay(messages, receive)
 
     async def _challenge(self, send, missing: list[str], names: list[str], actor: str | None) -> None:
         scopes = " ".join(missing)

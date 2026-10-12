@@ -1236,3 +1236,126 @@ def test_a_public_client_can_revoke(oauth_client, client, officer_headers):
     assert revoked.status_code == 200
     assert _rpc(oauth_client, tokens["access_token"], "tools/list").status_code == 401
     assert oauth_client.post("/mcp/revoke", data={"client_id": registered["client_id"]}).status_code == 400
+
+
+def test_documents_cannot_fill_the_registration_cap(oauth_client, documents, monkeypatch):
+    from core.db import db_connect
+    from modules.mcp import oauth
+    from modules.mcp.models import OAuthClient
+
+    db = db_connect.SessionLocal()
+    try:
+        documents_now = db.query(OAuthClient).filter(OAuthClient.cache_until.isnot(None)).count()
+        registered_now = db.query(OAuthClient).filter(OAuthClient.cache_until.is_(None)).count()
+    finally:
+        db.close()
+    monkeypatch.setattr(oauth, "MAX_DOCUMENT_CLIENTS", documents_now + 1)
+    monkeypatch.setattr(oauth, "MAX_REGISTERED_CLIENTS", registered_now + 1)
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+    other = "https://agent.example/oauth/other.json"
+    documents["answers"][other] = (200, {}, _document(client_id=other))
+    # The document cap is full, so a new document client is refused
+    assert _authorize(oauth_client, other, _pkce()[1]).status_code == 400
+    # A full document cap does not block registration
+    _register(oauth_client)
+
+
+def test_cleanup_deletes_unused_documents_at_once(oauth_client, documents):
+    from core.db import db_connect
+    from modules.mcp import oauth
+    from modules.mcp.models import OAuthClient, OAuthRequest
+
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+    db = db_connect.SessionLocal()
+    try:
+        oauth.cleanup(db)
+        # An open request keeps the document
+        assert db.query(OAuthClient).filter_by(client_id=DOCUMENT_URL).count() == 1
+        db.query(OAuthRequest).filter_by(client_id=DOCUMENT_URL).delete()
+        db.commit()
+        oauth.cleanup(db)
+        assert db.query(OAuthClient).filter_by(client_id=DOCUMENT_URL).count() == 0
+    finally:
+        db.close()
+
+
+def test_a_large_chunked_body_skips_the_step_up_check(oauth_client, client, officer_headers, monkeypatch):
+    import json
+
+    from modules.mcp import edges
+
+    _, tokens = _connect(oauth_client, client, officer_headers)
+    monkeypatch.setattr(edges, "MAX_CHECKED_BODY", 100)
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "points.leaderboard", "arguments": {}}}
+    ).encode()
+    body = body[:-1] + b', "pad": "' + b"x" * 500 + b'"}'
+
+    def chunks():
+        # No Content-Length: the client streams the body in pieces
+        for start in range(0, len(body), 64):
+            yield body[start : start + 64]
+
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json",
+    }
+    response = oauth_client.post("/mcp", content=chunks(), headers=headers)
+    # The check stopped at 100 bytes and the SDK got the whole body: the normal answer, not a step-up 403
+    assert response.status_code == 200, response.text
+    assert response.json()["result"]["isError"] is True
+
+
+def test_a_full_rate_limit_table_stays_bounded(monkeypatch):
+    from modules.mcp import oauth
+
+    limiter = oauth.RateLimit(None, "/mcp")
+    monkeypatch.setattr(limiter, "MAX_KEYS", 2)
+    seconds = oauth.RATE_LIMITS["/token"][1]
+    start = 1000.0 * seconds
+    assert limiter.allow("/token", "a", now=start) == 0
+    assert limiter.allow("/token", "b", now=start) == 0
+    # The table is full of this window: a new IP waits, a counted one goes on
+    assert limiter.allow("/token", "c", now=start) > 0
+    assert limiter.allow("/token", "a", now=start + 0.5) == 0
+    assert len(limiter.counts["/token"]) == 2
+    # Another rule has its own table
+    assert limiter.allow("/register", "c", now=start) == 0
+    # In the next window the old entries are pruned, and the new IP gets a place
+    assert limiter.allow("/token", "c", now=start + seconds) == 0
+    assert set(limiter.counts["/token"]) == {"c"}
+
+
+def test_a_failed_key_fetch_is_not_tried_again_at_once(monkeypatch, client_key):
+    from modules.mcp import client_auth, oauth
+
+    fetches = []
+
+    def fetch(url):
+        fetches.append(url)
+        return oauth.Fetched(503, {}, b"")
+
+    monkeypatch.setattr(client_auth, "fetch_jwks", fetch)
+    url = "https://agent.example/oauth/jwks.json"
+    for _ in range(3):
+        with pytest.raises(oauth.OAuthError):
+            client_auth._remote_keys(url)
+    assert fetches == [url]
+
+
+def test_the_key_cache_stays_bounded(monkeypatch, client_key):
+    import json
+
+    from modules.mcp import client_auth, oauth
+
+    _, public = client_key
+    monkeypatch.setattr(client_auth, "JWKS_MAX_ENTRIES", 3)
+    monkeypatch.setattr(
+        client_auth, "fetch_jwks", lambda url: oauth.Fetched(200, {}, json.dumps({"keys": [public]}).encode())
+    )
+    for n in range(10):
+        client_auth._remote_keys(f"https://agent.example/jwks/{n}.json")
+    assert len(client_auth._jwks_cache) == 3
+    # The newest entries stay
+    assert "https://agent.example/jwks/9.json" in client_auth._jwks_cache

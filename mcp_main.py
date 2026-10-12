@@ -36,12 +36,17 @@ def default_gateway(route_file: str = "/proc/net/route") -> str | None:
 def forwarded_allow_ips(route_file: str = "/proc/net/route") -> str:
     """The addresses whose X-Forwarded-For uvicorn uses for the client IP.
 
-    FORWARDED_ALLOW_IPS wins. Else this computer and the default gateway: the reverse proxy on the host
+    FORWARDED_ALLOW_IPS wins, but "*" raises ValueError. Else this computer and the default gateway: the reverse proxy on the host
     reaches the container from the gateway address, and no other client can send from it. Never "*":
     uvicorn then takes the first X-Forwarded-For address, which the client sets.
     """
-    if os.environ.get("FORWARDED_ALLOW_IPS"):
-        return os.environ["FORWARDED_ALLOW_IPS"]
+    configured = os.environ.get("FORWARDED_ALLOW_IPS", "")
+    if configured:
+        if "*" in [part.strip() for part in configured.split(",")]:
+            raise ValueError(
+                "FORWARDED_ALLOW_IPS must not be *: a client could then set its own IP. Name the proxy's address"
+            )
+        return configured
     gateway = default_gateway(route_file)
     return ",".join(["127.0.0.1", "::1", *([gateway] if gateway else [])])
 

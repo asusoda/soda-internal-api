@@ -161,13 +161,13 @@ These steps show the flow.
 - The access token is a machine token of kind `oauth`, with the org, scopes and limits that the officer chose and the officer's Discord id as `created_by`. It is on the Tokens page. Revoke it there to disconnect the client: its refresh token also stops working.
 - The limits are the same as the limits of a token from the Tokens page, such as `repos` and `tools` for GitHub. The consent page has a field for each one. An empty field gives no limit.
 - A refresh gives a new access token and a new refresh token, and the old ones stop working. The machine token keeps its id, so the Tokens page shows one row for each connection.
-- Each refresh checks that the officer who approved the connection still has the officer role in the org. If not, the server revokes the token and the refresh fails. If Discord does not answer, the refresh works when the last check is less than 24 hours old. An access token lasts 1 hour, so a connection stops within an hour after the officer loses the role.
+- Each refresh checks that the officer who approved the connection still has the officer role in the org. If not, the server revokes the token and the refresh fails. If Discord does not answer, the refresh works when the last check is less than 24 hours old. An access token lasts 1 hour, so a connection stops within an hour after the officer loses the role. If Discord does not answer at that refresh, it can continue for up to 24 hours more.
 - An officer cannot make a token of kind `oauth` with `POST .../tokens`.
 - The officer check always applies, also when `ACCESS_ENFORCE=false`.
 - If a request has `resource` (RFC 8707), it must be the public URL or a path above it on the same origin, such as `https://api.thesoda.io`. A `resource` of another server gets `error=invalid_target`.
 - A redirect URI must use HTTPS, or HTTP on `localhost`, `127.0.0.1` or `[::1]`, as the MCP spec says. App schemes such as `cursor://` are refused.
 - The database keeps a SHA-256 hash of each key, code and refresh token. It keeps a client secret encrypted with `SECRETS_KEY`. Without `SECRETS_KEY`, only public clients can register.
-- The server keeps up to 5000 clients. The `mcp.cleanup_oauth` job deletes clients with no grant that were not used for 7 days.
+- The server keeps up to 5000 clients from `/mcp/register` and, apart from those, up to 5000 cached metadata documents. The `mcp.cleanup_oauth` job deletes registered clients with no grant that were not used for 7 days, and cached documents with no grant and no open request at once.
 - OAuth tokens open the MCP server. Other machine tokens open it too, as before.
 - The `iss` parameter is on every redirect back to the client, also the errors that the SDK sends from `/mcp/authorize`.
 
@@ -189,7 +189,7 @@ Each client IP has a limit on the OAuth routes. Over the limit, the route return
 
 The client IP comes from `X-Forwarded-For` when the request comes from a trusted address. `mcp_main.py` trusts `127.0.0.1`, `::1` and the default gateway. In a container, the gateway is the host, where the reverse proxy runs. The log line `X-Forwarded-For trusted from ...` at the start shows the list. If the proxy connects from another address, set `FORWARDED_ALLOW_IPS` to it. Each request line of `podman logs soda-mcp` starts with the client IP, so you can check it.
 
-Caution: do not set `FORWARDED_ALLOW_IPS=*`. uvicorn then uses the first address of `X-Forwarded-For`, which the client sets, and a client can get past the limit.
+Caution: do not set `FORWARDED_ALLOW_IPS=*`. uvicorn then uses the first address of `X-Forwarded-For`, which the client sets, and a client can get past the limit. The MCP server does not start with `*` in the list.
 
 | Path under the public URL | Requests of one IP |
 | --- | --- |
