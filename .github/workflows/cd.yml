@@ -62,7 +62,9 @@ jobs:
 
           DEPLOY_FROM="$(git rev-parse HEAD)"
           PREVIOUS_SHA=""
-          if [ -f data/deployed-sha ]; then
+          if [ -f .deploy/deployed-sha ]; then
+            PREVIOUS_SHA="$(tr -d '[:space:]' < .deploy/deployed-sha)"
+          elif [ -f data/deployed-sha ]; then
             PREVIOUS_SHA="$(tr -d '[:space:]' < data/deployed-sha)"
           fi
 
@@ -75,11 +77,15 @@ jobs:
           make backup
 
           restore_deployed_sha() {
+            mkdir -p .deploy
             if [ -n "$PREVIOUS_SHA" ]; then
-              printf '%s\n' "$PREVIOUS_SHA" > data/deployed-sha
+              tmp="$(mktemp .deploy/deployed-sha.XXXXXX)"
+              printf '%s\n' "$PREVIOUS_SHA" > "$tmp"
+              mv -f "$tmp" .deploy/deployed-sha
             else
-              rm -f data/deployed-sha
+              rm -f .deploy/deployed-sha
             fi
+            rm -f data/deployed-sha
           }
 
           echo "Starting deployment..."

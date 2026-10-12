@@ -106,8 +106,10 @@ discard-local-changes:
 # 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
 # soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
 # and recreated on its own with --no-deps, after the other containers.
-# data/deployed-sha stores the last commit that finished this target.
-# data/rollback-api and data/rollback-site record that this deploy tagged that image as previous.
+# .deploy/ is not mounted into the API container, and chown of data/ does not change it.
+# .deploy/deployed-sha stores the last commit that finished this target.
+# .deploy/rollback-sha stores that commit when a later deploy finishes, so rollback can restore it.
+# .deploy/rollback-api and .deploy/rollback-site record that this deploy tagged that image as previous.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
@@ -115,10 +117,26 @@ deploy:
 			echo -e "$(YELLOW)[WARNING]$(NC) Not in project directory, changing to $(PROJECT_DIR)"; \
 			cd "$(PROJECT_DIR)"; \
 		fi; \
-		rm -f data/rollback-api data/rollback-site; \
+		write_file() { \
+			dest="$$1"; contents="$$2"; tmp="$${dest}.tmp.$$$$"; \
+			mkdir -p .deploy; \
+			printf '%s\n' "$$contents" > "$$tmp"; \
+			mv -f "$$tmp" "$$dest"; \
+		}; \
+		mkdir -p .deploy; \
+		if [ ! -f .deploy/deployed-sha ] && [ -f data/deployed-sha ]; then \
+			MOVED=$$(tr -d '[:space:]' < data/deployed-sha); \
+			if [[ "$$MOVED" =~ ^[0-9a-f]{40}$$ ]]; then write_file .deploy/deployed-sha "$$MOVED"; fi; \
+		fi; \
+		rm -f data/deployed-sha data/rollback-api data/rollback-site; \
+		rm -f .deploy/rollback-api .deploy/rollback-site .deploy/rollback-sha; \
 		RECORDED=""; \
-		if [ -f data/deployed-sha ]; then RECORDED=$$(tr -d '[:space:]' < data/deployed-sha); fi; \
+		if [ -f .deploy/deployed-sha ]; then RECORDED=$$(tr -d '[:space:]' < .deploy/deployed-sha); fi; \
 		if [[ ! "$$RECORDED" =~ ^[0-9a-f]{40}$$ ]]; then RECORDED=""; fi; \
+		if [ -n "$$RECORDED" ] && ! git cat-file -e "$$RECORDED^{commit}" 2>/dev/null; then \
+			echo -e "$(YELLOW)[WARNING]$(NC) The recorded deploy commit is not in this checkout."; \
+			RECORDED=""; \
+		fi; \
 		OLD_HEAD="$$RECORDED"; \
 		if [ -z "$$OLD_HEAD" ]; then OLD_HEAD="$(DEPLOY_FROM)"; fi; \
 		if [ -z "$$OLD_HEAD" ]; then OLD_HEAD=$$(git rev-parse HEAD 2>/dev/null || echo ""); fi; \
@@ -183,7 +201,7 @@ deploy:
 		if [ "$$BUILD_API" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Tagging API image as previous..."; \
 			if $(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:previous 2>/dev/null; then \
-				printf 'api\n' > data/rollback-api; \
+				write_file .deploy/rollback-api api; \
 			fi; \
 		fi; \
 		if [ "$$BUILD_WEB" -eq 1 ]; then \
@@ -235,10 +253,13 @@ deploy:
 			WANT=$$($(CONTAINER_CMD) image inspect --format '{{.Id}}' "$$2" 2>/dev/null || echo "none"); \
 			HAVE=$$($(CONTAINER_CMD) inspect --format '{{.Image}}' "$$1" 2>/dev/null || echo "missing"); \
 			if [ "$${WANT#sha256:}" != "$${HAVE#sha256:}" ]; then \
-				echo -e "$(RED)[ERROR]$(NC) $$1 does not run the new $$2 image (container: $$HAVE)."; \
+				echo -e "$(RED)[ERROR]$(NC) $$1 does not run $$2 (container: $$HAVE)."; \
 				return 1; \
 			fi; \
-			echo -e "$(GREEN)[INFO]$(NC) $$1 runs the new $$2 image."; \
+			echo -e "$(GREEN)[INFO]$(NC) $$1 runs $$2."; \
+		}; \
+		check_if_present() { \
+			if $(CONTAINER_CMD) inspect "$$1" >/dev/null 2>&1; then check_image "$$1" "$$2"; fi; \
 		}; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
 			wait_for_health soda-internal-api 60; \
@@ -264,7 +285,7 @@ deploy:
 		if [ "$$BUILD_SITE" -eq 1 ] && [ "$$SITE_ON" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Building and recreating the site..."; \
 			if $(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null; then \
-				printf 'site\n' > data/rollback-site; \
+				write_file .deploy/rollback-site site; \
 			fi; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build site; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
@@ -277,11 +298,27 @@ deploy:
 		$(COMPOSE_CMD) logs --tail=20; \
 		echo -e "$(GREEN)[INFO]$(NC) Cleaning up unused container images..."; \
 		$(CONTAINER_CMD) image prune -f 2>/dev/null || true; \
+		if [ -z "$$SERVICES_TO_BUILD" ]; then \
+			check_if_present soda-internal-api soda-internal-api:latest; \
+			check_if_present soda-bot soda-internal-api:latest; \
+			check_if_present soda-web soda-web:latest; \
+			check_if_present soda-dashboard soda-dashboard:latest; \
+			if [ "$$MCP_ON" -eq 1 ]; then check_if_present soda-mcp soda-internal-api:latest; fi; \
+		fi; \
+		if [ "$$BUILD_SITE" -eq 0 ] && [ "$$SITE_ON" -eq 1 ]; then \
+			check_image soda-site soda-site:latest; \
+		fi; \
 		if [[ ! "$$NEW_HEAD" =~ ^[0-9a-f]{40}$$ ]]; then \
 			echo -e "$(RED)[ERROR]$(NC) The deploy commit is not a sha."; \
 			exit 1; \
 		fi; \
-		printf '%s\n' "$$NEW_HEAD" > data/deployed-sha; \
+		if [ -f .deploy/deployed-sha ]; then \
+			PRIOR=$$(tr -d '[:space:]' < .deploy/deployed-sha); \
+			if [[ "$$PRIOR" =~ ^[0-9a-f]{40}$$ ]] && [ "$$PRIOR" != "$$NEW_HEAD" ]; then \
+				write_file .deploy/rollback-sha "$$PRIOR"; \
+			fi; \
+		fi; \
+		write_file .deploy/deployed-sha "$$NEW_HEAD"; \
 		echo -e "$(GREEN)[INFO]$(NC) Recorded deployed commit $$NEW_HEAD."; \
 		echo -e "$(GREEN)[INFO]$(NC) Deployment completed successfully!"
 
@@ -297,26 +334,41 @@ rollback:
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
 	@set -e; \
 	ROLLED=0; \
-	if [ -f data/rollback-api ] && $(CONTAINER_CMD) image inspect soda-internal-api:previous >/dev/null 2>&1; then \
+	restore_baseline() { \
+		if [ -f .deploy/rollback-sha ]; then \
+			BASE=$$(tr -d '[:space:]' < .deploy/rollback-sha); \
+			if [[ "$$BASE" =~ ^[0-9a-f]{40}$$ ]]; then \
+				mkdir -p .deploy; \
+				tmp=".deploy/deployed-sha.tmp.$$$$"; \
+				printf '%s\n' "$$BASE" > "$$tmp"; \
+				mv -f "$$tmp" .deploy/deployed-sha; \
+				echo -e "$(GREEN)[INFO]$(NC) Restored deploy baseline $$BASE."; \
+			fi; \
+			rm -f .deploy/rollback-sha; \
+		fi; \
+	}; \
+	trap 'status=$$?; if [ "$$status" -ne 0 ] && [ "$$ROLLED" -eq 1 ]; then restore_baseline || true; fi; exit $$status' EXIT; \
+	if [ -f .deploy/rollback-api ] && $(CONTAINER_CMD) image inspect soda-internal-api:previous >/dev/null 2>&1; then \
 		echo -e "$(GREEN)[INFO]$(NC) Found previous API image, rolling back..."; \
 		$(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:rollback-$$(date +%Y%m%d-%H%M%S); \
 		$(CONTAINER_CMD) tag soda-internal-api:previous soda-internal-api:latest; \
-		$(COMPOSE_CMD) up -d; \
 		ROLLED=1; \
+		$(COMPOSE_CMD) up -d; \
 	fi; \
-	if [ -f data/rollback-site ] && $(CONTAINER_CMD) image inspect soda-site:previous >/dev/null 2>&1; then \
+	if [ -f .deploy/rollback-site ] && $(CONTAINER_CMD) image inspect soda-site:previous >/dev/null 2>&1; then \
 		echo -e "$(GREEN)[INFO]$(NC) Found previous site image, rolling back..."; \
 		$(CONTAINER_CMD) tag soda-site:latest soda-site:rollback-$$(date +%Y%m%d-%H%M%S); \
 		$(CONTAINER_CMD) tag soda-site:previous soda-site:latest; \
+		ROLLED=1; \
 		SITE_PROFILE_ARGS=""; \
 		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then SITE_PROFILE_ARGS="--profile site"; fi; \
 		$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
-		ROLLED=1; \
 	fi; \
 	if [ "$$ROLLED" -eq 0 ]; then \
 		echo -e "$(RED)[ERROR]$(NC) No previous version found for rollback"; \
 		exit 1; \
 	fi; \
+	restore_baseline; \
 	echo -e "$(GREEN)[INFO]$(NC) Rollback completed!"; \
 	$(COMPOSE_CMD) ps
 

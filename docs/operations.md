@@ -107,7 +107,7 @@ make deploy DEPLOY_FROM="$DEPLOY_FROM" DEPLOY_SHA="$DEPLOY_SHA"
 make health
 ```
 
-`cd.yml` deploys the commit that passed Check. The server stays on that commit when `main` has moved ahead. `cd.yml` updates the checkout before `make backup`, so the server uses the `Makefile` of that commit. The server stores the commit in `data/deployed-sha` after `make deploy` finishes. When `make deploy` or `make health` fails, `cd.yml` writes the previous commit back and runs `make rollback`.
+`cd.yml` deploys the commit that passed Check. The server stays on that commit when `main` has moved ahead. `cd.yml` updates the checkout before `make backup`, so the server uses the `Makefile` of that commit. The server stores the commit in `.deploy/deployed-sha` after `make deploy` finishes. That directory is not mounted into the API container. When `make deploy` or `make health` fails, `cd.yml` writes the previous commit back and runs `make rollback`.
 
 This diagram shows the deploy.
 
@@ -126,14 +126,14 @@ flowchart TD
 
 `make deploy` does these steps:
 
-1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `data/deployed-sha`. If the file is absent or the text is not a 40-character sha, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
+1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `.deploy/deployed-sha`. If the file is absent, the text is not a 40-character sha, or that commit is not in this checkout, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
 2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all four. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.
 6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d --remove-orphans`, and `mcp` too when its container exists. Then wait up to 60 seconds for each to be healthy and check that each runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container: podman-compose 1.0.6 recreates a service's dependencies with it, and it cannot replace `api` while other containers require it. `--remove-orphans` removes containers of services that are no longer in `docker-compose.yml`, so an old container does not keep a port.
 7. If it built `site` and the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. It does not require `api`, so the other containers keep running.
-8. Write the new commit to `data/deployed-sha`.
+8. If an image was not built and its container exists, that container must run the `:latest` tag. Copy the current SHA to `.deploy/rollback-sha` when it differs from the new commit. Write the new commit to `.deploy/deployed-sha`. Each write replaces the file in one step.
 
 Caution: set `VITE_API_URL` in `.env` before you build the dashboard. If it is empty, `Dockerfile.dashboard` stops the build and the deploy fails.
 
@@ -148,7 +148,7 @@ Do the first deploy after a large upgrade by hand. For an upgrade from `asusoda/
 5. If the database has no `alembic_version` table (`create_all` made it), run `uv run alembic stamp a1b2c3d4e5f6`. If you do not, `alembic upgrade head` stops with "table already exists".
 6. Keep the current commit for a rollback: `OLD=$(git rev-parse HEAD)`.
 7. Run `git fetch origin main`, then `git reset --hard origin/main`.
-8. If `data/deployed-sha` is present, delete it. `make deploy` uses that file and ignores `DEPLOY_FROM`.
+8. If `.deploy/deployed-sha` is present, delete it. If `data/deployed-sha` is present, delete it too. `make deploy` uses `.deploy/deployed-sha` and ignores `DEPLOY_FROM`.
 9. Run `make deploy DEPLOY_FROM="$OLD"`. If `DEPLOY_FROM` is not set and the file is absent, `make deploy` finds no changed files and builds nothing.
 10. Run `flask --app main config check` in the API container. It must show `migrations at head` and no `FAIL`.
 
@@ -156,7 +156,7 @@ LeetCode: the API now posts the daily question as a job and keeps the "posted to
 
 ## Roll back
 
-`make rollback` restores an image only when this deploy tagged it. If `data/rollback-api` is present, it tags `soda-internal-api:previous` as `latest` and starts the containers again. If `data/rollback-site` is present, it tags `soda-site:previous` as `latest` and recreates `soda-site`. `make deploy` writes each file when that tag succeeds. It removes both files at the start of the next deploy.
+`make rollback` restores an image only when this deploy tagged it. If `.deploy/rollback-api` is present, it tags `soda-internal-api:previous` as `latest` and starts the containers again. If `.deploy/rollback-site` is present, it tags `soda-site:previous` as `latest` and recreates `soda-site`. If `.deploy/rollback-sha` is present, `make rollback` writes that SHA back to `.deploy/deployed-sha`. The next deploy then builds the changes from that commit. `make deploy` removes the rollback files at the start of the next deploy.
 
 Caution: the rollback does not change the dashboard image or the database. If the failed deploy ran a migration, run `uv run alembic downgrade -1`, or copy back the file that `make backup` wrote to `data/backups/`.
 
