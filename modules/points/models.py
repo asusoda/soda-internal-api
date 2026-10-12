@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base
 
@@ -13,14 +13,14 @@ class Points(Base):
 
     __tablename__ = "points"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    points = Column(Float, default=0.0)
-    event = Column(String, nullable=True)
-    awarded_by_officer = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
-    last_updated = Column(DateTime, default=lambda: datetime.now(UTC))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=False)
+    points: Mapped[float | None] = mapped_column(Float, default=0.0)
+    event: Mapped[str | None] = mapped_column(String, nullable=True)
+    awarded_by_officer: Mapped[str | None] = mapped_column(String, nullable=True)
+    timestamp: Mapped[datetime | None] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    last_updated: Mapped[datetime | None] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     user = relationship("User", back_populates="points")
     organization = relationship("Organization", backref="points")
 

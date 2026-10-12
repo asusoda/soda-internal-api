@@ -74,7 +74,7 @@ def check_passages(db, source: KnowledgeSource, count: int) -> None:
     if source.organization_id is None:
         return  # a shared submodule's source counts against no org
     old = db.query(KnowledgeVersion.chunk_count).filter_by(id=source.current_version_id).scalar()
-    limits.check(db, cast(int, source.organization_id), PASSAGES_LIMIT, add=count - int(old or 0))
+    limits.check(db, source.organization_id, PASSAGES_LIMIT, add=count - int(old or 0))
 
 
 def new_source(db, org_id: int, **fields) -> KnowledgeSource:
@@ -143,9 +143,11 @@ def _vector(value: Any, field: str) -> list[float]:
     return vector
 
 
-def _text(value: Any, field: str, limit: int, required: bool = True) -> str | None:
-    if value is None and not required:
-        return None
+def _optional_text(value: Any, field: str, limit: int) -> str | None:
+    return None if value is None else _text(value, field, limit)
+
+
+def _text(value: Any, field: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise KnowledgeError(f"{field} must be a non-empty string of at most {limit} characters")
     return value.strip()
@@ -239,8 +241,8 @@ def put_source(db, org_id: int, org_prefix: str, key: str, data: dict, embedder:
     if not isinstance(key, str) or not KEY_PATTERN.match(key):
         raise KnowledgeError("key must be 1 to 255 letters, digits or ._:/- and start with a letter or digit")
     category = _text(data.get("category"), "category", 100)
-    title = _text(data.get("title"), "title", 500, required=False)
-    url = _text(data.get("url"), "url", 2000, required=False)
+    title = _optional_text(data.get("title"), "title", 500)
+    url = _optional_text(data.get("url"), "url", 2000)
     public = data.get("public", False)
     if not isinstance(public, bool):
         raise KnowledgeError("public must be true or false")

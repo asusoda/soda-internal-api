@@ -26,6 +26,7 @@ from modules.knowledge.service import (
     KnowledgeError,
     _embed,
     _find,
+    _optional_text,
     _source_dict,
     _text,
     _write_version,
@@ -60,7 +61,7 @@ def schedule(db, org_id: int, org_prefix: str, key: str, data: dict) -> dict:
     if not url.startswith(("https://", "http://")):
         raise KnowledgeError("url must start with http:// or https://")
     category = _text(data.get("category"), "category", 100)
-    title = _text(data.get("title"), "title", 500, required=False)
+    title = _optional_text(data.get("title"), "title", 500)
     every = data.get("fetch_every_hours", 24)
     if not isinstance(every, int) or isinstance(every, bool) or not 1 <= every <= MAX_EVERY_HOURS:
         raise KnowledgeError(f"fetch_every_hours must be an integer from 1 to {MAX_EVERY_HOURS}")
@@ -128,7 +129,7 @@ def queue_job(db, org_id: int, name: str, /, **kwargs) -> None:
 def _record(db, source: KnowledgeSource, started: runs.Timer, **outcome: Any) -> None:
     """Add a crawl run to the org's run log. A shared submodule's source has no org: its result stays on the source."""
     if source.organization_id is not None:
-        runs.record(db, cast(int, source.organization_id), str(source.key), "crawl", started, **outcome)
+        runs.record(db, source.organization_id, str(source.key), "crawl", started, **outcome)
 
 
 def crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: bool = False, pacer: Any = None) -> dict:
@@ -156,7 +157,7 @@ def _crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: boo
     url = str(source.url)
     if pacer is not None:
         pacer.wait(url)
-    org_id = cast(int | None, source.organization_id)
+    org_id = source.organization_id
     firecrawl = fetch.firecrawl_for(db, org_id) if org_id is not None else fetch.deployment_firecrawl()
     with fetch.firecrawl_scope(firecrawl):
         page = fetch.fetch(url)
@@ -165,7 +166,7 @@ def _crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: boo
     if previous is not None and previous.content_hash == content_hash and not force:
         return {"key": source.key, "changed": False, "chunks": int(previous.chunk_count or 0)}
 
-    custom = extract.extractor(cast(str | None, source.extractor))
+    custom = extract.extractor(source.extractor)
     if custom is not None:
         text = custom(page)
         title = page.title or (extract.title_of(page.body) if page.text is None else None)
@@ -188,14 +189,14 @@ def index_text(
     force: bool = False,
 ) -> dict:
     """Chunk, embed and store text as the source's new version. Commits."""
-    label: str = title or cast(str | None, source.title) or str(source.key)
-    tuning = settings.for_org(db, cast(int | None, source.organization_id))
+    label: str = title or source.title or str(source.key)
+    tuning = settings.for_org(db, source.organization_id)
     pieces = extract.chunk_text(text, max_chars=tuning["chunk_chars"], overlap_chars=tuning["chunk_overlap"])
     if not pieces:
         raise KnowledgeError("No text was extracted; the index is kept")
     if len(pieces) > MAX_CHUNKS:
         raise KnowledgeError(f"The text makes {len(pieces)} passages, more than {MAX_CHUNKS}; the index is kept")
-    floor = cast(int | None, previous.text_chars) if previous is not None else None
+    floor = previous.text_chars if previous is not None else None
     if not force and floor is not None and floor >= QUALITY_FLOOR_MIN_CHARS:
         if len(text) < int(floor * QUALITY_FLOOR_RATIO):
             raise KnowledgeError(
@@ -273,7 +274,7 @@ def crawl_due(db, embedder_for: Callable[[int | None], Embedder | None], now: da
     for source in due(db, now, limit=_setting("KNOWLEDGE_CRAWL_BATCH", 20), skip=off):
         started = runs.Timer()
         try:
-            results.append(crawl(db, source, embedder_for(cast(int | None, source.organization_id)), pacer=pacer))
+            results.append(crawl(db, source, embedder_for(source.organization_id), pacer=pacer))
         except Exception:
             # One broken source must not stop the rest of the batch
             db.rollback()

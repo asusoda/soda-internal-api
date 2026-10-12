@@ -3,6 +3,7 @@
 import datetime
 import random
 import uuid
+from typing import Any
 
 import pytest
 from cryptography.fernet import Fernet
@@ -130,7 +131,7 @@ def test_memories(client, agent, member, monkeypatch):
 
 def test_profile_graph(client, agent, member):
     me = {"kind": "person", "label": "me"}
-    facts = [
+    facts: list[dict[str, Any]] = [
         {"subject": me, "relation": "majors_in", "object": {"kind": "major", "label": "CS"}, "confidence": 0.6},
         {"subject": me, "relation": "takes", "object": {"kind": "course", "label": "CSE 310"}},
     ]

@@ -95,7 +95,7 @@ def listing(db, org: Organization, status: str = "open", limit: int = 50) -> dic
     return {
         "errors": error_log.list_groups(db, org=prefix, status=status, limit=limit),
         **error_log.counts(db, org=prefix),
-        "webhook_set": _sends_errors(db, cast(int, org.id)),
+        "webhook_set": _sends_errors(db, org.id),
     }
 
 
@@ -137,7 +137,7 @@ def report(org: Organization, body: object) -> dict:
     page = cast(str | None, fields["page"])
     error_log.capture(
         source="browser",
-        kind=cast(str, fields["kind"])[:200] or "Error",
+        kind=fields["kind"][:200] or "Error",
         message=cast(str, fields["message"])[:MAX_REPORT_FIELD],
         stack=cast(str | None, fields["stack"]),
         location=page[:255] if page else None,

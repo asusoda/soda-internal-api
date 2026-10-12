@@ -37,7 +37,7 @@ class JeopardyGame:
         self.name = game_data["game"]["name"]
         self.description = game_data["game"]["description"]
         self.teams = self._create_teams(game_data["game"]["teams"])
-        self.players = []
+        self.players: list[discord.Member | discord.User] = []
         self.categories = game_data["game"]["categories"]
         self.category_name = ()
         self.per_category = game_data["game"]["per_category"]
@@ -55,7 +55,7 @@ class JeopardyGame:
             dict: A dictionary representation of the game.
         """
         quest = {}
-        for question in self.questions:
+        for question in self._all_questions():
             if question.category not in quest:
                 quest[question.category] = []
             quest[question.category].append(question.to_json())
@@ -74,7 +74,11 @@ class JeopardyGame:
             "questions": quest,
         }
 
-    def _create_questions(self, questions_data):
+    def _all_questions(self) -> list[JeopardyQuestion]:
+        """Every question of the game, category by category."""
+        return [question for questions in self.questions.values() for question in questions]
+
+    def _create_questions(self, questions_data) -> dict[str, list[JeopardyQuestion]]:
         """
         Creates and organizes JeopardyQuestion objects from provided data.
 
@@ -85,7 +89,7 @@ class JeopardyGame:
             dict: Organized questions by category.
         """
         logger.debug(f"Questions data structure: {questions_data}")
-        questions_dict = {}
+        questions_dict: dict[str, list[JeopardyQuestion]] = {}
         for category in questions_data.keys():
             questions_dict[category] = []
             for question in questions_data[category]:
@@ -100,7 +104,7 @@ class JeopardyGame:
                 self.category_name = category
         return questions_dict
 
-    def _create_teams(self, data):
+    def _create_teams(self, data) -> list[Team]:
         """
         Creates Team objects from provided data.
 
@@ -160,7 +164,7 @@ class JeopardyGame:
         """
         team = next((team for team in self.teams if team.name == team_name), None)
         if team:
-            team.add_member(member)
+            team.add_team_member(member)
             return True
         return False
 
@@ -193,11 +197,19 @@ class JeopardyGame:
         """
         self.is_started = True
 
-    def add_member(self, member: discord.Member):
+    def add_member(self, member: discord.Member | discord.User):
         """
         Adds a player
         """
         self.players.append(member)
+
+    def remove_member(self, member: discord.Member | discord.User) -> bool:
+        """Removes a player. False when the member is not a player."""
+        for player in self.players:
+            if player.id == member.id:
+                self.players.remove(player)
+                return True
+        return False
 
     def get_question_by_uuid(self, uuid: str) -> JeopardyQuestion | None:
         """
@@ -209,7 +221,7 @@ class JeopardyGame:
         Returns:
             JeopardyQuestion or None: The question object if found, otherwise None.
         """
-        for question in self.questions:
+        for question in self._all_questions():
             if question.id == uuid:
                 return question
         return None
@@ -232,17 +244,19 @@ class JeopardyGame:
 
     def get_winners(self) -> list[str]:
         """
-        Retrieves the winning team(s).
+        Retrieves the members of the winning team(s).
 
         Returns:
-            list: A list of winning Team objects.
+            list: The display names of the members of the teams with the highest score.
         """
-        winners = []
-        max_points = max([team.points for team in self.teams])
+        winners: list[str] = []
+        if not self.teams:
+            return winners
+        max_points = max(team.score for team in self.teams)
         for team in self.teams:
-            if team.points == max_points:
+            if team.score == max_points:
                 for member in team.members:
-                    winners.append(member)
+                    winners.append(member.display_name)
         return winners
 
     def attach_roles(self, roles: list[discord.Role]) -> None:
@@ -254,7 +268,7 @@ class JeopardyGame:
                 if team.name == role.name:
                     team.attach_role(role)
 
-    def get_members(self):
+    def get_members(self) -> list[discord.Member | discord.User]:
         """
         Retrieves the members of the game
         """
@@ -264,8 +278,8 @@ class JeopardyGame:
         """
         Retrieves the board
         """
-        data = {}
-        for question in self.questions:
+        data: dict[str, list[int | str]] = {}
+        for question in self._all_questions():
             if question.category not in data.keys():
                 data[question.category] = []
             if not question.answered:
@@ -279,8 +293,8 @@ class JeopardyGame:
         """
         Retrieves the questions in sorted categories and by points
         """
-        data = {}
-        for question in self.questions:
+        data: dict[str, list[int | str]] = {}
+        for question in self._all_questions():
             if question.category not in data.keys():
                 data[question.category] = []
             if not question.answered:

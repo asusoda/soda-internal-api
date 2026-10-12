@@ -18,7 +18,7 @@ from core.time import iso
 from modules.knowledge import settings
 from modules.knowledge.embedder import Embedder, EmbeddingError
 from modules.knowledge.models import Embedding, KnowledgeChunk, KnowledgeSource, KnowledgeVersion, vector_sql
-from modules.knowledge.service import KnowledgeError, _text, _vector
+from modules.knowledge.service import KnowledgeError, _optional_text, _text, _vector
 from modules.submodules.models import SubmoduleSubscription
 
 logger = get_logger("knowledge")
@@ -163,7 +163,7 @@ def search(
     """
     tuning = settings.for_org(db, org_id)
     query_text = _text(query, "query", 1000) or ""
-    category = _text(category, "category", 100, required=False)
+    category = _optional_text(category, "category", 100)
     top_k = _int(top_k, "top_k", tuning["top_k"], 1, MAX_TOP_K)
     window = _int(window, "window", tuning["window"], 0, MAX_WINDOW)
 

@@ -47,13 +47,17 @@ class QuestionPost(discord.ui.View):
 
     @discord.ui.button(label="Buzz In", style=discord.ButtonStyle.blurple)
     async def button_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
-        member_role = self.cog.get_member_role(interaction.user)
+        user = interaction.user
+        # Only a server member can join the stage
+        if not isinstance(user, discord.Member):
+            await interaction.response.send_message("Only server members can buzz in!", ephemeral=True)
+            return
+        member_role = self.cog.get_member_role(user)
         if member_role in self.avoid:
             await interaction.response.send_message("You are not allowed to buzz in!", ephemeral=True)
         else:
             self.cog.question_post[self.question_uuid]["rolesAnswered"].append(member_role)
             button.disabled = True
-            user = interaction.user
             button.label = f"{user.name} buzzed in!"
             await interaction.response.edit_message(view=self)
             await user.move_to(self.voice)

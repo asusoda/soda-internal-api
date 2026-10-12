@@ -7,8 +7,10 @@ than AUDIT_RETENTION_DAYS (default 365) are deleted daily by the audit.prune job
 
 import os
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy import JSON, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base, session
 from core.jobs import job
@@ -20,15 +22,18 @@ logger = get_logger("audit")
 class AuditEntry(Base):
     __tablename__ = "audit_log"
 
-    id = Column(Integer, primary_key=True)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True)
-    source = Column(String(20), nullable=False)  # api, job, bot
-    action = Column(String(255), nullable=False)  # "PUT /api/organizations/<int:org_id>/modules", "job points.x"
-    org = Column(String(100), nullable=True, index=True)  # org prefix
-    actor_kind = Column(String(20), nullable=True)  # access, session, app, clerk, job
-    actor_id = Column(String(255), nullable=True)  # Discord id, member email, or job name
-    status = Column(Integer, nullable=True)
-    details = Column(JSON, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True
+    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False)  # api, job, bot
+    # "PUT /api/organizations/<int:org_id>/modules", "job points.x"
+    action: Mapped[str] = mapped_column(String(255), nullable=False)
+    org: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # org prefix
+    actor_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)  # access, session, app, clerk, job
+    actor_id: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Discord id, member email, or job name
+    status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[Any | None] = mapped_column(JSON, nullable=True)
 
     def to_dict(self) -> dict:
         return {

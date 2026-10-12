@@ -189,7 +189,7 @@ def _solved_on(submissions: list[dict], slugs: set[str], day: datetime.date, zon
         if sub.get("titleSlug") not in slugs:
             continue
         try:
-            ts = int(sub.get("timestamp"))  # type: ignore[arg-type]
+            ts = int(sub.get("timestamp", ""))
         except (TypeError, ValueError):
             continue
         if datetime.datetime.fromtimestamp(ts, tz=zone).date() == day:

@@ -202,6 +202,14 @@ def test_openrouter_key_and_test(client, officer_headers, cleared, monkeypatch):
     assert result == {"ok": False, "message": "OpenRouter refused the key"}
 
 
+def _embedder_key(db, org_id: int) -> str | None:
+    from modules.knowledge import embedder
+
+    found = embedder.for_org(db, org_id)
+    assert found is not None
+    return found.api_key
+
+
 def test_embeddings_use_the_openrouter_key(client, officer_headers, cleared, public_dns, monkeypatch):
     from core.db import db_connect
     from modules.knowledge import embedder
@@ -216,8 +224,8 @@ def test_embeddings_use_the_openrouter_key(client, officer_headers, cleared, pub
     assert client.put(f"{BASE}/embeddings", json={"fields": fields}, headers=officer_headers).status_code == 200
     db = db_connect.SessionLocal()
     try:
-        assert embedder.for_org(db, _org_id("soda")).api_key == "deployment-or"
-        assert embedder.for_org(db, _org_id()).api_key is None
+        assert _embedder_key(db, _org_id("soda")) == "deployment-or"
+        assert _embedder_key(db, _org_id()) is None
     finally:
         db.close()
 
@@ -243,7 +251,7 @@ def test_embeddings_use_the_openrouter_key(client, officer_headers, cleared, pub
     client.put(f"{BASE}/embeddings", json={"fields": own}, headers=officer_headers)
     db = db_connect.SessionLocal()
     try:
-        assert embedder.for_org(db, _org_id()).api_key == "embed-key"
+        assert _embedder_key(db, _org_id()) == "embed-key"
     finally:
         db.close()
 
@@ -251,6 +259,6 @@ def test_embeddings_use_the_openrouter_key(client, officer_headers, cleared, pub
     client.put(f"{BASE}/embeddings", json={"fields": other}, headers=officer_headers)
     db = db_connect.SessionLocal()
     try:
-        assert embedder.for_org(db, _org_id()).api_key is None
+        assert _embedder_key(db, _org_id()) is None
     finally:
         db.close()

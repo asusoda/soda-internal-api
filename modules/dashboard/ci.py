@@ -89,7 +89,7 @@ def fetch_runs(repo: str, token: str | None) -> dict:
 
 def runs(db, org: Organization) -> dict:
     """Latest runs for every listed repository."""
-    org_id = cast(int, org.id)
+    org_id = org.id
     token = secrets.get_secret(db, org_id, GITHUB_SECRET)
     now = time.monotonic()
     result = []

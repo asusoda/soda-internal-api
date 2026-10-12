@@ -114,6 +114,7 @@ def test_new_org_starts_with_new_org_modules():
     assert set(switches) == set(OPTIONAL_MODULES)
     assert all(on == (name in NEW_ORG_MODULES) for name, on in switches.items())
     org = new_organization({"id": "4242", "name": "New Club", "icon_url": None})
+    assert org.config is not None
     assert org.config["modules"] == switches
 
 
@@ -156,7 +157,9 @@ def test_games_follow_the_switch_of_the_officers_org(client, officer_headers, so
 
     db = db_connect.SessionLocal()
     try:
-        guild = db.get(Organization, soda_id).guild_id
+        org = db.get(Organization, soda_id)
+        assert org is not None
+        guild = org.guild_id
         assert service.enabled_for_guilds(db, [guild]) is True
         client.put(f"/api/organizations/{soda_id}/modules", json={"modules": {"games": False}}, headers=officer_headers)
         db.expire_all()

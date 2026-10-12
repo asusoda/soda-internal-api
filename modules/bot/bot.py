@@ -17,7 +17,7 @@ class BotFork(commands.Bot):
         super().__init__(*args, **kwargs, guild_ids=[])
 
     async def on_ready(self):
-        logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
+        logger.info(f"Logged in as {self.user} (ID: {self.user.id if self.user else None})")
 
     def execute(self, cog_name, command, *args, priority="NORMAL", **kwargs):
         """Run a command of a cog. A coroutine runs now with priority NOW, else it goes on the bot loop."""

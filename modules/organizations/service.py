@@ -100,7 +100,7 @@ def limits(db, org: Organization) -> list[dict]:
     from modules.manifest import load_tools
 
     load_tools()  # imports every module's service, so each limit is declared
-    return [row | {"enabled": module_enabled(org, row["module"])} for row in core_limits.report(db, cast(int, org.id))]
+    return [row | {"enabled": module_enabled(org, row["module"])} for row in core_limits.report(db, org.id)]
 
 
 def new_org_switches() -> dict[str, bool]:
