@@ -49,6 +49,7 @@ user_data/
 .DS_Store
 .codegpt
 **/.claude/settings.local.json
+.agents/settings.local.json
 
 # Amp orb portals
 .amp/portals/*
