@@ -101,7 +101,7 @@ Caution: a database needs two more steps, or it does not start or its data can b
 
 The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvector) from `mirror.gcr.io`, Google's copy of Docker Hub. It has no pull limit for anonymous users, so CI does not stop with `429 Too Many Requests`. Platform's own images go to GHCR.
 
-`Dockerfile.api` uses `uv sync --frozen --no-dev`. If `uv.lock` does not agree with `pyproject.toml`, the build fails. Commit the two files together. The images hold no server settings. The `dashboard` container reads `VITE_API_URL` and `VITE_SITE_URL` from its env when it starts, so a change to them needs only a new container. See [Frontends](frontends.md).
+`Dockerfile.api` uses `uv sync --locked --no-dev`. If `uv.lock` does not agree with `pyproject.toml`, the build fails. Commit the two files together. The images hold no server settings. The `dashboard` container reads `VITE_API_URL` and `VITE_SITE_URL` from its env when it starts, so a change to them needs only a new container. See [Frontends](frontends.md).
 
 ## Deploy
 

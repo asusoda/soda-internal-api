@@ -109,7 +109,7 @@ To deploy the dashboard:
 2. Set `VITE_API_URL` to the API URL.
 3. Set `DASHBOARD_URL` on the API to the dashboard URL. The API adds it to CORS and uses it for the sign-in return.
 
-The `dashboard` image reads `VITE_API_URL` and `VITE_SITE_URL` from the container env, not at build time, so one image runs on each server. When the container starts, `deploy/frontend-config.mjs` writes them to `dist/config.js`. `index.html` loads that file before the bundle, and `src/lib/runtime-config.ts` reads it. If a setting is not in that file, the app uses the value from the build. `public/config.js` is empty, so `npm run dev` and a static site use the build values. If `VITE_API_URL` is empty, the container stops. After you change a setting in `.env`, recreate the container.
+The `dashboard` image reads `VITE_API_URL` and `VITE_SITE_URL` from the container env, not at build time, so one image runs on each server. When the container starts, `deploy/frontend-config.mjs` writes them to `dist/config.js`. `index.html` loads that file before the bundle, and `src/lib/runtime-config.ts` reads it. `serve` sends it with `Cache-Control: no-store` (`deploy/dashboard-serve.json`), so a browser does not keep old values. If a setting is not in that file, the app uses the value from the build. `public/config.js` is empty, so `npm run dev` and a static site use the build values. If `VITE_API_URL` is empty, the container stops. After you change a setting in `.env`, recreate the container.
 
 ### Code layout
 

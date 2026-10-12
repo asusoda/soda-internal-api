@@ -15,12 +15,17 @@ class FakeBot:
 
     def __init__(self):
         self.stopped = asyncio.Event()
+        self.closes = 0
 
     async def start(self, token):
-        asyncio.get_running_loop().call_soon(os.kill, os.getpid(), signal.SIGTERM)
+        loop = asyncio.get_running_loop()
+        loop.call_soon(os.kill, os.getpid(), signal.SIGTERM)
+        loop.call_soon(os.kill, os.getpid(), signal.SIGTERM)
         await self.stopped.wait()
 
     async def close(self):
+        self.closes += 1
+        await asyncio.sleep(0.05)
         self.stopped.set()
 
     def is_closed(self):
@@ -37,3 +42,4 @@ def test_sigterm_closes_the_bot(monkeypatch):
 
     assert bot_main.main() == 0
     assert bot.is_closed()
+    assert bot.closes == 1
