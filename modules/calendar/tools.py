@@ -6,7 +6,7 @@ from modules.calendar import service
 
 @tool(
     "events.list",
-    description="Upcoming events from the organization's calendar: title, start, end, location, description.",
+    description="The org's published calendar events, past and upcoming: title, start, end, location, description.",
     scope="calendar:read",
     module="calendar",
 )

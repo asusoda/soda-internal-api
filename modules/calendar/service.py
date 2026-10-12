@@ -23,7 +23,7 @@ from .tracing import operation_span
 
 logger = get_logger(__name__)
 
-scopes.declare("calendar:read", "Read the org's upcoming events and calendar settings", uses=("notion",))
+scopes.declare("calendar:read", "Read the org's events and calendar settings", uses=("notion",))
 scopes.declare(
     "calendar:manage",
     "Change the calendar settings, make the org's Google Calendar, and sync Notion to it now",
@@ -418,7 +418,7 @@ def find_organization(db, org_prefix: str) -> Organization:
 
 
 def list_events(db, org: Organization, transaction=None) -> dict[str, Any]:
-    """Upcoming events of the org's Notion calendar, as the website shows them."""
+    """The published events of the org's Notion calendar, past and upcoming, as the website shows them."""
     if not org.notion_database_id:
         raise CalendarError(f"Organization '{org.prefix}' has no Notion database configured", 400)
     return get_service().get_organization_events_for_frontend(org.id, transaction)

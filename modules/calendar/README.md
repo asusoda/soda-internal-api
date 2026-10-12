@@ -1,6 +1,6 @@
 # calendar
 
-Syncs an org's Notion events database to its Google Calendar, and serves the org's upcoming events. Each org can use its own Notion token and Google service account as org secrets.
+Syncs an org's Notion events database to its Google Calendar, and serves the org's published events, past and upcoming. Each org can use its own Notion token and Google service account as org secrets.
 
 ## Files
 
