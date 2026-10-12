@@ -8,7 +8,7 @@ This diagram shows the API routes that each frontend calls and the credential it
 flowchart LR
   officer["dashboard/ officer pages"] -->|"platform token"| dash["/api/dashboard/#lt;org#gt;/..."]
   officer -->|"platform token"| mods["/api/points, /api/storefront, /api/calendar and other module routes"]
-  store["dashboard/ member store, /store/#lt;org#gt;"] --> login["POST /api/points/#lt;org#gt;/member_login"]
+  store["dashboard/ member store, /store/#lt;org#gt;"] --> login["GET /api/auth/store_login (Discord sign-in)"]
   store -->|"session cookie"| orders["/api/storefront/#lt;org#gt;/members/..."]
   web["web/"] -->|"platform token"| mods
   officer --> auth["/api/auth/login, /api/auth/exchange"]
@@ -153,15 +153,15 @@ An old path that opens another page goes in `REDIRECTS` in the same file.
 
 The member store is two open pages of `dashboard/`, outside the officer pages:
 
-- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order.
-- `/store/<org>/login` signs a member in with `POST /api/points/<org>/member_login`.
+- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order or sign out.
+- `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?org=<org>&client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`. If `DASHBOARD_URL` is not set, it returns them to `CLIENT_URL`.
 
-These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need a Discord session on the API. The browser sends the cookie only when the dashboard and the API are on the same site.
+These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need the Discord session that the sign-in starts. The browser sends the cookie only when the dashboard and the API are on the same site.
 
 ## Old officer app
 
 `web/` is the old officer app (Vite and TypeScript). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
 
-The member store of `web/` (`/store/<org>`) signs members in with Discord at `GET /api/auth/store_login`. It sends its requests with the API session cookie.
+The member store of `web/` (`/store/<org>`) signs members in with Discord at `GET /api/auth/store_login?org=<org>`. It sends its requests with the API session cookie.
 
 The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. `web/` has no Jeopardy or bot pages. Those pages called paths that the API does not have, so they were removed, and the dashboard does not have them.
