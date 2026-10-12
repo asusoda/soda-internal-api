@@ -154,6 +154,52 @@ describe('Tooltip', () => {
     expect(clean).toHaveBeenCalledOnce();
     expect(ref.mock.calls.some((call) => call[0] === null)).toBe(false);
   });
+
+  it('attaches a new child ref and cleans up the previous one', () => {
+    const cleanA = vi.fn();
+    const refA = vi.fn((_node: Element | null) => cleanA);
+    const cleanB = vi.fn();
+    const refB = vi.fn((_node: Element | null) => cleanB);
+    const button = (ref: typeof refA) => (
+      <Tooltip label="Go">
+        <button type="button" ref={ref}>
+          Go
+        </button>
+      </Tooltip>
+    );
+    const view = render(button(refA));
+
+    expect(refA.mock.calls[0]?.[0]).toBeInstanceOf(HTMLButtonElement);
+
+    view.rerender(button(refB));
+
+    expect(refB.mock.calls[0]?.[0]).toBeInstanceOf(HTMLButtonElement);
+    expect(cleanA).toHaveBeenCalledOnce();
+    expect(refA.mock.calls.some((call) => call[0] === null)).toBe(false);
+
+    view.unmount();
+    expect(cleanB).toHaveBeenCalledOnce();
+    expect(cleanA).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the child ref in place when the tip opens', async () => {
+    const user = userEvent.setup();
+    const clean = vi.fn();
+    const ref = vi.fn((_node: Element | null) => clean);
+    render(
+      <Tooltip label="Go">
+        <button type="button" ref={ref}>
+          Go
+        </button>
+      </Tooltip>,
+    );
+
+    await user.hover(screen.getByRole('button', { name: 'Go' }));
+    await screen.findByRole('tooltip');
+
+    expect(clean).not.toHaveBeenCalled();
+    expect(ref).toHaveBeenCalledOnce();
+  });
 });
 
 function Mark(props: ComponentProps<'a'>) {

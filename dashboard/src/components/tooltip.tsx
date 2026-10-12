@@ -99,24 +99,23 @@ function renderTrigger(
   return cloneElement(children, merged);
 }
 
-// One ref callback for the life of the tooltip, so a re-render does not detach the child ref.
+// A new callback when the child or trigger ref changes, so React detaches the old one.
 function useTriggerRef(): BindRef {
   const latest = useRef({ child: undefined as unknown, trigger: undefined as unknown });
   const composed = useRef<((node: Element | null) => (() => void) | void) | null>(null);
-  if (!composed.current) {
-    composed.current = (node) => {
-      const cleanChild = attachRef(latest.current.child, node);
-      const cleanTrigger = attachRef(latest.current.trigger, node);
-      return () => {
-        cleanChild?.();
-        cleanTrigger?.();
-      };
-    };
-  }
   return (child, trigger) => {
-    latest.current.child = child;
-    latest.current.trigger = trigger;
-    return composed.current as (node: Element | null) => (() => void) | void;
+    if (!composed.current || latest.current.child !== child || latest.current.trigger !== trigger) {
+      latest.current = { child, trigger };
+      composed.current = (node) => {
+        const cleanChild = attachRef(child, node);
+        const cleanTrigger = attachRef(trigger, node);
+        return () => {
+          cleanChild?.();
+          cleanTrigger?.();
+        };
+      };
+    }
+    return composed.current;
   };
 }
 
