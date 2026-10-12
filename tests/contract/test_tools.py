@@ -73,6 +73,7 @@ def test_tool_calls_are_audited(client, token_for):
     db = db_connect.SessionLocal()
     try:
         entry = db.query(AuditEntry).order_by(AuditEntry.id.desc()).first()
+        assert entry is not None and entry.actor_id is not None
         assert entry.action == "tool org.info"
         assert entry.source == "api"
         assert entry.org == "soda"

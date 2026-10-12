@@ -32,12 +32,13 @@ def public_cards(fetched: Fetched) -> str:
         title = card.select_one("h3.card-title a")
         if title is None:
             continue
+        href = title.get("href")
         parts = [
             _clean(title),
             _clean(card.select_one(".views-field-field-event-date-value-1")),
             _clean(card.select_one(".views-field-field-event-date-end-value")),
             _clean(card.select_one(".views-field-field-asu-events-location")),
-            urljoin(_PUBLIC, title.get("href", "").split("&")[0]),
+            urljoin(_PUBLIC, href.split("&")[0] if isinstance(href, str) else ""),
         ]
         out.append(" | ".join(p for p in parts if p))
     return "\n".join(out) if out else extract_events(fetched)

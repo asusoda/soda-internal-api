@@ -187,7 +187,7 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
     )
     # After the /mcp route, so that a request to /mcp itself never reaches the mount
     app.router.routes.append(Mount(path, routes=[*oauth_routes, *oauth_pages.routes()]))
-    edged = edges.IssuerOnErrors(edges.ScopeChallenge(app, path), path)
+    edged = edges.RegistrationLog(edges.IssuerOnErrors(edges.ScopeChallenge(app, path), path), path)
     return oauth.RateLimit(edges.OriginCheck(edged, path), path)
 
 

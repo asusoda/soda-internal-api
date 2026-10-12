@@ -2,7 +2,7 @@
 services, and each org's limits. No Flask here."""
 
 import re
-from typing import Any, cast
+from typing import Any
 
 from core import host, hosting, jobs
 from core import limits as core_limits
@@ -107,7 +107,7 @@ def org_limits(db, org: Organization) -> dict:
         "org": {"id": org.id, "name": org.name, "prefix": org.prefix, "is_active": org.is_active},
         "limits": rows,
         "near": sorted(row["key"] for row in rows if _near(row)),
-        "overrides": core_limits.overrides_of(db, cast(int, org.id)),
+        "overrides": core_limits.overrides_of(db, org.id),
     }
 
 
@@ -123,7 +123,7 @@ def all_limits(db) -> dict:
 
 def set_org_limits(db, org: Organization, changes: object, actor: str | None) -> dict:
     """Set the org's overrides. Commits."""
-    core_limits.set_values(db, cast(int, org.id), changes, actor=actor)
+    core_limits.set_values(db, org.id, changes, actor=actor)
     return org_limits(db, org)
 
 

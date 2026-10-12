@@ -1,21 +1,16 @@
 name: Images
 
-# Builds the API, dashboard and site images on every PR so a broken Dockerfile is caught before merge.
-# On main, pushes them to GHCR tagged with the commit sha and "main".
-# A later push waits. Cancelling a publish would leave GHCR with a mix of old and new tags.
+# Builds the API, dashboard and site images. check.yml calls this workflow on each push and PR,
+# so a broken Dockerfile is caught before merge. On main, pushes them to GHCR tagged with the commit
+# sha and "main", and the deploy in check.yml waits for this workflow, then pulls those images.
+# The images have no deployment settings in them: the dashboard reads its URLs from the container
+# env when it starts.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: images-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -23,7 +18,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: write # Push the image to GHCR.
+      packages: write # Push the image and its build cache to GHCR.
     strategy:
       matrix:
         include:
@@ -42,8 +37,8 @@ jobs:
       with:
         driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
 
+    # A pull request logs in too, so that it can read the build cache of main.
     - name: Log in to GHCR
-      if: github.event_name != 'pull_request'
       uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
       with:
         registry: ghcr.io
@@ -54,22 +49,27 @@ jobs:
       id: image
       env:
         IMAGE_NAME: ${{ matrix.name }}
-      run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}-${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+        PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      run: |
+        ref="ghcr.io/${GITHUB_REPOSITORY,,}-${IMAGE_NAME}"
+        echo "ref=$ref" >> "$GITHUB_OUTPUT"
+        echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+        if [ "$PUBLISH" = "true" ]; then
+          echo "cache-to=type=registry,ref=$ref:buildcache,mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
+        fi
 
-    # Dockerfile.dashboard stops on an empty VITE_API_URL. With no repository variable, the image calls localhost.
+    # The build cache is in GHCR beside the image. A registry cache export skips the layers that
+    # GHCR has already, so it is faster than the GitHub Actions cache. Only main writes it.
     - name: Build and push
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: .
         file: ${{ matrix.dockerfile }}
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ steps.image.outputs.publish == 'true' }}
         build-args: |
           COMMIT_HASH=${{ github.sha }}
-          VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:8000' }}
-          VITE_SITE_URL=${{ vars.VITE_SITE_URL }}
         tags: |
           ${{ steps.image.outputs.ref }}:${{ github.sha }}
           ${{ steps.image.outputs.ref }}:main
-        cache-from: type=gha,scope=${{ matrix.name }}
-        # A fork pull request cannot write the cache. ignore-error keeps that build green.
-        cache-to: type=gha,mode=max,scope=${{ matrix.name }},ignore-error=true
+        cache-from: type=registry,ref=${{ steps.image.outputs.ref }}:buildcache
+        cache-to: ${{ steps.image.outputs.cache-to }}

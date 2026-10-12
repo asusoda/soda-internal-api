@@ -1,5 +1,4 @@
 import uuid
-from typing import cast
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
@@ -331,7 +330,7 @@ def get_organization_users(org_prefix):
                 **member_fields(user, membership),
                 "major": user.major,
                 "discord_linked": bool(user.discord_id),
-                "points": totals.get(cast(int, user.id)) or 0,
+                "points": totals.get(user.id) or 0,
                 "joined_at": membership.joined_at.isoformat() if membership.joined_at else None,
             }
             for membership, user in active_members(db, organization.id)

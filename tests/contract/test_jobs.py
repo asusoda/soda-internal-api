@@ -28,7 +28,9 @@ def test_inline_defer_runs_the_job():
     seen = []
     jobs.job("test.inline")(lambda value: seen.append(value))
     try:
-        jobs.defer("test.inline", value=3).join(timeout=5)  # type: ignore[union-attr]
+        thread = jobs.defer("test.inline", value=3)
+        assert thread is not None
+        thread.join(timeout=5)
     finally:
         jobs.JOBS.pop("test.inline")
     assert seen == [3]
@@ -40,7 +42,11 @@ def _csv_points():
 
     db = db_connect.SessionLocal()
     try:
-        return sum(p.points for p in db.query(Points).filter_by(event="CSV Night").all())
+        total = 0.0
+        for row in db.query(Points).filter_by(event="CSV Night").all():
+            assert row.points is not None
+            total += row.points
+        return total
     finally:
         db.close()
 

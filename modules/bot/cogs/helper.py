@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 
 from core.log import get_logger
+from modules.bot.bot import BotFork
 
 logger = get_logger("bot.helpercog")
 
@@ -19,7 +20,7 @@ class HelperCog(commands.Cog):
             message_listen_for (list): A list of messages to listen for reactions.
     """
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: BotFork):
         """
         Initializes the HelperCog instance.
 
@@ -219,7 +220,7 @@ class HelperCog(commands.Cog):
                 await message.edit(embed=embed, view=view)
             else:
                 raise Exception("Both embed and content cannot be None.")
-        logger.debug(f"Message {message.id} edited in channel '{message.channel.name}'")
+        logger.debug(f"Message {message.id} edited in channel {message.channel.id}")
         return message
 
     async def add_reaction(self, message: discord.Message, emoji: str):

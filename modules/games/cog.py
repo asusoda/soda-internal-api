@@ -5,6 +5,7 @@ from discord.ext import commands
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.db import db_connect
+from modules.bot.bot import BotFork
 from modules.games.jeopardy.game import JeopardyGame
 from modules.games.ui import QuestionPost
 
@@ -28,7 +29,7 @@ class GameCog(commands.Cog):
     participant management, and environment cleanup.
 
     Attributes:
-        bot (commands.Bot): The instance of the bot that this cog is part of.
+        bot (BotFork): The instance of the bot that this cog is part of.
         game (JeopardyGame): The current game instance.
         game_category (discord.CategoryChannel): The category under which game channels are created.
         roles (list): A list of roles created for the game.
@@ -38,34 +39,36 @@ class GameCog(commands.Cog):
         scoreboard (Any): The scoreboard object for the game.
     """
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: BotFork):
         """
         Initializes the GameCog instance.
 
         Args:
-            bot (commands.Bot): The instance of the bot that this cog is part of.
+            bot (BotFork): The instance of the bot that this cog is part of.
         """
         self.bot = bot
-        self.game = None
-        self.game_category = None
-        self.roles = []
-        self.announcement_channel = None
-        self.voice_channels = []
-        self.scoreboard_channel = None
-        self.scoreboard = None
-        self.gameboard = None
-        self.date = None
-        self.time = None
-        self.question_post = {}
-        self.stage = None
-        self.guild = None
+        self.game: JeopardyGame | None = None
+        self.game_category: discord.CategoryChannel | None = None
+        self.roles: list[discord.Role] = []
+        self.announcement_channel: discord.TextChannel | None = None
+        self.voice_channels: list[discord.VoiceChannel] = []
+        self.scoreboard_channel: discord.TextChannel | None = None
+        self.scoreboard: discord.Message | None = None
+        self.gameboard: discord.Message | None = None
+        self.date: str | None = None
+        self.time: str | None = None
+        self.question_post: dict[str, dict] = {}
+        self.stage: discord.StageChannel | None = None
+        self.guild: discord.Guild | None = None
 
-    def set_game(self, game: dict, date: str, time: str) -> bool:
+    def set_game(self, game: dict, date: str | None, time: str | None) -> bool:
         """
         Sets the game instance for the cog.
 
         Args:
             game (dict): The game data.
+            date (str | None): The date for the announcement. None shows TBD.
+            time (str | None): The time for the announcement. None shows TBD.
 
         Returns:
             bool: True if the game is set successfully.
@@ -93,20 +96,24 @@ class GameCog(commands.Cog):
         Returns:
             bool: True if the game environment is set up.
         """
-        return self.game.is_announced
+        return self.game is not None and self.game.is_announced
 
     async def clear_game(self):
         """
         Asynchronously clears the game environment from the Discord server.
         """
+        # Delete here and wait for each delete. BotFork.execute would only queue them as tasks on the bot loop.
         for role in self.roles:
-            await self.bot.execute("HelperCog", "delete_role", role)
+            await role.delete()
         for channel in self.voice_channels:
-            await self.bot.execute("HelperCog", "delete_voice_channel", channel)
-
-        await self.bot.execute("HelperCog", "delete_category", self.game_category)
-        await self.bot.execute("HelperCog", "delete_text_channel", self.announcement_channel)
-        await self.bot.execute("HelperCog", "delete_text_channel", self.scoreboard_channel)
+            await channel.delete()
+        for text_channel in (self.announcement_channel, self.scoreboard_channel):
+            if text_channel is not None:
+                await text_channel.delete()
+        if self.stage is not None:
+            await self.stage.delete()
+        if self.game_category is not None:
+            await self.game_category.delete()
 
         self.roles = []
         self.voice_channels = []
@@ -114,41 +121,50 @@ class GameCog(commands.Cog):
         self.announcement_channel = None
         self.scoreboard_channel = None
         self.scoreboard = None
+        self.gameboard = None
+        self.stage = None
         self.game = None
         self.question_post = {}
         return True
 
-    def add_member(self, member: discord.Member) -> bool:
+    def add_member(self, member: discord.Member | discord.User) -> bool:
         """
         Adds a member to the current game.
 
         Args:
-            member (discord.Member): The member to add to the game.
+            member (discord.Member | discord.User): The member to add to the game.
 
         Returns:
-            bool: True if the member is added successfully.
+            bool: True if the member is added successfully, False when no game is set.
         """
+        if self.game is None:
+            return False
         self.game.add_member(member)
         return True
 
-    def remove_member(self, member: discord.User) -> bool:
+    def remove_member(self, member: discord.Member | discord.User) -> bool:
         """
         Removes a member from the current game.
 
-
         Args:
-            member (discord.Member): The member to remove from the game.
+            member (discord.Member | discord.User): The member to remove from the game.
 
         Returns:
-            bool: True if the member is removed successfully.
+            bool: True if the member is removed, False when no game is set or the member is not a player.
         """
-        self.game.remove_member(member)
-        return True
+        if self.game is None:
+            return False
+        return self.game.remove_member(member)
 
     async def start_game(self):
         """
         Asynchronously starts the game.
+
+        Returns:
+            bool: True if the game started, False when no game is set or setup_game did not run.
         """
+        if self.game is None or self.guild is None:
+            return False
         self.game.start()
         self.scoreboard_channel = await self.guild.create_text_channel("scoreboard", category=self.game_category)
         self.game.attach_roles(self.roles)
@@ -162,6 +178,8 @@ class GameCog(commands.Cog):
         """
         Balances the teams in the game.
         """
+        if self.game is None:
+            return
         members = self.game.get_members()
         random.shuffle(members)  # Shuffle the members list to randomize team assignments
 
@@ -189,9 +207,15 @@ class GameCog(commands.Cog):
         """
         Assigns roles to each team.
         """
+        if self.game is None:
+            return
         for team in self.game.teams:
+            if team.role is None:
+                continue
             for member in team.members:
-                await member.add_roles(team.role)
+                # Only a server member can get a role
+                if isinstance(member, discord.Member):
+                    await member.add_roles(team.role)
 
     async def setup_game(self):
         """
@@ -210,7 +234,7 @@ class GameCog(commands.Cog):
             role = await self.guild.create_role(name=team.get_name())
             self.roles.append(role)
 
-            overwrites = {
+            overwrites: dict[discord.Role | discord.Member, discord.PermissionOverwrite] = {
                 self.guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, speak=False),
                 role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
             }
@@ -241,6 +265,8 @@ class GameCog(commands.Cog):
         Args:
             uuid (str): The UUID of the question to show.
         """
+        if self.game is None or self.announcement_channel is None:
+            return False
         if uuid in self.question_post.keys():
             question_data = self.game.get_question_by_uuid(uuid)
             if question_data is None or self.stage is None:
@@ -295,9 +321,10 @@ class GameCog(commands.Cog):
         Args:
             uuid (str): The UUID of the question to show the answer to.
         """
-
+        if self.game is None or self.announcement_channel is None:
+            return False
         boolean, question_data = self.game.answer_question(uuid)
-        if boolean:
+        if boolean and question_data is not None:
             embed = discord.Embed(
                 title="🌟ANSWER🌟",
                 description="Here is the answer! \n",
@@ -320,12 +347,18 @@ class GameCog(commands.Cog):
         Args:
             team_name (str): The name of the team to award points to.
             points (int): The number of points to award.
+
+        Returns:
+            bool: True if the team got the points, False when no game is set or no team has that name.
         """
-        self.game.award_points(team_name, points)
+        if self.game is None or not self.game.award_points(team_name, points):
+            return False
         await self.update_scoreboard()
         return True
 
     async def update_scoreboard(self):
+        if self.game is None or self.scoreboard_channel is None:
+            return
         if self.game.is_started:
             if self.scoreboard is None:
                 embed = discord.Embed(
@@ -334,7 +367,7 @@ class GameCog(commands.Cog):
                     color=discord.Color.blurple(),
                 )
                 for team in self.game.teams:
-                    embed.add_field(name=team.name, value=team.score, inline=True)
+                    embed.add_field(name=team.name, value=str(team.score), inline=True)
 
                 self.scoreboard = await self.scoreboard_channel.send(embed=embed)
             else:
@@ -344,12 +377,14 @@ class GameCog(commands.Cog):
                     color=discord.Color.blurple(),
                 )
                 for team in self.game.teams:
-                    embed.add_field(name=team.name, value=team.score, inline=True)
+                    embed.add_field(name=team.name, value=str(team.score), inline=True)
                 await self.scoreboard.edit(embed=embed)
         else:
             pass
 
     async def update_gameboard(self):
+        if self.game is None or self.announcement_channel is None:
+            return
         if self.game.is_started:
             if self.gameboard is None:
                 data = self.game.get_board()
@@ -379,7 +414,12 @@ class GameCog(commands.Cog):
     async def end_game(self):
         """
         Asynchronously ends the game.
+
+        Returns:
+            bool: True if the result is posted, False when no game is set or setup_game did not run.
         """
+        if self.game is None or self.announcement_channel is None:
+            return False
         embed = discord.Embed(
             title="🌟GAME OVER🌟",
             description="Thanks for playing! \n",

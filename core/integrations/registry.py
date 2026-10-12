@@ -83,8 +83,11 @@ def status(db, org_id: int) -> list[dict]:
     result = []
     for i in sorted(INTEGRATIONS.values(), key=lambda x: x.title.lower()):
         fields = []
+        set_names: set[str] = set()
         for f in i.fields:
             is_set = bool(saved.get(f.name, {}).get("set"))
+            if is_set:
+                set_names.add(f.name)
             fields.append(
                 {
                     "name": f.name,
@@ -98,7 +101,7 @@ def status(db, org_id: int) -> list[dict]:
                     "updated_at": saved.get(f.name, {}).get("updated_at"),
                 }
             )
-        org_set = _org_set(i, {f["name"] for f in fields if f["set"]})
+        org_set = _org_set(i, set_names)
         deployment = bool(i.deployment and i.deployment())
         result.append(
             {

@@ -2,7 +2,6 @@
 
 import datetime
 from collections.abc import Iterable
-from typing import cast
 
 from core.audit import AuditEntry
 from core.time import utcnow
@@ -47,8 +46,8 @@ def _series(
 
 def trends(db, org: Organization, days: int = DEFAULT_DAYS) -> dict:
     """One series per chart for the last days days, only for modules the org has on."""
-    org_id = cast(int, org.id)
-    prefix = cast(str, org.prefix)
+    org_id = org.id
+    prefix = org.prefix
     days = max(7, min(int(days), MAX_DAYS))
     today = utcnow().date()
     dates = [(today - datetime.timedelta(days=n)).isoformat() for n in range(days - 1, -1, -1)]

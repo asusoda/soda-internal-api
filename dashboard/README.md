@@ -31,6 +31,7 @@ src/
     activity-list.tsx, org-mark.tsx, logo.tsx, brand-icons.tsx
   lib/
     api.ts, auth.ts        API client and sign-in tokens
+    runtime-config.ts      the settings in /config.js, which the container writes when it starts
     queries.ts             queries that two or more pages use
     links.ts               repo, docs and landing page links, and the orgs that build Platform
     sidebar.ts             the collapsed state of the sidebar and its shortcut

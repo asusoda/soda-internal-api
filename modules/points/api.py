@@ -384,7 +384,7 @@ def upload_event_csv(org_prefix):
     event_name = request.form["event_name"]
     event_points = int(request.form["event_points"])
 
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.endswith(".csv"):
         return jsonify({"error": "File must be a CSV"}), 400
 
     file_content = file.stream.read().decode("utf-8")

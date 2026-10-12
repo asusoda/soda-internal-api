@@ -19,9 +19,10 @@ import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base, session
 from core.jobs import current_job, job
@@ -48,21 +49,23 @@ _guard = threading.local()
 class ErrorGroup(Base):
     __tablename__ = "error_groups"
 
-    id = Column(Integer, primary_key=True)
-    fingerprint = Column(String(64), nullable=False, unique=True)
-    source = Column(String(20), nullable=False)  # api, bot, worker, mcp, browser
-    org = Column(String(100), nullable=True, index=True)  # org prefix, or null for the whole server
-    kind = Column(String(200), nullable=False)  # exception type, or the logger name
-    message = Column(Text, nullable=False)
-    location = Column(String(255), nullable=True)  # file:function, or the dashboard page
-    route = Column(String(255), nullable=True)
-    stack = Column(Text, nullable=True)
-    count = Column(Integer, nullable=False, default=1)
-    first_seen = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    last_seen = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True)
-    resolved_at = Column(DateTime, nullable=True)
-    resolved_by = Column(String(255), nullable=True)
-    context = Column(JSON, nullable=True)  # where the last event ran: request, job, logger, line, host, release
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)  # api, bot, worker, mcp, browser
+    # org prefix, or null for the whole server
+    org: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(200), nullable=False)  # exception type, or the logger name
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)  # file:function, or the dashboard page
+    route: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stack: Mapped[str | None] = mapped_column(Text, nullable=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # where the last event ran: request, job, logger, line, host, release
+    context: Mapped[Any | None] = mapped_column(JSON, nullable=True)
 
     def to_dict(self, stack: bool = True) -> dict:
         return {

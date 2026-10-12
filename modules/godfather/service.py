@@ -376,9 +376,9 @@ def update_pod(db, org_id: int, pod_id: str, data: object) -> dict:
     if "is_public" in data:
         if not isinstance(data["is_public"], bool):
             raise GodfatherError("is_public must be true or false")
-        row.is_public = data["is_public"]  # type: ignore[assignment]
+        row.is_public = data["is_public"]
     if "allowed_users" in data:
-        row.allowed_users = _users(data["allowed_users"])  # type: ignore[assignment]
+        row.allowed_users = _users(data["allowed_users"])
     db.commit()
     return _pod_dict(row, None) | {"status": None}
 
