@@ -107,6 +107,7 @@ discard-local-changes:
 # soda-site (profile site) does not require api. When it exists and site/ or docs/ changes, it is rebuilt
 # and recreated on its own with --no-deps, after the other containers.
 # data/deployed-sha stores the last commit that finished this target.
+# data/rollback-site is present after this deploy tags soda-site:previous. make rollback reads that file.
 deploy:
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
@@ -114,6 +115,7 @@ deploy:
 			echo -e "$(YELLOW)[WARNING]$(NC) Not in project directory, changing to $(PROJECT_DIR)"; \
 			cd "$(PROJECT_DIR)"; \
 		fi; \
+		rm -f data/rollback-site; \
 		RECORDED=""; \
 		if [ -f data/deployed-sha ]; then RECORDED=$$(tr -d '[:space:]' < data/deployed-sha); fi; \
 		if [[ ! "$$RECORDED" =~ ^[0-9a-f]{40}$$ ]]; then RECORDED=""; fi; \
@@ -259,7 +261,9 @@ deploy:
 		fi; \
 		if [ "$$BUILD_SITE" -eq 1 ] && [ "$$SITE_ON" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Building and recreating the site..."; \
-			$(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null || true; \
+			if $(CONTAINER_CMD) tag soda-site:latest soda-site:previous 2>/dev/null; then \
+				printf 'site\n' > data/rollback-site; \
+			fi; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS build site; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
 			wait_for_health soda-site 90; \
@@ -289,17 +293,29 @@ dev:
 # Rollback to previous version
 rollback:
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
-	@if $(CONTAINER_CMD) images | grep -q "soda-internal-api:previous"; then \
+	@ROLLED=0; \
+	if $(CONTAINER_CMD) images | grep -q "soda-internal-api:previous"; then \
 		echo -e "$(GREEN)[INFO]$(NC) Found previous version, rolling back..."; \
 		$(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:rollback-$$(date +%Y%m%d-%H%M%S); \
 		$(CONTAINER_CMD) tag soda-internal-api:previous soda-internal-api:latest; \
 		$(COMPOSE_CMD) up -d; \
-		echo -e "$(GREEN)[INFO]$(NC) Rollback completed!"; \
-		$(COMPOSE_CMD) ps; \
-	else \
+		ROLLED=1; \
+	fi; \
+	if [ -f data/rollback-site ] && $(CONTAINER_CMD) image inspect soda-site:previous >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[INFO]$(NC) Found previous site image, rolling back..."; \
+		$(CONTAINER_CMD) tag soda-site:latest soda-site:rollback-$$(date +%Y%m%d-%H%M%S); \
+		$(CONTAINER_CMD) tag soda-site:previous soda-site:latest; \
+		SITE_PROFILE_ARGS=""; \
+		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then SITE_PROFILE_ARGS="--profile site"; fi; \
+		$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
+		ROLLED=1; \
+	fi; \
+	if [ "$$ROLLED" -eq 0 ]; then \
 		echo -e "$(RED)[ERROR]$(NC) No previous version found for rollback"; \
 		exit 1; \
-	fi
+	fi; \
+	echo -e "$(GREEN)[INFO]$(NC) Rollback completed!"; \
+	$(COMPOSE_CMD) ps
 
 # Show container status
 status:

@@ -156,7 +156,7 @@ LeetCode: the API now posts the daily question as a job and keeps the "posted to
 
 ## Roll back
 
-`make rollback` tags `soda-internal-api:previous` as `latest` and starts the containers again.
+`make rollback` tags `soda-internal-api:previous` as `latest` and starts the containers again. If `data/rollback-site` is present, `make rollback` tags `soda-site:previous` as `latest` and recreates `soda-site`. `make deploy` writes that file when it tags the site image. It removes the file at the start of the next deploy.
 
 Caution: the rollback does not change the dashboard image or the database. If the failed deploy ran a migration, run `uv run alembic downgrade -1`, or copy back the file that `make backup` wrote to `data/backups/`.
 
