@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from anyio import to_thread
 from mcp.server.auth.provider import construct_redirect_uri
+from mcp.server.transport_security import DEFAULT_MAX_REQUEST_BODY_SIZE
 
 from core import audit
 from core.db import db_connect
@@ -398,7 +399,8 @@ class ClientIdFromBasic:
             await self.app(scope, receive, send)
             return
         messages, read, more = [], 0, True
-        while more and read <= MAX_LOGGED_BODY:
+        # The same limit as the SDK's token and revocation routes, so every body that they take gets client_id
+        while more and read <= DEFAULT_MAX_REQUEST_BODY_SIZE:
             message = await receive()
             messages.append(message)
             if message["type"] != "http.request":

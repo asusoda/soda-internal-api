@@ -188,13 +188,14 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
     # After the /mcp route, so that a request to /mcp itself never reaches the mount
     app.router.routes.append(Mount(path, routes=[*oauth_routes, *oauth_pages.routes()]))
     edged = edges.IssuerOnErrors(edges.ScopeChallenge(app, path), path)
-    edged = edges.ClientIdFromBasic(edged, path)
     for route, label in (
         ("/register", "client registration"),
         ("/token", "token request"),
         ("/revoke", "token revocation"),
     ):
         edged = edges.RefusalLog(edged, path, route, label)
+    # Outside the refusal logs, so that they record the client_id of a Basic-only request
+    edged = edges.ClientIdFromBasic(edged, path)
     return oauth.RateLimit(edges.OriginCheck(edged, path), path)
 
 

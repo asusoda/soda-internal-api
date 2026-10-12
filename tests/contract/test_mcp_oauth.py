@@ -1555,8 +1555,25 @@ def test_bad_client_secrets_are_refused_and_logged(oauth_client, client, officer
         assert missing.status_code == 401
     lines = [r.getMessage() for r in caplog.records if "token request refused" in r.getMessage()]
     assert len(lines) == 3
-    assert '"basic"' in lines[0] and "Invalid client_secret" in lines[0] and registered["client_id"] not in lines[0]
+    # A Basic-only request is logged with the client_id of its header
+    assert '"basic"' in lines[0] and "Invalid client_secret" in lines[0] and registered["client_id"] in lines[0]
     assert "Client secret is required" in lines[2] and registered["client_id"] in lines[2]
     # Never the secret, the code or the verifier
     for value in ("wrong-secret-value", registered["client_secret"], code, verifier):
         assert value not in caplog.text
+
+
+def test_a_large_basic_only_token_request_gets_its_client_id(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    from modules.mcp import edges
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    # Larger than the refusal log keeps, smaller than the SDK's limit
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    form["pad"] = "x" * (edges.MAX_LOGGED_BODY + 40_000)
+    granted = oauth_client.post(
+        "/mcp/token", data=form, headers=_basic(registered["client_id"], registered["client_secret"])
+    )
+    assert granted.status_code == 200, granted.text
