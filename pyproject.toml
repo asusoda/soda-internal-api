@@ -192,6 +192,8 @@ source_modules = [
     "modules.leetcode.cog",
     "modules.leetcode.daily",
     "modules.manifest",
+    "modules.mcp.oauth",
+    "modules.mcp.oauth_pages",
     "modules.mcp.runtime",
     "modules.mcp.server",
     "modules.organizations.config",

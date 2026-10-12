@@ -2,18 +2,31 @@
 
 Every request carries a machine token (Authorization: Bearer plat_...). The tool list is built
 per request from that token, so a client sees only the tools its scopes and its org's modules allow.
+
+With a public URL (oauth.public_url: MCP_PUBLIC_URL, else <ACCOUNTS_BASE_URL>/mcp), the server is also
+an OAuth authorization server (oauth.py, oauth_pages.py): a client registers itself, an officer approves
+it, and the client gets a machine token of kind oauth. /mcp then answers 401 with the protected resource
+metadata URL, so a client can find the sign-in. The OAuth routes are under the public path, such as
+/mcp/authorize, so a reverse proxy that sends /mcp to this server reaches them all.
 """
 
 import json
 
 from anyio import to_thread
 from mcp import types
+from mcp.server.auth.handlers.metadata import MetadataHandler
+from mcp.server.auth.routes import build_metadata, cors_middleware, create_auth_routes
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.lowlevel import Server
+from starlette.routing import Mount, Route
 
 from core.db import db_connect
+from core.log import get_logger
 from core.tools import ToolError
 from modules.auth import machine_tokens
-from modules.mcp import runtime
+from modules.mcp import oauth, oauth_pages, runtime
+
+logger = get_logger(__name__)
 
 
 class Unauthorized(Exception):
@@ -86,5 +99,48 @@ def build_server() -> Server:
 
 
 def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all interfaces, as main.py does
-    """The ASGI app. Stateless JSON responses, so any number of processes can serve it."""
-    return build_server().streamable_http_app(stateless_http=True, json_response=True, host=host)
+    """The ASGI app. Stateless JSON responses, so any number of processes can serve it.
+
+    OAuth keeps its state in the database, so it works with more than one process too. Only the
+    limit of requests of each IP counts in each process.
+    """
+    server = build_server()
+    configured = oauth.configured_url()
+    public = oauth.public_url()
+    if configured and not public:
+        logger.warning("MCP OAuth is off: %s", oauth.url_problem(configured))
+    if not public:
+        return server.streamable_http_app(stateless_http=True, json_response=True, host=host)
+    path = oauth.public_path()
+    provider = oauth.Provider(oauth_pages.login_url)
+    # From strings, so the issuer keeps the URL as written: clients compare it as a string (RFC 8414)
+    auth = AuthSettings.model_validate(
+        {
+            "issuer_url": public,
+            "resource_server_url": public,
+            "client_registration_options": oauth.REGISTRATION,
+            "revocation_options": oauth.REVOCATION,
+            # Tokens that officers make have no resource, so the server does not check it
+            "validate_token_resource": False,  # nosec B105 - a setting name, not a password
+        }
+    )
+    oauth_routes = create_auth_routes(
+        provider, auth.issuer_url, client_registration_options=oauth.REGISTRATION, revocation_options=oauth.REVOCATION
+    )
+    metadata = MetadataHandler(build_metadata(auth.issuer_url, None, oauth.REGISTRATION, oauth.REVOCATION))
+    root_metadata = [
+        Route(where, endpoint=cors_middleware(metadata.handle, ["GET", "OPTIONS"]), methods=["GET", "OPTIONS"])
+        for where in oauth.server_metadata_paths()
+    ]
+    app = server.streamable_http_app(
+        streamable_http_path=path,
+        stateless_http=True,
+        json_response=True,
+        host=host,
+        auth=auth,
+        token_verifier=provider,
+        custom_starlette_routes=root_metadata,
+    )
+    # After the /mcp route, so that a request to /mcp itself never reaches the mount
+    app.router.routes.append(Mount(path, routes=[*oauth_routes, *oauth_pages.routes()]))
+    return oauth.RateLimit(app, path)

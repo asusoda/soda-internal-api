@@ -9,6 +9,7 @@ import hashlib
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import cast
 
 from core.time import iso, utcnow
 from modules.auth.models import MachineToken
@@ -16,6 +17,8 @@ from modules.auth.scopes import SCOPES
 
 PREFIX = "plat_"
 KINDS = ("app", "agent", "cli")
+# The kind of a token that an MCP OAuth client gets (modules/mcp/oauth.py). An officer cannot make one by hand.
+OAUTH_KIND = "oauth"
 
 
 class TokenError(ValueError):
@@ -58,7 +61,8 @@ def declare_limits(integration: str, names: tuple[str, ...], check: Callable[[ob
     LIMIT_NAMES[integration] = names
 
 
-def _limits(value: object) -> dict | None:
+def check_limits(value: object) -> dict | None:
+    """Cleaned per-integration limits, or None for no limits. Raises TokenError."""
     if value is None or value == {}:
         return None
     if not isinstance(value, dict):
@@ -78,6 +82,14 @@ def _hash(token: str) -> str:
 
 def is_machine_token(token: str | None) -> bool:
     return bool(token) and str(token).startswith(PREFIX)
+
+
+def _set_value(row: MachineToken) -> str:
+    """Give the row a new token value. Returns the value; the row keeps its hash and first characters."""
+    value = PREFIX + secrets.token_urlsafe(32)
+    row.token_hash = _hash(value)
+    row.display = value[: len(PREFIX) + 6]
+    return value
 
 
 def issue(
@@ -103,22 +115,58 @@ def issue(
         raise TokenError(f"Unknown scope: {', '.join(unknown)}")
     if expires_days is not None and (not isinstance(expires_days, int) or expires_days < 1):
         raise TokenError("expires_days must be a positive integer")
-    cleaned_limits = _limits(limits)
-    value = PREFIX + secrets.token_urlsafe(32)
+    cleaned_limits = check_limits(limits)
     row = MachineToken(
         organization_id=organization_id,
         name=name.strip(),
         kind=kind,
         scopes=sorted(set(scopes)),
         limits=cleaned_limits,
-        token_hash=_hash(value),
-        display=value[: len(PREFIX) + 6],
         created_by=created_by,
         expires_at=utcnow() + datetime.timedelta(days=expires_days) if expires_days else None,
     )
+    value = _set_value(row)
     db.add(row)
     db.commit()
     return value, row
+
+
+def issue_oauth(
+    db,
+    *,
+    organization_id: int,
+    name: str,
+    scopes: list[str],
+    created_by: str,
+    expires_seconds: int,
+    limits: dict | None = None,
+) -> tuple[str, MachineToken]:
+    """A token of kind oauth for an MCP OAuth client that an officer approved. Does not commit.
+
+    limits must be cleaned by check_limits.
+    """
+    row = MachineToken(
+        organization_id=organization_id,
+        name=name[:255],
+        kind=OAUTH_KIND,
+        scopes=sorted(set(scopes) & set(SCOPES)),
+        limits=limits or None,
+        created_by=created_by,
+        expires_at=utcnow() + datetime.timedelta(seconds=expires_seconds),
+    )
+    value = _set_value(row)
+    db.add(row)
+    db.flush()
+    return value, row
+
+
+def rotate(db, row: MachineToken, expires_seconds: int, scopes: list[str] | None = None) -> str:
+    """Replace the value of a token and set a new expiry. The old value stops working. Does not commit."""
+    value = _set_value(row)
+    row.expires_at = utcnow() + datetime.timedelta(seconds=expires_seconds)
+    if scopes is not None:
+        row.scopes = sorted(set(scopes) & {str(s) for s in cast(list, row.scopes or [])})
+    return value
 
 
 def verify(db, token: str | None) -> MachineCaller | None:
