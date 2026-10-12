@@ -1,5 +1,7 @@
 // Links to the Platform repo, its docs and its landing page.
 
+import { runtimeSetting } from './runtime-config';
+
 // The original repo of Platform, by SoDA. LICENSE clause 4b requires a link to it.
 export const SOURCE_URL = 'https://github.com/asusoda/platform';
 
@@ -7,7 +9,9 @@ export const SOURCE_URL = 'https://github.com/asusoda/platform';
 export const REPO_URL = SOURCE_URL;
 
 // The docs and landing site of Platform. VITE_SITE_URL points the links at another deployment of site/.
-const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') || 'https://platform.ais-asu.com';
+const SITE_URL =
+  (runtimeSetting('VITE_SITE_URL') ?? (import.meta.env.VITE_SITE_URL as string | undefined))?.replace(/\/$/, '') ||
+  'https://platform.ais-asu.com';
 
 export const DOCS_URL = `${SITE_URL}/docs`;
 export const ABOUT_URL = SITE_URL;

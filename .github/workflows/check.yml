@@ -134,6 +134,17 @@ jobs:
     - run: npm ci
     - run: npm run build
 
+  # Builds the four images. On main it pushes them to GHCR, and the deploy pulls them.
+  # A later push to main waits: cancelling a publish would leave GHCR with a mix of old and new tags.
+  images:
+    concurrency:
+      group: check-images-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      packages: write # Push the images and their build cache to GHCR.
+    uses: $/.github/workflows/images.yml
+
   lint:
     name: Lint workflows
     timeout-minutes: 10
@@ -152,7 +163,7 @@ jobs:
         curl -fsSL -o actionlint.tar.gz -L https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
         echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tar.gz" | sha256sum -c
         tar -xzf actionlint.tar.gz actionlint
-        ./actionlint -color -ignore 'reusable workflow call "\$/\.github/workflows/cd\.yml"'
+        ./actionlint -color -ignore 'reusable workflow call "\$/\.github/workflows/(cd|images)\.yml"'
 
     - name: Run zizmor
       uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
@@ -161,10 +172,11 @@ jobs:
         annotations: true
         version: "1.30.1"
 
-  # After the jobs above pass, deploy that same commit. A pull request skips this job.
+  # After the jobs above pass, deploy that same commit with the images that the images job pushed.
+  # A pull request skips this job.
   deploy:
     name: Deploy to Production
-    needs: [check, postgres, dashboard, site, lint]
+    needs: [check, postgres, dashboard, site, images, lint]
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'asusoda/platform'
     concurrency:
       group: cd-production

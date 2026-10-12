@@ -109,6 +109,8 @@ To deploy the dashboard:
 2. Set `VITE_API_URL` to the API URL.
 3. Set `DASHBOARD_URL` on the API to the dashboard URL. The API adds it to CORS and uses it for the sign-in return.
 
+The `dashboard` image reads `VITE_API_URL` and `VITE_SITE_URL` from the container env, not at build time, so one image runs on each server. When the container starts, `deploy/frontend-config.mjs` writes them to `dist/config.js`. `index.html` loads that file before the bundle, and `src/lib/runtime-config.ts` reads it. `serve` sends it with `Cache-Control: no-store` (`deploy/dashboard-serve.json`), so a browser does not keep old values. If a setting is not in that file, the app uses the value from the build. `public/config.js` is empty, so `npm run dev` and a static site use the build values. If `VITE_API_URL` is empty, the container stops. After you change a setting in `.env`, recreate the container.
+
 ### Code layout
 
 `dashboard/src/pages/registry.tsx` lists every org page: its path, sidebar label, icon, sidebar section, optional module and page component. `src/app.tsx` makes the routes from this list, and `src/components/shell.tsx` makes the sidebar from it. A small page is one file in `src/pages/`. A large page is a folder, such as `src/pages/knowledge/`: `index.tsx` exports the page, and each other file holds one part. `shared.tsx` in a page folder holds the parts that two or more files of that page use.
@@ -123,6 +125,7 @@ These files hold the parts that two or more pages use. Use them on a new page. D
 | `src/components/module-gate.tsx` | `ModuleGate` and `useModuleOn` |
 | `src/components/activity-list.tsx` | The list of audit log entries |
 | `src/lib/api.ts` | `api` and `send`, which call the API with the officer token |
+| `src/lib/runtime-config.ts` | `runtimeSetting`: a setting from `/config.js`, which the container writes when it starts |
 | `src/lib/queries.ts` | Queries that two or more pages use, such as `useOverview` and `useModules` |
 | `src/lib/format.ts` | Times, numbers, bytes and status tones |
 | `src/lib/org.ts` | `useCurrentOrg`: the org in the URL |

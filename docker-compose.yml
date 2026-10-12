@@ -170,10 +170,6 @@ services:
       dockerfile: Dockerfile.dashboard
       cache_from:
         - soda-dashboard:latest
-      args:
-        # Required. Dockerfile.dashboard stops the build when it is empty.
-        - VITE_API_URL=${VITE_API_URL:-}
-        - VITE_SITE_URL=${VITE_SITE_URL:-}
     image: soda-dashboard:latest
     container_name: soda-dashboard
     restart: unless-stopped
@@ -186,6 +182,10 @@ services:
       - api
     environment:
       - IS_PROD=true
+      # The container writes them to config.js when it starts. Recreate the container after a change.
+      # Required: the container stops when VITE_API_URL is empty.
+      - VITE_API_URL=${VITE_API_URL:-}
+      - VITE_SITE_URL=${VITE_SITE_URL:-}
     logging:
       driver: json-file
       options:
