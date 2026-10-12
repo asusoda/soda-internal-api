@@ -37,6 +37,8 @@ google-secret.json
 
 # Local data: the SQLite database and mounted volumes
 /data/
+# Deploy markers. The API container does not mount this directory.
+/.deploy/
 *.db
 user_data/
 *.log

@@ -6,25 +6,27 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: check-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   check:
-    permissions:
-      contents: read
+    timeout-minutes: 20
+    concurrency:
+      group: check-python-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       with:
-        version: "latest"
-
-    - name: Set up Python
-      run: uv python install
+        version: "latest-known"
+        python-version: "3.12"
+        enable-cache: true
 
     - name: Install dependencies
       run: uv sync --frozen
@@ -39,8 +41,10 @@ jobs:
 
   # The same tests and migrations against Postgres, the production database from phase 2 on.
   postgres:
-    permissions:
-      contents: read
+    timeout-minutes: 20
+    concurrency:
+      group: check-postgres-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -59,15 +63,16 @@ jobs:
     env:
       PG_URL: postgresql://postgres:postgres@localhost:5432/platform_test
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       with:
-        version: "latest"
-
-    - name: Set up Python
-      run: uv python install
+        version: "latest-known"
+        python-version: "3.12"
+        enable-cache: true
 
     - name: Install dependencies
       run: uv sync --frozen
@@ -80,16 +85,20 @@ jobs:
 
   # Type check, unit tests and build of the officer dashboard.
   dashboard:
-    permissions:
-      contents: read
+    timeout-minutes: 15
+    concurrency:
+      group: check-dashboard-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: dashboard
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 22
         cache: npm
@@ -98,3 +107,73 @@ jobs:
     - run: npm ci
     - run: npm test
     - run: npm run build
+
+  # The landing site build. A broken page in site/ or docs/ fails here, before a deploy.
+  site:
+    timeout-minutes: 20
+    concurrency:
+      group: check-site-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
+
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: site/package-lock.json
+
+    - run: npm ci
+    - run: npm run build
+
+  lint:
+    name: Lint workflows
+    timeout-minutes: 10
+    concurrency:
+      group: check-lint-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
+
+    - name: Run actionlint
+      # actionlint 1.7.12 rejects GitHub's $/ form for a workflow in this repo.
+      run: |
+        curl -fsSL -o actionlint.tar.gz -L https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+        echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tar.gz" | sha256sum -c
+        tar -xzf actionlint.tar.gz actionlint
+        ./actionlint -color -ignore 'reusable workflow call "\$/\.github/workflows/cd\.yml"'
+
+    - name: Run zizmor
+      uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+      with:
+        advanced-security: false
+        annotations: true
+        version: "1.30.1"
+
+  # After the jobs above pass, deploy that same commit. A pull request skips this job.
+  deploy:
+    name: Deploy to Production
+    needs: [check, postgres, dashboard, site, lint]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'asusoda/platform'
+    concurrency:
+      group: cd-production
+      cancel-in-progress: false
+    permissions: {}
+    uses: $/.github/workflows/cd.yml
+    with:
+      deploy_sha: ${{ github.sha }}
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_PASSWORD: ${{ secrets.VPS_SSH_PASSWORD }}
