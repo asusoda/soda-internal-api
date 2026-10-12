@@ -1,6 +1,6 @@
 name: Images
 
-# Builds the API, web, dashboard and site images on every PR so a broken Dockerfile is caught before merge.
+# Builds the API, dashboard and site images on every PR so a broken Dockerfile is caught before merge.
 # On main, pushes them to GHCR tagged with the commit sha and "main".
 # A later push waits. Cancelling a publish would leave GHCR with a mix of old and new tags.
 
@@ -29,8 +29,6 @@ jobs:
         include:
           - name: api
             dockerfile: Dockerfile.api
-          - name: web
-            dockerfile: Dockerfile.web
           - name: dashboard
             dockerfile: Dockerfile.dashboard
           - name: site
@@ -69,7 +67,6 @@ jobs:
           COMMIT_HASH=${{ github.sha }}
           VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:8000' }}
           VITE_SITE_URL=${{ vars.VITE_SITE_URL }}
-          REACT_APP_API_URL=${{ vars.REACT_APP_API_URL }}
         tags: |
           ${{ steps.image.outputs.ref }}:${{ github.sha }}
           ${{ steps.image.outputs.ref }}:main

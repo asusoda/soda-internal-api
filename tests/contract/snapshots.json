@@ -1,6 +1,6 @@
 {
   "assign-points": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "POST /api/points/soda/assign_points",
     "shape": {
       "message": "string",
@@ -26,7 +26,7 @@
     "status": 201
   },
   "auth-name": {
-    "caller": "web",
+    "caller": "none",
     "request": "GET /api/auth/name",
     "shape": {
       "name": "string"
@@ -34,7 +34,7 @@
     "status": 200
   },
   "auth-valid-token": {
-    "caller": "web",
+    "caller": "none",
     "request": "GET /api/auth/validToken",
     "shape": {
       "expired": "bool",
@@ -65,7 +65,7 @@
     "status": 200
   },
   "calendar-settings": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/organizations/1/calendar",
     "shape": {
       "calendar_sync_enabled": "bool",
@@ -152,7 +152,7 @@
     "status": 200
   },
   "member-orders": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/storefront/soda/members/orders",
     "shape": [
       {
@@ -176,7 +176,7 @@
     "status": 200
   },
   "member-profile": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/points/soda/member_profile",
     "shape": {
       "current_organization": {
@@ -222,7 +222,7 @@
     "status": 401
   },
   "member-store-session": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/storefront/soda/members/store",
     "shape": {
       "organization": {
@@ -283,7 +283,7 @@
     "status": 401
   },
   "org-users": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/points/soda/users",
     "shape": {
       "organization": {
@@ -312,7 +312,7 @@
     "status": 200
   },
   "org-users-no-auth": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/points/soda/users",
     "shape": {
       "message": "string"
@@ -320,7 +320,7 @@
     "status": 401
   },
   "organizations": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/organizations/",
     "shape": [
       {
@@ -401,7 +401,7 @@
     "status": 200
   },
   "public-leaderboard": {
-    "caller": "web",
+    "caller": "none",
     "request": "GET /api/public/soda/leaderboard",
     "shape": {
       "leaderboard": [
@@ -421,7 +421,7 @@
     "status": 200
   },
   "store-orders": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/storefront/soda/orders",
     "shape": [
       {
@@ -448,7 +448,7 @@
     "status": 200
   },
   "superadmin-check": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/superadmin/check",
     "shape": {
       "is_superadmin": "bool"
@@ -456,7 +456,7 @@
     "status": 403
   },
   "user-points": {
-    "caller": "web",
+    "caller": "dashboard",
     "request": "GET /api/points/soda/users/alice@asu.edu/points",
     "shape": {
       "organization": {

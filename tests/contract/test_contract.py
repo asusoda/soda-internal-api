@@ -20,7 +20,7 @@ SNAPSHOTS = Path(__file__).with_name("snapshots.json")
 UPDATE = os.environ.get("UPDATE_CONTRACT") == "1"
 
 # (case id, client, method, path, auth, json body)
-# client: "website" is asusoda/website (thesoda.io), "web" is this repo's web/ app.
+# client: "website" is asusoda/website (thesoda.io), "dashboard" is this repo's dashboard/ app, "none" is no known client.
 # auth: None, "officer" (platform JWT), "clerk" (Clerk session token), "member" (Discord login session).
 CASES = [
     ("health", "deploy", "GET", "/health", None, None),
@@ -30,7 +30,7 @@ CASES = [
     ("products", "website", "GET", "/api/storefront/soda/products", None, None),
     ("product", "website", "GET", "/api/storefront/soda/products/1", None, None),
     ("member-store-clerk", "website", "GET", "/api/storefront/soda/members/store", "clerk", None),
-    ("member-store-session", "web", "GET", "/api/storefront/soda/members/store", "member", None),
+    ("member-store-session", "dashboard", "GET", "/api/storefront/soda/members/store", "member", None),
     ("orders-by-email", "website", "GET", f"/api/storefront/soda/orders/{MEMBER_EMAIL}", "clerk", None),
     ("wallet", "website", "GET", f"/api/storefront/soda/wallet/{MEMBER_EMAIL}", "clerk", None),
     ("orders-no-auth", "website", "GET", f"/api/storefront/soda/orders/{MEMBER_EMAIL}", None, None),
@@ -42,21 +42,21 @@ CASES = [
         None,
         {"name": "Alice", "email": MEMBER_EMAIL, "username": "alice", "asu_id": "1200000001"},
     ),
-    ("member-profile", "web", "GET", "/api/points/soda/member_profile", "member", None),
-    ("public-leaderboard", "web", "GET", "/api/public/soda/leaderboard", None, None),
-    ("organizations", "web", "GET", "/api/organizations/", "officer", None),
-    ("org-users", "web", "GET", "/api/points/soda/users", "officer", None),
-    ("org-users-no-auth", "web", "GET", "/api/points/soda/users", None, None),
-    ("user-points", "web", "GET", f"/api/points/soda/users/{MEMBER_EMAIL}/points", "officer", None),
-    ("store-orders", "web", "GET", "/api/storefront/soda/orders", "officer", None),
-    ("member-orders", "web", "GET", "/api/storefront/soda/members/orders", "member", None),
-    ("auth-name", "web", "GET", "/api/auth/name", "officer", None),
-    ("auth-valid-token", "web", "GET", "/api/auth/validToken", "officer", None),
-    ("superadmin-check", "web", "GET", "/api/superadmin/check", "officer", None),
-    ("calendar-settings", "web", "GET", "/api/organizations/1/calendar", "officer", None),
+    ("member-profile", "dashboard", "GET", "/api/points/soda/member_profile", "member", None),
+    ("public-leaderboard", "none", "GET", "/api/public/soda/leaderboard", None, None),
+    ("organizations", "dashboard", "GET", "/api/organizations/", "officer", None),
+    ("org-users", "dashboard", "GET", "/api/points/soda/users", "officer", None),
+    ("org-users-no-auth", "dashboard", "GET", "/api/points/soda/users", None, None),
+    ("user-points", "dashboard", "GET", f"/api/points/soda/users/{MEMBER_EMAIL}/points", "officer", None),
+    ("store-orders", "dashboard", "GET", "/api/storefront/soda/orders", "officer", None),
+    ("member-orders", "dashboard", "GET", "/api/storefront/soda/members/orders", "member", None),
+    ("auth-name", "none", "GET", "/api/auth/name", "officer", None),
+    ("auth-valid-token", "none", "GET", "/api/auth/validToken", "officer", None),
+    ("superadmin-check", "dashboard", "GET", "/api/superadmin/check", "officer", None),
+    ("calendar-settings", "dashboard", "GET", "/api/organizations/1/calendar", "officer", None),
     (
         "assign-points",
-        "web",
+        "dashboard",
         "POST",
         "/api/points/soda/assign_points",
         "officer",

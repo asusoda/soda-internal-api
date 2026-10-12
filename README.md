@@ -37,7 +37,6 @@ The dashboard calls modules features and submodules shared content. Each module 
 | Job worker | `worker_main.py` (Postgres only) | |
 | MCP server | `mcp_main.py` | 8001 |
 | Dashboard and member store | `dashboard/` | 5001 (5173 in dev) |
-| Old officer app, for admin.thesoda.io | `web/` | 5000 |
 
 The database is Postgres, or SQLite for a small deployment. Alembic makes the schema.
 

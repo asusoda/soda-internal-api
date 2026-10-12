@@ -37,16 +37,6 @@ updates:
       site-npm:
         patterns:
           - "*"
-  - package-ecosystem: npm
-    directory: "/web"
-    schedule:
-      interval: "daily"
-    cooldown:
-      default-days: 7
-    groups:
-      web-npm:
-        patterns:
-          - "*"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

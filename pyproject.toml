@@ -117,7 +117,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.bandit]
-exclude_dirs = ["tests", "web", "node_modules", ".venv"]
+exclude_dirs = ["tests", "node_modules", ".venv"]
 
 # Module boundaries, checked in CI by `lint-imports` (docs/writing-a-module.md).
 [tool.importlinter]
