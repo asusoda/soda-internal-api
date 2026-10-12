@@ -162,4 +162,4 @@ These pages use the API session cookie, not the officer token. The order routes 
 
 `web/` is the old officer app (Create React App). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
 
-The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. The Jeopardy and bot pages of `web/` call paths that the API does not have, so they are not in the dashboard.
+The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. `web/` has no Jeopardy or bot pages. Those pages called paths that the API does not have, so they were removed, and the dashboard does not have them.

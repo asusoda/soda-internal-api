@@ -6,15 +6,10 @@ import OrganizationSwitcher from '../OrganizationSwitcher';
 import useOrgModules from '../../hooks/useOrgModules';
 import { 
   FaUsers, 
-  FaGamepad,
-  FaPlay,
-  FaTrophy,
   FaSignOutAlt,
   FaTachometerAlt,
-  FaRobot,
   FaStore,
   FaCalendarAlt,
-  FaDiscord,
   FaServer
 } from 'react-icons/fa';
 import Orb from '../ui/Orb';
@@ -29,10 +24,6 @@ const OrganizationNavbar = ({ children }) => {
   const goToUsers = () => navigate(`/${currentOrg?.prefix}/users`);
   const goToLeaderboard = () => navigate(`/${currentOrg?.prefix}/leaderboard`);
   const goToAddPoints = () => navigate(`/${currentOrg?.prefix}/addpoints`);
-  const goToPanel = () => navigate(`/${currentOrg?.prefix}/panel`);
-  const goToJeopardy = () => navigate(`/${currentOrg?.prefix}/jeopardy`);
-  const goToGamePanel = () => navigate(`/${currentOrg?.prefix}/gamepanel`);
-  const goToActiveGame = () => navigate(`/${currentOrg?.prefix}/activegame`);
   const goToStorefrontDashboard = () => navigate(`/${currentOrg?.prefix}/storefront/dashboard`);
   const goToAddStorefrontProduct = () => navigate(`/${currentOrg?.prefix}/add-storefront-product`);
   const goToTransactions = () => navigate(`/${currentOrg?.prefix}/transactions`);
@@ -75,7 +66,7 @@ const OrganizationNavbar = ({ children }) => {
             </MenuItem>
             <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Quick Access">
               <h3 className="text-xl font-bold text-white mb-8 text-center">Quick Access</h3>
-              <div className="grid grid-cols-5 gap-8">
+              <div className="grid grid-cols-4 gap-8">
                 {/* User Management Category */}
                 <div>
                   <div className="text-sm font-semibold text-blue-400 mb-4 flex items-center">
@@ -174,52 +165,6 @@ const OrganizationNavbar = ({ children }) => {
                   </ul>
                 </div>
                 )}
-
-                {/* Discord Bots Category */}
-                <div>
-                  <div className="text-sm font-semibold text-indigo-400 mb-4 flex items-center">
-                    <FaDiscord className="mr-2 text-indigo-400" />
-                    Discord Bots
-                  </div>
-                  <ul className="space-y-2">
-                    <li>
-                      <HoveredLink onClick={goToPanel} className="block p-2 rounded hover:bg-indigo-400/20 hover:text-indigo-300 transition-all duration-200 text-sm text-gray-300">
-                        • Bot Control Panel
-                      </HoveredLink>
-                    </li>
-                    <li>
-                      <HoveredLink onClick={goToJeopardy} className="block p-2 rounded hover:bg-indigo-400/20 hover:text-indigo-300 transition-all duration-200 text-sm text-gray-300">
-                        • Jeopardy Game
-                      </HoveredLink>
-                    </li>
-                    <li>
-                      <HoveredLink onClick={goToGamePanel} className="block p-2 rounded hover:bg-indigo-400/20 hover:text-indigo-300 transition-all duration-200 text-sm text-gray-300">
-                        • Game Panel
-                      </HoveredLink>
-                    </li>
-                    <li>
-                      <HoveredLink onClick={goToActiveGame} className="block p-2 rounded hover:bg-indigo-400/20 hover:text-indigo-300 transition-all duration-200 text-sm text-gray-300">
-                        • Active Game
-                      </HoveredLink>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </MenuItem>
-            <MenuItem setActive={setActiveNavItem} active={activeNavItem} item="Games">
-              <div className="flex flex-col space-y-4 text-sm">
-                <HoveredLink onClick={goToJeopardy}>
-                  <FaTrophy className="inline mr-2" />Jeopardy
-                </HoveredLink>
-                <HoveredLink onClick={goToGamePanel}>
-                  <FaGamepad className="inline mr-2" />Game Panel
-                </HoveredLink>
-                <HoveredLink onClick={goToActiveGame}>
-                  <FaPlay className="inline mr-2" />Active Game
-                </HoveredLink>
-                <HoveredLink onClick={goToPanel}>
-                  <FaRobot className="inline mr-2" />Bot Panel
-                </HoveredLink>
               </div>
             </MenuItem>
           </div>

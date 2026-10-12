@@ -1,10 +1,6 @@
 import "./App.css";
 import "./index.css";
 
-import BotControlPanel from "./pages/BotControlPanel";
-import GamePanel from "./pages/GamePanel";
-import Jeopardy from "./pages/Jeopardy";
-import ActiveGame from "./pages/ActiveGame";
 import LoginPage from "./pages/LoginPage";
 import ServerError from "./pages/ServerError";
 import AddPoints from "./pages/AddPoints";
@@ -113,14 +109,6 @@ function App() {
             }
           />
           <Route
-            path="/:orgPrefix/panel"
-            element={
-              <PrivateRoute>
-                <BotControlPanel />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/:orgPrefix/calendar"
             element={
               <PrivateRoute>
@@ -137,22 +125,6 @@ function App() {
             }
           />
           <Route
-            path="/:orgPrefix/gamepanel"
-            element={
-              <PrivateRoute>
-                <GamePanel />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/:orgPrefix/activegame"
-            element={
-              <PrivateRoute>
-                <ActiveGame />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/:orgPrefix/compute"
             element={
               <PrivateRoute>
@@ -165,14 +137,6 @@ function App() {
             element={
               <PrivateRoute>
                 <PodFilesPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/:orgPrefix/jeopardy"
-            element={
-              <PrivateRoute>
-                <Jeopardy />
               </PrivateRoute>
             }
           />
@@ -195,23 +159,7 @@ function App() {
 
           {/* Legacy routes (for backward compatibility) - redirect to select-organization */}
           <Route
-            path="/panel"
-            element={<Navigate to="/select-organization" />}
-          />
-          <Route
             path="/addpoints"
-            element={<Navigate to="/select-organization" />}
-          />
-          <Route
-            path="/gamepanel"
-            element={<Navigate to="/select-organization" />}
-          />
-          <Route
-            path="/activegame"
-            element={<Navigate to="/select-organization" />}
-          />
-          <Route
-            path="/jeopardy"
             element={<Navigate to="/select-organization" />}
           />
           <Route
@@ -226,6 +174,8 @@ function App() {
             path="/leaderboard"
             element={<Navigate to="/select-organization" />}
           />
+          {/* Unknown paths, such as the removed game and bot pages */}
+          <Route path="*" element={<Navigate to="/select-organization" replace />} />
           </Routes>
           <ToastContainer />
         </AuthProvider>
