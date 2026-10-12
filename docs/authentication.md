@@ -185,7 +185,7 @@ Each sign-in makes a new connection. The connection that the client had before s
 
 ### Client secrets
 
-A client with a secret can send it in the HTTP Basic header or as `client_secret` in the form, whatever method it registered. RFC 7591 makes `client_secret_basic` the default, but the SDK records `client_secret_post` for a client that names no method. A client that follows the RFC would otherwise get 401 at `/mcp/token`. With Basic, `client_id` can be in the header only (RFC 6749 2.3.1); the server then puts it in the form for the SDK. If the header and the form name different clients, the request gets 401.
+A client with a secret can send it in the HTTP Basic header or as `client_secret` in the form, whatever method it registered. RFC 7591 makes `client_secret_basic` the default, but the SDK records `client_secret_post` for a client that names no method. A client that follows the RFC would otherwise get 401 at `/mcp/token`. With Basic, `client_id` can be in the header only (RFC 6749 2.3.1); the server then puts it in the form for the SDK. If the header and the form name different clients, the request gets 401. A request that uses more than one client authentication method (a Basic header, `client_secret` in the form, a `client_assertion`) also gets 401 (RFC 6749 2.3).
 
 ### Refused requests
 

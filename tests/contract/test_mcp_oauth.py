@@ -1577,3 +1577,25 @@ def test_a_large_basic_only_token_request_gets_its_client_id(oauth_client, clien
         "/mcp/token", data=form, headers=_basic(registered["client_id"], registered["client_secret"])
     )
     assert granted.status_code == 200, granted.text
+
+
+def test_two_client_authentication_methods_are_refused(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    secret, client_id = registered["client_secret"], registered["client_id"]
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    assertion = {"client_assertion_type": ASSERTION_TYPE, "client_assertion": "x.y.z"}
+    for data, headers in [
+        # A valid Basic secret with a different form secret
+        (form | {"client_secret": "another-secret"}, _basic(client_id, secret)),
+        (form | assertion, _basic(client_id, secret)),
+        (form | {"client_id": client_id, "client_secret": secret} | assertion, {}),
+    ]:
+        refused = oauth_client.post("/mcp/token", data=data, headers=headers)
+        assert refused.status_code == 401
+        assert "one client authentication method" in refused.json()["error_description"]
+    # One method alone still works, and the code was not used by the refused requests
+    granted = oauth_client.post("/mcp/token", data=form, headers=_basic(client_id, secret))
+    assert granted.status_code == 200, granted.text

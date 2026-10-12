@@ -247,6 +247,14 @@ class ClientAuthenticator(sdk_client_auth.ClientAuthenticator):
     async def authenticate_request(self, request):
         form = await request.form()
         assertion_type, assertion = form.get("client_assertion_type"), form.get("client_assertion")
+        # RFC 6749 2.3: one client authentication method in each request
+        methods = [
+            basic_credentials(request.headers.get("authorization", "")) is not None,
+            bool(form.get("client_secret")),
+            assertion_type is not None or assertion is not None,
+        ]
+        if sum(methods) > 1:
+            raise sdk_client_auth.AuthenticationError("Use one client authentication method per request")
         if assertion_type is None and assertion is None:
             return await self._secret_or_none(request, form)
         if assertion_type != ASSERTION_TYPE or not isinstance(assertion, str) or not assertion:
