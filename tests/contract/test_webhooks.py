@@ -1,7 +1,6 @@
 """Outbound webhooks: the officer routes, the test message, and the fan-out of events to the org's webhooks."""
 
 import uuid
-from typing import cast
 
 import pytest
 
@@ -22,7 +21,7 @@ def _ais_id() -> int:
 
     db = db_connect.SessionLocal()
     try:
-        return cast(int, db.query(Organization).filter_by(prefix="ais").one().id)
+        return db.query(Organization).filter_by(prefix="ais").one().id
     finally:
         db.close()
 

@@ -1,10 +1,10 @@
 """Pods on an org's RunPod account: officers manage them, members connect with short-lived certificates."""
 
-from typing import cast
+from types import TracebackType
 
 import pytest
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives.serialization import load_ssh_public_identity
+from cryptography.hazmat.primitives.serialization import SSHCertificate, load_ssh_public_identity
 
 from tests.contract.conftest import MEMBER_DISCORD_ID
 
@@ -128,6 +128,7 @@ def test_member_sees_and_connects_to_shared_running_pods(client, member_client, 
     info = member_client.post("/api/compute/soda/me/pods/pod1/connect", json={"public_key": key}).get_json()["ssh_info"]
     assert (info["host"], info["port"], info["username"], info["is_admin"]) == ("203.0.113.5", 40022, "root", False)
     cert = load_ssh_public_identity(info["certificate"].encode())
+    assert isinstance(cert, SSHCertificate)
     assert cert.valid_principals == [b"gf-pod1"]
     assert cert.critical_options[b"force-command"].startswith(b"/usr/local/bin/godfather-login ")
     assert member_client.post("/api/compute/soda/me/pods/pod1/connect", json={"public_key": "nope"}).status_code == 400
@@ -142,6 +143,7 @@ def test_officers_get_root_certificates(client, member_client, officer_headers, 
     _create(client, officer_headers)
     info = member_client.post("/api/compute/soda/me/pods/pod1/connect", json={"public_key": _user_key()}).get_json()
     cert = load_ssh_public_identity(info["ssh_info"]["certificate"].encode())
+    assert isinstance(cert, SSHCertificate)
     assert info["ssh_info"]["is_admin"] is True and cert.critical_options == {}
 
 
@@ -245,9 +247,14 @@ class FakeSFTP:
             return io.BytesIO(self.files[path])
 
         class Writer(io.BytesIO):
-            def __exit__(self, *exc):
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc_val: BaseException | None,
+                exc_tb: TracebackType | None,
+            ) -> None:
                 sftp.files[path] = self.getvalue()
-                return super().__exit__(*exc)
+                super().__exit__(exc_type, exc_val, exc_tb)
 
         return Writer()
 
@@ -628,7 +635,7 @@ def test_old_connections_are_deleted(client, officer_headers, runpod):
 
     _create(client, officer_headers)
     db = db_connect.SessionLocal()
-    org_id = cast(int, db.query(service.ComputePod).one().organization_id)
+    org_id = db.query(service.ComputePod).one().organization_id
     old = utcnow() - datetime.timedelta(days=service.CONNECTION_KEEP_DAYS + 1)
     db.add(ComputeConnection(organization_id=org_id, pod_id="pod1", discord_id="1", username="old", created_at=old))
     db.commit()

@@ -2,6 +2,7 @@
 
 import datetime
 import uuid
+from typing import Any
 
 import pytest
 from cryptography.fernet import Fernet
@@ -41,7 +42,7 @@ def fake(monkeypatch):
 
 @pytest.fixture
 def healthy(monkeypatch):
-    state = {"up": True, "urls": []}
+    state: dict[str, Any] = {"up": True, "urls": []}
 
     def check(url):
         state["urls"].append(url)

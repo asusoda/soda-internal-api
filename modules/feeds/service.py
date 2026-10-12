@@ -104,11 +104,11 @@ def _destination(db, org_id: int, destination_id: int | None) -> webhooks.Webhoo
 
 def _webhook(db, feed: AlertFeed) -> str | None:
     """The URL the feed posts to: its alert destination's, else the older alert_webhook_<key> secret."""
-    org_id = cast(int, feed.organization_id)
+    org_id = feed.organization_id
     if feed.destination_id is not None:
-        row = _destination(db, org_id, cast(int, feed.destination_id))
+        row = _destination(db, org_id, feed.destination_id)
         return secrets.decrypt(str(row.url_ciphertext)) if row is not None and row.enabled else None
-    return secrets.get_secret(db, org_id, _secret_name(cast(str, feed.key)))
+    return secrets.get_secret(db, org_id, _secret_name(feed.key))
 
 
 def kinds_on(db, org_id: int) -> set[str]:

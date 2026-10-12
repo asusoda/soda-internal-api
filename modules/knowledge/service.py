@@ -11,7 +11,7 @@ import hashlib
 import math
 import os
 import re
-from typing import Any, cast
+from typing import Any, Literal, cast, overload
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm.attributes import flag_modified
@@ -74,7 +74,7 @@ def check_passages(db, source: KnowledgeSource, count: int) -> None:
     if source.organization_id is None:
         return  # a shared submodule's source counts against no org
     old = db.query(KnowledgeVersion.chunk_count).filter_by(id=source.current_version_id).scalar()
-    limits.check(db, cast(int, source.organization_id), PASSAGES_LIMIT, add=count - int(old or 0))
+    limits.check(db, source.organization_id, PASSAGES_LIMIT, add=count - int(old or 0))
 
 
 def new_source(db, org_id: int, **fields) -> KnowledgeSource:
@@ -143,6 +143,10 @@ def _vector(value: Any, field: str) -> list[float]:
     return vector
 
 
+@overload
+def _text(value: Any, field: str, limit: int, required: Literal[True] = True) -> str: ...
+@overload
+def _text(value: Any, field: str, limit: int, required: bool) -> str | None: ...
 def _text(value: Any, field: str, limit: int, required: bool = True) -> str | None:
     if value is None and not required:
         return None

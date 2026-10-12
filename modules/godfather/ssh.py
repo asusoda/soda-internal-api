@@ -9,7 +9,7 @@ import datetime
 import re
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives.asymmetric import dsa, ed25519
 from cryptography.hazmat.primitives.serialization import SSHCertificateBuilder, SSHCertificateType
 
 # Forced command and principal prefix the pod image expects; part of the pod image contract.
@@ -75,11 +75,16 @@ def sign_user_key(
         raise ValueError("Invalid SSH public key")
     ca = serialization.load_ssh_private_key(ca_private_key.encode(), password=None)
     subject = serialization.load_ssh_public_key(public_key.strip().encode())
+    # SSH certificates cannot hold or be signed by DSA keys
+    if isinstance(ca, dsa.DSAPrivateKey):
+        raise ValueError("The CA key is a DSA key, which cannot sign SSH certificates")
+    if isinstance(subject, dsa.DSAPublicKey):
+        raise ValueError("Invalid SSH public key")
     username = safe_username(username)
     now = now or datetime.datetime.now(datetime.UTC)
     builder = (
         SSHCertificateBuilder()
-        .public_key(subject)  # type: ignore[arg-type]
+        .public_key(subject)
         .type(SSHCertificateType.USER)
         .key_id(f"discord:{discord_id}:{username}".encode())
         .valid_principals([pod_principal(pod_id).encode()])
@@ -92,5 +97,5 @@ def sign_user_key(
         builder = builder.add_extension(b"permit-agent-forwarding", b"")
     else:
         builder = builder.add_critical_option(b"force-command", f"{LOGIN_COMMAND} {username}".encode())
-    certificate = builder.sign(ca)  # type: ignore[arg-type]
+    certificate = builder.sign(ca)
     return certificate.public_bytes().decode()

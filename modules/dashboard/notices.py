@@ -9,7 +9,6 @@ problem goes away or an event is dropped or deleted, its id is removed at the ne
 """
 
 import hashlib
-from datetime import datetime
 from typing import cast
 
 from sqlalchemy.orm.attributes import flag_modified
@@ -87,7 +86,7 @@ def _event(row: webhooks.Notification) -> dict:
         "link": EVENT_LINKS.get(event, ""),
         "kind": "event",
         "level": "error" if row.color in ERROR_COLORS else "info",
-        "at": iso(cast(datetime, row.created_at)),
+        "at": iso(row.created_at),
     }
 
 
@@ -152,7 +151,7 @@ def listing(db, org: Organization) -> dict:
     """Open and resolved notifications of the org, with who resolved each one and when."""
     resolved = _resolved(org)
     notices = []
-    for p in current(db, cast(int, org.id)):
+    for p in current(db, org.id):
         entry = resolved.get(p["id"])
         notices.append(
             p | {"resolved_at": entry.get("at") if entry else None, "resolved_by": entry.get("by") if entry else None}
@@ -178,7 +177,7 @@ def _save(db, org: Organization, kept: dict[str, dict], ids: set[str]) -> None:
 def resolve(db, org: Organization, ids: object, actor: str) -> dict:
     """Mark notifications resolved. Ids that match no current problem are ignored."""
     wanted = set(_ids(ids))
-    ids = {p["id"] for p in current(db, cast(int, org.id))}
+    ids = {p["id"] for p in current(db, org.id)}
     kept = _resolved(org)
     at = iso(utcnow())
     for i in wanted & ids:
@@ -201,7 +200,7 @@ def delete(db, org: Organization, ids: object) -> dict:
 def reopen(db, org: Organization, ids: object) -> dict:
     """Mark resolved notifications open again."""
     wanted = set(_ids(ids))
-    ids = {p["id"] for p in current(db, cast(int, org.id))}
+    ids = {p["id"] for p in current(db, org.id)}
     kept = {i: e for i, e in _resolved(org).items() if i not in wanted}
     _save(db, org, kept, ids)
     return listing(db, org)

@@ -34,6 +34,7 @@ def runner(tmp_path, monkeypatch):
     fake = runner_fake.start(path, monkeypatch)
     runner_fake.runner.Handler.policy["data_root"] = str(tmp_path / "apps")
     yield fake
+    assert fake.server is not None
     fake.server.shutdown()
     fake.server.server_close()
 
@@ -49,7 +50,8 @@ def apps(app):
     db = db_connect.SessionLocal()
     for row in db.query(App).filter(App.name.in_(names)).all():
         db.query(AppDeployment).filter_by(app_id=row.id).delete()
-        uptime.forget_app(db, int(row.organization_id), str(row.name))
+        assert row.organization_id is not None
+        uptime.forget_app(db, row.organization_id, str(row.name))
         db.delete(row)
     db.commit()
     db.close()

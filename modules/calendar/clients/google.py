@@ -3,7 +3,7 @@
 from typing import Any
 
 from google.oauth2 import service_account
-from googleapiclient.discovery import Resource, build
+from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from sentry_sdk import capture_exception, set_context, start_transaction
 
@@ -86,12 +86,13 @@ class GoogleCalendarClient:
 
     def __init__(self, logger_instance=None, service_account_info: dict | None = None):
         self.logger = logger_instance or logger
-        self._service: Resource | None = None
+        # build() adds the API methods at runtime, so the client has no static type
+        self._service: Any = None
         # An org's own service account; None means the instance-wide GOOGLE_SERVICE_ACCOUNT.
         self.service_account_info = service_account_info
         self.error_handler = APIErrorHandler(self.logger, "GoogleCalendarClient")
 
-    def get_service(self, parent_transaction=None) -> Resource | None:
+    def get_service(self, parent_transaction=None) -> Any:
         """Get authenticated Google Calendar service with error handling."""
         if self._service:
             return self._service
@@ -178,7 +179,7 @@ class GoogleCalendarClient:
                     self.logger.debug(
                         f"Attempting to create Google Calendar event for Notion ID {notion_page_id} with data: {event_data}"
                     )
-                    created_event = service.events().insert(calendarId=calendar_id, body=event_data).execute()  # type: ignore[attr-defined]
+                    created_event = service.events().insert(calendarId=calendar_id, body=event_data).execute()
 
                     gcal_event_id = created_event["id"]
                     jump_url = created_event.get("htmlLink")
@@ -243,7 +244,7 @@ class GoogleCalendarClient:
                         f"Attempting to update Google Calendar event {event_id} for Notion ID {notion_page_id} with data: {event_data}"
                     )
                     updated_event = (
-                        service.events().update(calendarId=calendar_id, eventId=event_id, body=event_data).execute()  # type: ignore[attr-defined]
+                        service.events().update(calendarId=calendar_id, eventId=event_id, body=event_data).execute()
                     )
 
                     jump_url = updated_event.get("htmlLink")
@@ -302,7 +303,7 @@ class GoogleCalendarClient:
                         transaction, op="list_page", description="events.list page", logger=self.logger
                     ) as span:
                         events_result = (
-                            service.events()  # type: ignore[attr-defined]
+                            service.events()
                             .list(
                                 calendarId=calendar_id,
                                 singleEvents=True,
@@ -404,7 +405,7 @@ class GoogleCalendarClient:
                 with operation_span(
                     transaction, op="api_call", description="calendars.insert", logger=self.logger
                 ) as span:
-                    created_calendar = service.calendars().insert(body=calendar_body).execute()  # type: ignore[attr-defined]
+                    created_calendar = service.calendars().insert(body=calendar_body).execute()
 
                     calendar_id = created_calendar["id"]
                     span.set_data(
@@ -444,7 +445,7 @@ class GoogleCalendarClient:
                 with operation_span(
                     transaction, op="api_call", description="calendars.get", logger=self.logger
                 ) as span:
-                    calendar = service.calendars().get(calendarId=calendar_id).execute()  # type: ignore[attr-defined]
+                    calendar = service.calendars().get(calendarId=calendar_id).execute()
                     span.set_data("calendar_id", calendar_id)
                     return calendar
 
@@ -473,7 +474,7 @@ class GoogleCalendarClient:
                 with operation_span(
                     transaction, op="api_call", description="calendarList.list", logger=self.logger
                 ) as span:
-                    calendar_list = service.calendarList().list().execute()  # type: ignore[attr-defined]
+                    calendar_list = service.calendarList().list().execute()
                     calendars = calendar_list.get("items", [])
                     span.set_data("calendar_count", len(calendars))
                     return calendars
@@ -503,7 +504,7 @@ class GoogleCalendarClient:
                 with operation_span(
                     transaction, op="api_call", description="calendars.delete", logger=self.logger
                 ) as span:
-                    service.calendars().delete(calendarId=calendar_id).execute()  # type: ignore[attr-defined]
+                    service.calendars().delete(calendarId=calendar_id).execute()
                     span.set_data("calendar_id", calendar_id)
                     self.logger.warning(f"Successfully deleted calendar: {calendar_id}")
                     return True

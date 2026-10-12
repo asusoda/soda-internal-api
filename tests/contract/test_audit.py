@@ -55,7 +55,9 @@ def test_job_runs_are_recorded(entries):
 
     jobs.job("test.audited")(lambda org_prefix, blob: None)
     try:
-        jobs.defer("test.audited", org_prefix="soda", blob="x" * 500).join(timeout=5)  # type: ignore[union-attr]
+        thread = jobs.defer("test.audited", org_prefix="soda", blob="x" * 500)
+        assert thread is not None
+        thread.join(timeout=5)
     finally:
         jobs.JOBS.pop("test.audited")
     [entry] = entries()

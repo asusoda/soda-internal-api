@@ -7,16 +7,10 @@ import discord
 
 class Team:
     def __init__(self, name: str, role: discord.Role | None = None) -> None:
-        if role is None:
-            self.name = name
-            self.role = None
-            self.members = []
-            self.score = 0
-        else:
-            self.name = name
-            self.role = role
-            self.members = []
-            self.score = 0
+        self.name = name
+        self.role = role
+        self.members: list[discord.Member | discord.User] = []
+        self.score = 0
 
     def __str__(self) -> str:
         return f"Team(name={self.name}, members={self.members}, score={self.score})"
@@ -37,11 +31,12 @@ class Team:
     def getScore(self) -> int:
         return self.score
 
-    def add_team_member(self, member_id: int) -> None:
-        self.members.append(member_id)
+    def add_team_member(self, member: discord.Member | discord.User) -> None:
+        self.members.append(member)
 
     def to_json(self) -> dict[str, Any]:
-        return {"name": self.name, "members": self.members, "score": self.score}
+        """The team as JSON. Members are their display names."""
+        return {"name": self.name, "members": [member.display_name for member in self.members], "score": self.score}
 
     def get_name(self) -> str:
         return self.name
