@@ -74,8 +74,8 @@ function KnowledgeSubmodules({ prefix }: { prefix: string }) {
   );
 }
 
-// The feeds a webhook module offers from the subscribed submodules. Add opens the new feed form on the module's page,
-// which asks for the webhook. A submodule of the module that the org does not subscribe to links to the Submodules tab.
+// The feeds that Feeds offers from the subscribed shared content. Add opens the new feed form on the feed's page.
+// Shared content that the org does not subscribe to links to the Shared tab.
 function ModuleFeeds({ m, prefix }: { m: CatalogModule; prefix: string }) {
   const presets = useQuery({
     queryKey: ['feeds', prefix, 'presets'],

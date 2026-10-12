@@ -18,7 +18,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | [organizations](organizations/README.md) | Orgs, config, module switches, secrets and machine tokens | |
 | [public](public/README.md) | Open reads | |
 | [submodules](submodules/README.md) | Loads the submodules in `submodules/`. Explore shows each submodule under the module that reads it | |
-| [superadmin](superadmin/README.md) | Orgs for the whole deployment | |
+| [superadmin](superadmin/README.md) | Orgs, limits, the server's services and the shared apps, for the whole deployment | |
 | [users](users/README.md) | Members and memberships | |
 
 ## Storage
@@ -57,7 +57,7 @@ Core modules are always on. The Explore page of the dashboard does not show them
 | Module | Does | Org switch |
 | --- | --- | --- |
 | [godfather](godfather/README.md) | Pods on a hosting provider (RunPod) that members connect to with the Godfather CLI | `godfather` |
-| [runpod](runpod/README.md) | App deploys to a hosting provider (RunPod). The dashboard calls it Hosting | `runpod` |
+| [runpod](runpod/README.md) | App deploys to RunPod or This server, and shared apps. The dashboard calls it Hosting | `runpod` |
 
 ## Shared files
 

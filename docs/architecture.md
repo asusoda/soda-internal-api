@@ -184,6 +184,8 @@ Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is
 | `submodules.list` | `submodules:read` | submodules |
 | `submodules.subscribe` (confirm), `submodules.unsubscribe` (confirm) | `submodules:manage` | submodules |
 | `submodules.query` | `knowledge:read` | submodules |
+| `shared_apps.list` | `submodules:read` | runpod (works with it off) |
+| `shared_apps.subscribe` (confirm) | `submodules:manage` | runpod (works with it off) |
 | `apps.list`, `apps.get`, `apps.pod`, `apps.templates`, `hosting.providers` | `apps:read` | runpod |
 | `apps.register`, `apps.create_from_template`, `apps.delete` (confirm), `apps.rollback` (confirm) | `apps:manage` | runpod |
 | `apps.deploy` (confirm) | `apps:deploy` | runpod |
