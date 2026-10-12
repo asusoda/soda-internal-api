@@ -8,6 +8,7 @@ description: Run Platform locally and create an organization.
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Podman with podman-compose, or Docker
 - Make
+- The [Doppler CLI](https://docs.doppler.com/docs/install-cli). `deploy/install-doppler.sh` in the repo installs it
 - A Discord application with a bot, for login and server membership checks
 
 ## Run it
@@ -16,6 +17,7 @@ description: Run Platform locally and create an organization.
 git clone https://github.com/theaisocietyasu/bedrock.git
 cd bedrock
 uv sync
+deploy/install-doppler.sh ~/.local/bin
 doppler login
 doppler setup
 doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"

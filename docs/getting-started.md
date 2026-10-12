@@ -62,7 +62,7 @@ Doppler holds the settings. `core/config.py` reads them from the environment, an
 | `MCP_PUBLIC_URL` | Only when the MCP server has its own host: its public URL, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. The default is `<ACCOUNTS_BASE_URL>/mcp`. MCP clients can connect with OAuth at this URL. See [Authentication](./authentication.md#oauth-for-mcp-clients) |
 | `FORWARDED_ALLOW_IPS` | Only when the reverse proxy in front of the MCP server connects from an address other than this computer or the default gateway. The MCP server reads the client IP from `X-Forwarded-For` of these addresses, for the OAuth rate limits. Never `*` |
 | `ACCESS_ENFORCE` | `false` logs refused requests and lets them through. `true` refuses them. See [Authentication](./authentication.md) |
-| `GOOGLE_SERVICE_ACCOUNT` | The JSON key of the Google service account, for Google Calendar. If it is not set, Google Calendar is off |
+| `GOOGLE_SERVICE_ACCOUNT` | The JSON key of the default Google service account for Google Calendar. If it is not set, only orgs that save their own Google key on the Integrations page have Google Calendar |
 
 ### Discord apps
 
@@ -81,7 +81,7 @@ make down      # stop
 make logs      # last 50 log lines
 make status    # container status
 make health    # container health
-make shell     # shell in the API container
+make shell     # shell in the API container, with the settings from Doppler
 make check     # fix lint and format, then type check, tests, migrations
 make ci        # the same checks with no changes to files; CI runs this
 ```

@@ -17,18 +17,23 @@ def _rate(name: str, default: float) -> float:
 
 
 def _service_account() -> dict | None:
-    """The Google service account key in GOOGLE_SERVICE_ACCOUNT, a JSON object. None turns Google Calendar off."""
+    """The deployment Google service account key in GOOGLE_SERVICE_ACCOUNT, a JSON object. None means no default."""
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT", "").strip()
     if not raw:
-        logger.warning("GOOGLE_SERVICE_ACCOUNT is not set. Google Calendar features will be disabled.")
+        logger.warning("GOOGLE_SERVICE_ACCOUNT is not set. Only orgs with their own Google key have Google Calendar.")
         return None
     try:
         info = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.warning("GOOGLE_SERVICE_ACCOUNT is not valid JSON (%s). Google Calendar features will be disabled.", e)
+        logger.warning(
+            "GOOGLE_SERVICE_ACCOUNT is not valid JSON (%s). Only orgs with their own Google key have Google Calendar.",
+            e,
+        )
         return None
     if not isinstance(info, dict):
-        logger.warning("GOOGLE_SERVICE_ACCOUNT is not a JSON object. Google Calendar features will be disabled.")
+        logger.warning(
+            "GOOGLE_SERVICE_ACCOUNT is not a JSON object. Only orgs with their own Google key have Google Calendar."
+        )
         return None
     return info
 

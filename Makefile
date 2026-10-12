@@ -108,7 +108,7 @@ logs-follow:
 
 # Open shell in API container
 shell:
-	@$(COMPOSE_CMD) exec api /bin/bash
+	@$(COMPOSE_CMD) exec api docker-entrypoint.sh /bin/bash
 
 # Clean up everything
 clean:

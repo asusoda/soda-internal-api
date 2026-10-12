@@ -161,7 +161,7 @@ def config_check():
         if not os.environ.get(var):
             report("WARN", f"{var} missing: {feature} off")
     if not config.GOOGLE_SERVICE_ACCOUNT:
-        report("WARN", "GOOGLE_SERVICE_ACCOUNT missing or not valid: Google Calendar off")
+        report("WARN", "GOOGLE_SERVICE_ACCOUNT missing or not valid: Google Calendar only for orgs with their own key")
 
     from core import secrets
 
