@@ -48,6 +48,26 @@ def _client_url(client: str | None) -> str:
 @auth_blueprint.route("/login", methods=["GET"])
 def login():
     logger.info(f"Redirecting to Discord OAuth login for client_id: {CLIENT_ID} and REDIRECT_URI: {REDIRECT_URI}")
+    # An officer login that follows an unfinished store login must not return to the store
+    session.pop("store_login_org", None)
+    return _discord_redirect("identify guilds")
+
+
+@auth_blueprint.route("/store_login", methods=["GET"])
+def store_login():
+    """Start a member's Discord sign-in for the store of the org in ?org. The callback returns to the store."""
+    from modules.organizations.service import find_by_prefix
+
+    with db_connect.SessionLocal() as db:
+        organization = find_by_prefix(db, request.args.get("org", ""), active_only=True)
+    if not organization:
+        return jsonify({"error": "Organization not found"}), 404
+    session["store_login_org"] = organization.prefix
+    return _discord_redirect("identify")
+
+
+def _discord_redirect(scope: str):
+    """Redirect to Discord's consent page with a new state that /callback checks."""
     state = secrets.token_urlsafe(24)
     session["oauth_state"] = state
     session["oauth_client"] = "dashboard" if request.args.get("client") == "dashboard" else "web"
@@ -56,7 +76,7 @@ def login():
             "client_id": CLIENT_ID,
             "redirect_uri": REDIRECT_URI,
             "response_type": "code",
-            "scope": "identify guilds",
+            "scope": scope,
             "state": state,
         }
     )
@@ -102,7 +122,12 @@ def callback():
     # The state must match the one /login stored, so a login started elsewhere is not accepted
     expected_state = session.pop("oauth_state", None)
     client_url = _client_url(session.pop("oauth_client", None))
+    store_org = session.pop("store_login_org", None)
+    store_url = f"{client_url}/store/{store_org}"
     if not expected_state or not secrets.compare_digest(expected_state, request.args.get("state", "")):
+        # A store login is new, so it refuses a wrong state in report mode too
+        if store_org:
+            return redirect(f"{store_url}?error=Sign-in expired, please try again")
         if decide("oauth_state_mismatch"):
             return redirect(f"{client_url}/auth/?error=Login expired, please try again")
 
@@ -131,6 +156,10 @@ def callback():
         user_response = requests.get("https://discord.com/api/v10/users/@me", headers=headers, timeout=30)
         user_info = user_response.json()
         user_id = user_info["id"]
+        if store_org:
+            # The store routes check that this Discord user is in the org's server
+            session["discord_id"] = user_id
+            return redirect(store_url)
         try:
             guilds = officer_guilds(directory, user_id)
         except DiscordUnavailable:

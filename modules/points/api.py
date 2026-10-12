@@ -103,9 +103,10 @@ def member_login(org_prefix):
 
 @points_blueprint.route("/<string:org_prefix>/member_profile", methods=["GET"])
 def get_member_profile(org_prefix):
-    """The signed-in member's profile, orgs and points."""
+    """The signed-in member's profile, orgs and points. A Discord session (the store sign-in) comes first."""
+    discord_id = session.get("discord_id")
     member_user_id = session.get("member_user_id")
-    if not member_user_id:
+    if not discord_id and not member_user_id:
         return jsonify({"error": "Member not logged in"}), 401
 
     db = next(db_connect.get_db())
@@ -116,7 +117,10 @@ def get_member_profile(org_prefix):
         if not organization:
             return jsonify({"error": ORG_NOT_FOUND}), 404
 
-        user = db.query(User).filter_by(id=member_user_id).first()
+        if discord_id:
+            user = db.query(User).filter_by(discord_id=str(discord_id)).first()
+        else:
+            user = db.query(User).filter_by(id=member_user_id).first()
         if not user:
             return jsonify({"error": "User not found"}), 404
 

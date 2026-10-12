@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from tests.contract.conftest import MEMBER_EMAIL, OFFICER_DISCORD_ID
+from tests.contract.conftest import MEMBER_DISCORD_ID, MEMBER_EMAIL, OFFICER_DISCORD_ID
 
 
 class LoginBot:
@@ -99,6 +99,54 @@ def test_login_started_from_the_dashboard_returns_there(client, discord, monkeyp
     response = client.get(f"/api/auth/callback?code=abc&state={state}")
     assert response.headers["Location"].startswith("https://dash.example.org/auth/?code=")
 
+    state = _query(client.get("/api/auth/login"))["state"][0]
+    response = client.get(f"/api/auth/callback?code=abc&state={state}")
+    assert response.headers["Location"].startswith(f"{config.CLIENT_URL}/auth/?code=")
+
+
+@pytest.fixture
+def member_discord(monkeypatch):
+    """Discord's token and user endpoints, answering for the member Alice."""
+    import modules.auth.api as auth_api
+
+    monkeypatch.setattr(auth_api.requests, "post", lambda *a, **k: FakeResponse({"access_token": "discord-token"}))
+    monkeypatch.setattr(auth_api.requests, "get", lambda *a, **k: FakeResponse({"id": MEMBER_DISCORD_ID}))
+
+
+def test_store_login_signs_the_member_in_and_returns_to_the_store(client, member_discord):
+    from core.config import config
+
+    login = client.get("/api/auth/store_login?org=soda")
+    assert _query(login)["scope"] == ["identify"]
+    state = _query(login)["state"][0]
+    assert client.get("/api/points/soda/member_profile").status_code == 401
+
+    response = client.get(f"/api/auth/callback?code=abc&state={state}")
+    assert response.headers["Location"] == f"{config.CLIENT_URL}/store/soda"
+    assert client.get("/api/storefront/soda/members/orders").status_code == 200
+    profile = client.get("/api/points/soda/member_profile")
+    assert profile.status_code == 200
+    assert profile.get_json()["user"]["email"] == MEMBER_EMAIL
+
+
+def test_store_login_needs_an_active_org(client):
+    assert client.get("/api/auth/store_login?org=nope").status_code == 404
+    assert client.get("/api/auth/store_login").status_code == 404
+
+
+def test_store_login_with_wrong_state_is_refused_in_report_mode(client, member_discord):
+    from core.config import config
+
+    client.get("/api/auth/store_login?org=soda")
+    response = client.get("/api/auth/callback?code=abc&state=forged")
+    assert response.headers["Location"].startswith(f"{config.CLIENT_URL}/store/soda?error=")
+    assert client.get("/api/storefront/soda/members/orders").status_code == 401
+
+
+def test_officer_login_after_an_unfinished_store_login_returns_to_auth(client, discord):
+    from core.config import config
+
+    client.get("/api/auth/store_login?org=soda")
     state = _query(client.get("/api/auth/login"))["state"][0]
     response = client.get(f"/api/auth/callback?code=abc&state={state}")
     assert response.headers["Location"].startswith(f"{config.CLIENT_URL}/auth/?code=")

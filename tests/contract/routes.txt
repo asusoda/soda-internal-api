@@ -58,6 +58,7 @@
 /api/auth/name GET,HEAD,OPTIONS auth.get_name
 /api/auth/refresh OPTIONS,POST auth.refresh_token
 /api/auth/revoke OPTIONS,POST auth.revoke_token
+/api/auth/store_login GET,HEAD,OPTIONS auth.store_login
 /api/auth/success GET,HEAD,OPTIONS auth.success
 /api/auth/validToken GET,HEAD,OPTIONS auth.validToken
 /api/auth/validateToken GET,HEAD,OPTIONS auth.valid_token
