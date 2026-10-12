@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Menu, MenuItem, HoveredLink } from '../ui/navbar-menu';
+import { Menu, MenuItem, HoveredLink, type MobileLink } from '../ui/navbar-menu';
 import OrganizationSwitcher from '../OrganizationSwitcher';
 import useOrgModules from '../../hooks/useOrgModules';
 import { 
@@ -35,6 +35,28 @@ const OrganizationNavbar = ({ children }: OrganizationNavbarProps) => {
   const goToCalendar = () => navigate(`/${currentOrg?.prefix}/calendar`);
   const goToCompute = () => navigate(`/${currentOrg?.prefix}/compute`);
 
+  // The pages of the Quick Access menu, for small screens
+  const mobileLinks: MobileLink[] = [
+    { name: 'Dashboard', onClick: goToDashboard },
+    { name: 'Manage Users', onClick: goToUsers },
+    ...(isEnabled('points')
+      ? [
+          { name: 'Leaderboard', onClick: goToLeaderboard },
+          { name: 'Add Points', onClick: goToAddPoints },
+        ]
+      : []),
+    ...(isEnabled('storefront')
+      ? [
+          { name: 'Store Admin Dashboard', onClick: goToStorefrontDashboard },
+          { name: 'Store & Orders', onClick: goToMemberStore },
+          { name: 'Add Products', onClick: goToAddStorefrontProduct },
+          { name: 'Manage Orders', onClick: goToTransactions },
+        ]
+      : []),
+    ...(isEnabled('calendar') ? [{ name: 'Calendar', onClick: goToCalendar }] : []),
+    ...(isEnabled('godfather') ? [{ name: 'Pods', onClick: goToCompute }] : []),
+  ];
+
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden">
       {/* Background Effects */}
@@ -44,7 +66,7 @@ const OrganizationNavbar = ({ children }: OrganizationNavbarProps) => {
 
       {/* Navigation */}
       <div className="relative z-20 w-full">
-        <Menu setActive={setActiveNavItem}>
+        <Menu setActive={setActiveNavItem} mobileLinks={mobileLinks}>
           {/* Left side - Org logo and name */}
           <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
             {currentOrg && (
