@@ -239,9 +239,6 @@ def get_user_points_public(org_prefix, **kwargs):
         user_discord_id = kwargs.get("user_discord_id")
         organization = kwargs["organization"]
 
-        if not organization:
-            return jsonify({"error": "Organization not found"}), 404
-
         if not user_discord_id:
             return jsonify({"error": "User not found"}), 404
 

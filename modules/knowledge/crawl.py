@@ -26,6 +26,7 @@ from modules.knowledge.service import (
     KnowledgeError,
     _embed,
     _find,
+    _optional_text,
     _source_dict,
     _text,
     _write_version,
@@ -60,7 +61,7 @@ def schedule(db, org_id: int, org_prefix: str, key: str, data: dict) -> dict:
     if not url.startswith(("https://", "http://")):
         raise KnowledgeError("url must start with http:// or https://")
     category = _text(data.get("category"), "category", 100)
-    title = _text(data.get("title"), "title", 500, required=False)
+    title = _optional_text(data.get("title"), "title", 500)
     every = data.get("fetch_every_hours", 24)
     if not isinstance(every, int) or isinstance(every, bool) or not 1 <= every <= MAX_EVERY_HOURS:
         raise KnowledgeError(f"fetch_every_hours must be an integer from 1 to {MAX_EVERY_HOURS}")
