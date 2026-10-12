@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tabler/icons-react": "^3.34.1",
+    "@tabler/icons-react": "^3.48.0",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "motion": "^12.23.12",
@@ -26,7 +26,7 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.7.0",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -34,7 +34,7 @@
     "autoprefixer": "^10.6.1",
     "jsdom": "^30.1.2",
     "postcss": "^8.5.29",
-    "tailwindcss": "^3.4.7",
+    "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
     "vite": "^8.3.3",
     "vitest": "^5.0.3"
