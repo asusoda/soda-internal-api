@@ -66,9 +66,9 @@ Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games,
 
 ## Cloud Agent
 
-Cloud Agents do not use Docker. `uv` and Node 22 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps.
+Cloud Agents do not use Docker. `uv` and Node 26 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps.
 
-Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs Python 3.12, the uv environment and the npm dependencies of `dashboard/` and `site/`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
+Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs the Node version in `.nvmrc`, Python 3.12, the uv environment and the npm dependencies of `dashboard/` and `site/`. Login shells in the repo put that Node first on `PATH`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
 
 On boot, the API listens on port 8000 and the dashboard listens on port 5173. The database is SQLite at `data/user.db`. `RUN_BOT_IN_API` is `false`. The boot script creates an org with prefix `robotics` when that prefix is missing.
 
