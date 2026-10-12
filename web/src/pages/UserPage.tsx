@@ -7,7 +7,10 @@ import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import StarBorder from '../components/ui/StarBorder';
 import { FaSearch, FaUserPlus } from 'react-icons/fa';
 import type { ApiError } from '../types';
-import type { MessageResponse, UserPointsResponse } from '../pointsTypes';
+import { changedMemberFields } from '../pointsTypes';
+import type { MemberEditFields, MessageResponse, UserPointsResponse } from '../pointsTypes';
+
+const EMPTY_FIELDS: MemberEditFields = { name: '', asu_id: '', academic_standing: '', major: '' };
 
 const UserPage = () => {
   useAuthToken();
@@ -27,6 +30,8 @@ const UserPage = () => {
   const [academicStanding, setAcademicStanding] = useState('');
   const [major, setMajor] = useState('');
   const [currentEmailForUpdate, setCurrentEmailForUpdate] = useState(''); // Stores the email of the user being updated
+  // The form values as loaded, so that an update sends only the fields the officer changed.
+  const [loadedFields, setLoadedFields] = useState<MemberEditFields>(EMPTY_FIELDS);
 
   // State for creating user
   const [createEmail, setCreateEmail] = useState('');
@@ -40,6 +45,7 @@ const UserPage = () => {
     setAcademicStanding('');
     setMajor('');
     setCurrentEmailForUpdate('');
+    setLoadedFields(EMPTY_FIELDS);
   };
 
   const resetCreateFormFields = () => {
@@ -67,8 +73,19 @@ const UserPage = () => {
     try {
       // Use the new consolidated endpoint to get user details
       const response = await apiClient.get<UserPointsResponse>(`/api/points/${currentOrg.prefix}/users/${searchEmail}/points`);
-      setUserData(response.data.user);
-      setName(response.data.user.name || '');
+      const { user } = response.data;
+      const fields: MemberEditFields = {
+        name: user.name || '',
+        asu_id: user.asu_id || '',
+        academic_standing: user.academic_standing || '',
+        major: user.major || '',
+      };
+      setUserData(user);
+      setName(fields.name);
+      setAsuId(fields.asu_id);
+      setAcademicStanding(fields.academic_standing);
+      setMajor(fields.major);
+      setLoadedFields(fields);
       setCurrentEmailForUpdate(searchEmail);
     } catch (error) {
       if (axios.isAxiosError<ApiError>(error) && error.response && error.response.status === 404) {
@@ -98,12 +115,17 @@ const UserPage = () => {
     setUpdateError('');
     setUpdateSuccess('');
 
-    const dataToUpdate = {
+    const dataToUpdate = changedMemberFields(loadedFields, {
       name,
       asu_id: asuId,
       academic_standing: academicStanding,
       major,
-    };
+    });
+    if (Object.keys(dataToUpdate).length === 0) {
+      setUpdateSuccess('No changes to save.');
+      setLoadingUpdate(false);
+      return;
+    }
 
     try {
       // Use the new consolidated endpoint for updating user fields

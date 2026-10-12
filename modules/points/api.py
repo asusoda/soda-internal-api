@@ -612,7 +612,8 @@ def get_user_points_in_org_by_identifier(org_prefix, user_identifier):
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        if not users.active_membership(db, user.id, organization.id):
+        membership = users.active_membership(db, user.id, organization.id)
+        if not membership:
             return jsonify({"error": "User is not a member of this organization"}), 400
 
         total_points = service.total_points(db, user.id, organization.id) or 0
@@ -620,7 +621,14 @@ def get_user_points_in_org_by_identifier(org_prefix, user_identifier):
 
         return jsonify(
             {
-                "user": {"id": user.id, "name": user.name, "email": user.email, "username": user.username},
+                "user": {
+                    "id": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "username": user.username,
+                    **users.member_fields(user, membership),
+                    "major": user.major,
+                },
                 "organization": {"name": organization.name, "prefix": organization.prefix},
                 "total_points": total_points,
                 "points_history": [service.history_json(record) for record in points_records],
