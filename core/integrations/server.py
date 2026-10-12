@@ -26,8 +26,8 @@ logger = get_logger(__name__)
 # The runner's socket, in the data folder that the containers mount at /app/data
 SOCKET = "data/runner.sock"
 TIMEOUT_SECONDS = 900  # a deploy can pull an image first
-# The host address that a Platform container reaches a published port on
-HOST_ADDRESS = "host.containers.internal"
+# The podman gateway, where the runner publishes app ports and a Platform container reaches them
+HOST_ADDRESS = "10.88.0.1"
 RUNPOD_ONLY = ("gpu", "cpu", "cloud", "dataCenterIds", "mounts", "disk", "registry", "args")
 _organizations = sql_table("organizations", column("id"), column("prefix"))
 
@@ -185,11 +185,13 @@ class ServerProvider:
             raise RunnerError(f"Port {port} of {pod_id} is not published on this server", 409)
         return f"http://{HOST_ADDRESS}:{host}{path}"
 
-    def healthy(self, pod_id: str, port: int, path: str) -> bool:
-        """Whether the container answers path on port, asked by the runner on the host."""
+    def healthy(self, pod_id: str, port: int, path: str | None) -> bool:
+        """Whether the container answers path on port, or accepts a connection when path is None. The runner asks
+        from the host."""
+        query = {"port": port, "path": path} if path is not None else {"port": port, "tcp": 1}
         try:
             org = _org_of(pod_id)
-            answer = call("GET", _app_path(pod_id, org) + "/health?" + urlencode({"port": port, "path": path}))
+            answer = call("GET", _app_path(pod_id, org) + "/health?" + urlencode(query))
         except RunnerError as e:
             logger.info("health check failed pod=%s error=%s", pod_id, e.message)
             return False

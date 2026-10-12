@@ -146,3 +146,30 @@ def test_officers_cannot_control_server_services(client, officer_headers, runner
         "/api/superadmin/server/services/twenty_db_1/action", json={"action": "stop"}, headers=officer_headers
     )
     assert refused.status_code == 403
+
+
+def test_a_database_part_is_healthy_by_tcp(client, officer_headers, runner, apps):
+    from modules.runpod import service
+
+    tcp_db = {**CRM_DB, "health": {"port": 5432, "tcp": True}}
+    name = _deployed(client, officer_headers, apps, tcp_db)
+    from core.db import db_connect
+
+    db = db_connect.SessionLocal()
+    try:
+        service.check_deployments(db)
+    finally:
+        db.close()
+    assert ("health", "soda", name, 5432, None) in runner.calls
+    detail = client.get(f"/api/dashboard/soda/apps/{name}", headers=officer_headers).get_json()
+    assert detail["latest_deployment"]["status"] == "healthy"
+
+
+def test_runpod_needs_an_http_health_path(client, officer_headers, apps):
+    from .test_runpod_apps import MANIFEST
+
+    name = "ctl-" + uuid.uuid4().hex[:8]
+    apps.append(name)
+    tcp = {**MANIFEST, "health": {"port": 8080, "tcp": True}}
+    refused = client.put(f"/api/dashboard/soda/apps/{name}", json={"manifest": tcp}, headers=officer_headers)
+    assert refused.status_code == 400 and "health path" in refused.get_json()["error"]

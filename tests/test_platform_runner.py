@@ -68,3 +68,22 @@ def test_only_a_public_port_of_the_policy_binds_every_address(policy):
         policy, "soda", "web", {**BODY, "ports": [{"container": 80, "host": 8080}, {"container": 81, "host": 8081}]}
     )
     assert [(p["host"], p["public"]) for p in checked["ports"]] == [(8080, True), (8081, False)]
+
+
+def test_a_tcp_health_check_only_needs_the_port_to_accept(monkeypatch):
+    import socket
+
+    listener = socket.create_server(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    info = {
+        "Name": "app-soda-db",
+        "Config": {"Labels": {}},
+        "HostConfig": {"PortBindings": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(port)}]}},
+        "NetworkSettings": {"Networks": {}},
+    }
+    monkeypatch.setattr(runner, "_inspect", lambda name: info)
+    try:
+        assert runner.health("soda", "db", 5432, None) == {"ok": True}
+    finally:
+        listener.close()
+    assert runner.health("soda", "db", 5432, None)["ok"] is False

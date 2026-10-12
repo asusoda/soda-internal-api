@@ -80,7 +80,7 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 - `group` and `alias` join the parts of one app: the apps of one group share the network `platform-<org>-<group>`, and each part answers there to its alias, such as `db` or `redis`.
 - `publish` maps a container port to a host port, so that Nginx Proxy Manager can send a domain to it. The runner publishes it on localhost and the podman gateway only, never on a public address. The host port must be one the runner's policy gives the org, or in its port range.
 - `volumes`: `name` is a folder of the app under the runner's `data_root`. `host` is a host path that the runner's policy allows for that org. `read_only` is optional.
-- The container is named `app-<org>-<app>`, on a network of its org, with `--restart always`. Platform checks `health` from the server on the container's own address, so the health port does not have to be published.
+- The container is named `app-<org>-<app>`, on a network of its org, with `--restart always`. Platform checks `health` from the server on the container's own address, so the health port does not have to be published. For a part that does not speak HTTP, such as a database, use `"health": {"port": 5432, "tcp": true}`: the check passes when the port accepts a connection. RunPod apps need a `path`.
 - Deleting the app stops and removes its container. Its data folders stay on the server.
 - Godfather does not use This server: its pods need SSH.
 
@@ -88,7 +88,7 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 
 A shared app is an app that the deployment owns on This server and every org uses, such as the vault. It is an app with no org: the superadmin registers, deploys, rolls back and sets its secrets on the Shared apps card of the Superadmin page (`/api/superadmin/shared-apps`). Its container is `shared-<name>`, on the network `platform-shared`, and the runner checks it against the `shared` section of its policy. Its secrets are deployment secrets named `shared_<app>_<key>`; name them in `secret_env`.
 
-An org subscribes on the Shared tab of Explore (`PUT /api/dashboard/<org>/shared-apps/<name>/subscription` with `{"emails": [...]}`). The manifest's `access` field says what a subscription does:
+A shared app with no `access`, such as the embedding server, is the deployment's own: orgs do not see it or subscribe to it. An org subscribes on the Shared tab of Explore (`PUT /api/dashboard/<org>/shared-apps/<name>/subscription` with `{"emails": [...]}`). The manifest's `access` field says what a subscription does:
 
 | `access.kind` | A subscription |
 | --- | --- |

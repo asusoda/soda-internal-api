@@ -146,8 +146,13 @@ MANIFEST_SCHEMA: dict = {
             "properties": {
                 "port": {"type": "integer", "minimum": 1, "maximum": 65535},
                 "path": {"type": "string", "pattern": r"^/[^\s]*$"},
+                "tcp": {
+                    "description": "This server: check that the port accepts a connection, for a database",
+                    "const": True,
+                },
             },
-            "required": ["port", "path"],
+            "required": ["port"],
+            "oneOf": [{"required": ["path"]}, {"required": ["tcp"]}],
             "additionalProperties": False,
         },
     },
@@ -607,7 +612,7 @@ def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     running = db.query(AppDeployment, App).join(App, App.id == AppDeployment.app_id)
     for deployment, app in running.filter(AppDeployment.status == "deploying").all():
         health = _manifest(app)["health"]
-        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health["port"], health["path"]):
+        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health["port"], health.get("path")):
             deployment.status, deployment.finished_at = "healthy", now
             counts["healthy"] += 1
             ended.append((app, deployment))

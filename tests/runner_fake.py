@@ -101,6 +101,7 @@ class FakePodman:
         return list(self.containers.values())
 
     def health(self, org, app, port, path):
+        self.calls.append(("health", org, app, port, path))
         return {"ok": self.up, "status": 200 if self.up else 503}
 
 
