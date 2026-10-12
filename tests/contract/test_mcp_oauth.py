@@ -1459,3 +1459,52 @@ def test_registration_log_cuts_urls_with_escaped_characters(oauth_client, caplog
     line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
     assert "https://x.test/?…" in line and "cursor://x/cb?…" in line
     assert "secret" not in caplog.text
+
+
+def test_each_scope_is_in_one_group_of_the_consent_page(app):
+    from modules.auth import scopes
+    from modules.mcp import oauth_pages
+
+    groups = oauth_pages._scope_groups()
+    assert "Other" not in [title for title, _, _ in groups], "add the scope to scopes.GROUPS"
+    names = [scope for _, _, found in groups for scope in found]
+    assert sorted(names) == sorted(scopes.SCOPES)
+    assert scopes.ADMIN <= set(scopes.SCOPES)
+
+
+def test_presets_of_the_consent_page(app):
+    from modules.auth import scopes
+
+    presets = {name: set(found) for name, (_, found) in scopes.presets().items()}
+    assert presets["read"] == {s for s in scopes.SCOPES if s.endswith(":read")}
+    assert not presets["write"] & scopes.ADMIN
+    assert presets["read"] < presets["write"] < presets["all"] == set(scopes.SCOPES)
+
+
+def test_the_consent_page_shows_presets_and_groups(oauth_client):
+    from modules.auth import scopes
+    from modules.mcp import oauth_pages
+
+    registered = _register(oauth_client)
+    authorize = _authorize(oauth_client, registered["client_id"], _pkce()[1], scope="points:write org:read")
+    login = oauth_client.get(f"/mcp/oauth/login?{urlparse(authorize.headers['location']).query}")
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    page = oauth_client.get("/mcp/oauth/callback", params={"state": state, "code": "discord-code"})
+    assert page.status_code == 200, page.text
+
+    # The CSP lets only the script of the page run
+    script = page.text.split("<script>")[1].split("</script>")[0]
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    assert digest == oauth_pages.SCRIPT_HASH
+    assert f"script-src 'sha256-{digest}'" in page.headers["content-security-policy"]
+
+    assert 'data-preset="org:read points:write">Asked for by the client (2)' in page.text
+    for label, found in scopes.presets().values():
+        assert f'data-preset="{" ".join(found)}">{label} ({len(found)})' in page.text
+    for scope in scopes.SCOPES:
+        assert page.text.count(f'name="scope" value="{scope}"') == 1
+    assert 'value="points:write" checked' in page.text
+    assert 'value="points:read">' in page.text
+    assert '<details class="group" open><summary><span class="title">Members</span>' in page.text
+    assert '<details class="group"><summary><span class="title">Hosting</span>' in page.text
+    assert '<span class="tag admin">admin</span>' in page.text
