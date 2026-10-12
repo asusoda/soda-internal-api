@@ -98,7 +98,7 @@ To turn it on:
 
 The deploy on a push to `main` runs the migration and recreates the `mcp` container. When OAuth is on, `/mcp` returns 401 with `WWW-Authenticate: Bearer resource_metadata="...", scope="org:read"` for a request with no valid token. A client reads that URL to find the sign-in, and asks for the scopes in `scope` first.
 
-Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are at the root of the host, where clients look for them. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host, with the path of the public URL after the document name: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/mcp`. Clients look for them there. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
 
 | Route | Served by | Does |
 | --- | --- | --- |

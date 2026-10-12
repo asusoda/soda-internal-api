@@ -290,15 +290,19 @@ class RegistrationLog:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope.get("path") != self.register or scope.get("method") != "POST":
             return await self.app(scope, receive, send)
-        messages, read, more = [], 0, True
-        while more and read <= MAX_LOGGED_BODY:
+        kept, cut = bytearray(), False
+
+        async def copied():
+            # The handler gets every message unchanged; the log keeps at most MAX_LOGGED_BODY bytes
+            nonlocal cut
             message = await receive()
-            messages.append(message)
-            if message["type"] != "http.request":
-                break
-            read += len(message.get("body", b""))
-            more = message.get("more_body", False)
-        body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.request")
+            if message["type"] == "http.request":
+                piece = message.get("body", b"")
+                room = MAX_LOGGED_BODY - len(kept)
+                kept.extend(piece[: max(room, 0)])
+                cut = cut or len(piece) > room
+            return message
+
         answer: dict = {"status": 0, "body": b""}
 
         async def watched(message):
@@ -308,10 +312,10 @@ class RegistrationLog:
                 answer["body"] += message.get("body", b"")
             await send(message)
 
-        await self.app(scope, _replay(messages, receive), watched)
+        await self.app(scope, copied, watched)
         if answer["status"] >= 400:
             client = (scope.get("client") or ("unknown", 0))[0]
-            request = registration_summary(body) if not more else f"body larger than {MAX_LOGGED_BODY} bytes"
+            request = f"body larger than {MAX_LOGGED_BODY} bytes" if cut else registration_summary(bytes(kept))
             logger.warning(
                 "client registration refused ip=%s status=%s answer=%s request=%s",
                 client,

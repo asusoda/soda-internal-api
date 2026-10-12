@@ -1425,3 +1425,24 @@ def test_registration_log_escapes_field_names(oauth_client, caplog):
     line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
     assert "\n" not in line
     assert '"x\\nFAKE LINE"' in line
+
+
+def test_a_large_registration_passes_whole_and_is_not_kept(oauth_client, caplog, monkeypatch):
+    import json
+    import logging
+
+    from modules.mcp import edges
+
+    monkeypatch.setattr(edges, "MAX_LOGGED_BODY", 100)
+    body = json.dumps({"redirect_uris": ["cursor://x/cb"], "pad": "x" * 500}).encode()
+
+    def chunks():
+        for start in range(0, len(body), 64):
+            yield body[start : start + 64]
+
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        response = oauth_client.post("/mcp/register", content=chunks(), headers={"content-type": "application/json"})
+    # The handler read the whole body: it refused the redirect URI, not a cut-off JSON document
+    assert response.status_code == 400 and response.json()["error"] == "invalid_redirect_uri"
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "body larger than 100 bytes" in line
