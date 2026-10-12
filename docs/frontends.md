@@ -88,11 +88,11 @@ The org marks (`OrgMarks` in `src/components/built-by.tsx`) show the orgs that b
 1. Put a square SVG logo with a transparent background in `dashboard/public/orgs/` and in `site/public/orgs/`.
 2. Add one entry to `BUILT_BY` in `dashboard/src/lib/links.ts` and to `orgs` in `site/lib/orgs.ts`: the name, the short name, the website, the logo path and the fill of the disk. The fill is fixed, so the logo looks the same on light and dark pages.
 
-To check that long lists stay fast, run `npm run perf` in `dashboard/`. It answers the API from `largeFixtures()` in `scripts/fixtures.mjs` (2,000 knowledge sources, 1,500 members, 600 orders, 1,000 audit log entries) and prints the time of each step and its long tasks.
+To check that long lists stay fast, run `npm run perf` in `dashboard/`. It answers the API from `largeFixtures()` in `scripts/fixtures.ts` (2,000 knowledge sources, 1,500 members, 600 orders, 1,000 audit log entries) and prints the time of each step and its long tasks.
 
-The landing page shows dashboard screenshots from `site/public/screenshots/`. After a UI change, run `npm run screenshots` in `dashboard/`. The script builds the dashboard, serves it with `vite preview` and answers each API call from `scripts/fixtures.mjs`, a fictional org. It needs Playwright with Chromium. If the Chromium version does not match Playwright, set `PLAYWRIGHT_CHROMIUM` to the browser binary.
+The landing page shows dashboard screenshots from `site/public/screenshots/`. After a UI change, run `npm run screenshots` in `dashboard/`. The script builds the dashboard, serves it with `vite preview` and answers each API call from `scripts/fixtures.ts`, a fictional org. It needs a Chromium for Playwright: run `npx playwright install chromium` once, or set `PLAYWRIGHT_CHROMIUM` to a Chromium binary.
 
-The hero of the landing page plays a demo video from `site/public/demo/`: `platform-demo.mp4`, `platform-demo.webm` and `poster.webp`. After a UI change, run `npm run demo-video` in `dashboard/`. The script builds the dashboard and uses the same fixtures. It clicks and types through each page with Playwright and takes a screenshot each time the page changes. Then it draws each frame (the window, the camera zoom, the pointer and the captions) and encodes the files with ffmpeg. It needs Playwright with Chromium and `ffmpeg` with libx264, libvpx-vp9 and libwebp. A run takes about 15 minutes. To change the story or the captions, edit `story()` in `scripts/demo-video.mjs`. `DEMO_FPS` sets the frame rate, and `DEMO_CRF` and `DEMO_VP9_CRF` set the quality of the MP4 and WebM files.
+The hero of the landing page plays a demo video from `site/public/demo/`: `platform-demo.mp4`, `platform-demo.webm` and `poster.webp`. After a UI change, run `npm run demo-video` in `dashboard/`. The script builds the dashboard and uses the same fixtures. It clicks and types through each page with Playwright and takes a screenshot each time the page changes. Then it draws each frame (the window, the camera zoom, the pointer and the captions) and encodes the files with ffmpeg. It needs the same Chromium and `ffmpeg` with libx264, libvpx-vp9 and libwebp. A run takes about 15 minutes. To change the story or the captions, edit `story()` in `scripts/demo-video.ts`. `DEMO_FPS` sets the frame rate, and `DEMO_CRF` and `DEMO_VP9_CRF` set the quality of the MP4 and WebM files.
 
 Officers sign in at `/api/auth/login?client=dashboard`. After Discord, the API sends them to `DASHBOARD_URL/auth/` with a one-time code.
 
@@ -137,7 +137,7 @@ Put a part in `src/components/` or `src/lib/` only when two or more pages use it
 1. Write the page in `dashboard/src/pages/`. For a large page, make a folder with an `index.tsx` that exports the page.
 2. Add one entry to `PAGES` in `src/pages/registry.tsx`. The order of `PAGES` is the order in the sidebar.
 3. Add the types of the API responses to the domain file in `src/lib/types/`. If you add a file, export it from `src/lib/types/index.ts`.
-4. Add a response for each API path the page reads to `dashboard/scripts/fixtures.mjs`.
+4. Add a response for each API path the page reads to `dashboard/scripts/fixtures.ts`.
 5. Add a row for the page to the page table in this file.
 6. Run `npm test` and `npm run build`.
 
@@ -160,6 +160,6 @@ These pages use the API session cookie, not the officer token. The order routes 
 
 ## Old officer app
 
-`web/` is the old officer app (Create React App). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
+`web/` is the old officer app (Vite and TypeScript). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
 
 The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. `web/` has no Jeopardy or bot pages. Those pages called paths that the API does not have, so they were removed, and the dashboard does not have them.

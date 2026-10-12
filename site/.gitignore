@@ -24,7 +24,7 @@ yarn-error.log*
 .env*.local
 .vercel
 next-env.d.ts
-# copied from ../docs by scripts/sync-docs.mjs
+# copied from ../docs by scripts/sync-docs.ts
 /content/docs/modules/
 /content/docs/codebase/
 /content/docs/project/

@@ -19,7 +19,7 @@ Steps:
    - If orgs can switch it off: `OPTIONAL_MODULES` in `modules/organizations/service.py`; `module=` on the `Mount` and on each `@tool`; a `module_enabled` check in jobs that run for all orgs. See "Org switch" in `docs/writing-a-module.md`.
 7. Migration: see the `migration` skill.
 8. Tests in `tests/contract/test_<name>.py`. Fake every network call by monkeypatching the module's fetch or client function. Add the module to the expected list in `tests/contract/test_modules.py` when it is switchable. Add the new routes to `tests/contract/routes.txt` with `UPDATE_ROUTES=1 uv run pytest tests/contract/test_routes.py`.
-9. Docs: `modules/<name>/README.md` with a Files table and a Surface list, 25 lines or fewer; a row in `modules/README.md` and the README module table; the modules line in `AGENTS.md` and `CLAUDE.md`; each new table in `docs/data-model.md`. If the module needs more than its README: `docs/modules/<name>.md`, a row in `docs/README.md`, and the page in `site/scripts/sync-docs.mjs`.
+9. Docs: `modules/<name>/README.md` with a Files table and a Surface list, 25 lines or fewer; a row in `modules/README.md` and the README module table; the modules line in `AGENTS.md` and `CLAUDE.md`; each new table in `docs/data-model.md`. If the module needs more than its README: `docs/modules/<name>.md`, a row in `docs/README.md`, and the page in `site/scripts/sync-docs.ts`.
 10. Run `uv run pytest tests/test_module_layout.py`. It names each place that you did not register the module. Then run the `check` skill.
 
 Write comments and docs with the `technical-writing` skill.
