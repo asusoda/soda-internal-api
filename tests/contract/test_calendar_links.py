@@ -23,8 +23,10 @@ class FakeNotion:
 class FakeGcal:
     def __init__(self, events):
         self.events = events
+        self.time_mins = []
 
     def get_all_events(self, calendar_id, time_min=None, parent_transaction=None):
+        self.time_mins.append(time_min)
         return self.events
 
 
@@ -64,6 +66,8 @@ def test_events_have_the_google_calendar_link(client, soda_calendar, monkeypatch
     events = _events(client)
     assert events["page-1"]["jump_url"] == "https://www.google.com/calendar/event?eid=abc"
     assert "jump_url" not in events["page-2"]
+    # Both pages start 2026-10-20T18:00-07:00; the lookup starts one day before
+    assert gcal.time_mins == ["2026-10-20T01:00:00Z"]
 
 
 def test_events_load_without_links_when_google_fails(client, soda_calendar, monkeypatch):
@@ -71,3 +75,11 @@ def test_events_load_without_links_when_google_fails(client, soda_calendar, monk
     events = _events(client)
     assert set(events) == {"page-1", "page-2"}
     assert all("jump_url" not in event for event in events.values())
+
+
+def test_no_google_lookup_without_events(client, soda_calendar, monkeypatch):
+    gcal = FakeGcal([])
+    monkeypatch.setattr(soda_calendar, "gcal_for", lambda db, org: gcal)
+    monkeypatch.setattr(FakeNotion, "fetch_events", lambda self, database_id, parent_transaction=None: [])
+    assert _events(client) == {}
+    assert gcal.time_mins == []
