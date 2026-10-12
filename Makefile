@@ -112,8 +112,10 @@ discard-local-changes:
 # all of them are recreated together. podman-compose 1.0.6 recreates a service's dependencies with it, so
 # `up -d dashboard` also tries to replace api. It then removes the other containers that require api and
 # fails to replace api ("has dependent containers"), which leaves only api and dashboard running.
-# soda-mcp (profile mcp) is recreated when it exists. Docker Compose gets --profile mcp; podman-compose
-# 1.0.6 has no --profile option and ignores profiles, so it gets the service name only.
+# soda-mcp (profile mcp) and soda-worker (profile postgres) are recreated when they exist. Docker Compose
+# gets --profile mcp and --profile postgres; podman-compose 1.0.6 has no --profile option and ignores
+# profiles, so it gets the service names only. soda-worker requires api, so podman cannot remove api
+# while soda-worker exists and is not recreated with it.
 # soda-site (profile site) does not require api. When soda-site:latest or the soda-site
 # container exists and site/ or docs/ changes, this target rebuilds site and recreates it
 # with --no-deps. When this deploy does not rebuild site and soda-site:latest exists, it
@@ -199,9 +201,13 @@ deploy:
 		SERVICES_TO_BUILD=""; \
 		if [ "$$BUILD_API" -eq 1 ]; then SERVICES_TO_BUILD="$$SERVICES_TO_BUILD api"; fi; \
 		if [ "$$BUILD_DASHBOARD" -eq 1 ]; then SERVICES_TO_BUILD="$$SERVICES_TO_BUILD dashboard"; fi; \
-		MCP_ON=0; PROFILE_ARGS=""; \
+		MCP_ON=0; WORKER_ON=0; PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then MCP_ON=1; fi; \
-		if [ "$$MCP_ON" -eq 1 ] && [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="--profile mcp"; fi; \
+		if $(CONTAINER_CMD) inspect soda-worker >/dev/null 2>&1; then WORKER_ON=1; fi; \
+		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then \
+			if [ "$$MCP_ON" -eq 1 ]; then PROFILE_ARGS="$$PROFILE_ARGS --profile mcp"; fi; \
+			if [ "$$WORKER_ON" -eq 1 ]; then PROFILE_ARGS="$$PROFILE_ARGS --profile postgres"; fi; \
+		fi; \
 		SITE_ON=0; SITE_IMAGE=0; SITE_PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-site >/dev/null 2>&1; then SITE_ON=1; fi; \
 		if $(CONTAINER_CMD) image inspect soda-site:latest >/dev/null 2>&1; then SITE_IMAGE=1; fi; \
@@ -260,6 +266,7 @@ deploy:
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
 			SERVICES_TO_START="api bot dashboard"; \
 			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
+			if [ "$$WORKER_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START worker"; fi; \
 			echo -e "$(GREEN)[INFO]$(NC) Recreating changed services:$$SERVICES_TO_START"; \
 			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --force-recreate $$ORPHAN_ARGS $$SERVICES_TO_START; \
 		else \
@@ -314,6 +321,10 @@ deploy:
 			if [ "$$MCP_ON" -eq 1 ]; then \
 				wait_for_health soda-mcp 60; \
 				check_image soda-mcp soda-internal-api:latest; \
+			fi; \
+			if [ "$$WORKER_ON" -eq 1 ]; then \
+				wait_for_health soda-worker 60; \
+				check_image soda-worker soda-internal-api:latest; \
 			fi; \
 		fi; \
 		if [ "$$BUILD_API" -eq 1 ]; then \
@@ -402,7 +413,11 @@ rollback:
 		SERVICES="api bot dashboard"; PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then \
 			SERVICES="$$SERVICES mcp"; \
-			if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="--profile mcp"; fi; \
+			if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="$$PROFILE_ARGS --profile mcp"; fi; \
+		fi; \
+		if $(CONTAINER_CMD) inspect soda-worker >/dev/null 2>&1; then \
+			SERVICES="$$SERVICES worker"; \
+			if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="$$PROFILE_ARGS --profile postgres"; fi; \
 		fi; \
 		$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --force-recreate $$SERVICES; \
 	fi; \
