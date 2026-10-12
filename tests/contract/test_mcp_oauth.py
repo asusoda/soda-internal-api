@@ -125,7 +125,9 @@ def test_discovery(oauth_client, client):
         body = resource.json() if http is oauth_client else resource.get_json()
         assert body["resource"] == PUBLIC
         assert body["authorization_servers"] == [PUBLIC]
-        for where in ("/.well-known/oauth-authorization-server/mcp", "/.well-known/oauth-authorization-server"):
+        # No copy at the root: there the issuer would have to be the host alone (RFC 8414)
+        assert http.get("/.well-known/oauth-authorization-server").status_code == 404
+        for where in ("/.well-known/oauth-authorization-server/mcp",):
             server = http.get(where)
             assert server.status_code == 200
             body = server.json() if http is oauth_client else server.get_json()
@@ -1359,3 +1361,32 @@ def test_the_key_cache_stays_bounded(monkeypatch, client_key):
     assert len(client_auth._jwks_cache) == 3
     # The newest entries stay
     assert "https://agent.example/jwks/9.json" in client_auth._jwks_cache
+
+
+def test_refused_registrations_are_logged(oauth_client, caplog):
+    import logging
+
+    body = {
+        "client_name": "Example Agent",
+        "redirect_uris": ["cursor://x/cb"],
+        "token_endpoint_auth_method": "client_secret_post",
+        "client_secret": "never-logged-secret",
+        "jwks": {"keys": [{"kty": "oct", "k": "never-logged-key"}]},
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+        assert (
+            oauth_client.post(
+                "/mcp/register", content=b"not json", headers={"content-type": "application/json"}
+            ).status_code
+            == 400
+        )
+        _register(oauth_client)
+    refused = [r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage()]
+    assert len(refused) == 2
+    assert "invalid_redirect_uri" in refused[0] and "cursor://x/cb" in refused[0]
+    assert "client_secret_post" in refused[0] and "Example Agent" in refused[0]
+    # Field names only, never secret or key values
+    assert "client_secret" in refused[0] and "jwks" in refused[0]
+    assert "never-logged" not in caplog.text
+    assert "not JSON" in refused[1] or "invalid_client_metadata" in refused[1]

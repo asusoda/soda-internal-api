@@ -6,6 +6,8 @@
   token for a tool that needs a scope the token does not have gets 403 insufficient_scope with that scope, so
   the client can sign in again and ask for it (step-up).
 - IssuerOnErrors: an error redirect from /authorize that the SDK makes gets iss (RFC 9207), as the metadata says.
+- RegistrationLog: a refused /register is logged with the reason and a summary of the request, because the
+  client often shows only a general error. Secrets and keys are never logged.
 """
 
 import json
@@ -227,3 +229,71 @@ class IssuerOnErrors:
             await send(message)
 
         return await self.app(scope, receive, with_iss)
+
+
+# The registration fields whose values RegistrationLog writes. The other fields get their names only
+LOGGED_FIELDS = (
+    "client_name",
+    "redirect_uris",
+    "token_endpoint_auth_method",
+    "grant_types",
+    "response_types",
+    "application_type",
+    "scope",
+    "client_uri",
+    "software_id",
+)
+MAX_LOGGED_BODY = 64 * 1024
+
+
+def registration_summary(body: bytes) -> str:
+    """The safe part of a registration request: some field values, and the names of the other fields."""
+    try:
+        request = json.loads(body)
+    except ValueError:
+        return f"body is not JSON ({len(body)} bytes)"
+    if not isinstance(request, dict):
+        return f"body is a JSON {type(request).__name__}, not an object"
+    fields = cast(dict, request)
+    shown = {k: fields[k] for k in LOGGED_FIELDS if k in fields}
+    others = sorted(str(k) for k in fields if k not in LOGGED_FIELDS)
+    return f"{json.dumps(shown, default=str)[:1000]} other fields: {', '.join(others) or 'none'}"
+
+
+class RegistrationLog:
+    def __init__(self, app, path: str):
+        self.app = app
+        self.register = f"{path.rstrip('/')}/register"
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("path") != self.register or scope.get("method") != "POST":
+            return await self.app(scope, receive, send)
+        messages, read, more = [], 0, True
+        while more and read <= MAX_LOGGED_BODY:
+            message = await receive()
+            messages.append(message)
+            if message["type"] != "http.request":
+                break
+            read += len(message.get("body", b""))
+            more = message.get("more_body", False)
+        body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.request")
+        answer: dict = {"status": 0, "body": b""}
+
+        async def watched(message):
+            if message["type"] == "http.response.start":
+                answer["status"] = message["status"]
+            elif message["type"] == "http.response.body" and len(answer["body"]) < 2048:
+                answer["body"] += message.get("body", b"")
+            await send(message)
+
+        await self.app(scope, _replay(messages, receive), watched)
+        if answer["status"] >= 400:
+            client = (scope.get("client") or ("unknown", 0))[0]
+            request = registration_summary(body) if not more else f"body larger than {MAX_LOGGED_BODY} bytes"
+            logger.warning(
+                "client registration refused ip=%s status=%s answer=%s request=%s",
+                client,
+                answer["status"],
+                answer["body"][:500].decode("utf-8", "replace"),
+                request,
+            )

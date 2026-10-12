@@ -165,9 +165,7 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
     oauth_routes.append(
         Route("/.well-known/oauth-authorization-server", endpoint=metadata_route, methods=["GET", "OPTIONS"])
     )
-    root_metadata = [
-        Route(where, endpoint=metadata_route, methods=["GET", "OPTIONS"]) for where in oauth.server_metadata_paths()
-    ]
+    root_metadata = [Route(oauth.server_metadata_path(), endpoint=metadata_route, methods=["GET", "OPTIONS"])]
     app = server.streamable_http_app(
         streamable_http_path=path,
         stateless_http=True,
@@ -187,7 +185,7 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
     )
     # After the /mcp route, so that a request to /mcp itself never reaches the mount
     app.router.routes.append(Mount(path, routes=[*oauth_routes, *oauth_pages.routes()]))
-    edged = edges.IssuerOnErrors(edges.ScopeChallenge(app, path), path)
+    edged = edges.RegistrationLog(edges.IssuerOnErrors(edges.ScopeChallenge(app, path), path), path)
     return oauth.RateLimit(edges.OriginCheck(edged, path), path)
 
 
