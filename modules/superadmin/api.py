@@ -470,3 +470,33 @@ def put_shared_app_secrets(name):
     values = (request.get_json(silent=True) or {}).get("secrets")
     actor = _superadmin_actor()
     return _shared(lambda db: shared.set_secrets(db, name, values, actor))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/action", methods=["POST"])
+@superadmin_required
+def shared_app_action(name):
+    """Start, stop or restart a shared app. Body: {"action": "restart"}."""
+    action = (request.get_json(silent=True) or {}).get("action")
+    return _shared(lambda db: apps.app_action(db, None, name, action))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/logs", methods=["GET"])
+@superadmin_required
+def shared_app_logs(name):
+    lines = request.args.get("lines", 200, type=int)
+    return _shared(lambda db: apps.app_logs(db, None, name, lines))
+
+
+@superadmin_blueprint.route("/server/services/<string:name>/action", methods=["POST"])
+@superadmin_required
+def server_service_action(name):
+    """Start, stop or restart a service on the server, if the runner's policy lists it. Body: {"action": "restart"}."""
+    action = (request.get_json(silent=True) or {}).get("action")
+    return _shared(lambda db: service.service_action(db, name, action, _superadmin_actor()))
+
+
+@superadmin_blueprint.route("/server/services/<string:name>/logs", methods=["GET"])
+@superadmin_required
+def server_service_logs(name):
+    lines = request.args.get("lines", 200, type=int)
+    return _shared(lambda db: service.service_logs(db, name, lines))
