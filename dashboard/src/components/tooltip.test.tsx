@@ -154,6 +154,34 @@ describe('Tooltip', () => {
     expect(clean).toHaveBeenCalledOnce();
     expect(ref.mock.calls.some((call) => call[0] === null)).toBe(false);
   });
+
+  it('gives a replacement child ref the same node and cleans up the old ref', () => {
+    const clean = vi.fn();
+    const first = vi.fn((_node: Element | null) => clean);
+    const second = vi.fn();
+    const view = render(
+      <Tooltip label="Go">
+        <button type="button" ref={first}>
+          Go
+        </button>
+      </Tooltip>,
+    );
+
+    const button = screen.getByRole('button', { name: 'Go' });
+    expect(first).toHaveBeenCalledWith(button);
+
+    view.rerender(
+      <Tooltip label="Go">
+        <button type="button" ref={second}>
+          Go
+        </button>
+      </Tooltip>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Go' })).toBe(button);
+    expect(clean).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledWith(button);
+  });
 });
 
 function Mark(props: ComponentProps<'a'>) {
