@@ -124,10 +124,6 @@ deploy:
 			mv -f "$$tmp" "$$dest"; \
 		}; \
 		mkdir -p .deploy; \
-		if [ ! -f .deploy/deployed-sha ] && [ -f data/deployed-sha ]; then \
-			MOVED=$$(tr -d '[:space:]' < data/deployed-sha); \
-			if [[ "$$MOVED" =~ ^[0-9a-f]{40}$$ ]]; then write_file .deploy/deployed-sha "$$MOVED"; fi; \
-		fi; \
 		rm -f data/deployed-sha data/rollback-api data/rollback-site; \
 		rm -f .deploy/rollback-api .deploy/rollback-site .deploy/rollback-sha; \
 		RECORDED=""; \

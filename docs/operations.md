@@ -107,7 +107,9 @@ make deploy DEPLOY_FROM="$DEPLOY_FROM" DEPLOY_SHA="$DEPLOY_SHA"
 make health
 ```
 
-`cd.yml` deploys the commit that passed Check. The server stays on that commit when `main` has moved ahead. `cd.yml` updates the checkout before `make backup`, so the server uses the `Makefile` of that commit. The server stores the commit in `.deploy/deployed-sha` after `make deploy` finishes. That directory is not mounted into the API container. When `make deploy` or `make health` fails, `cd.yml` writes the previous commit back and runs `make rollback`.
+`cd.yml` deploys the commit that passed Check. The server stays on that commit when `main` has moved ahead. `cd.yml` updates the checkout before `make backup`, so the server uses the `Makefile` of that commit. The server stores the commit in `.deploy/deployed-sha` after `make deploy` finishes. That directory is not mounted into the API container.
+
+`cd.yml` reads that file only when the text is a 40-character sha. It does not read `data/deployed-sha`. When `make deploy` or `make health` fails, `cd.yml` writes the previous commit back and runs `make rollback`.
 
 This diagram shows the deploy.
 
@@ -148,7 +150,7 @@ Do the first deploy after a large upgrade by hand. For an upgrade from `asusoda/
 5. If the database has no `alembic_version` table (`create_all` made it), run `uv run alembic stamp a1b2c3d4e5f6`. If you do not, `alembic upgrade head` stops with "table already exists".
 6. Keep the current commit for a rollback: `OLD=$(git rev-parse HEAD)`.
 7. Run `git fetch origin main`, then `git reset --hard origin/main`.
-8. If `.deploy/deployed-sha` is present, delete it. If `data/deployed-sha` is present, delete it too. `make deploy` uses `.deploy/deployed-sha` and ignores `DEPLOY_FROM`.
+8. If `.deploy/deployed-sha` is present, delete it. `make deploy` deletes `data/deployed-sha` and does not read it. `make deploy` uses `.deploy/deployed-sha` and ignores `DEPLOY_FROM`.
 9. Run `make deploy DEPLOY_FROM="$OLD"`. If `DEPLOY_FROM` is not set and the file is absent, `make deploy` finds no changed files and builds nothing.
 10. Run `flask --app main config check` in the API container. It must show `migrations at head` and no `FAIL`.
 

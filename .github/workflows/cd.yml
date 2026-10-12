@@ -64,8 +64,9 @@ jobs:
           PREVIOUS_SHA=""
           if [ -f .deploy/deployed-sha ]; then
             PREVIOUS_SHA="$(tr -d '[:space:]' < .deploy/deployed-sha)"
-          elif [ -f data/deployed-sha ]; then
-            PREVIOUS_SHA="$(tr -d '[:space:]' < data/deployed-sha)"
+          fi
+          if ! printf '%s' "$PREVIOUS_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            PREVIOUS_SHA=""
           fi
 
           # Update the checkout first, so the next steps use the Makefile of this commit.
