@@ -1,15 +1,20 @@
 // Asks the officer to confirm. The promise resolves true when the officer accepts.
 import { AlertDialog } from '@base-ui/react/alert-dialog';
 import { Trash2 } from 'lucide-react';
-import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { cx } from './ui/cx';
 import { Button } from './ui/controls';
 
 type Ask = (question: string, action?: string) => Promise<boolean>;
 
-type Pending = { question: string; action: string; resolve: (yes: boolean) => void };
+type Pending = { id: number; question: string; action: string; resolve: (yes: boolean) => void };
 
-const ConfirmContext = createContext<Ask | null>(null);
+type ConfirmApi = {
+  ask: (question: string, action?: string) => { id: number; promise: Promise<boolean> };
+  cancel: (id: number) => void;
+};
+
+const ConfirmContext = createContext<ConfirmApi | null>(null);
 
 // The open native dialog, so the confirm panel is in its top layer and not hidden behind it.
 function topDialog(): HTMLElement | null {
@@ -22,15 +27,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [layer, setLayer] = useState<HTMLElement | null>(null);
   const pendingRef = useRef<Pending | null>(null);
-  const confirm = useCallback<Ask>((question, action = 'Confirm') => {
-    return new Promise((resolve) => {
-      const next = { question, action, resolve };
-      pendingRef.current = next;
-      setLayer(topDialog());
-      setPending(next);
-    });
-  }, []);
-
+  const nextId = useRef(0);
   const settle = (yes: boolean) => {
     const current = pendingRef.current;
     if (!current) return;
@@ -38,9 +35,34 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     current.resolve(yes);
     setPending(null);
   };
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+
+  const ask = useCallback<ConfirmApi['ask']>((question, action = 'Confirm') => {
+    const previous = pendingRef.current;
+    if (previous) {
+      pendingRef.current = null;
+      previous.resolve(false);
+    }
+    let resolvePromise: (yes: boolean) => void = () => {};
+    const promise = new Promise<boolean>((resolve) => {
+      resolvePromise = resolve;
+    });
+    const next = { id: ++nextId.current, question, action, resolve: resolvePromise };
+    pendingRef.current = next;
+    setLayer(topDialog());
+    setPending(next);
+    return { id: next.id, promise };
+  }, []);
+
+  const cancel = useCallback((id: number) => {
+    if (pendingRef.current?.id === id) settleRef.current(false);
+  }, []);
+
+  const api = useMemo(() => ({ ask, cancel }), [ask, cancel]);
 
   return (
-    <ConfirmContext.Provider value={confirm}>
+    <ConfirmContext.Provider value={api}>
       {children}
       <AlertDialog.Root
         open={pending !== null}
@@ -68,9 +90,25 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 }
 
 export function useConfirm(): Ask {
-  const confirm = useContext(ConfirmContext);
-  if (!confirm) throw new Error('ConfirmProvider is missing.');
-  return confirm;
+  const api = useContext(ConfirmContext);
+  if (!api) throw new Error('ConfirmProvider is missing.');
+  const owned = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (owned.current != null) api.cancel(owned.current);
+    },
+    [api],
+  );
+  return useCallback(
+    (question, action) => {
+      const { id, promise } = api.ask(question, action);
+      owned.current = id;
+      return promise.finally(() => {
+        if (owned.current === id) owned.current = null;
+      });
+    },
+    [api],
+  );
 }
 
 // An icon button that deletes after the officer confirms the question.
