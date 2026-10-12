@@ -91,9 +91,12 @@ def announce(org_id: int, name: str, pod_id: str, action: str, by: str) -> None:
 
 def _provider(name: object) -> hosting.HostingProvider:
     try:
-        return hosting.get(name)
+        provider = hosting.get(name)
     except hosting.ProviderError as e:
         raise GodfatherError(e.message, e.status) from e
+    if not provider.godfather:
+        raise GodfatherError(f"{provider.title} cannot run Godfather pods: they need an SSH address", 400)
+    return provider
 
 
 def _provider_of(row: ComputePod) -> hosting.HostingProvider:

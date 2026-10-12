@@ -1,6 +1,6 @@
 """Submodules: domains such as a campus or careers that an org subscribes to, and their live queries. No Flask here.
 
-A submodule brings its parts to each module that reads it: pages to knowledge, feeds to the webhook modules,
+A submodule brings its parts to each module that reads it: pages to knowledge, feeds to the Feeds module,
 live queries to agents. Its pages are crawled sources of the submodule itself (knowledge_sources.submodule_id,
 no org), under keys that start with <submodule>/. The deployment crawls and embeds them once, with its own
 embedder, Firecrawl and chunk settings, while one or more orgs subscribe. A subscribed org's search reads them,
@@ -40,14 +40,19 @@ scopes.declare("submodules:manage", "Subscribe the org to a submodule, or end a 
 
 SUBSCRIPTIONS_LIMIT = "submodules.subscriptions"
 limits.declare(
-    SUBSCRIPTIONS_LIMIT, "submodules", "Submodule subscriptions", 20, unit="submodules", usage=subscription_count
+    SUBSCRIPTIONS_LIMIT,
+    "submodules",
+    "Shared content subscriptions",
+    20,
+    unit="subscriptions",
+    usage=subscription_count,
 )
 
 
 def _submodule(name: object) -> Submodule:
     submodule = catalog.get(name)
     if submodule is None:
-        raise KnowledgeError(f"No submodule named {name}", 404)
+        raise KnowledgeError(f"No shared content named {name}", 404)
     return submodule
 
 
@@ -172,7 +177,7 @@ def subscribe(db, org_id: int, name: object, actor: str | None = None) -> dict:
     submodule = _submodule(name)
     row = row_for(db, submodule)
     if row.status != "shared":
-        raise KnowledgeError(f"The submodule {submodule.name} is not shared", 409)
+        raise KnowledgeError(f"{submodule.name} is not shared content", 409)
     current = db.query(SubmoduleSubscription).filter_by(organization_id=org_id, submodule_id=row.id).first()
     if current is None:
         limits.check(db, org_id, SUBSCRIPTIONS_LIMIT)
@@ -268,7 +273,7 @@ def query(db, org_id: int, org_prefix: str, name: object, source_key: Any, param
     submodule = _submodule(name)
     source = next((q for q in submodule.queries if q.key == source_key), None)
     if source is None:
-        raise KnowledgeError(f"Submodule {submodule.name} has no live source named {source_key}", 404)
+        raise KnowledgeError(f"The shared content {submodule.name} has no live source named {source_key}", 404)
     try:
         with query_scope(db, org_id):
             if source.needs_search and not settings().search.base_url:

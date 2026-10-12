@@ -1,4 +1,4 @@
-"""Feed tools for the webhook modules."""
+"""Feed tools: list, create, run and delete the org's feeds."""
 
 from core.tools import tool
 
@@ -10,7 +10,7 @@ ONLY_KEY = {"type": "object", "properties": {"key": KEY}, "required": ["key"], "
 
 @tool(
     "feeds.list",
-    description="The feeds of the org's webhook modules, their schedule and last run.",
+    description="The org's feeds, their schedule, destination and last run.",
     scope="feeds:manage",
 )
 def feeds_list(db, org, caller):
@@ -19,7 +19,7 @@ def feeds_list(db, org, caller):
 
 @tool(
     "feeds.presets",
-    description="Feeds that submodules offer, with the kind and config to pass to feeds.save.",
+    description="Feeds that shared content (submodules) offers, with the kind and config to pass to feeds.save.",
     scope="feeds:manage",
 )
 def feeds_presets(db, org, caller):

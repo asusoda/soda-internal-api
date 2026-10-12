@@ -1,6 +1,11 @@
-# RunPod apps
+# Hosting apps
 
-Deploys an org's own apps (a Discord bot, an agent, a model server) to pods on a hosting provider. RunPod is the only provider, and the manifest follows the RunPod v2 pod API. An officer registers the app's manifest one time. Then the app's CI deploys each new image tag with a token that can do nothing else. Each org deploys with its own RunPod key and pays for its own pods.
+Deploys an org's own apps (a Discord bot, an agent, a site) to a hosting provider. An officer registers the app's manifest one time. Then the app's CI deploys each new image tag with a token that can do nothing else. There are two providers:
+
+| Provider | Runs an app as | Who pays | Limits |
+| --- | --- | --- | --- |
+| `runpod` (RunPod) | A pod on the org's own RunPod account | The org, with its own RunPod key | `runpod.apps` |
+| `server` (This server) | A capped container on the deployment's server, through the runner | The deployment | `runpod.apps`, `runpod.server_apps`, `runpod.server_memory_mb`, and the runner's policy |
 
 ## Setup
 
@@ -12,13 +17,15 @@ Officers can do steps 1, 2 and 4 on the dashboard (Settings > Secrets, and the S
 4. Register the app in one of two ways:
    - From its repo: `PUT /api/apps/<name>` with `{"repo": "owner/name"}`, and `manifest_path` if the file is not `platform.app.yaml` at the root. Platform reads the file from the default branch now, and again at the `ref` of each deploy. A private repo needs the org secret `github_token` with read access to the repo contents.
    - Inline: `PUT /api/apps/<name>` with `{"manifest": {...}}`.
-   - Both forms take an optional `provider`, the name of a hosting provider. The default is `runpod`. An app that has a pod keeps its provider; a change answers 409.
+   - Both forms take an optional `provider`: `runpod` (the default) or `server`. An app that has a pod or container keeps its provider; a change answers 409.
+
+This server needs no org key. It shows on the Hosting page when the runner is installed on the server (see [Operations](../operations.md#this-server-runner)).
 
 With a repo, a change to the pod's env, ports or disk is a pull request to the app, with the same review as its code. A person who can merge to the app's repo can already change what runs on the pod. Thus the deploy token gets no more access.
 
 ## Templates
 
-`apps/` holds ready-made apps: [Vaultwarden](../../apps/vaultwarden/README.md) and [Hermes Agent](../../apps/hermes/README.md). See [apps/README.md](../../apps/README.md) for the template format.
+`apps/` holds ready-made apps: [Vaultwarden](../../apps/vaultwarden/README.md). See [apps/README.md](../../apps/README.md) for the template format.
 
 1. On the Services tab of the Hosting page, select **Templates** and pick a template.
 2. Fill in the name and the inputs, then select **Create app**. Secret inputs become org secrets named `app_<name>_<input>`. The app gets an inline manifest.
@@ -50,6 +57,30 @@ With a repo, a change to the pod's env, ports or disk is a pull request to the a
 - `env`, `disk`, `ports`, `args` and `registry` go with each deploy.
 - `secret_env` maps a pod env var to an org secret. The deploy reads the values. The API never returns them, and a dry run shows `(secret)`. RunPod shows pod env in its console, so a person with access to the org's RunPod account can read them.
 - Platform checks `health` at `https://<pod>-<port>.proxy.runpod.net<path>`. The port must be in `ports` as `/http`.
+
+### This server fields
+
+An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `cloud`, `dataCenterIds`, `mounts`, `disk`, `registry` and `args`, which RunPod alone reads:
+
+```json
+{
+  "kind": "service",
+  "image": "docker.io/vaultwarden/server",
+  "memory": 256,
+  "cpus": 0.5,
+  "ports": ["80/http"],
+  "publish": {"80": 8081},
+  "volumes": [{"host": "/var/www/vaultwarden/data", "path": "/data"}, {"name": "cache", "path": "/cache"}],
+  "health": {"port": 80, "path": "/alive"}
+}
+```
+
+- `memory` (MB) is required. It is the container's memory cap and counts against `runpod.server_memory_mb`. `cpus` is optional, default 0.5.
+- `publish` maps a container port to a host port, so that Nginx Proxy Manager can send a domain to it. The runner publishes it on localhost and the podman gateway only, never on a public address. The host port must be one the runner's policy gives the org, or in its port range.
+- `volumes`: `name` is a folder of the app under the runner's `data_root`. `host` is a host path that the runner's policy allows for that org. `read_only` is optional.
+- The container is named `app-<org>-<app>`, on a network of its org, with `--restart always`. Platform checks `health` from the server on the container's own address, so the health port does not have to be published.
+- Deleting the app stops and removes its container. Its data folders stay on the server.
+- Godfather does not use This server: its pods need SSH.
 
 ## Routes
 

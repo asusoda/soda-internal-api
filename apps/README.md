@@ -5,7 +5,6 @@ Ready-made apps that officers create from the Templates dialog of the Hosting pa
 | Template | App |
 | --- | --- |
 | [vaultwarden](vaultwarden/README.md) | Password manager for the org |
-| [hermes](hermes/README.md) | Discord agent that uses Platform tools over MCP |
 
 ## Write a template
 

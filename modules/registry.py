@@ -78,7 +78,7 @@ def _gate(mount: Mount):
         try:
             org = organizations.find_by_prefix(db, org_prefix)
             if org is not None and not organizations.module_enabled(org, module):
-                return jsonify({"error": f"The {module} module is turned off for this organization"}), 404
+                return jsonify({"error": f"The {module} feature is turned off for this organization"}), 404
         finally:
             db.close()
         return None

@@ -4,27 +4,59 @@ import { useState } from 'react';
 import { Badge, Button, Card, Dot, EmptyState, ErrorNote, Mono, SkeletonRows, Table, Td, Th, Tr } from '../../components/ui';
 import { api } from '../../lib/api';
 import { deployTone, duration, podTone, timeAgo } from '../../lib/format';
-import type { App, AppDetail, RunPodPod } from '../../lib/types';
+import type { App, AppDetail, RunPodPod, ServerPod } from '../../lib/types';
 import { providerTitle, useProviders } from './providers';
 import { DeletePanel, DeployPanel, RollbackPanel } from './actions';
 import { ManifestSection } from './manifest';
 import { actorLabel, Fact, Label } from './shared';
 
+// A container of This server: state, caps, published ports and image.
+function ContainerStatus({ pod, id }: { pod: ServerPod; id: string }) {
+  const status = pod.state.toUpperCase() === 'RUNNING' ? 'RUNNING' : 'EXITED';
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <Fact label="Status">
+        <span className="inline-flex items-center gap-2">
+          <Dot tone={podTone(status)} />
+          {pod.state}
+        </span>
+      </Fact>
+      <Fact label="Cap">{`${pod.memory_mb} MB, ${pod.cpus} CPU`}</Fact>
+      <Fact label="Ports">{pod.ports.length ? pod.ports.map((p) => `${p.host} > ${p.container}`).join(', ') : '-'}</Fact>
+      <Fact label="Container">
+        <Mono className="text-fg">{id}</Mono>
+      </Fact>
+      {pod.image ? (
+        <div className="col-span-2 sm:col-span-4">
+          <Fact label="Image">
+            <Mono className="text-fg" title={pod.image}>
+              {pod.image}
+            </Mono>
+          </Fact>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PodStatus({ prefix, app }: { prefix: string; app: App }) {
   const host = providerTitle(useProviders(prefix).data, app.provider);
   const pod = useQuery({
     queryKey: ['app-pod', prefix, app.name],
-    queryFn: () => api<{ pod: RunPodPod | null }>(`/api/dashboard/${prefix}/apps/${app.name}/pod`),
+    queryFn: () => api<{ pod: RunPodPod | ServerPod | null }>(`/api/dashboard/${prefix}/apps/${app.name}/pod`),
     enabled: Boolean(app.pod_id),
     retry: false,
     refetchInterval: 30_000,
   });
+  const server = app.provider === 'server';
   if (!app.pod_id) {
-    return <p className="text-sm text-muted">No pod yet. The first deploy creates it.</p>;
+    return <p className="text-sm text-muted">{server ? 'No container yet' : 'No pod yet'}. The first deploy creates it.</p>;
   }
   if (pod.isLoading) return <SkeletonRows rows={1} />;
   if (pod.error) return <ErrorNote error={pod.error} />;
-  const p = pod.data?.pod;
+  const found = pod.data?.pod;
+  if (found && server) return <ContainerStatus pod={found as ServerPod} id={app.pod_id} />;
+  const p = found as RunPodPod | null | undefined;
   if (!p) {
     return (
       <p className="text-sm text-muted">
@@ -193,7 +225,7 @@ export function AppPanel({
       {panel === 'delete' ? <DeletePanel prefix={prefix} app={app} onDone={close} onDeleted={onDeleted} /> : null}
 
       <section>
-        <Label>Pod</Label>
+        <Label>{app.provider === 'server' ? 'Container' : 'Pod'}</Label>
         <PodStatus prefix={prefix} app={app} />
       </section>
 

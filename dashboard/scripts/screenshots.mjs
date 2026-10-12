@@ -63,7 +63,7 @@ const SCREENS = [
   },
   {
     name: 'asu-signed-out',
-    path: 'explore?tab=submodules',
+    path: 'explore?tab=shared',
     before: async (page) => {
       await page.getByRole('button', { name: 'Sign in to ASU' }).scrollIntoViewIfNeeded();
       await page.mouse.wheel(0, 200);
@@ -71,7 +71,7 @@ const SCREENS = [
   },
   {
     name: 'asu-duo',
-    path: 'explore?tab=submodules',
+    path: 'explore?tab=shared',
     fixtures: asuDuoFixtures,
     before: async (page) => {
       await page.getByLabel('Duo code').scrollIntoViewIfNeeded();
@@ -80,7 +80,7 @@ const SCREENS = [
   },
   { name: 'activity', path: 'activity' },
   { name: 'explore', path: 'explore' },
-  { name: 'explore-submodules', path: 'explore?tab=submodules' },
+  { name: 'explore-shared', path: 'explore?tab=shared' },
   {
     name: 'explore-feeds',
     path: 'explore',
@@ -89,6 +89,13 @@ const SCREENS = [
     },
   },
   { name: 'hosting-apps', path: 'hosting' },
+  {
+    name: 'hosting-server-app',
+    path: 'hosting',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'vault', exact: true }).click();
+    },
+  },
   { name: 'settings', path: 'settings' },
   {
     name: 'settings-limits',

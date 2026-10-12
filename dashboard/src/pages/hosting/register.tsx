@@ -82,7 +82,9 @@ export function RegisterApp({ prefix, onDone }: { prefix: string; onDone: (name:
     >
       <Field label="Name" hint={
           nameOk
-            ? `Lowercase letters, digits and dashes. The pod is named ${prefix}-${name || '<name>'}.`
+            ? provider === 'server'
+              ? `Lowercase letters, digits and dashes. The container is named app-${prefix}-${name || '<name>'}.`
+              : `Lowercase letters, digits and dashes. The pod is named ${prefix}-${name || '<name>'}.`
             : 'Use lowercase letters, digits and dashes, starting with a letter or digit.'
         }>
         <Input value={name} onChange={(e) => setName(e.target.value.trim())} placeholder="club-bot" aria-invalid={!nameOk} required autoFocus />

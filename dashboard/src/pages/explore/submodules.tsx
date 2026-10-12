@@ -66,12 +66,12 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
   const list = submodules.data.submodules.filter((s) => matchesQuery(s, query));
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">Domains, such as a campus. Subscribe once; each module that is on gets its part.</p>
+      <p className="text-sm text-muted">Content made once for every org, such as a campus. Subscribe once; each feature that is on gets its part.</p>
       {change.error ? <ErrorNote error={change.error} /> : null}
       {!list.length ? (
         <Card>
-          <EmptyState icon={Layers} title="No submodules match">
-            Clear the search to see every submodule.
+          <EmptyState icon={Layers} title="No shared content matches">
+            Clear the search to see all shared content.
           </EmptyState>
         </Card>
       ) : (
@@ -89,7 +89,7 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
                 </div>
                 <Parts s={s} />
                 {s.modules.length ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Modules that read it">
+                  <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Features that read it">
                     {s.modules.map((name) => {
                       const m = titles.get(name);
                       return (

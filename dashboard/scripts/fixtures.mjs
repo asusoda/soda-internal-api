@@ -33,7 +33,7 @@ const CATALOG = [
   { name: 'accounts', title: 'Member accounts', description: "Members connect Canvas, Google and Outlook, and agents read them for the member.", category: 'Storage', switchable: true, needs: [need('ACCOUNTS_BASE_URL', 'ACCOUNTS_BASE_URL setting', true, { kind: 'setting' })], submodules: [] },
   { name: 'agents', title: 'Agent memory', description: "Conversations, memories and pending actions that the org's agents keep for each member, through the API.", category: 'AI and agents', switchable: true, needs: [need('openrouter', 'OpenRouter', false, { optional: true })], submodules: [] },
   { name: 'integrations', title: 'Integration tools', description: "Gives agents the tools of the services that the org connects.", category: 'AI and agents', switchable: true, needs: [], submodules: [] },
-  { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Webhooks', switchable: true, needs: [], submodules: ['careers'] },
+  { name: 'feeds', title: 'Feeds', description: 'Posts new internship and new grad roles from GitHub job lists, and upcoming hackathons, to Discord channels.', category: 'Automations', switchable: true, needs: [], submodules: ['careers'] },
   { name: 'calendar', title: 'Calendar sync', description: "Copies Notion events to Google Calendar and the public events feed.", category: 'Automations', switchable: true, needs: [need('notion', 'Notion', false), need('google', 'Google service account', true)], submodules: [] },
   { name: 'uptime', title: 'Uptime', description: "Checks the org's sites and Hosting apps, with an event when one goes down or comes back.", category: 'Automations', switchable: true, needs: [], submodules: [] },
   { name: 'leetcode', title: 'LeetCode', description: "Posts the daily LeetCode question in a Discord channel and checks who solved it.", category: 'Bots', switchable: true, needs: [need('discord', 'Discord bot', true)], submodules: [] },
@@ -41,7 +41,7 @@ const CATALOG = [
   { name: 'godfather', title: 'Godfather', description: "GPU and CPU pods that members connect to with the Godfather CLI.", category: 'Compute', switchable: true, needs: [need('runpod', 'RunPod', true)], submodules: [] },
   { name: 'runpod', title: 'Hosting', description: "Deploys the org's apps to a hosting provider, and rolls back to an earlier tag.", category: 'Compute', switchable: true, needs: [need('runpod', 'RunPod', true), need('github', 'GitHub', true, { optional: true })], submodules: [] },
 ];
-const CATEGORIES = ['Storage', 'AI and agents', 'Webhooks', 'Automations', 'Bots', 'Compute'];
+const CATEGORIES = ['Storage', 'AI and agents', 'Automations', 'Bots', 'Compute'];
 const SUBMODULES = {
   asu: { name: 'asu', title: 'Arizona State University', description: 'Public ASU pages and live queries: library hours, events, courses, dining, scholarships, news, shuttles, jobs, sports.' },
   careers: { name: 'careers', title: 'Internships and hackathons', description: 'Alert feeds for software internships, new grad roles and upcoming hackathons.' },
@@ -532,6 +532,28 @@ export function fixtures(now = Date.now()) {
       current_tag: 'v1.8.2',
       latest_deployment: telemetryDeployments[0],
       updated_at: at(-2 * HOUR),
+    },
+    {
+      name: 'vault',
+      kind: 'service',
+      description: 'Password manager for officers',
+      url: 'https://vault.robotics.example.org',
+      host: 'server',
+      provider: 'server',
+      manifest: {
+        image: 'docker.io/vaultwarden/server',
+        memory: 256,
+        ports: ['80/http'],
+        publish: { 80: 8081 },
+        volumes: [{ host: '/var/www/vaultwarden/data', path: '/data' }],
+        health: { path: '/alive', port: 80 },
+      },
+      repo: null,
+      manifest_path: null,
+      pod_id: 'app-robotics-vault',
+      current_tag: '1.32.0',
+      latest_deployment: deployment(61, '1.32.0', 'healthy', -1 * DAY, { actor: 'officer:1290000000000000101' }),
+      updated_at: at(-1 * DAY),
     },
   ];
 
@@ -1425,7 +1447,16 @@ export function fixtures(now = Date.now()) {
     [`/api/organizations/${ORG.id}/tokens`]: { tokens, scopes: SCOPES, integrations: INTEGRATIONS, uses: SCOPE_USES },
     [`/api/organizations/${ORG.id}/audit`]: { entries: [...activity, ...jobs].sort((a, b) => b.id - a.id) },
     [`/api/organizations/${ORG.id}/modules`]: { modules: MODULES },
-    [`/api/dashboard/${ORG.prefix}/hosting/providers`]: { providers: [{ name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true }] },
+    [`/api/dashboard/${ORG.prefix}/hosting/providers`]: {
+      providers: [
+        { name: 'runpod', title: 'RunPod', integration: 'runpod', configured: true },
+        { name: 'server', title: 'This server', integration: '', configured: true },
+      ],
+    },
+    [`/api/dashboard/${ORG.prefix}/apps/vault`]: { ...appList[3], deployments: [appList[3].latest_deployment] },
+    [`/api/dashboard/${ORG.prefix}/apps/vault/pod`]: {
+      pod: { id: 'app-robotics-vault', state: 'running', image: 'docker.io/vaultwarden/server:1.32.0', started_at: at(-1 * DAY), memory_mb: 256, cpus: 0.5, ports: [{ container: 80, host: 8081 }] },
+    },
     [`/api/dashboard/${ORG.prefix}/apps`]: { apps: appList },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry`]: { ...appList[2], deployments: telemetryDeployments },
     [`/api/dashboard/${ORG.prefix}/apps/rover-telemetry/pod`]: { pod: telemetryPod },

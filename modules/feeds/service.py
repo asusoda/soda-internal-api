@@ -192,7 +192,7 @@ def put_feed(db, org_id: int, key: str, body: dict, actor: str | None = None) ->
     if kind not in KINDS:
         raise FeedError(f"kind must be one of {', '.join(KINDS)}")
     if kind not in kinds_on(db, org_id):
-        raise FeedError(f"The {KIND_MODULES[kind]} module is off for this organization", 404)
+        raise FeedError(f"The {KIND_MODULES[kind]} feature is off for this organization", 404)
     if feed is not None and kind != feed.kind:
         raise FeedError("A feed's kind cannot change; delete it and create a new one", 409)
     try:

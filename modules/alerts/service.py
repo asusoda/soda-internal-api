@@ -77,7 +77,7 @@ def _feeds(db, org: Organization) -> list[dict]:
 
 
 def listing(db, org: Organization) -> dict:
-    """The org's webhooks, the events and kinds to pick from, and the feeds of the webhook modules."""
+    """The org's destinations, the events and kinds to pick from, and the org's feeds."""
     rows = db.query(webhooks.Webhook).filter_by(organization_id=org.id).order_by(webhooks.Webhook.name).all()
     return {
         "webhooks": [_dict(row) for row in rows],

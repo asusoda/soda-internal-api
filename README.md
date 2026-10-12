@@ -16,16 +16,17 @@ Each org route checks access. The audit log records each change that an officer 
 | `godfather` | GPU and CPU pods on the org's RunPod account. Members connect over SSH with 12-hour certificates |
 | `agents` | Conversations, memories and a profile graph for each member, for agents that talk to members |
 | `knowledge` | Hybrid search (pgvector and full text) over documents and crawled public pages |
-| `submodules` | Submodules from `submodules/`: content that a module reads, such as the ASU campus pages and live queries for knowledge, and the job and hackathon feeds for the webhook modules |
+| `submodules` | Shared content from `submodules/`: content made once for every org, such as the ASU campus pages and live queries for knowledge, and the job and hackathon feeds for Feeds |
+| `alerts` | Org events, such as a failed job or a site that is down, sent to the org's Discord destinations |
 | `accounts` | Canvas, Google and Outlook sign-in for a member, so that agents can act for them |
-| `feeds` | New job listings and hackathons posted to Discord webhooks |
+| `feeds` | New job listings and hackathons posted to an alert destination |
 | `runpod` | Deploys of an org's apps to RunPod from a manifest, with health checks and rollback |
 | `uptime` | Checks of sites and Hosting apps on a schedule, with events when one goes down or up |
 | `dashboard` | One page for each org with problems, activity, jobs, CI runs and module state |
 | `mcp` | An MCP server and `/api/tools` that give agents the module tools through scoped machine tokens |
 | `auth`, `public`, `bot` | Discord sign-in, tokens and access checks; open reads for public pages; the Discord bot |
 
-Each module is in one category: Core, Storage, AI and agents, Webhooks, Automations, Bots or Compute. Core modules are always on. A new org starts with each other module off. A module can read submodules from `submodules/`. See [Architecture](docs/architecture.md#categories-modules-and-submodules).
+The dashboard calls modules features and submodules shared content. Each module is in one category: Core, Storage, AI and agents, Automations, Bots or Compute. Core modules are always on. A new org starts with each other module off. A module can read submodules from `submodules/`: content made once for every org. See [Architecture](docs/architecture.md#categories-modules-and-submodules).
 
 ## Processes
 

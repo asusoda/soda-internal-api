@@ -34,9 +34,9 @@ Each module has a `README.md` in its folder with its files, routes, jobs, tools 
 | [Knowledge](./modules/knowledge.md) | Sources, crawls and hybrid search |
 | [LeetCode](./modules/leetcode.md) | Daily question post, solve checks and slash commands |
 | [Points](./modules/points.md) | Members, points from events and the leaderboard |
-| [RunPod apps](./modules/runpod-apps.md) | App manifests, deploys, health checks and rollback |
+| [Hosting apps](./modules/runpod-apps.md) | App manifests, deploys to RunPod or This server, health checks and rollback |
 | [Store](./modules/storefront.md) | Merch store paid with points |
-| [Submodules](./modules/submodules.md) | Content that a module reads: campus pages and live queries for knowledge, such as the ASU submodule, and feeds for the Feeds module |
+| [Shared content](./modules/submodules.md) | Content made once for every org (code name: submodules): campus pages and live queries for knowledge, such as the ASU submodule, and feeds for the Feeds module |
 | [Uptime](./modules/uptime.md) | Checks of sites and Hosting apps, with events when one goes down or up |
 
 ## Notes

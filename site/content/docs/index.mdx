@@ -3,17 +3,17 @@ title: Introduction
 description: Platform is shared infrastructure for student organizations.
 ---
 
-Platform is the backend a student organization would otherwise rebuild with every new officer board. One deployment serves many organizations. Each organization is a Discord server. Optional modules switch on or off per organization.
+Platform is the backend a student organization would otherwise rebuild with every new officer board. One deployment serves many organizations. Each organization is a Discord server. Optional features switch on or off per organization, and every organization can use shared content, such as a campus's pages.
 
 It started as the platform the Software Developers Association (SoDA) at ASU runs its club on. AI Society at ASU extended it with Godfather pods, agent memory, search and an MCP server, so the same deployment can back the tools and agents an organization builds.
 
 ## What it runs
 
-| Area | Modules |
+| Area | Features |
 | --- | --- |
-| Operations | Members, points and leaderboards, merch storefront, Notion to Google Calendar sync, job and hackathon webhooks, daily LeetCode post, Jeopardy |
+| Operations | Members, points and leaderboards, merch storefront, Notion to Google Calendar sync, job and hackathon feeds, alerts to Discord channels, daily LeetCode post, Jeopardy |
 | Godfather | GPU and CPU pods on the org's RunPod account, SSH certificates, file manager, scheduled sessions |
-| Agents | Conversations, memories and profile graph per member, knowledge search, ASU sources, linked Canvas, Google and Outlook accounts |
+| Agents | Conversations, memories and profile graph per member, knowledge search, shared ASU content, linked Canvas, Google and Outlook accounts |
 | Apps | Deploys of the org's own apps to RunPod with health checks and rollback |
 | Access | Discord login, officer and member checks, scoped machine tokens, audit log, encrypted org secrets |
 
@@ -21,7 +21,7 @@ It started as the platform the Software Developers Association (SoDA) at ASU run
 
 <Cards>
   <Card title="Quickstart" href="/docs/quickstart" description="Run it locally and create your first organization." />
-  <Card title="Concepts" href="/docs/concepts" description="Organizations, modules, tokens and jobs." />
+  <Card title="Concepts" href="/docs/concepts" description="Organizations, features, shared content, apps, limits and tokens." />
   <Card title="Godfather" href="/docs/modules/godfather" description="Pods members SSH into, shared across a workshop series." />
   <Card title="Tools and MCP" href="/docs/codebase/architecture#tools-and-the-mcp-server" description="Give an agent scoped access to an organization." />
 </Cards>

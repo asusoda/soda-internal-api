@@ -1,25 +1,37 @@
 ---
 title: Concepts
-description: Organizations, modules, submodules, apps, limits, access, tokens and jobs.
+description: Organizations, features, shared content, apps, limits, access, tokens and jobs.
 ---
 
 ## Organizations
 
 An organization is one Discord server. Almost every route is under the organization's prefix, for example `/api/compute/robotics/pods`. Members are the people in the server. Officers hold the officer role the organization configured. Superadmins manage every organization on the deployment.
 
-## Modules
+## Features
 
-Each feature is a module under `modules/`. Each module is in one category: Core, Storage, AI and agents, Webhooks, Automations, Bots or Compute. An org also subscribes to submodules: domains of content in `submodules/`, such as ASU (campus pages and live queries) or careers (job and hackathon feeds). Each module that is on gets its part, and a submodule's pages are crawled once for every org that subscribes. A module has its routes in `api.py`, its tables in `models.py`, and its logic in a Flask-free `service.py` that the REST API, the MCP server, jobs and the bot all reuse. `modules/registry.py` mounts them.
+A feature is something Platform does for an organization, such as Points, Knowledge or Uptime. In the code, a feature is a module under `modules/`. Each feature is in one category: Core, Storage, AI and agents, Automations, Bots or Compute.
 
-Core modules, such as auth, submodules and the MCP server, are always on. The other modules, such as points, storefront, calendar, LeetCode, Godfather and Feeds, switch on or off per organization. A new organization starts with each of them off. A module that is off returns 404 for that organization, and the dashboard hides it. The agent, knowledge and account modules are reached through tokens the organization issues, so an organization that issues none never uses them.
+Core features, such as sign-in, Alerts and the MCP server, are always on. The others switch on or off for each organization on the Features tab of Explore. A new organization starts with each of them off. A feature that is off returns 404 for that organization, and the dashboard hides it. A feature keeps its logic in a Flask-free `service.py` that the REST API, the MCP server, jobs and the bot all use.
+
+## Shared content
+
+Shared content is made once for every organization, such as ASU's campus pages or the careers job sources. In the code, each one is a submodule under `submodules/`. An organization subscribes on the Shared tab of Explore, and each feature that is on gets its part: Knowledge searches the pages, and Feeds offers the feeds. The deployment crawls the pages once for every subscriber.
+
+## Shared or isolated
+
+| | Isolated | Shared |
+| --- | --- | --- |
+| Owner | One organization | The deployment |
+| Examples | Its points, documents, pods, apps, monitors | Shared content, the Discord bot, the MCP server, the embedder |
+| Counts against the organization's limits | Yes | Only its use, such as embeddings a day. Shared content does not count |
 
 ## Apps
 
-An app is the organization's own project, such as a Discord bot or an agent: a container or a pod, never a Platform process. The Hosting page deploys an app to RunPod with the organization's own key, from a manifest or a template, and rolls it back. An app reaches Platform over MCP with a token of its organization.
+An app is a program in its own container or pod, never a Platform process, such as an org's own Discord agent or a password vault. The Hosting page deploys the organization's apps, from a manifest or a template, and rolls them back. An app runs on RunPod with the organization's own key, or on This server as a capped container that the deployment provides. Uptime watches any address, also one that Platform does not run. An app reaches Platform over MCP with a token of its organization.
 
 ## Limits
 
-All organizations share the same processes and database. Each module declares limits, such as knowledge sources, pods or tool calls a minute, and each limit says who pays: the organization's own data, or a shared service it uses. Each container also has a memory and CPU cap. The superadmins see each organization's use and the server's health, and set the limits of each organization. See [Limits](/docs/codebase/limits).
+All organizations share the same processes and database. Each feature declares limits, such as knowledge sources, pods or tool calls a minute. Each limit says who pays: the organization's own data, or its use of a shared service. Each container also has a memory and CPU cap. The superadmins see each organization's use and the server's health, and set the limits of each organization. See [Limits](/docs/codebase/limits).
 
 ## Access
 

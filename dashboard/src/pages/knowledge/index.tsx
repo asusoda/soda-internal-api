@@ -219,7 +219,7 @@ export function KnowledgePage() {
               </div>
             }
           >
-            Upload documents, add a page to crawl, or add a submodule on Explore.
+            Upload documents, add a page to crawl, or subscribe to shared content on Explore.
           </EmptyState>
         )}
       </Card>

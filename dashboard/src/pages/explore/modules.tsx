@@ -114,7 +114,7 @@ function ModuleFeeds({ m, prefix }: { m: CatalogModule; prefix: string }) {
                 key={s.name}
                 title={s.title}
                 action={
-                  <Link to={`/${prefix}/explore?tab=submodules`} className="text-xs text-muted hover:text-fg hover:underline">
+                  <Link to={`/${prefix}/explore?tab=shared`} className="text-xs text-muted hover:text-fg hover:underline">
                     Subscribe for its feeds
                   </Link>
                 }
@@ -133,7 +133,7 @@ function SubModules({ m, prefix }: { m: CatalogModule; prefix: string }) {
   return (
     <>
       {m.submodules.map((p) => (
-        <SubRow key={p.name} title={p.title} meta="Add the module first" />
+        <SubRow key={p.name} title={p.title} meta="Add the feature first" />
       ))}
     </>
   );
@@ -220,7 +220,7 @@ export function ModuleGrid({
   if (!shown.length) {
     return (
       <Card>
-        <EmptyState icon={SearchX} title="No module matches" />
+        <EmptyState icon={SearchX} title="No feature matches" />
       </Card>
     );
   }

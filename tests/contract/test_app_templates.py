@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import yaml
 from cryptography.fernet import Fernet
 
 from core import secrets
@@ -61,6 +62,33 @@ def _name(cleanup):
     return name
 
 
+# A template whose image the org builds itself, so the image is an input
+OWN_IMAGE = """
+template:
+  title: Own image
+  summary: An app the org builds itself.
+  inputs:
+    - {kind: image, label: Image}
+    - {kind: env, key: API_URL, label: API URL}
+    - {kind: secret, key: BOT_TOKEN, label: Bot token}
+kind: agent
+description: An app from the org's own image
+cpu: {id: cpu3c, vcpuCount: 2}
+cloud: SECURE
+disk: 20
+ports: ["8080/http"]
+health: {port: 8080, path: /health}
+"""
+
+
+@pytest.fixture
+def own_image(monkeypatch):
+    """The templates in apps/ plus own-image, a template with an image input."""
+    real = templates._load()
+    extra = {"own-image": templates._check("own-image", yaml.safe_load(OWN_IMAGE))}
+    monkeypatch.setattr(templates, "_load", lambda root=templates.ROOT: {**real, **extra})
+
+
 VAULTWARDEN = {
     "values": {"volume": "vol_abc", "data_center": "US-KS-2"},
     "secrets": {"ADMIN_TOKEN": "admin-value"},
@@ -71,7 +99,7 @@ def test_every_template_loads_and_lists_its_inputs(client, reader):
     response = client.get("/api/apps/templates", headers=reader)
     assert response.status_code == 200
     listed = {t["name"]: t for t in response.get_json()["templates"]}
-    assert {"vaultwarden", "hermes"} <= set(listed)
+    assert "vaultwarden" in listed
     folders = {p.parent.name for p in templates.ROOT.glob(f"*/{templates.FILE}")}
     assert set(listed) == folders
     for name in folders:
@@ -81,10 +109,14 @@ def test_every_template_loads_and_lists_its_inputs(client, reader):
     assert vault["tag"] == "1.37.4" and vault["manifest"]["image"] == "ghcr.io/dani-garcia/vaultwarden"
     assert vault["manifest"]["env"]["SIGNUPS_ALLOWED"] == "false" and vault["manifest"]["ports"] == ["80/http"]
     assert {"key": "ADMIN_TOKEN", "kind": "secret", "label": "Admin token", "required": True} in vault["inputs"]
-    hermes = listed["hermes"]
-    assert "image" not in hermes["manifest"] and hermes["tag"] is None
-    assert {i["key"] for i in hermes["inputs"]} >= {"image", "PLATFORM_MCP_URL", "PLATFORM_TOKEN", "DISCORD_BOT_TOKEN"}
     assert "template" not in vault["manifest"]
+
+
+def test_a_template_can_take_the_image_as_an_input(client, reader, own_image):
+    listed = {t["name"]: t for t in client.get("/api/apps/templates", headers=reader).get_json()["templates"]}
+    own = listed["own-image"]
+    assert "image" not in own["manifest"] and own["tag"] is None
+    assert {i["key"] for i in own["inputs"]} >= {"image", "API_URL", "BOT_TOKEN"}
 
 
 def test_no_template_uses_docker_hub():
@@ -124,28 +156,20 @@ def test_create_from_template_saves_secrets_and_registers_inline(client, manager
     assert again.status_code == 409
 
 
-def test_create_needs_required_inputs(client, manager, secrets_key, cleanup):
+def test_create_needs_required_inputs(client, manager, secrets_key, cleanup, own_image):
     name = _name(cleanup)
     no_secret = client.post(
         "/api/apps/templates/vaultwarden", json={"name": name, "values": VAULTWARDEN["values"]}, headers=manager
     )
     assert no_secret.status_code == 400 and "Admin token" in no_secret.get_json()["error"]
-    no_image = client.post("/api/apps/templates/hermes", json={"name": name, "values": {}}, headers=manager)
+    no_image = client.post("/api/apps/templates/own-image", json={"name": name, "values": {}}, headers=manager)
     assert no_image.status_code == 400 and "Image" in no_image.get_json()["error"]
     bad_image = client.post(
-        "/api/apps/templates/hermes",
+        "/api/apps/templates/own-image",
         json={
             "name": name,
-            "values": {
-                "image": "Not An Image",
-                "PLATFORM_MCP_URL": "https://example.org/mcp",
-                "DISCORD_ALLOWED_ROLES": "1",
-                "volume": "v",
-                "data_center": "d",
-            },
-            "secrets": dict.fromkeys(
-                ("PLATFORM_TOKEN", "DISCORD_BOT_TOKEN", "OPENROUTER_API_KEY", "API_SERVER_KEY"), "x"
-            ),
+            "values": {"image": "Not An Image", "API_URL": "https://example.org/api"},
+            "secrets": {"BOT_TOKEN": "x"},
         },
         headers=manager,
     )

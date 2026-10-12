@@ -60,7 +60,7 @@ def title_of(html: bytes | str) -> str | None:
 
 
 def chunk_text(text: str, *, max_chars: int = 1200, overlap_chars: int = 200) -> list[str]:
-    """Submodules paragraphs into chunks up to max_chars, split at sentence or clause breaks."""
+    """Packs paragraphs into chunks up to max_chars, split at sentence or clause breaks."""
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
     overlap_chars = max(0, min(overlap_chars, max_chars // 2))
