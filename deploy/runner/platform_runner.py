@@ -194,12 +194,7 @@ def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
     memory = body.get("memory_mb")
     if not isinstance(memory, int) or isinstance(memory, bool) or not 16 <= memory <= policy["memory_mb_max"]:
         raise Refused(f"memory_mb must be a whole number from 16 to {policy['memory_mb_max']}")
-    others = sum(_memory_mb(i) for i in managed() if i["Name"].lstrip("/") != container_name(org, app))
-    if others + memory > policy["memory_mb_total"]:
-        raise Refused(
-            f"This server has {policy['memory_mb_total'] - others} MB left for apps; the app asks for {memory} MB",
-            409,
-        )
+    _within_memory(policy, org, app, memory)
     cpus = body.get("cpus", 0.5)
     if not isinstance(cpus, (int, float)) or isinstance(cpus, bool) or not 0.05 <= cpus <= policy["cpus_max"]:
         raise Refused(f"cpus must be from 0.05 to {policy['cpus_max']}")
@@ -296,6 +291,16 @@ def ensure_bridge(policy: dict) -> None:
     )
 
 
+def _within_memory(policy: dict, org: str | None, app: str, memory: int) -> None:
+    """Raise Refused when the app would put the server over memory_mb_total. The app's own container does not count."""
+    others = sum(_memory_mb(i) for i in managed() if i["Name"].lstrip("/") != container_name(org, app))
+    if others + memory > policy["memory_mb_total"]:
+        raise Refused(
+            f"This server has {policy['memory_mb_total'] - others} MB left for apps; the app asks for {memory} MB",
+            409,
+        )
+
+
 def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
     """Pull the image, then replace the app's container with one from the request. Returns the new container."""
     request = check(policy, org, app, body)
@@ -304,6 +309,8 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
     # The apps of one group (the parts of one app) share a network, where each part answers to its alias
     network = f"platform-{org or 'shared'}" + (f"-{request['group']}" if request["group"] else "")
     with _lock:
+        # check() does not hold _lock, so count the cap again before the container is created
+        _within_memory(policy, org, app, request["memory_mb"])
         if not exists("image", "exists", request["image"]):
             podman("pull", "--quiet", request["image"], timeout=900)
         if not exists("network", "exists", network):
