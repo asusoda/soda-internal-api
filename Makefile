@@ -121,6 +121,8 @@ discard-local-changes:
 # podman-compose 1.0.6 --remove-orphans removes every project container this up did not
 # name, including soda-site. This target omits that flag for podman-compose.
 # Docker Compose still gets --remove-orphans.
+# podman-compose 1.0.6 recreates a container only when the compose config hash changes. A pulled image
+# does not change the hash, so `up` without --force-recreate starts the old containers again.
 # .deploy/ is not mounted into the API container, and chown of data/ does not change it.
 # .deploy/deployed-sha stores the last commit that finished this target.
 # .deploy/rollback-sha stores that commit when a later deploy finishes, so rollback can restore it.
@@ -259,7 +261,7 @@ deploy:
 			SERVICES_TO_START="api bot dashboard"; \
 			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
 			echo -e "$(GREEN)[INFO]$(NC) Recreating changed services:$$SERVICES_TO_START"; \
-			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d $$ORPHAN_ARGS $$SERVICES_TO_START; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --force-recreate $$ORPHAN_ARGS $$SERVICES_TO_START; \
 		else \
 			echo -e "$(YELLOW)[WARNING]$(NC) No deploy-impacting service changes detected. Skipping build/restart."; \
 		fi; \
@@ -327,7 +329,7 @@ deploy:
 				write_file .deploy/rollback-site site; \
 			fi; \
 			pull_image site || build_images site; \
-			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
+			$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps --force-recreate site; \
 			wait_for_health soda-site 90 http://127.0.0.1:3010; \
 			check_image soda-site soda-site:latest; \
 		elif [ "$$SITE_IMAGE" -eq 1 ]; then \
@@ -372,6 +374,8 @@ dev:
 
 
 # Rollback to previous version
+# It recreates only the services that make deploy recreates. podman-compose 1.0.6 ignores profiles, so a
+# bare `up -d` also starts worker and postgres.
 rollback:
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
 	@set -e; \
@@ -395,7 +399,12 @@ rollback:
 		$(CONTAINER_CMD) tag soda-internal-api:latest soda-internal-api:rollback-$$(date +%Y%m%d-%H%M%S); \
 		$(CONTAINER_CMD) tag soda-internal-api:previous soda-internal-api:latest; \
 		ROLLED=1; \
-		$(COMPOSE_CMD) up -d; \
+		SERVICES="api bot dashboard"; PROFILE_ARGS=""; \
+		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then \
+			SERVICES="$$SERVICES mcp"; \
+			if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then PROFILE_ARGS="--profile mcp"; fi; \
+		fi; \
+		$(COMPOSE_CMD) -f docker-compose.yml $$PROFILE_ARGS up -d --force-recreate $$SERVICES; \
 	fi; \
 	if [ -f .deploy/rollback-site ] && $(CONTAINER_CMD) image inspect soda-site:previous >/dev/null 2>&1; then \
 		echo -e "$(GREEN)[INFO]$(NC) Found previous site image, rolling back..."; \
@@ -404,7 +413,7 @@ rollback:
 		ROLLED=1; \
 		SITE_PROFILE_ARGS=""; \
 		if [ "$(COMPOSE_CMD)" != "podman-compose" ]; then SITE_PROFILE_ARGS="--profile site"; fi; \
-		$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps site; \
+		$(COMPOSE_CMD) -f docker-compose.yml $$SITE_PROFILE_ARGS up -d --no-deps --force-recreate site; \
 	fi; \
 	if [ "$$ROLLED" -eq 0 ]; then \
 		echo -e "$(RED)[ERROR]$(NC) No previous version found for rollback"; \
