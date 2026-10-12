@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import axios from 'axios';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
@@ -7,7 +7,10 @@ import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import StarBorder from '../components/ui/StarBorder';
 import { FaSearch, FaUserPlus } from 'react-icons/fa';
 import type { ApiError } from '../types';
-import type { MessageResponse, UserPointsResponse } from '../pointsTypes';
+import { changedMemberFields } from '../pointsTypes';
+import type { MemberEditFields, MessageResponse, UserPointsResponse } from '../pointsTypes';
+
+const EMPTY_FIELDS: MemberEditFields = { name: '', asu_id: '', academic_standing: '', major: '' };
 
 const UserPage = () => {
   useAuthToken();
@@ -27,9 +30,15 @@ const UserPage = () => {
   const [academicStanding, setAcademicStanding] = useState('');
   const [major, setMajor] = useState('');
   const [currentEmailForUpdate, setCurrentEmailForUpdate] = useState(''); // Stores the email of the user being updated
+  // The form values as loaded, so that an update sends only the fields the officer changed.
+  const [loadedFields, setLoadedFields] = useState<MemberEditFields>(EMPTY_FIELDS);
 
   // State for creating user
   const [createEmail, setCreateEmail] = useState('');
+  // The create form has its own fields, so a member loaded for update does not fill it
+  const [createFields, setCreateFields] = useState<MemberEditFields>(EMPTY_FIELDS);
+  const setCreateField = (field: keyof MemberEditFields) => (e: ChangeEvent<HTMLInputElement>) =>
+    setCreateFields((prev) => ({ ...prev, [field]: e.target.value }));
   const [loadingCreate, setLoadingCreate] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
@@ -40,12 +49,12 @@ const UserPage = () => {
     setAcademicStanding('');
     setMajor('');
     setCurrentEmailForUpdate('');
+    setLoadedFields(EMPTY_FIELDS);
   };
 
   const resetCreateFormFields = () => {
     setCreateEmail('');
-    // Keep name, asuId, etc. if you want to prefill from a previous search, or clear them too
-    // setName(''); setAsuId(''); setAcademicStanding(''); setMajor(''); 
+    setCreateFields(EMPTY_FIELDS);
   };
 
   const fetchUser = async () => {
@@ -67,8 +76,19 @@ const UserPage = () => {
     try {
       // Use the new consolidated endpoint to get user details
       const response = await apiClient.get<UserPointsResponse>(`/api/points/${currentOrg.prefix}/users/${searchEmail}/points`);
-      setUserData(response.data.user);
-      setName(response.data.user.name || '');
+      const { user } = response.data;
+      const fields: MemberEditFields = {
+        name: user.name || '',
+        asu_id: user.asu_id || '',
+        academic_standing: user.academic_standing || '',
+        major: user.major || '',
+      };
+      setUserData(user);
+      setName(fields.name);
+      setAsuId(fields.asu_id);
+      setAcademicStanding(fields.academic_standing);
+      setMajor(fields.major);
+      setLoadedFields(fields);
       setCurrentEmailForUpdate(searchEmail);
     } catch (error) {
       if (axios.isAxiosError<ApiError>(error) && error.response && error.response.status === 404) {
@@ -98,12 +118,17 @@ const UserPage = () => {
     setUpdateError('');
     setUpdateSuccess('');
 
-    const dataToUpdate = {
+    const dataToUpdate = changedMemberFields(loadedFields, {
       name,
       asu_id: asuId,
       academic_standing: academicStanding,
       major,
-    };
+    });
+    if (Object.keys(dataToUpdate).length === 0) {
+      setUpdateSuccess('No changes to save.');
+      setLoadingUpdate(false);
+      return;
+    }
 
     try {
       // Use the new consolidated endpoint for updating user fields
@@ -122,7 +147,7 @@ const UserPage = () => {
 
   const handleCreateUser = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!createEmail || !name) {
+    if (!createEmail || !createFields.name) {
       setCreateError('Email and name are required for creating a user.');
       return;
     }
@@ -137,10 +162,10 @@ const UserPage = () => {
 
     const data = { 
       email: createEmail, 
-      name, 
-      asu_id: asuId || undefined, // Don't send empty string, let it be undefined
-      academic_standing: academicStanding || undefined, 
-      major: major || undefined 
+      name: createFields.name,
+      asu_id: createFields.asu_id || undefined, // Don't send empty string, let it be undefined
+      academic_standing: createFields.academic_standing || undefined,
+      major: createFields.major || undefined
     };
 
     try {
@@ -148,8 +173,6 @@ const UserPage = () => {
       const response = await apiClient.post<MessageResponse>(`/api/points/${currentOrg.prefix}/users`, data);
       setCreateSuccess(response.data.message || 'User created successfully!');
       resetCreateFormFields(); // Clear create form
-      // also clear shared fields if they were used for creation
-      setName(''); setAsuId(''); setAcademicStanding(''); setMajor('');
     } catch (error) {
       setCreateError((axios.isAxiosError<ApiError>(error) && error.response?.data?.error) || 'Error creating user.');
     } finally {
@@ -223,22 +246,22 @@ const UserPage = () => {
               <label htmlFor="createEmail" className="block text-sm font-medium text-soda-white mb-1">User Email</label>
               <input id="createEmail" type="email" placeholder="new.user@example.com" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} required />
             </div>
-             {/* Fields for create - can reuse state from update form or have separate ones if logic differs */}
+             {/* Fields for create, separate from the update form */}
             <div>
                 <label htmlFor="createName" className="block text-sm font-medium text-soda-white mb-1">Name</label>
-                <input id="createName" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={name} onChange={(e) => setName(e.target.value)} placeholder="New User Name" required/>
+                <input id="createName" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={createFields.name} onChange={setCreateField('name')} placeholder="New User Name" required/>
             </div>
             <div>
                 <label htmlFor="createAsuId" className="block text-sm font-medium text-soda-white mb-1">ASU ID (Optional)</label>
-                <input id="createAsuId" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={asuId} onChange={(e) => setAsuId(e.target.value)} placeholder="ASU ID (Optional)"/>
+                <input id="createAsuId" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={createFields.asu_id} onChange={setCreateField('asu_id')} placeholder="ASU ID (Optional)"/>
             </div>
             <div>
                 <label htmlFor="createAcademicStanding" className="block text-sm font-medium text-soda-white mb-1">Academic Standing (Optional)</label>
-                <input id="createAcademicStanding" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={academicStanding} onChange={(e) => setAcademicStanding(e.target.value)} placeholder="e.g., Sophomore"/>
+                <input id="createAcademicStanding" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={createFields.academic_standing} onChange={setCreateField('academic_standing')} placeholder="e.g., Sophomore"/>
             </div>
             <div>
                 <label htmlFor="createMajor" className="block text-sm font-medium text-soda-white mb-1">Major (Optional)</label>
-                <input id="createMajor" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={major} onChange={(e) => setMajor(e.target.value)} placeholder="e.g., Computer Science"/>
+                <input id="createMajor" type="text" className="w-full p-3 rounded-md bg-soda-black/50 border border-soda-white/20 text-soda-white focus:ring-soda-red focus:border-soda-red transition-all" value={createFields.major} onChange={setCreateField('major')} placeholder="e.g., Computer Science"/>
             </div>
             <StarBorder type="submit" disabled={loadingCreate} color="#FF3B30" speed="4s" className="w-full">
               {loadingCreate ? 'Creating...' : 'Create User'}

@@ -445,9 +445,15 @@
       ],
       "total_points": "number",
       "user": {
+        "academic_standing": "null",
+        "asu_id": "string",
+        "class_standing": "null",
         "email": "string",
         "id": "number",
+        "major": "null",
         "name": "string",
+        "profile_fields": {},
+        "student_id": "string",
         "username": "string"
       }
     },

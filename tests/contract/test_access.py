@@ -158,3 +158,17 @@ def test_sys_admin_takes_a_list_of_ids(client, monkeypatch):
 
 def test_member_cannot_list_all_orders(client, clerk_headers):
     assert client.get("/api/storefront/soda/orders", headers=clerk_headers).status_code == 403
+
+
+def test_member_details_reach_only_the_orgs_officers_in_report_mode(client, monkeypatch):
+    from core.config import config
+
+    monkeypatch.setattr(config, "ACCESS_ENFORCE", False)
+    path = "/api/points/soda/users/alice@asu.edu/points"
+    own = client.get(path, headers=headers_for(OFFICER_DISCORD_ID)).get_json()["user"]
+    assert own["asu_id"] == own["student_id"] == "1200000001"
+    other = client.get(path, headers=headers_for(AIS_OFFICER_ID))
+    assert other.status_code == 200
+    assert {"asu_id", "student_id", "academic_standing", "class_standing", "major", "profile_fields"}.isdisjoint(
+        other.get_json()["user"]
+    )

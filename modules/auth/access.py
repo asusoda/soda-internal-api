@@ -214,19 +214,25 @@ def any_officer_denial() -> tuple[str, int] | None:
     return None
 
 
+def is_org_officer(org) -> bool:
+    """Whether the caller is an officer of org or the superadmin. False when Discord cannot be read."""
+    principal = current_principal()
+    if not principal or not principal.discord_id:
+        return False
+    if is_superadmin(principal.discord_id):
+        return True
+    guilds = officer_guild_ids(principal.discord_id)
+    return bool(guilds) and str(org.guild_id) in guilds
+
+
 def member_details_allowed(org) -> bool:
     """Whether the caller may see members' emails and student IDs: officers of org and the superadmin.
 
     Anyone else is logged as member_details_hidden, and the details are left out only when enforcing.
     """
-    principal = current_principal()
-    if principal and principal.discord_id:
-        if is_superadmin(principal.discord_id):
-            return True
-        guilds = officer_guild_ids(principal.discord_id)
-        if guilds and str(org.guild_id) in guilds:
-            return True
-    return not decide("member_details_hidden", principal, org.prefix)
+    if is_org_officer(org):
+        return True
+    return not decide("member_details_hidden", current_principal(), org.prefix)
 
 
 def superadmin_denial(discord_id: str | None) -> tuple[str, int] | None:

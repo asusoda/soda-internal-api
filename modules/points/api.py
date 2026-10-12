@@ -5,7 +5,7 @@ from core.db import db_connect
 from core.http.cached import cached_json, org_key
 from core.http.request_log import bearer_token
 from core.log import logger
-from modules.auth.access import awarded_by, decide
+from modules.auth.access import awarded_by, decide, is_org_officer
 from modules.auth.decorators import auth_required
 from modules.auth.tokens import token_manager
 from modules.organizations import service as organizations
@@ -612,15 +612,24 @@ def get_user_points_in_org_by_identifier(org_prefix, user_identifier):
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        if not users.active_membership(db, user.id, organization.id):
+        membership = users.active_membership(db, user.id, organization.id)
+        if not membership:
             return jsonify({"error": "User is not a member of this organization"}), 400
 
         total_points = service.total_points(db, user.id, organization.id) or 0
         points_records = service.history(db, user.id, organization.id)
 
+        # Student ids and profile fields only go to the org's officers, also while ACCESS_ENFORCE is off
+        details = {**users.member_fields(user, membership), "major": user.major} if is_org_officer(organization) else {}
         return jsonify(
             {
-                "user": {"id": user.id, "name": user.name, "email": user.email, "username": user.username},
+                "user": {
+                    "id": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "username": user.username,
+                    **details,
+                },
                 "organization": {"name": organization.name, "prefix": organization.prefix},
                 "total_points": total_points,
                 "points_history": [service.history_json(record) for record in points_records],

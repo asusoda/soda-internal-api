@@ -6,7 +6,8 @@ import { useAuth } from '../components/auth/AuthContext';
 import OrganizationNavbar from '../components/shared/OrganizationNavbar';
 import { FaTrashAlt, FaTimes, FaEdit, FaSave } from 'react-icons/fa';
 import type { ApiError } from '../types';
-import type { PointHistoryEntry, UserPointsResponse } from '../pointsTypes';
+import { changedMemberFields } from '../pointsTypes';
+import type { MemberDetails, MemberEditFields, PointHistoryEntry, UserPointsResponse } from '../pointsTypes';
 
 // One row of GET /api/public/<org_prefix>/leaderboard. email and asu_id are only there for officers.
 interface LeaderboardEntry {
@@ -26,23 +27,10 @@ interface LeaderboardResponse {
 }
 
 // The fields that the edit form sends to PUT /api/points/<org_prefix>/users/<user_identifier>.
-interface EditFormData {
-  name: string;
-  username: string;
-  asu_id: string;
-  academic_standing: string;
-  major: string;
-}
+type EditFormData = MemberEditFields & { username: string };
 
-// The user in the details modal. The edit fields are there after a save.
-interface SelectedUser {
-  id: number;
-  name: string | null;
-  email: string | null;
-  username: string | null;
-  asu_id?: string;
-  academic_standing?: string;
-  major?: string;
+// The member in the details modal.
+interface SelectedUser extends MemberDetails {
   points_history: PointHistoryEntry[];
   total_points: number;
 }
@@ -67,6 +55,8 @@ const LeaderboardPage = () => {
   // Enhanced admin features
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<EditFormData>>({});
+  // The form values as loaded, so that a save sends only the fields the officer changed.
+  const [loadedFormData, setLoadedFormData] = useState<Partial<EditFormData>>({});
   const [saveLoading, setSaveLoading] = useState(false);
 
   const handleDeleteClick = (event: PointHistoryEntry) => {
@@ -111,13 +101,15 @@ const LeaderboardPage = () => {
         total_points: response.data.total_points || 0
       };
       setSelectedUser(userData);
-      setEditFormData({
+      const formData: EditFormData = {
         name: userData.name || '',
         username: userData.username || '',
         asu_id: userData.asu_id || '',
         academic_standing: userData.academic_standing || '',
         major: userData.major || ''
-      });
+      };
+      setEditFormData(formData);
+      setLoadedFormData(formData);
       setSelectedUserEmail(userEmail);
       setShowModal(true);
     } catch (error) {
@@ -145,18 +137,18 @@ const LeaderboardPage = () => {
     setModalError('');
     
     try {
+      const changes = changedMemberFields(loadedFormData, editFormData);
+      if (Object.keys(changes).length === 0) {
+        setIsEditing(false);
+        return;
+      }
       await apiClient.put(
         `/api/points/${currentOrg.prefix}/users/${encodeURIComponent(selectedUserEmail)}`,
-        editFormData
+        changes
       );
       
-      // Update the selected user data
-      setSelectedUser(prev => prev && ({
-        ...prev,
-        ...editFormData
-      }));
-      
-      setIsEditing(false);
+      // Load the member again to show the saved values. This also ends editing.
+      await viewUserDetails(selectedUserEmail);
       // Refresh leaderboard to show updated information
       fetchLeaderboard();
     } catch (error) {
