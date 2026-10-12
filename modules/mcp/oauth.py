@@ -5,6 +5,10 @@ The mcp SDK serves <url>/register, /authorize, /token and /revoke and checks the
 clients, requests and grants, makes the discovery documents, limits requests of each IP, and is the SDK's
 provider. The sign-in and consent pages are in oauth_pages.py.
 
+A client registers itself (RFC 7591), or uses the HTTPS URL of its Client ID Metadata Document as its
+client_id (draft-ietf-oauth-client-id-metadata-document). Platform then fetches that document, checks it and
+keeps it in oauth_clients for the time that its cache headers allow.
+
 The access token is a machine token of kind oauth, so the MCP server, scopes, limits and the Tokens page
 treat it as any other machine token. An officer approves the org, the scopes and the integration limits.
 A refresh gives the same machine token row a new value, after a check that the officer still has the
@@ -13,21 +17,26 @@ officer role. When an officer revokes that token, the refresh token stops workin
 
 import datetime
 import hashlib
+import http.client
 import json
 import secrets
+import socket
+import ssl
 import threading
 import time
+from dataclasses import dataclass
 from typing import cast
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from anyio import to_thread
 from mcp.server.auth import provider as sdk
 from mcp.server.auth.routes import build_metadata
 from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
-from pydantic import AnyHttpUrl, AnyUrl
+from pydantic import AnyHttpUrl, AnyUrl, ValidationError
+from sqlalchemy.exc import IntegrityError
 
-from core import audit
+from core import audit, net
 from core import secrets as org_secrets
 from core.config import config, superadmin_ids
 from core.db import db_connect
@@ -52,6 +61,30 @@ MAX_CLIENT_BYTES = 8192
 RECHECK_GRACE = datetime.timedelta(hours=24)
 LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]", "::1")
 BLOCKED_SCHEMES = ("javascript", "data", "file", "vbscript", "about", "blob")
+# Client ID Metadata Documents: the limits of the URL and the fetch, and how long a document stays cached
+METADATA_MAX_URL = 2048
+METADATA_MAX_BYTES = 5 * 1024
+METADATA_TIMEOUT_SECONDS = 5
+METADATA_DEFAULT_CACHE = datetime.timedelta(hours=1)
+METADATA_MAX_CACHE = datetime.timedelta(hours=24)
+# The document properties that Platform keeps. Others are ignored
+METADATA_KEPT = (
+    "client_name",
+    "client_uri",
+    "logo_uri",
+    "redirect_uris",
+    "grant_types",
+    "response_types",
+    "scope",
+    "contacts",
+    "tos_uri",
+    "policy_uri",
+    "software_id",
+    "software_version",
+)
+USER_AGENT = "Platform MCP OAuth (+https://platform.thesoda.io)"
+# The only client authentication of a document client: none, a public client with PKCE
+PUBLIC_CLIENT = "none"
 REGISTRATION = ClientRegistrationOptions(enabled=True)
 REVOCATION = RevocationOptions(enabled=True)
 # Requests of one client IP in a window, by the path under the public URL: (count, seconds)
@@ -142,9 +175,27 @@ def resource_metadata() -> dict:
     )
 
 
-def server_metadata() -> dict:
+def server_metadata_model():
+    """The authorization server metadata (RFC 8414). It adds Client ID Metadata Documents and RFC 9207 iss."""
     metadata = build_metadata(AnyHttpUrl(public_url()), None, REGISTRATION, REVOCATION)
-    return metadata.model_dump(mode="json", exclude_none=True)
+    metadata.client_id_metadata_document_supported = True
+    metadata.authorization_response_iss_parameter_supported = True
+    return metadata
+
+
+def server_metadata() -> dict:
+    return server_metadata_model().model_dump(mode="json", exclude_none=True)
+
+
+def same_resource(resource: str) -> bool:
+    """Whether an RFC 8707 resource names this MCP server: its public URL, or a path above it on the same origin."""
+    ours, theirs = urlsplit(public_url()), urlsplit(resource.strip())
+    if (theirs.scheme.lower(), (theirs.netloc or "").lower()) != (ours.scheme.lower(), ours.netloc.lower()):
+        return False
+    if theirs.query or theirs.fragment:
+        return False
+    path = theirs.path.rstrip("/")
+    return ours.path.rstrip("/") == path or ours.path.startswith(path + "/")
 
 
 # Requests of each IP
@@ -242,8 +293,178 @@ def register_client(db, info: dict) -> None:
     db.commit()
 
 
+# Client ID Metadata Documents
+
+
+def is_metadata_url(client_id: str) -> bool:
+    """Whether a client_id is the URL of a Client ID Metadata Document, not an id from /register."""
+    return client_id.startswith("https://")
+
+
+def check_metadata_url(url: str) -> None:
+    """Refuse a client_id URL that the draft does not allow. Raises OAuthError."""
+    parts = urlsplit(url)
+    if len(url) > METADATA_MAX_URL:
+        raise OAuthError(f"The client_id URL is longer than {METADATA_MAX_URL} characters")
+    if parts.scheme != "https" or not parts.hostname:
+        raise OAuthError("The client_id URL must use https")
+    if parts.username is not None or parts.password is not None:
+        raise OAuthError("The client_id URL must not have a user name or password")
+    if parts.fragment or "#" in url:
+        raise OAuthError("The client_id URL must not have a fragment")
+    if len(parts.path) < 2:
+        raise OAuthError("The client_id URL must have a path, such as /client.json")
+    if {".", ".."} & set(parts.path.split("/")):
+        raise OAuthError("The client_id URL must not have . or .. segments")
+
+
+@dataclass(frozen=True)
+class Fetched:
+    status: int
+    headers: dict[str, str]
+    body: bytes
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS to an address that was checked before. The certificate must still match the host name."""
+
+    def __init__(self, host: str, port: int, address: str, timeout: float):
+        self._tls = ssl.create_default_context()
+        super().__init__(host, port, timeout=timeout, context=self._tls)
+        self._address = address
+
+    def connect(self) -> None:
+        sock = socket.create_connection((self._address, self.port), self.timeout)
+        self.sock = self._tls.wrap_socket(sock, server_hostname=self.host)
+
+
+def fetch_metadata_document(url: str) -> Fetched:
+    """GET a Client ID Metadata Document. Raises OAuthError.
+
+    The host must resolve only to public addresses, and the connection goes to one of those addresses. Platform
+    does not follow redirects and reads at most METADATA_MAX_BYTES and one byte more.
+    """
+    parts = urlsplit(url)
+    host, port = str(parts.hostname), parts.port or 443
+    try:
+        address = net.public_addresses(host, port)[0]
+    except (net.NoHost, net.NotPublic) as e:
+        raise OAuthError(str(e)) from e
+    target = parts.path + (f"?{parts.query}" if parts.query else "")
+    connection = _PinnedHTTPSConnection(host, port, address, METADATA_TIMEOUT_SECONDS)
+    try:
+        connection.request("GET", target, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
+        response = connection.getresponse()
+        body = response.read(METADATA_MAX_BYTES + 1)
+        return Fetched(response.status, {k.lower(): v for k, v in response.getheaders()}, body)
+    except (OSError, http.client.HTTPException) as e:
+        raise OAuthError(f"The client metadata document could not be fetched: {type(e).__name__}") from e
+    finally:
+        connection.close()
+
+
+def cache_time(headers: dict[str, str]) -> datetime.timedelta:
+    """How long to keep a document: its Cache-Control max-age, from 0 to METADATA_MAX_CACHE."""
+    directives = [d.strip().lower() for d in headers.get("cache-control", "").split(",") if d.strip()]
+    if "no-store" in directives or "no-cache" in directives:
+        return datetime.timedelta(0)
+    for directive in directives:
+        name, _, value = directive.partition("=")
+        if name == "max-age" and value.strip().isdigit():
+            return min(datetime.timedelta(seconds=int(value.strip())), METADATA_MAX_CACHE)
+    return METADATA_DEFAULT_CACHE
+
+
+def client_from_document(url: str, fetched: Fetched) -> dict:
+    """The client metadata from a fetched document, after the checks of the draft and the MCP spec. Raises OAuthError."""
+    if fetched.status != 200:
+        raise OAuthError(f"The client metadata document returned {fetched.status}, not 200")
+    if len(fetched.body) > METADATA_MAX_BYTES:
+        raise OAuthError(f"The client metadata document is larger than {METADATA_MAX_BYTES} bytes")
+    try:
+        document = json.loads(fetched.body)
+    except ValueError as e:
+        raise OAuthError("The client metadata document is not JSON") from e
+    if not isinstance(document, dict):
+        raise OAuthError("The client metadata document must be a JSON object")
+    if document.get("client_id") != url:
+        raise OAuthError("The client_id in the document must be the URL of the document")
+    for name in ("client_name", "redirect_uris"):
+        if not document.get(name):
+            raise OAuthError(f"The client metadata document must have {name}")
+    if "client_secret" in document or "client_secret_expires_at" in document:
+        raise OAuthError("The client metadata document must not have a client secret")
+    method = document.get("token_endpoint_auth_method", PUBLIC_CLIENT)
+    if method != PUBLIC_CLIENT:
+        raise OAuthError(f'token_endpoint_auth_method "{method}" is not supported. Use "{PUBLIC_CLIENT}"')
+    uris = document["redirect_uris"]
+    if not isinstance(uris, list) or not all(isinstance(u, str) for u in uris):
+        raise OAuthError("redirect_uris must be a list of URLs")
+    for uri in uris:
+        check_redirect_uri(uri)
+    info = {key: document[key] for key in METADATA_KEPT if key in document}
+    grants = info.setdefault("grant_types", ["authorization_code", "refresh_token"])
+    if not isinstance(grants, list) or "authorization_code" not in grants:
+        raise OAuthError("grant_types must have authorization_code")
+    responses = info.setdefault("response_types", ["code"])
+    if not isinstance(responses, list) or "code" not in responses:
+        raise OAuthError("response_types must have code")
+    # Platform scopes are granted on the consent page, so a client can ask for any of them
+    asked = set(str(info.get("scope") or "").split())
+    info |= {
+        "client_id": url,
+        "token_endpoint_auth_method": PUBLIC_CLIENT,
+        "scope": " ".join(sorted(asked | set(SCOPES))),
+    }
+    try:
+        return OAuthClientInformationFull.model_validate(info).model_dump(mode="json", exclude_none=True)
+    except ValidationError as e:
+        raise OAuthError(f"The client metadata document is not valid: {e.errors()[0]['msg']}") from e
+
+
+def resolve_client(db, client_id: str) -> dict | None:
+    """The metadata of a client: a registered one, or the document at a client_id URL. Commits a fetched document.
+
+    A cached document is used until its cache time ends. A document that cannot be fetched or is not valid
+    gives None, and is not cached.
+    """
+    if not is_metadata_url(client_id):
+        return get_client(db, client_id)
+    now = _now()
+    row = db.query(OAuthClient).filter_by(client_id=client_id).first()
+    if row is not None and row.cache_until is not None and cast(datetime.datetime, row.cache_until) > now:
+        return dict(cast(dict, row.info))
+    try:
+        check_metadata_url(client_id)
+        fetched = fetch_metadata_document(client_id)
+        info = client_from_document(client_id, fetched)
+    except OAuthError as e:
+        logger.warning("client metadata document refused client_id=%s: %s", client_id, e)
+        return None
+    until = now + cache_time(fetched.headers)
+    if row is None:
+        if db.query(OAuthClient).count() >= MAX_CLIENTS:
+            logger.warning("client metadata document refused client_id=%s: too many clients", client_id)
+            return None
+        db.add(OAuthClient(client_id=client_id, info=info, cache_until=until))
+    else:
+        row.info = info
+        row.cache_until = until
+    try:
+        db.commit()
+    except IntegrityError:
+        # Another request stored the same document first
+        db.rollback()
+    return info
+
+
+def client_host(client_id: str) -> str | None:
+    """The host name of a client_id URL, which the consent page shows. None for a registered client."""
+    return urlsplit(client_id).hostname if is_metadata_url(client_id) else None
+
+
 def get_client(db, client_id: str) -> dict | None:
-    """The registered metadata of a client with its secret, or None."""
+    """The stored metadata of a client with its secret, or None. A document client gets its last cached document."""
     row = db.query(OAuthClient).filter_by(client_id=client_id).first()
     if row is None:
         return None
@@ -578,7 +799,7 @@ class Provider(sdk.OAuthAuthorizationServerProvider[sdk.AuthorizationCode, Platf
         self.login_url = login_url
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        info = await _run(get_client, client_id)
+        info = await _run(resolve_client, client_id)
         return OAuthClientInformationFull.model_validate(info) if info is not None else None
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
@@ -592,6 +813,8 @@ class Provider(sdk.OAuthAuthorizationServerProvider[sdk.AuthorizationCode, Platf
             raise sdk.RegistrationError(code, str(e)) from e
 
     async def authorize(self, client: OAuthClientInformationFull, params: sdk.AuthorizationParams) -> str:
+        if params.resource and not same_resource(params.resource):
+            raise sdk.AuthorizeError("invalid_target", f"This server is {public_url()}, not {params.resource}")
         key = await _run(start, str(client.client_id), params.model_dump(mode="json"))
         return self.login_url(key)
 

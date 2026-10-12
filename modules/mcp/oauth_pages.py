@@ -12,6 +12,7 @@ The pages are under the public URL of /mcp, such as https://api.example.org/mcp/
 
 import html
 from typing import cast
+from urllib.parse import urlparse
 
 from anyio import to_thread
 from mcp.server.auth.provider import construct_redirect_uri
@@ -148,6 +149,39 @@ def _limit_inputs(texts: dict[str, str]) -> str:
     )
 
 
+WARNING = 'style="padding: 0.75rem; border: 1px solid #b26a00; background: #fff4e5"'
+
+
+def _identity(client_id: str, name: str) -> str:
+    """Who the client is. A metadata document client is the host of its client_id URL; a registered one is not known."""
+    host = oauth.client_host(client_id)
+    if host is None:
+        return (
+            f"<p {WARNING}>This client registered itself, so Platform cannot check that it is {name}. "
+            "Approve only if you started this connection.</p>"
+        )
+    return (
+        f"<p>Client: <strong>{html.escape(host)}</strong>. Platform read the name and addresses of this client "
+        f"from <code>{html.escape(client_id)}</code>.</p>"
+    )
+
+
+def _destination(redirect_uri: str, name: str) -> str:
+    """Where the code goes, with the host name first. A warning for an address on this computer."""
+    parsed = urlparse(redirect_uri)
+    where = parsed.hostname or parsed.scheme
+    text = (
+        f"<p>After you approve, Platform sends the browser to <strong>{html.escape(where)}</strong> "
+        f"(<code>{html.escape(redirect_uri)}</code>).</p>"
+    )
+    if (parsed.hostname or "") in oauth.LOOPBACK_HOSTS:
+        text += (
+            f"<p {WARNING}>This address is on your computer. Any program on your computer can use it "
+            f"and say that it is {name}. Approve only if you started this connection in {name} a moment ago.</p>"
+        )
+    return text
+
+
 def _consent_page(db, row, consent_key: str, error: str | None = None, chosen: dict | None = None) -> HTMLResponse:
     """The consent form. chosen keeps the org, scopes and limit texts of a form with an error."""
     chosen = chosen or {}
@@ -174,10 +208,10 @@ def _consent_page(db, row, consent_key: str, error: str | None = None, chosen: d
     notice = f'<p style="color: #b00020">{html.escape(error)}</p>' if error else ""
     body = (
         f"<h1>Connect {name} to Platform</h1>"
+        f"{_identity(str(row.client_id), name)}"
         f"<p><strong>{name}</strong> asks for a token to call the tools of an org. "
         "It gets the scopes that you choose and sees only that org.</p>"
-        f"<p>After you approve, Platform sends the browser to <code>{html.escape(str(row.redirect_uri))}</code>. "
-        "Approve only if you started this connection and you know that address.</p>"
+        f"{_destination(str(row.redirect_uri), name)}"
         f"{notice}"
         f'<form method="post" action="{html.escape(oauth.public_path())}/oauth/consent">'
         f'<input type="hidden" name="consent" value="{html.escape(consent_key)}">'
@@ -236,7 +270,7 @@ def _decide(db, key: str, action: str, org: str, scopes: list[str], limits: dict
     redirect_uri, state, discord_id = str(row.redirect_uri), oauth.optional_text(row.state), str(row.discord_id)
     if action != "approve":
         oauth.deny(db, row)
-        location = construct_redirect_uri(redirect_uri, error="access_denied", state=state)
+        location = construct_redirect_uri(redirect_uri, error="access_denied", state=state, iss=oauth.public_url())
         return RedirectResponse(location, 303), False
     try:
         org_id = int(org)
@@ -256,7 +290,9 @@ def _decide(db, key: str, action: str, org: str, scopes: list[str], limits: dict
         actor_id=discord_id,
         details={"client_id": str(row.client_id), "scopes": oauth.strings(row.scopes), "limits": row.limits or {}},
     )
-    return RedirectResponse(construct_redirect_uri(redirect_uri, code=code, state=state), 303), False
+    # iss (RFC 9207) lets a client that uses more than one authorization server check where the code came from
+    location = construct_redirect_uri(redirect_uri, code=code, state=state, iss=oauth.public_url())
+    return RedirectResponse(location, 303), False
 
 
 async def consent(request: Request) -> Response:

@@ -59,7 +59,7 @@ def _pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
-def _sign_in(client, client_id: str, challenge: str) -> str:
+def _sign_in(client, client_id: str, challenge: str, name: str = "Test Agent") -> str:
     """Run /authorize, /oauth/login and /oauth/callback. Returns the consent key of the form."""
     authorize = client.get(
         "/mcp/authorize",
@@ -81,7 +81,7 @@ def _sign_in(client, client_id: str, challenge: str) -> str:
     state = parse_qs(urlparse(to_discord.headers["location"]).query)["state"][0]
     consent = client.get("/mcp/oauth/callback", params={"state": state, "code": "discord-code"})
     assert consent.status_code == 200, consent.text
-    assert "Test Agent" in consent.text and REDIRECT in consent.text
+    assert name in consent.text and REDIRECT in consent.text
     assert consent.headers["x-frame-options"] == "DENY"
     return consent.text.split('name="consent" value="')[1].split('"')[0]
 
@@ -100,6 +100,7 @@ def _approve(oauth_client, consent_key: str, org_id: int, scopes: list[str]) -> 
     assert f"{location.scheme}://{location.netloc}{location.path}" == REDIRECT
     query = parse_qs(location.query)
     assert query["state"] == ["xyz"]
+    assert query["iss"] == [PUBLIC]
     return query["code"][0]
 
 
@@ -132,7 +133,10 @@ def test_discovery(oauth_client, client):
             assert body["authorization_endpoint"] == f"{PUBLIC}/authorize"
             assert body["registration_endpoint"] == f"{PUBLIC}/register"
             assert body["code_challenge_methods_supported"] == ["S256"]
-    assert oauth_client.get("/mcp/.well-known/oauth-authorization-server").json()["issuer"] == PUBLIC
+            assert body["client_id_metadata_document_supported"] is True
+            assert body["authorization_response_iss_parameter_supported"] is True
+    under_path = oauth_client.get("/mcp/.well-known/oauth-authorization-server").json()
+    assert under_path["issuer"] == PUBLIC and under_path["client_id_metadata_document_supported"] is True
     assert client.get("/.well-known/oauth-protected-resource/other").status_code == 404
 
 
@@ -281,7 +285,11 @@ def test_deny_sends_access_denied(oauth_client):
     consent_key = _sign_in(oauth_client, registered["client_id"], _pkce()[1])
     response = oauth_client.post("/mcp/oauth/consent", data={"consent": consent_key, "action": "deny"})
     assert response.status_code == 303
-    assert parse_qs(urlparse(response.headers["location"]).query) == {"error": ["access_denied"], "state": ["xyz"]}
+    assert parse_qs(urlparse(response.headers["location"]).query) == {
+        "error": ["access_denied"],
+        "state": ["xyz"],
+        "iss": [PUBLIC],
+    }
 
 
 def test_consent_needs_the_browser_that_signed_in(oauth_client, client, officer_headers):
@@ -588,3 +596,264 @@ def test_rate_limit_windows():
     assert limiter.allow("/token", "1.2.3.4", now=1000.0 * seconds) > 0
     assert limiter.allow("/token", "5.6.7.8", now=1000.0 * seconds) == 0
     assert limiter.allow("/token", "1.2.3.4", now=1001.0 * seconds) == 0
+
+
+# Client ID Metadata Documents
+
+DOCUMENT_URL = "https://agent.example/oauth/client.json"
+
+
+def _document(**changes) -> dict:
+    document = {
+        "client_id": DOCUMENT_URL,
+        "client_name": "Example Agent",
+        "redirect_uris": [REDIRECT, "http://127.0.0.1:33418/callback"],
+        "token_endpoint_auth_method": "none",
+    }
+    return {k: v for k, v in (document | changes).items() if v is not None}
+
+
+@pytest.fixture
+def documents(monkeypatch):
+    """A fake web: the URL a fetch asks for, and the answer for each URL. Counts the fetches."""
+    import json
+
+    from modules.mcp import oauth
+
+    served: dict = {"answers": {}, "fetches": []}
+
+    def fetch(url):
+        served["fetches"].append(url)
+        answer = served["answers"].get(url)
+        if answer is None:
+            raise oauth.OAuthError("could not be fetched")
+        status, headers, body = answer
+        return oauth.Fetched(status, headers, body if isinstance(body, bytes) else json.dumps(body).encode())
+
+    monkeypatch.setattr(oauth, "fetch_metadata_document", fetch)
+    served["answers"][DOCUMENT_URL] = (200, {"cache-control": "max-age=600"}, _document())
+    _forget_documents()
+    yield served
+    _forget_documents()
+
+
+def _forget_documents() -> None:
+    """Delete the cached documents and what hangs on them: the tests share one database."""
+    from core.db import db_connect
+    from modules.mcp.models import OAuthClient, OAuthGrant, OAuthRequest
+
+    db = db_connect.SessionLocal()
+    try:
+        for model in (OAuthGrant, OAuthRequest, OAuthClient):
+            db.query(model).filter(model.client_id.like("https://agent.example/%")).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+
+def _authorize(oauth_client, client_id: str, challenge: str, redirect: str = REDIRECT, **extra):
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "state": "xyz",
+    } | extra
+    return oauth_client.get("/mcp/authorize", params=params)
+
+
+def test_a_metadata_document_client_connects(oauth_client, client, officer_headers, documents):
+    verifier, challenge = _pkce()
+    consent_key = _sign_in(oauth_client, DOCUMENT_URL, challenge, name="Example Agent")
+    page = oauth_client.post(
+        "/mcp/oauth/consent",
+        data={"consent": consent_key, "org": "0", "scope": "org:read", "action": "approve"},
+    )
+    assert "Client: <strong>agent.example</strong>" in page.text
+    assert "registered itself" not in page.text
+    code = _approve(oauth_client, consent_key, _soda_id(client, officer_headers), ["org:read"])
+    tokens = _token(
+        oauth_client,
+        grant_type="authorization_code",
+        code=code,
+        redirect_uri=REDIRECT,
+        client_id=DOCUMENT_URL,
+        code_verifier=verifier,
+    )
+    assert tokens.status_code == 200, tokens.text
+    refreshed = _token(
+        oauth_client, grant_type="refresh_token", refresh_token=tokens.json()["refresh_token"], client_id=DOCUMENT_URL
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    # The document stays cached for its max-age, so the flow fetched it once
+    assert documents["fetches"] == [DOCUMENT_URL]
+    assert _oauth_row(client, officer_headers)["name"] == "Example Agent"
+
+
+def test_a_registered_client_is_marked_as_not_checked(oauth_client):
+    registered = _register(oauth_client)
+    consent_key = _sign_in(oauth_client, registered["client_id"], _pkce()[1])
+    response = oauth_client.post("/mcp/oauth/consent", data={"consent": consent_key, "org": "0", "action": "approve"})
+    assert "registered itself" in response.text
+
+
+def test_a_localhost_redirect_gets_a_warning(oauth_client, documents):
+    authorize = _authorize(oauth_client, DOCUMENT_URL, _pkce()[1], redirect="http://127.0.0.1:33418/callback")
+    login = oauth_client.get(f"/mcp/oauth/login?{urlparse(authorize.headers['location']).query}")
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    page = oauth_client.get("/mcp/oauth/callback", params={"state": state, "code": "discord-code"})
+    assert page.status_code == 200
+    assert "<strong>127.0.0.1</strong>" in page.text
+    assert "This address is on your computer" in page.text
+
+
+@pytest.mark.parametrize(
+    ("answer", "reason"),
+    [
+        ((404, {}, {}), "returned 404"),
+        ((302, {"location": "https://evil.example/c.json"}, {}), "returned 302"),
+        ((200, {}, b"not json"), "not JSON"),
+        ((200, {}, b"[]"), "JSON object"),
+        ((200, {}, b"x" * 6000), "larger than"),
+        ((200, {}, _document(client_id="https://agent.example/other.json")), "URL of the document"),
+        ((200, {}, _document(client_name=None)), "client_name"),
+        ((200, {}, _document(client_secret="s")), "client secret"),
+        ((200, {}, _document(token_endpoint_auth_method="client_secret_basic")), "not supported"),
+        ((200, {}, _document(token_endpoint_auth_method="private_key_jwt")), "not supported"),
+        ((200, {}, _document(redirect_uris=["http://evil.example/cb"])), "https"),
+        ((200, {}, _document(grant_types=["client_credentials"])), "authorization_code"),
+    ],
+)
+def test_bad_documents_are_refused_and_not_cached(oauth_client, documents, caplog, answer, reason):
+    documents["answers"][DOCUMENT_URL] = answer
+    refused = _authorize(oauth_client, DOCUMENT_URL, _pkce()[1])
+    assert refused.status_code == 400
+    assert reason in caplog.text
+    _authorize(oauth_client, DOCUMENT_URL, _pkce()[1])
+    assert documents["fetches"] == [DOCUMENT_URL, DOCUMENT_URL]
+
+
+def test_a_document_that_fails_once_is_fetched_again(oauth_client, documents):
+    answer = documents["answers"].pop(DOCUMENT_URL)
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 400
+    documents["answers"][DOCUMENT_URL] = answer
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+
+
+def test_no_store_fetches_each_time(oauth_client, documents):
+    documents["answers"][DOCUMENT_URL] = (200, {"cache-control": "no-store"}, _document())
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+    assert len(documents["fetches"]) == 2
+
+
+def test_a_changed_document_replaces_the_cached_one(oauth_client, documents):
+    import datetime
+
+    from core.db import db_connect
+    from modules.mcp.models import OAuthClient
+
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 302
+    db = db_connect.SessionLocal()
+    try:
+        db.query(OAuthClient).filter_by(client_id=DOCUMENT_URL).update({"cache_until": datetime.datetime(2020, 1, 1)})
+        db.commit()
+    finally:
+        db.close()
+    documents["answers"][DOCUMENT_URL] = (200, {}, _document(redirect_uris=["https://agent.example/new"]))
+    # The old redirect URI is gone from the new document
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://agent.example",
+        "https://agent.example/",
+        "https://agent.example/client.json#x",
+        "https://user:pw@agent.example/client.json",
+        "https://agent.example/a/../client.json",
+        "https://agent.example/./client.json",
+        "https://agent.example/" + "a" * 2100,
+    ],
+)
+def test_client_id_urls_that_the_draft_does_not_allow(url):
+    from modules.mcp import oauth
+
+    with pytest.raises(oauth.OAuthError):
+        oauth.check_metadata_url(url)
+
+
+def test_a_client_id_url_with_a_query_is_allowed():
+    from modules.mcp import oauth
+
+    oauth.check_metadata_url("https://agent.example/client.json?v=2")
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "10.0.0.5", "169.254.169.254", "[::1]"])
+def test_the_fetch_refuses_private_addresses(host):
+    from modules.mcp import oauth
+
+    with pytest.raises(oauth.OAuthError, match="non-public"):
+        oauth.fetch_metadata_document(f"https://{host}/client.json")
+
+
+def test_the_fetch_connects_to_the_checked_address(monkeypatch):
+    import socket
+
+    from modules.mcp import oauth
+
+    answers = iter(["93.184.216.34", "10.0.0.5"])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port: [(socket.AF_INET, 0, 0, "", (next(answers), port))])
+    seen = {}
+
+    def connect(address, timeout):
+        seen["address"] = address
+        raise OSError("stop here")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(oauth.OAuthError, match="could not be fetched"):
+        oauth.fetch_metadata_document("https://agent.example/client.json")
+    # A second lookup could give 10.0.0.5; the connection uses the address that passed the check
+    assert seen["address"] == ("93.184.216.34", 443)
+
+
+@pytest.mark.parametrize(
+    ("header", "seconds"),
+    [
+        ("max-age=600", 600),
+        ("public, max-age=120", 120),
+        ("max-age=999999", 24 * 3600),
+        ("no-store", 0),
+        ("no-cache", 0),
+        ("", 3600),
+        ("max-age=abc", 3600),
+    ],
+)
+def test_cache_time(header, seconds):
+    from modules.mcp import oauth
+
+    assert oauth.cache_time({"cache-control": header} if header else {}).total_seconds() == seconds
+
+
+@pytest.mark.parametrize(
+    ("resource", "status"),
+    [
+        (PUBLIC, 302),
+        (f"{PUBLIC}/", 302),
+        (HOST, 302),
+        ("HTTPS://API.CLUB.TEST/mcp", 302),
+        ("https://other.example/mcp", 302),
+        ("https://api.club.test/other", 302),
+    ],
+)
+def test_resource_must_name_this_server(oauth_client, resource, status):
+    registered = _register(oauth_client)
+    response = _authorize(oauth_client, registered["client_id"], _pkce()[1], resource=resource)
+    assert response.status_code == status
+    location = response.headers["location"]
+    if "other" in resource:
+        assert parse_qs(urlparse(location).query)["error"] == ["invalid_target"]
+    else:
+        assert urlparse(location).path == "/mcp/oauth/login"

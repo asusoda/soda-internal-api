@@ -7,7 +7,7 @@ Serves the tools of other modules to apps and agents with a machine token: over 
 | File | Holds |
 | --- | --- |
 | `server.py` | The MCP server app (`build_app`), run by `mcp_main.py`. With a public URL, it adds OAuth under that URL's path |
-| `oauth.py` | OAuth for MCP clients: the public URL and discovery documents, registered clients, authorization requests, codes, grants, refresh with the officer check, the rate limit of each IP, and the provider of the mcp SDK |
+| `oauth.py` | OAuth for MCP clients: the public URL and discovery documents, registered clients and Client ID Metadata Documents (fetch, checks, cache), authorization requests, codes, grants, refresh with the officer check, the rate limit of each IP, and the provider of the mcp SDK |
 | `oauth_pages.py` | The Discord sign-in and the consent page of the OAuth flow (`/mcp/oauth/login`, `/mcp/oauth/callback`, `/mcp/oauth/consent`) |
 | `models.py`, `jobs.py` | The OAuth tables; the job that deletes old OAuth rows |
 | `runtime.py` | Lists and calls tools for a machine caller: scope, module switch and input checks; writes each call to the audit log; runs the `batch` tool |

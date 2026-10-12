@@ -111,7 +111,7 @@ erDiagram
 | godfather | `compute_pods`, `compute_keys`, `compute_sessions`, `compute_connections` (one row for each pod certificate, kept 90 days) |
 | runpod | `runpod_apps` (with no org for a shared app), `runpod_deployments`, `shared_app_subscriptions` (the orgs that use a shared app, and whom Platform invited) |
 | feeds | `alert_feeds`, `alert_posts`, `alert_runs` (one row for each feed run) |
-| mcp | `oauth_clients` (MCP clients that registered themselves, secret encrypted with `SECRETS_KEY`), `oauth_requests` (open OAuth requests and codes, hash only, with the scopes and limits that the officer chose), `oauth_grants` (approved connections: the machine token of kind `oauth`, the refresh token hash, and the last officer check) |
+| mcp | `oauth_clients` (MCP clients that registered themselves, secret encrypted with `SECRETS_KEY`, and cached Client ID Metadata Documents with `cache_until`), `oauth_requests` (open OAuth requests and codes, hash only, with the scopes and limits that the officer chose), `oauth_grants` (approved connections: the machine token of kind `oauth`, the refresh token hash, and the last officer check) |
 | superadmin | `server_service_owners` (the owner of each container or host process that the host agent lists) |
 | uptime | `uptime_monitors`, `uptime_checks` (one row for each check, kept `UPTIME_RETENTION_DAYS`, default 30) |
 | jobs | `procrastinate_*` (Postgres only, from the Procrastinate SQL, not from models) |

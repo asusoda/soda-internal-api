@@ -4,7 +4,8 @@ Revision ID: aeaa90ab92f5
 Revises: 378869ecefc5
 Create Date: 2026-10-12 06:19:06.438396
 
-The tables of OAuth for the MCP server: registered clients, open authorization requests and approved grants.
+The tables of OAuth for the MCP server: clients (registered, or cached Client ID Metadata Documents), open
+authorization requests and approved grants.
 A grant points at the machine token of kind oauth that its client uses.
 """
 
@@ -26,9 +27,10 @@ def upgrade() -> None:
     op.create_table(
         "oauth_clients",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("client_id", sa.String(length=64), nullable=False),
+        sa.Column("client_id", sa.String(length=2048), nullable=False),
         sa.Column("info", sa.JSON(), nullable=False),
         sa.Column("secret_ciphertext", sa.Text(), nullable=True),
+        sa.Column("cache_until", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("last_used_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -39,7 +41,7 @@ def upgrade() -> None:
     op.create_table(
         "oauth_requests",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("client_id", sa.String(length=64), nullable=False),
+        sa.Column("client_id", sa.String(length=2048), nullable=False),
         sa.Column("key_hash", sa.String(length=64), nullable=True),
         sa.Column("code_hash", sa.String(length=64), nullable=True),
         sa.Column("redirect_uri", sa.Text(), nullable=False),
@@ -65,7 +67,7 @@ def upgrade() -> None:
         "oauth_grants",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("machine_token_id", sa.Integer(), nullable=False),
-        sa.Column("client_id", sa.String(length=64), nullable=False),
+        sa.Column("client_id", sa.String(length=2048), nullable=False),
         sa.Column("refresh_hash", sa.String(length=64), nullable=False),
         sa.Column("refresh_expires_at", sa.DateTime(), nullable=False),
         sa.Column("resource", sa.Text(), nullable=True),

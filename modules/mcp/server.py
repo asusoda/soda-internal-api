@@ -15,7 +15,7 @@ import json
 from anyio import to_thread
 from mcp import types
 from mcp.server.auth.handlers.metadata import MetadataHandler
-from mcp.server.auth.routes import build_metadata, cors_middleware, create_auth_routes
+from mcp.server.auth.routes import cors_middleware, create_auth_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.lowlevel import Server
 from starlette.routing import Mount, Route
@@ -124,13 +124,24 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
             "validate_token_resource": False,  # nosec B105 - a setting name, not a password
         }
     )
-    oauth_routes = create_auth_routes(
-        provider, auth.issuer_url, client_registration_options=oauth.REGISTRATION, revocation_options=oauth.REVOCATION
+    metadata = MetadataHandler(oauth.server_metadata_model())
+    metadata_route = cors_middleware(metadata.handle, ["GET", "OPTIONS"])
+    # The SDK's own metadata route lacks client_id_metadata_document_supported, so this one replaces it
+    oauth_routes = [
+        route
+        for route in create_auth_routes(
+            provider,
+            auth.issuer_url,
+            client_registration_options=oauth.REGISTRATION,
+            revocation_options=oauth.REVOCATION,
+        )
+        if getattr(route, "path", "") != "/.well-known/oauth-authorization-server"
+    ]
+    oauth_routes.append(
+        Route("/.well-known/oauth-authorization-server", endpoint=metadata_route, methods=["GET", "OPTIONS"])
     )
-    metadata = MetadataHandler(build_metadata(auth.issuer_url, None, oauth.REGISTRATION, oauth.REVOCATION))
     root_metadata = [
-        Route(where, endpoint=cors_middleware(metadata.handle, ["GET", "OPTIONS"]), methods=["GET", "OPTIONS"])
-        for where in oauth.server_metadata_paths()
+        Route(where, endpoint=metadata_route, methods=["GET", "OPTIONS"]) for where in oauth.server_metadata_paths()
     ]
     app = server.streamable_http_app(
         streamable_http_path=path,

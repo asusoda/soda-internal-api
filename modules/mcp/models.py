@@ -5,15 +5,18 @@ from core.time import utcnow
 
 
 class OAuthClient(Base):
-    """An MCP client that registered itself with dynamic client registration (RFC 7591)."""
+    """An MCP client: one that registered itself (RFC 7591), or the cached Client ID Metadata Document of one."""
 
     __tablename__ = "oauth_clients"
     id = Column(Integer, primary_key=True)
-    client_id = Column(String(64), unique=True, nullable=False, index=True)
+    # An id from /register, or the https URL of a Client ID Metadata Document
+    client_id = Column(String(2048), unique=True, nullable=False, index=True)
     # The registered metadata without the secret: redirect_uris, client_name, token_endpoint_auth_method
     info = Column(JSON, nullable=False)
     # The client secret, encrypted with SECRETS_KEY. None for a public client
     secret_ciphertext = Column(Text, nullable=True)
+    # For a metadata document: the time to fetch it again. None for a client from /register
+    cache_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     last_used_at = Column(DateTime, default=utcnow, nullable=False)
 
@@ -27,7 +30,7 @@ class OAuthRequest(Base):
 
     __tablename__ = "oauth_requests"
     id = Column(Integer, primary_key=True)
-    client_id = Column(String(64), ForeignKey("oauth_clients.client_id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(String(2048), ForeignKey("oauth_clients.client_id", ondelete="CASCADE"), nullable=False)
     key_hash = Column(String(64), unique=True, nullable=True)
     code_hash = Column(String(64), unique=True, nullable=True)
     redirect_uri = Column(Text, nullable=False)
@@ -55,7 +58,7 @@ class OAuthGrant(Base):
     machine_token_id = Column(
         Integer, ForeignKey("machine_tokens.id", ondelete="CASCADE"), unique=True, nullable=False, index=True
     )
-    client_id = Column(String(64), ForeignKey("oauth_clients.client_id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(String(2048), ForeignKey("oauth_clients.client_id", ondelete="CASCADE"), nullable=False)
     refresh_hash = Column(String(64), unique=True, nullable=False, index=True)
     refresh_expires_at = Column(DateTime, nullable=False)
     resource = Column(Text, nullable=True)
