@@ -115,8 +115,6 @@ Every OAuth route is under the public URL, so the proxy needs only the one locat
 
 A client can use the HTTPS URL of a JSON document about itself as its `client_id`, such as `https://app.example.com/oauth/client.json` (draft-ietf-oauth-client-id-metadata-document). The MCP spec prefers it to `/mcp/register`, which it marks deprecated. The authorization server metadata has `client_id_metadata_document_supported: true`, so the client does not call `/mcp/register`. When a request has such a `client_id`, the MCP server fetches the document, checks it and keeps it in `oauth_clients`.
 
-`MCP_OAUTH_CIMD=false` removes `client_id_metadata_document_supported` from the metadata. A client with its own metadata URL, such as the MCP TypeScript SDK with `clientMetadataUrl`, then registers at `/mcp/register` instead of using the URL. Use it for a client that fails when it does not register, such as Composio ("Failed to register dynamic client" with no request to `/mcp/register`). A `client_id` that is a metadata URL is still accepted.
-
 The `client_id` URL must use `https` and have a path. It must not have a fragment, a user name or password, or `.` and `..` segments. It can have 2048 characters at most.
 
 The fetch:
