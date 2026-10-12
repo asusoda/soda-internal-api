@@ -5,7 +5,7 @@ Revises: 378869ecefc5
 Create Date: 2026-10-12 06:19:06.438396
 
 The tables of OAuth for the MCP server: clients (registered, or cached Client ID Metadata Documents), open
-authorization requests and approved grants.
+authorization requests, approved grants, and the jti of used client assertions (private_key_jwt).
 A grant points at the machine token of kind oauth that its client uses.
 """
 
@@ -80,9 +80,23 @@ def upgrade() -> None:
     with op.batch_alter_table("oauth_grants", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_oauth_grants_machine_token_id"), ["machine_token_id"], unique=True)
         batch_op.create_index(batch_op.f("ix_oauth_grants_refresh_hash"), ["refresh_hash"], unique=True)
+    op.create_table(
+        "oauth_assertions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("jti_hash", sa.String(length=64), nullable=False),
+        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("jti_hash"),
+    )
+    with op.batch_alter_table("oauth_assertions", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_oauth_assertions_expires_at"), ["expires_at"], unique=False)
 
 
 def downgrade() -> None:
+    with op.batch_alter_table("oauth_assertions", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_oauth_assertions_expires_at"))
+
+    op.drop_table("oauth_assertions")
     with op.batch_alter_table("oauth_grants", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_oauth_grants_refresh_hash"))
         batch_op.drop_index(batch_op.f("ix_oauth_grants_machine_token_id"))

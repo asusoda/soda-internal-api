@@ -60,7 +60,6 @@ MAX_CLIENT_BYTES = 8192
 # A refresh needs a new check of the officer role. If Discord does not answer, a check this recent is enough
 RECHECK_GRACE = datetime.timedelta(hours=24)
 LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]", "::1")
-BLOCKED_SCHEMES = ("javascript", "data", "file", "vbscript", "about", "blob")
 # Client ID Metadata Documents: the limits of the URL and the fetch, and how long a document stays cached
 METADATA_MAX_URL = 2048
 METADATA_MAX_BYTES = 5 * 1024
@@ -81,10 +80,18 @@ METADATA_KEPT = (
     "policy_uri",
     "software_id",
     "software_version",
+    "jwks",
+    "jwks_uri",
+    "token_endpoint_auth_signing_alg",
 )
 USER_AGENT = "Platform MCP OAuth (+https://platform.thesoda.io)"
-# The only client authentication of a document client: none, a public client with PKCE
+# The client authentication of a document client: none (a public client with PKCE), or a signed assertion
+# with a key from its jwks or jwks_uri (RFC 7523, client_auth.py)
 PUBLIC_CLIENT = "none"
+KEY_CLIENT = "private_key_jwt"
+# The scopes that a new connection asks for (scope hint): enough to read the org. A tool that needs more
+# asks for its scope with step-up (edges.py)
+BASE_SCOPES = ("org:read",)
 REGISTRATION = ClientRegistrationOptions(enabled=True)
 REVOCATION = RevocationOptions(enabled=True)
 # Requests of one client IP in a window, by the path under the public URL: (count, seconds)
@@ -169,17 +176,28 @@ def server_metadata_paths() -> list[str]:
 
 
 def resource_metadata() -> dict:
+    """The protected resource metadata (RFC 9728). scopes_supported is the minimal set for a new connection."""
     url = AnyHttpUrl(public_url())
-    return ProtectedResourceMetadata(resource=url, authorization_servers=[url]).model_dump(
-        mode="json", exclude_none=True
+    metadata = ProtectedResourceMetadata(
+        resource=url, authorization_servers=[url], scopes_supported=list(BASE_SCOPES), resource_name="Platform"
     )
+    return metadata.model_dump(mode="json", exclude_none=True)
 
 
 def server_metadata_model():
-    """The authorization server metadata (RFC 8414). It adds Client ID Metadata Documents and RFC 9207 iss."""
+    """The authorization server metadata (RFC 8414). It adds Client ID Metadata Documents, RFC 9207 iss and
+    private_key_jwt."""
+    from modules.mcp import client_auth
+
     metadata = build_metadata(AnyHttpUrl(public_url()), None, REGISTRATION, REVOCATION)
     metadata.client_id_metadata_document_supported = True
     metadata.authorization_response_iss_parameter_supported = True
+    metadata.scopes_supported = sorted(SCOPES)
+    methods = ["client_secret_post", "client_secret_basic", KEY_CLIENT, PUBLIC_CLIENT]
+    metadata.token_endpoint_auth_methods_supported = methods
+    metadata.revocation_endpoint_auth_methods_supported = methods
+    metadata.token_endpoint_auth_signing_alg_values_supported = list(client_auth.ALGORITHMS)
+    metadata.revocation_endpoint_auth_signing_alg_values_supported = list(client_auth.ALGORITHMS)
     return metadata
 
 
@@ -264,12 +282,12 @@ class RateLimit:
 
 
 def check_redirect_uri(uri: str) -> None:
-    """Refuse a redirect URI that a browser cannot use safely. Plain http is only for this computer."""
+    """Refuse a redirect URI that the MCP spec does not allow: it must use https, or be on localhost."""
     parsed = urlparse(uri)
-    scheme = parsed.scheme.lower()
-    if not scheme or scheme in BLOCKED_SCHEMES:
-        raise OAuthError(f"Redirect URI {uri} is not allowed")
-    if scheme == "http" and (parsed.hostname or "") not in LOOPBACK_HOSTS:
+    scheme, host = parsed.scheme.lower(), parsed.hostname or ""
+    if scheme == "http" and host in LOOPBACK_HOSTS:
+        pass
+    elif scheme != "https" or not host:
         raise OAuthError(f"Redirect URI {uri} must use https, or http on localhost")
     if parsed.fragment:
         raise OAuthError(f"Redirect URI {uri} must not have a fragment")
@@ -301,21 +319,21 @@ def is_metadata_url(client_id: str) -> bool:
     return client_id.startswith("https://")
 
 
-def check_metadata_url(url: str) -> None:
-    """Refuse a client_id URL that the draft does not allow. Raises OAuthError."""
+def check_metadata_url(url: str, name: str = "client_id") -> None:
+    """Refuse a client_id (or jwks_uri) URL that the draft does not allow. Raises OAuthError."""
     parts = urlsplit(url)
     if len(url) > METADATA_MAX_URL:
-        raise OAuthError(f"The client_id URL is longer than {METADATA_MAX_URL} characters")
+        raise OAuthError(f"The {name} URL is longer than {METADATA_MAX_URL} characters")
     if parts.scheme != "https" or not parts.hostname:
-        raise OAuthError("The client_id URL must use https")
+        raise OAuthError(f"The {name} URL must use https")
     if parts.username is not None or parts.password is not None:
-        raise OAuthError("The client_id URL must not have a user name or password")
+        raise OAuthError(f"The {name} URL must not have a user name or password")
     if parts.fragment or "#" in url:
-        raise OAuthError("The client_id URL must not have a fragment")
+        raise OAuthError(f"The {name} URL must not have a fragment")
     if len(parts.path) < 2:
-        raise OAuthError("The client_id URL must have a path, such as /client.json")
+        raise OAuthError(f"The {name} URL must have a path, such as /client.json")
     if {".", ".."} & set(parts.path.split("/")):
-        raise OAuthError("The client_id URL must not have . or .. segments")
+        raise OAuthError(f"The {name} URL must not have . or .. segments")
 
 
 @dataclass(frozen=True)
@@ -339,10 +357,15 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 
 def fetch_metadata_document(url: str) -> Fetched:
-    """GET a Client ID Metadata Document. Raises OAuthError.
+    """GET a Client ID Metadata Document. Raises OAuthError. See fetch_public."""
+    return fetch_public(url, METADATA_MAX_BYTES)
+
+
+def fetch_public(url: str, limit: int) -> Fetched:
+    """GET an https URL that a client gave. Raises OAuthError.
 
     The host must resolve only to public addresses, and the connection goes to one of those addresses. Platform
-    does not follow redirects and reads at most METADATA_MAX_BYTES and one byte more.
+    does not follow redirects and reads at most limit and one byte more.
     """
     parts = urlsplit(url)
     host, port = str(parts.hostname), parts.port or 443
@@ -355,10 +378,10 @@ def fetch_metadata_document(url: str) -> Fetched:
     try:
         connection.request("GET", target, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
         response = connection.getresponse()
-        body = response.read(METADATA_MAX_BYTES + 1)
+        body = response.read(limit + 1)
         return Fetched(response.status, {k.lower(): v for k, v in response.getheaders()}, body)
     except (OSError, http.client.HTTPException) as e:
-        raise OAuthError(f"The client metadata document could not be fetched: {type(e).__name__}") from e
+        raise OAuthError(f"{url} could not be fetched: {type(e).__name__}") from e
     finally:
         connection.close()
 
@@ -395,8 +418,12 @@ def client_from_document(url: str, fetched: Fetched) -> dict:
     if "client_secret" in document or "client_secret_expires_at" in document:
         raise OAuthError("The client metadata document must not have a client secret")
     method = document.get("token_endpoint_auth_method", PUBLIC_CLIENT)
-    if method != PUBLIC_CLIENT:
-        raise OAuthError(f'token_endpoint_auth_method "{method}" is not supported. Use "{PUBLIC_CLIENT}"')
+    if method not in (PUBLIC_CLIENT, KEY_CLIENT):
+        raise OAuthError(
+            f'token_endpoint_auth_method "{method}" is not supported. Use "{PUBLIC_CLIENT}" or "{KEY_CLIENT}"'
+        )
+    if method == KEY_CLIENT:
+        check_client_keys(document)
     uris = document["redirect_uris"]
     if not isinstance(uris, list) or not all(isinstance(u, str) for u in uris):
         raise OAuthError("redirect_uris must be a list of URLs")
@@ -413,13 +440,28 @@ def client_from_document(url: str, fetched: Fetched) -> dict:
     asked = set(str(info.get("scope") or "").split())
     info |= {
         "client_id": url,
-        "token_endpoint_auth_method": PUBLIC_CLIENT,
+        "token_endpoint_auth_method": method,
         "scope": " ".join(sorted(asked | set(SCOPES))),
     }
     try:
         return OAuthClientInformationFull.model_validate(info).model_dump(mode="json", exclude_none=True)
     except ValidationError as e:
         raise OAuthError(f"The client metadata document is not valid: {e.errors()[0]['msg']}") from e
+
+
+def check_client_keys(document: dict) -> None:
+    """The public keys of a private_key_jwt client: jwks or an https jwks_uri, not both. Raises OAuthError."""
+    from modules.mcp import client_auth
+
+    jwks, jwks_uri = document.get("jwks"), document.get("jwks_uri")
+    if (jwks is None) == (jwks_uri is None):
+        raise OAuthError("A private_key_jwt client must have one of jwks and jwks_uri")
+    if jwks_uri is not None:
+        if not isinstance(jwks_uri, str):
+            raise OAuthError("jwks_uri must be an https URL")
+        check_metadata_url(jwks_uri, "jwks_uri")
+    else:
+        client_auth.parse_keys(jwks)
 
 
 def resolve_client(db, client_id: str) -> dict | None:

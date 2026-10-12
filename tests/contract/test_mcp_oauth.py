@@ -227,9 +227,10 @@ def test_full_flow(client, officer_headers, oauth_client):
     assert again.status_code == 400
 
     assert _rpc(oauth_client, tokens["access_token"], "initialize", INIT).status_code == 200
-    listed = _rpc(oauth_client, tokens["access_token"], "tools/list").json()["result"]["tools"]
-    assert "org.info" in [t["name"] for t in listed]
-    assert "points.leaderboard" not in [t["name"] for t in listed]
+    listed = {t["name"]: t for t in _rpc(oauth_client, tokens["access_token"], "tools/list").json()["result"]["tools"]}
+    assert "Needs the" not in listed["org.info"]["description"]
+    # An OAuth token also sees the tools it can ask for with step-up
+    assert "Needs the points:read scope" in listed["points.leaderboard"]["description"]
 
     listed_tokens = client.get(f"/api/organizations/{soda_id}/tokens", headers=officer_headers).get_json()["tokens"]
     row = next(t for t in listed_tokens if t["kind"] == "oauth")
@@ -369,8 +370,19 @@ def test_unsafe_redirect_uris_are_refused(oauth_client, uri):
     assert response.status_code == 400
 
 
-def test_loopback_and_app_redirects_are_allowed(oauth_client):
-    _register(oauth_client, redirect_uris=["http://127.0.0.1:33418/callback", "cursor://anysphere.cursor-mcp/oauth"])
+def test_loopback_redirects_are_allowed(oauth_client):
+    _register(
+        oauth_client, redirect_uris=["http://127.0.0.1:33418/callback", "http://localhost:8080/cb", "http://[::1]:9/cb"]
+    )
+
+
+@pytest.mark.parametrize(
+    "uri", ["cursor://anysphere.cursor-mcp/oauth", "vscode://callback", "myapp:/cb", "http://api.club.test/cb"]
+)
+def test_app_schemes_are_refused(oauth_client, uri):
+    response = oauth_client.post("/mcp/register", json={"redirect_uris": [uri], "token_endpoint_auth_method": "none"})
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_redirect_uri"
 
 
 def test_confidential_client(oauth_client, monkeypatch, client, officer_headers):
@@ -720,7 +732,8 @@ def test_a_localhost_redirect_gets_a_warning(oauth_client, documents):
         ((200, {}, _document(client_name=None)), "client_name"),
         ((200, {}, _document(client_secret="s")), "client secret"),
         ((200, {}, _document(token_endpoint_auth_method="client_secret_basic")), "not supported"),
-        ((200, {}, _document(token_endpoint_auth_method="private_key_jwt")), "not supported"),
+        ((200, {}, _document(token_endpoint_auth_method="private_key_jwt")), "one of jwks and jwks_uri"),
+        ((200, {}, _document(token_endpoint_auth_method="tls_client_auth")), "not supported"),
         ((200, {}, _document(redirect_uris=["http://evil.example/cb"])), "https"),
         ((200, {}, _document(grant_types=["client_credentials"])), "authorization_code"),
     ],
@@ -857,3 +870,369 @@ def test_resource_must_name_this_server(oauth_client, resource, status):
         assert parse_qs(urlparse(location).query)["error"] == ["invalid_target"]
     else:
         assert urlparse(location).path == "/mcp/oauth/login"
+
+
+# Origin, scope hint, step-up and iss on errors
+
+
+def test_origin_is_checked(oauth_client, token_for_soda):
+    headers = {"Authorization": f"Bearer {token_for_soda('org:read')}", "Accept": "application/json, text/event-stream"}
+    body = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": INIT}
+    for origin, status in [
+        (None, 200),
+        (HOST, 200),
+        ("http://localhost:6274", 200),
+        ("http://127.0.0.1:5173", 200),
+        ("https://evil.example", 403),
+        ("http://api.club.test", 403),
+        ("null", 403),
+    ]:
+        sent = headers | ({"Origin": origin} if origin else {})
+        response = oauth_client.post("/mcp", json=body, headers=sent)
+        assert response.status_code == status, (origin, response.text)
+        if status == 403:
+            assert response.json() == {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Origin not allowed"}}
+
+
+def test_origin_is_checked_without_oauth(app, monkeypatch):
+    from starlette.testclient import TestClient
+
+    from core.config import config
+    from modules.mcp.server import build_app
+
+    monkeypatch.setattr(config, "MCP_PUBLIC_URL", "")
+    monkeypatch.delenv("ACCOUNTS_BASE_URL", raising=False)
+    with TestClient(build_app(host="testserver")) as test_client:
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+        refused = test_client.post("/mcp", json=body, headers={"Origin": "https://evil.example"})
+        assert refused.status_code == 403
+
+
+@pytest.fixture
+def token_for_soda(client, officer_headers):
+    def issue(*scopes):
+        body = {"name": "test-agent", "kind": "agent", "scopes": list(scopes)}
+        made = client.post(
+            f"/api/organizations/{_soda_id(client, officer_headers)}/tokens", json=body, headers=officer_headers
+        )
+        return made.get_json()["token"]
+
+    return issue
+
+
+def test_the_401_has_the_scope_hint(oauth_client):
+    refused = oauth_client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
+    assert refused.status_code == 401
+    assert 'scope="org:read"' in refused.headers["www-authenticate"]
+    assert oauth_client.get("/.well-known/oauth-protected-resource/mcp").json()["scopes_supported"] == ["org:read"]
+
+
+def test_the_api_serves_the_same_resource_metadata(oauth_client, client):
+    assert (
+        client.get("/.well-known/oauth-protected-resource/mcp").get_json()
+        == oauth_client.get("/.well-known/oauth-protected-resource/mcp").json()
+    )
+
+
+def _call(oauth_client, access: str, name: str, arguments: dict | None = None):
+    return _rpc(oauth_client, access, "tools/call", {"name": name, "arguments": arguments or {}})
+
+
+def test_step_up(oauth_client, client, officer_headers):
+    registered, tokens = _connect(oauth_client, client, officer_headers)
+    access = tokens["access_token"]
+    assert _call(oauth_client, access, "org.info").status_code == 200
+    refused = _call(oauth_client, access, "points.leaderboard")
+    assert refused.status_code == 403
+    challenge = refused.headers["www-authenticate"]
+    assert 'error="insufficient_scope"' in challenge
+    assert 'scope="points:read"' in challenge
+    assert f'resource_metadata="{HOST}/.well-known/oauth-protected-resource/mcp"' in challenge
+    # A batch asks for every missing scope at once
+    batch = _call(
+        oauth_client,
+        access,
+        "batch",
+        {"calls": [{"tool": "points.leaderboard"}, {"tool": "events.list"}, {"tool": "org.info"}]},
+    )
+    assert batch.status_code == 403
+    assert 'scope="calendar:read points:read"' in batch.headers["www-authenticate"]
+    # An unknown tool is not a step-up: it gets the usual answer
+    unknown = _call(oauth_client, access, "nope.nothing")
+    assert unknown.status_code == 200 and unknown.json()["result"]["isError"] is True
+
+    # The client signs in again with the scopes it had and the new one; the consent page selects them
+    verifier, challenge_code = _pkce()
+    authorize = _authorize(oauth_client, registered["client_id"], challenge_code, scope="org:read points:read")
+    login = oauth_client.get(f"/mcp/oauth/login?{urlparse(authorize.headers['location']).query}")
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    page = oauth_client.get("/mcp/oauth/callback", params={"state": state, "code": "discord-code"})
+    assert 'value="org:read" checked' in page.text and 'value="points:read" checked' in page.text
+    consent_key = page.text.split('name="consent" value="')[1].split('"')[0]
+    code = _approve(oauth_client, consent_key, _soda_id(client, officer_headers), ["org:read", "points:read"])
+    upgraded = _token(
+        oauth_client,
+        grant_type="authorization_code",
+        code=code,
+        redirect_uri=REDIRECT,
+        client_id=registered["client_id"],
+        code_verifier=verifier,
+    ).json()
+    assert upgraded["scope"] == "org:read points:read"
+    assert _call(oauth_client, upgraded["access_token"], "points.leaderboard").status_code == 200
+
+
+def test_officer_tokens_get_no_step_up(oauth_client, token_for_soda):
+    access = token_for_soda("org:read")
+    listed = [t["name"] for t in _rpc(oauth_client, access, "tools/list").json()["result"]["tools"]]
+    assert "points.leaderboard" not in listed
+    called = _call(oauth_client, access, "points.leaderboard")
+    assert called.status_code == 200 and called.json()["result"]["isError"] is True
+
+
+def test_sdk_error_redirects_have_iss(oauth_client):
+    registered = _register(oauth_client)
+    response = _authorize(oauth_client, registered["client_id"], _pkce()[1], resource="https://other.example/mcp")
+    query = parse_qs(urlparse(response.headers["location"]).query)
+    assert query["error"] == ["invalid_target"]
+    assert query["iss"] == [PUBLIC]
+    # A redirect to the sign-in page is not an error and gets no iss
+    ok = _authorize(oauth_client, registered["client_id"], _pkce()[1])
+    assert "iss" not in parse_qs(urlparse(ok.headers["location"]).query)
+
+
+# Client keys (private_key_jwt)
+
+ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+
+
+@pytest.fixture
+def client_key():
+    """An EC P-256 key pair: the private key, and the public JWK with kid key-1."""
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from jwt.algorithms import ECAlgorithm
+
+    from modules.mcp import client_auth
+
+    client_auth.clear_cache()
+    private = ec.generate_private_key(ec.SECP256R1())
+    public = ECAlgorithm.to_jwk(private.public_key(), as_dict=True) | {"kid": "key-1", "use": "sig", "alg": "ES256"}
+    yield private, public
+    client_auth.clear_cache()
+
+
+def _assertion(private, *, kid="key-1", alg="ES256", **claims) -> str:
+    import time
+    import uuid
+
+    import jwt
+
+    now = int(time.time())
+    body = {"iss": DOCUMENT_URL, "sub": DOCUMENT_URL, "aud": f"{PUBLIC}/token", "jti": str(uuid.uuid4()), "iat": now}
+    body |= {"exp": now + 60} | claims
+    return jwt.encode({k: v for k, v in body.items() if v is not None}, private, algorithm=alg, headers={"kid": kid})
+
+
+def _key_document(public: dict, **changes) -> dict:
+    return _document(token_endpoint_auth_method="private_key_jwt", jwks={"keys": [public]}, **changes)
+
+
+def _key_code(oauth_client, client, officer_headers) -> tuple[str, str]:
+    """Sign in and approve a key client. Returns (code, verifier)."""
+    verifier, challenge = _pkce()
+    consent_key = _sign_in(oauth_client, DOCUMENT_URL, challenge, name="Example Agent")
+    return _approve(oauth_client, consent_key, _soda_id(client, officer_headers), ["org:read"]), verifier
+
+
+def _code_form(code: str, verifier: str, assertion: str | None) -> dict:
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT,
+        "client_id": DOCUMENT_URL,
+        "code_verifier": verifier,
+    }
+    return form | ({"client_assertion_type": ASSERTION_TYPE, "client_assertion": assertion} if assertion else {})
+
+
+def test_a_key_client_connects(oauth_client, client, officer_headers, documents, client_key):
+    private, public = client_key
+    documents["answers"][DOCUMENT_URL] = (200, {}, _key_document(public))
+    code, verifier = _key_code(oauth_client, client, officer_headers)
+    assert _token(oauth_client, **_code_form(code, verifier, None)).status_code == 401
+    assertion = _assertion(private)
+    granted = _token(oauth_client, **_code_form(code, verifier, assertion))
+    assert granted.status_code == 200, granted.text
+    refresh = {
+        "grant_type": "refresh_token",
+        "refresh_token": granted.json()["refresh_token"],
+        "client_id": DOCUMENT_URL,
+    }
+    replayed = _token(oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=assertion)
+    assert replayed.status_code == 401
+    assert "used before" in replayed.json()["error_description"]
+    fresh = _token(oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=_assertion(private))
+    assert fresh.status_code == 200, fresh.text
+    # Revoke takes the same client authentication; the issuer is also a valid audience
+    revoked = oauth_client.post(
+        "/mcp/revoke",
+        data={
+            "token": fresh.json()["access_token"],
+            "client_id": DOCUMENT_URL,
+            "client_assertion_type": ASSERTION_TYPE,
+            "client_assertion": _assertion(private, aud=PUBLIC),
+        },
+    )
+    assert revoked.status_code == 200
+    assert _rpc(oauth_client, fresh.json()["access_token"], "tools/list").status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"aud": "https://other.example/token"}, "audience"),
+        ({"iss": "https://other.example/c.json"}, "issuer"),
+        ({"sub": "someone"}, "sub"),
+        ({"exp": 4102444800}, "expire within"),
+        ({"jti": None}, "jti"),
+        ({"exp": 1}, "expired"),
+    ],
+)
+def test_bad_assertions_are_refused(oauth_client, client, officer_headers, documents, client_key, changes, reason):
+    private, public = client_key
+    documents["answers"][DOCUMENT_URL] = (200, {}, _key_document(public))
+    code, verifier = _key_code(oauth_client, client, officer_headers)
+    refused = _token(oauth_client, **_code_form(code, verifier, _assertion(private, **changes)))
+    assert refused.status_code == 401
+    assert reason in refused.json()["error_description"].lower() or reason in refused.json()["error_description"]
+
+
+def test_an_assertion_needs_the_clients_key(oauth_client, client, officer_headers, documents, client_key):
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    _, public = client_key
+    documents["answers"][DOCUMENT_URL] = (200, {}, _key_document(public))
+    code, verifier = _key_code(oauth_client, client, officer_headers)
+    other = ec.generate_private_key(ec.SECP256R1())
+    refused = _token(oauth_client, **_code_form(code, verifier, _assertion(other)))
+    assert refused.status_code == 401
+    assert "not signed with a key of the client" in refused.json()["error_description"]
+
+
+def test_a_shared_secret_algorithm_is_refused(oauth_client, client, officer_headers, documents, client_key):
+    _, public = client_key
+    documents["answers"][DOCUMENT_URL] = (200, {}, _key_document(public))
+    code, verifier = _key_code(oauth_client, client, officer_headers)
+    refused = _token(
+        oauth_client, **_code_form(code, verifier, _assertion("a-shared-secret-of-32-bytes-long!", alg="HS256"))
+    )
+    assert refused.status_code == 401
+    assert "alg HS256 is not allowed" in refused.json()["error_description"]
+
+
+def test_keys_from_jwks_uri_and_rotation(oauth_client, client, officer_headers, documents, client_key, monkeypatch):
+    import json
+
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from jwt.algorithms import ECAlgorithm
+
+    from modules.mcp import client_auth, oauth
+
+    private, public = client_key
+    keys_url = "https://agent.example/oauth/jwks.json"
+    served = {"keys": [public]}
+    fetches = []
+
+    def fetch(url):
+        fetches.append(url)
+        return oauth.Fetched(200, {"cache-control": "max-age=3600"}, json.dumps(served).encode())
+
+    monkeypatch.setattr(client_auth, "fetch_jwks", fetch)
+    monkeypatch.setattr(client_auth, "JWKS_REFETCH_SECONDS", 0)
+    documents["answers"][DOCUMENT_URL] = (
+        200,
+        {},
+        _document(token_endpoint_auth_method="private_key_jwt", jwks_uri=keys_url),
+    )
+    code, verifier = _key_code(oauth_client, client, officer_headers)
+    granted = _token(oauth_client, **_code_form(code, verifier, _assertion(private)))
+    assert granted.status_code == 200, granted.text
+    # The client rotates to key-2. Its kid is not in the cached set, so the set is fetched again
+    rotated = ec.generate_private_key(ec.SECP256R1())
+    served["keys"] = [ECAlgorithm.to_jwk(rotated.public_key(), as_dict=True) | {"kid": "key-2"}]
+    refresh = {
+        "grant_type": "refresh_token",
+        "refresh_token": granted.json()["refresh_token"],
+        "client_id": DOCUMENT_URL,
+    }
+    again = _token(
+        oauth_client, **refresh, client_assertion_type=ASSERTION_TYPE, client_assertion=_assertion(rotated, kid="key-2")
+    )
+    assert again.status_code == 200, again.text
+    assert fetches == [keys_url, keys_url]
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"jwks": {"keys": [{"kty": "oct", "k": "c2VjcmV0"}]}}, "public keys only"),
+        ({"jwks": {"keys": []}}, "one or more keys"),
+        ({"jwks_uri": "https://agent.example/jwks.json"}, "one of jwks and jwks_uri"),
+        ({"jwks": None, "jwks_uri": "http://agent.example/jwks.json"}, "must use https"),
+    ],
+)
+def test_bad_client_keys_are_refused(oauth_client, documents, client_key, caplog, changes, reason):
+    _, public = client_key
+    document = _key_document(public)
+    document |= changes
+    documents["answers"][DOCUMENT_URL] = (200, {}, {k: v for k, v in document.items() if v is not None})
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 400
+    assert reason in caplog.text
+
+
+def test_a_private_ec_key_is_refused(oauth_client, documents, client_key, caplog):
+    from jwt.algorithms import ECAlgorithm
+
+    private, _ = client_key
+    secret_jwk = ECAlgorithm.to_jwk(private, as_dict=True)
+    documents["answers"][DOCUMENT_URL] = (200, {}, _key_document(secret_jwk))
+    assert _authorize(oauth_client, DOCUMENT_URL, _pkce()[1]).status_code == 400
+    assert "public keys only" in caplog.text
+
+
+def test_metadata_has_private_key_jwt(oauth_client):
+    body = oauth_client.get("/.well-known/oauth-authorization-server/mcp").json()
+    assert "private_key_jwt" in body["token_endpoint_auth_methods_supported"]
+    assert "ES256" in body["token_endpoint_auth_signing_alg_values_supported"]
+
+
+def test_assertion_cleanup():
+    import datetime
+
+    from core.db import db_connect
+    from modules.mcp import client_auth
+    from modules.mcp.models import OAuthAssertion
+
+    db = db_connect.SessionLocal()
+    try:
+        db.add(OAuthAssertion(jti_hash="0" * 64, expires_at=datetime.datetime(2020, 1, 1)))
+        db.commit()
+        assert client_auth.cleanup(db) >= 1
+        assert db.query(OAuthAssertion).filter_by(jti_hash="0" * 64).count() == 0
+    finally:
+        db.close()
+
+
+def test_a_public_client_can_revoke(oauth_client, client, officer_headers):
+    registered, tokens = _connect(oauth_client, client, officer_headers)
+    other = _register(oauth_client)
+    # A token of another client is left alone, with the same 200
+    ignored = oauth_client.post("/mcp/revoke", data={"token": tokens["access_token"], "client_id": other["client_id"]})
+    assert ignored.status_code == 200
+    assert _rpc(oauth_client, tokens["access_token"], "tools/list").status_code == 200
+    revoked = oauth_client.post(
+        "/mcp/revoke", data={"token": tokens["refresh_token"], "client_id": registered["client_id"]}
+    )
+    assert revoked.status_code == 200
+    assert _rpc(oauth_client, tokens["access_token"], "tools/list").status_code == 401
+    assert oauth_client.post("/mcp/revoke", data={"client_id": registered["client_id"]}).status_code == 400

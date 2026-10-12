@@ -70,20 +70,39 @@ def _org(db, caller: MachineCaller) -> Organization:
     return org
 
 
-def _usable(db, spec: ToolSpec, org: Organization, caller: MachineCaller) -> bool:
-    if not caller.allows(spec.scope):
+def _usable(db, spec: ToolSpec, org: Organization, caller: MachineCaller, *, any_scope: bool = False) -> bool:
+    """Whether the caller may call the tool. any_scope skips the scope check, for step-up."""
+    if not any_scope and not caller.allows(spec.scope):
         return False
     if spec.module is not None and not organizations.module_enabled(org, spec.module):
         return False
     return spec.available is None or spec.available(db, caller.organization_id)
 
 
-def available(db, caller: MachineCaller) -> list[ToolSpec]:
-    """Tools this token may call: its scopes allow them, its org has their module on and their service connected."""
+def available(db, caller: MachineCaller, *, step_up: bool = False) -> list[ToolSpec]:
+    """Tools this token may call: its scopes allow them, its org has their module on and their service connected.
+
+    With step_up, also the module tools that need a scope the token does not have, so that an OAuth client
+    can call one, get 403 insufficient_scope and ask the officer for the scope (see edges.py).
+    """
     org = _org(db, caller)
-    local = [spec for spec in TOOLS.values() if _usable(db, spec, org, caller)]
+    local = [spec for spec in TOOLS.values() if _usable(db, spec, org, caller, any_scope=step_up)]
     found = local + _remote(db, org, caller)
     return sorted(found + [BATCH_SPEC] if found else found, key=lambda s: s.name)
+
+
+def missing_scope(db, caller: MachineCaller, name: str) -> str | None:
+    """The scope that a module tool needs and the caller does not have, or None.
+
+    None also when the tool does not exist or its org cannot use it: those calls get 404 from call().
+    """
+    spec = TOOLS.get(name)
+    if spec is None or caller.allows(spec.scope):
+        return None
+    org = db.query(Organization).filter_by(id=caller.organization_id, is_active=True).first()
+    if org is None or not _usable(db, spec, org, caller, any_scope=True):
+        return None
+    return spec.scope
 
 
 def _remote(db, org: Organization, caller: MachineCaller) -> list[ToolSpec]:

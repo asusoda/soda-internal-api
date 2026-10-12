@@ -65,3 +65,13 @@ class OAuthGrant(Base):
     # The last time a refresh found that the approving officer still has the officer role
     checked_at = Column(DateTime, default=utcnow, nullable=False)
     created_at = Column(DateTime, default=utcnow, nullable=False)
+
+
+class OAuthAssertion(Base):
+    """A client assertion (RFC 7523) that was used, until it expires, so that it cannot be used again."""
+
+    __tablename__ = "oauth_assertions"
+    id = Column(Integer, primary_key=True)
+    # SHA-256 of the client_id and the jti of the assertion
+    jti_hash = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
