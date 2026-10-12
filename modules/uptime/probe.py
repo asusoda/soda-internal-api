@@ -19,6 +19,8 @@ class Result:
     status_code: int | None = None
     latency_ms: int | None = None
     error: str | None = None
+    # The answer of a provider's own health check, which has no status code
+    ok: bool | None = None
 
 
 def fetch(url: str, timeout: float) -> Result:
@@ -50,3 +52,12 @@ def fetch(url: str, timeout: float) -> Result:
             continue
         return Result(status_code=response.status_code, latency_ms=int((time.monotonic() - started) * 1000))
     return Result(error=f"More than {MAX_REDIRECTS} redirects")
+
+
+def provider_check(provider, pod_id: str, port: int, check: str | None) -> Result:
+    """The app's own health check through its provider, such as the This server runner, timed. check is an HTTP
+    path, None for a TCP connect, or "running"."""
+    started = time.monotonic()
+    ok = provider.healthy(pod_id, port, check)
+    latency = int((time.monotonic() - started) * 1000)
+    return Result(latency_ms=latency, ok=ok, error=None if ok else "The app's health check failed")

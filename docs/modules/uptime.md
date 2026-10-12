@@ -16,7 +16,7 @@ Checks the org's sites and Hosting apps on a schedule. Officers manage monitors 
 
 An org has at most `uptime.monitors` monitors, 50 by default (see [Limits](../limits.md)). A change of target or expected status, and a resume, clear the state.
 
-An `app` target uses the health URL of the app's pod (`health.port` and `health.path` of its manifest). If the app has no pod, the check uses the `url` of its manifest.
+An `app` target on RunPod uses the health URL of the app's pod (`health.port` and `health.path` of its manifest). If the app has no pod, the check uses the `url` of its manifest. An app on This server has a private address, which the check does not read; the runner runs the app's own health check instead (an HTTP path, a TCP connect, or its running state), and the latency is the time of that check.
 
 ## Checks
 
