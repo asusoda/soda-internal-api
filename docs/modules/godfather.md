@@ -1,6 +1,6 @@
 # Godfather
 
-GPU and CPU pods on an org's own hosting provider account that members connect to over SSH with a Godfather CLI. RunPod is the only provider. The reference CLI is `godfather` (`pip install godfather-cli`). Officers create pods and select who can use them. A member gets a certificate for their own SSH key that works on one pod for 12 hours.
+GPU and CPU pods on an org's own hosting provider account that members connect to over SSH with a Godfather CLI. RunPod is the only provider that Godfather can use: its pods need SSH. The reference CLI is `godfather` (`pip install godfather-cli`). Officers create pods and select who can use them. A member gets a certificate for their own SSH key that works on one pod for 12 hours.
 
 ## Setup
 
@@ -139,7 +139,7 @@ Officers manage pods on the dashboard Godfather page, `/<org>/godfather`. From i
 
 ## Adding a hosting provider
 
-A hosting provider is the cloud that Godfather pods and apps run on. `core/hosting.py` has the interface and the registry. RunPod (`core/integrations/runpod.py`) is the only provider. `GET /api/dashboard/<org>/hosting/providers` lists the providers with `configured` for the org, and the dashboard shows them in its Provider selects.
+A hosting provider is the cloud that Godfather pods and apps run on. `core/hosting.py` has the interface and the registry. The providers are RunPod (`core/integrations/runpod.py`) and This server (`core/integrations/server.py`); Godfather refuses a provider whose `godfather` is false. `GET /api/dashboard/<org>/hosting/providers` lists the providers with `configured` for the org, and the dashboard shows them in its Provider selects.
 
 1. Write a client with the `HostingClient` calls: `list_pods`, `get_pod`, `create_pod`, `update_pod`, `start_pod`, `stop_pod` and `delete_pod`. Raise a `HostingError` subclass with the provider's HTTP status when a call fails. A missing pod gives `None` from `get_pod`.
 2. Write a provider class with `name`, `title` and `integration`, and the methods `configured`, `client`, `status`, `machine`, `ssh_address` and `proxy_url`. `status` returns `RUNNING` for a running pod and `GONE` for `None`.

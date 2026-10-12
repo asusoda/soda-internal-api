@@ -39,7 +39,7 @@ export function usePodAction(prefix: string, podId: string) {
   });
 }
 
-// True when the pod list failed because the org has no key for a pod's provider. RunPod is the only provider.
+// True when the pod list failed because the org has no key for a pod's provider.
 export function isMissingKey(error: unknown): boolean {
   return error instanceof ApiError && error.status === 400 && error.message.includes('runpod_api_key');
 }

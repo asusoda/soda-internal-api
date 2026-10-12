@@ -1,6 +1,6 @@
 # godfather
 
-Runs GPU and CPU pods on an org's own hosting provider account that members connect to over SSH. Each pod keeps its `provider`, and calls go through `core/hosting.py`. RunPod is the only provider. Officers create, share, start, stop and schedule pods and manage their files. Members get a short-lived SSH certificate from the Godfather CLI.
+Runs GPU and CPU pods on an org's own hosting provider account that members connect to over SSH. Each pod keeps its `provider`, and calls go through `core/hosting.py`. RunPod is the only provider Godfather uses: its pods need SSH. Officers create, share, start, stop and schedule pods and manage their files. Members get a short-lived SSH certificate from the Godfather CLI.
 
 Terminate also forgets a pod that was already deleted on RunPod, such as one deleted in the RunPod console.
 

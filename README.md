@@ -12,7 +12,7 @@ Each org route checks access. The audit log records each change that an officer 
 | `storefront` | A merch store paid in points, with prices checked on the server |
 | `calendar` | Notion events synced to Google Calendar, with the credentials of each org |
 | `leetcode`, `games` | The daily LeetCode post and Jeopardy in Discord |
-| `organizations`, `superadmin` | Orgs, officers, module switches, secrets and machine tokens |
+| `organizations`, `superadmin` | Orgs, officers, module switches, secrets and machine tokens; for the superadmin, the server's services and the shared apps |
 | `godfather` | GPU and CPU pods on the org's RunPod account. Members connect over SSH with 12-hour certificates |
 | `agents` | Conversations, memories and a profile graph for each member, for agents that talk to members |
 | `knowledge` | Hybrid search (pgvector and full text) over documents and crawled public pages |
@@ -20,7 +20,7 @@ Each org route checks access. The audit log records each change that an officer 
 | `alerts` | Org events, such as a failed job or a site that is down, sent to the org's Discord destinations |
 | `accounts` | Canvas, Google and Outlook sign-in for a member, so that agents can act for them |
 | `feeds` | New job listings and hackathons posted to an alert destination |
-| `runpod` | Deploys of an org's apps to RunPod from a manifest, with health checks and rollback |
+| `runpod` | Hosting: deploys of an org's apps to RunPod or This server (capped containers on the deployment's server), with health checks and rollback; shared apps such as the vault |
 | `uptime` | Checks of sites and Hosting apps on a schedule, with events when one goes down or up |
 | `dashboard` | One page for each org with problems, activity, jobs, CI runs and module state |
 | `mcp` | An MCP server and `/api/tools` that give agents the module tools through scoped machine tokens |

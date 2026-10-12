@@ -28,7 +28,6 @@ SOCKET = "data/runner.sock"
 TIMEOUT_SECONDS = 900  # a deploy can pull an image first
 # The host address that a Platform container reaches a published port on
 HOST_ADDRESS = "host.containers.internal"
-# Manifest fields that only RunPod reads
 RUNPOD_ONLY = ("gpu", "cpu", "cloud", "dataCenterIds", "mounts", "disk", "registry", "args")
 _organizations = sql_table("organizations", column("id"), column("prefix"))
 
