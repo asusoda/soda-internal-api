@@ -87,3 +87,22 @@ export type AppTemplate = {
 
 // The answer to POST /api/dashboard/<org>/apps/templates/<template>.
 export type AppFromTemplate = App & { template: string; suggested_tag: string | null };
+
+// A shared app as an org sees it: the deployment owns it, and the org subscribes to use it.
+export type SharedApp = {
+  name: string;
+  kind: AppKind;
+  description: string | null;
+  url: string | null;
+  // What a subscription does: vaultwarden invites each email to the vault
+  access: 'vaultwarden' | null;
+  current_tag: string | null;
+  subscribers: number;
+  subscribed: boolean;
+  invited: string[];
+};
+
+export type SharedAppSubscribe = { name: string; subscribed: boolean; results: Record<string, string>; invited: string[] };
+
+// A shared app on the Superadmin page: an app with no org, and how many orgs subscribe.
+export type SharedAppAdmin = App & { subscribers: number };

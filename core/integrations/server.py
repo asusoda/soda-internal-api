@@ -4,7 +4,8 @@ The runner (deploy/runner/platform_runner.py) runs on the host as root and liste
 folder. This module only talks to that socket. The runner checks each request against its policy file, so the
 memory cap, the published ports and the host paths an org may use are decided on the server, not here.
 
-An app's pod id is its container name, app-<org>-<app>. Godfather does not use this provider: its pods need SSH.
+An app's pod id is its container name, app-<org>-<app>. A shared app has no org (org_id None): the deployment owns
+it, and its container is shared-<app>. Godfather does not use this provider: its pods need SSH.
 """
 
 import http.client
@@ -69,21 +70,30 @@ def call(method: str, path: str, body: dict | None = None, socket_path: str | No
     return answer
 
 
-def _app_path(pod_id: str, org: str) -> str:
-    prefix = f"app-{org}-"
+def _base(org: str | None) -> str:
+    """The runner path of an org's apps, or of the shared apps (org None)."""
+    return "/shared" if org is None else f"/apps/{quote(org, safe='')}"
+
+
+def _app_path(pod_id: str, org: str | None) -> str:
+    prefix = "shared-" if org is None else f"app-{org}-"
     if not pod_id.startswith(prefix):
         raise RunnerError("This container is not an app of this org", 404)
-    return f"/apps/{quote(org, safe='')}/{quote(pod_id[len(prefix) :], safe='')}"
+    return f"{_base(org)}/{quote(pod_id[len(prefix) :], safe='')}"
 
 
 class ServerClient:
-    """The runner calls for one org. A pod is the dict that the runner returns for a container."""
+    """The runner calls for one org, or for the shared apps when org is None. A pod is the dict that the runner
+    returns for a container."""
 
-    def __init__(self, org: str):
+    def __init__(self, org: str | None):
         self.org = org
 
     def list_pods(self) -> list[dict]:
-        return [a for a in call("GET", "/apps")["apps"] if a.get("org") == self.org]
+        apps = call("GET", "/apps")["apps"]
+        if self.org is None:
+            return [a for a in apps if a.get("shared")]
+        return [a for a in apps if a.get("org") == self.org]
 
     def get_pod(self, pod_id: str) -> dict | None:
         try:
@@ -95,7 +105,7 @@ class ServerClient:
 
     def create_pod(self, body: dict) -> dict:
         app = str(body.pop("name"))
-        return call("PUT", f"/apps/{quote(self.org, safe='')}/{quote(app, safe='')}", body)
+        return call("PUT", f"{_base(self.org)}/{quote(app, safe='')}", body)
 
     def update_pod(self, pod_id: str, body: dict) -> dict:
         return call("PUT", _app_path(pod_id, self.org), body)
@@ -110,19 +120,22 @@ class ServerClient:
         return call("DELETE", _app_path(pod_id, self.org))
 
 
-def _prefix(db, org_id: int) -> str:
+def _prefix(db, org_id: int | None) -> str | None:
+    """The org's prefix, or None for the shared apps."""
+    if org_id is None:
+        return None
     prefix = db.execute(select(_organizations.c.prefix).where(_organizations.c.id == org_id)).scalar()
     if prefix is None:
         raise hosting.ProviderError("No such organization", 404)
     return str(prefix)
 
 
-def _org_of(pod_id: str) -> str:
-    """The org of an app container, from its platform.org label. A prefix can hold dashes, so the name alone is not
-    enough."""
+def _org_of(pod_id: str) -> str | None:
+    """The org of an app container, from its platform.org label, or None for a shared app. A prefix can hold
+    dashes, so the name alone is not enough."""
     for item in call("GET", "/apps")["apps"]:
         if item.get("id") == pod_id:
-            return str(item["org"])
+            return None if item.get("shared") else str(item["org"])
     raise RunnerError("No such app container", 404)
 
 
@@ -135,10 +148,10 @@ class ServerProvider:
     integration = ""
     godfather = False
 
-    def configured(self, db, org_id: int) -> bool:
+    def configured(self, db, org_id: int | None) -> bool:
         return Path(SOCKET).exists()
 
-    def client(self, db, org_id: int) -> ServerClient:
+    def client(self, db, org_id: int | None) -> ServerClient:
         if not Path(SOCKET).exists():
             raise hosting.ProviderError("This server has no runner. See docs/operations.md, This server runner", 400)
         return ServerClient(_prefix(db, org_id))
@@ -185,7 +198,7 @@ class ServerProvider:
         if "memory" not in manifest:
             raise hosting.HostingError("An app on This server needs memory, in MB")
 
-    def request(self, app_name: str, org_prefix: str, pod_id: str | None, manifest: dict, image: str, env: dict):
+    def request(self, app_name: str, org_prefix: str | None, pod_id: str | None, manifest: dict, image: str, env: dict):
         """The runner request a deploy makes, as (method, path, body)."""
         container_ports = [int(p.split("/")[0]) for p in manifest.get("ports") or []]
         published = {int(k): int(v) for k, v in (manifest.get("publish") or {}).items()}
@@ -199,9 +212,8 @@ class ServerProvider:
         }
         if "cpus" in manifest:
             body["cpus"] = manifest["cpus"]
-        if pod_id:
-            return "PUT", f"/apps/{org_prefix}/{app_name}", body
-        return "PUT", f"/apps/{org_prefix}/{app_name}", {**body, "name": app_name}
+        path = f"{_base(org_prefix)}/{app_name}"
+        return ("PUT", path, body) if pod_id else ("PUT", path, {**body, "name": app_name})
 
 
 hosting.register(ServerProvider())

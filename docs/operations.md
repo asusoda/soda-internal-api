@@ -63,12 +63,15 @@ The runner lets orgs deploy apps to this server (provider `server` on the Hostin
 | `memory_mb_total`, `memory_mb_max`, `cpus_max` | The memory of all app containers together, and the caps of one container |
 | `port_range` | The host ports any org may publish |
 | `orgs.<prefix>.host_paths`, `orgs.<prefix>.host_ports` | Host paths and host ports that only this org may use, for services it ran on the server before |
+| `shared.host_paths`, `shared.host_ports` | Host paths and host ports that only shared apps may use |
 
 1. Copy `deploy/runner/platform-runner.example.json` to `/etc/platform-runner.json` and edit it. Make it `root:root`, mode 600.
 2. Copy `deploy/runner/platform-runner.service` to `/etc/systemd/system/`.
 3. Start it: `systemctl daemon-reload && systemctl enable --now platform-runner`.
 
 The Hosting page then lists This server as a provider. An app container is named `app-<org>-<app>` and has the labels `platform.managed=1`, `platform.org` and `platform.app`, so the [host agent](#host-agent) gives it to its org.
+
+The `shared` key of the policy has `host_paths` and `host_ports` too: the ones that shared apps (no org) may use, such as the vault's folder and port. No org may use them.
 
 ### Move a service that already runs on the server
 

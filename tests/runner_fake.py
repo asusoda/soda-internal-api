@@ -18,6 +18,7 @@ POLICY = {
     "cpus_max": 1.0,
     "port_range": [20000, 20999],
     "orgs": {"soda": {"host_paths": ["/var/www/vaultwarden/data"], "host_ports": [8081]}},
+    "shared": {"host_paths": ["/srv/shared/vault"], "host_ports": [8082]},
 }
 
 

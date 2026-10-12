@@ -82,6 +82,18 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 - Deleting the app stops and removes its container. Its data folders stay on the server.
 - Godfather does not use This server: its pods need SSH.
 
+## Shared apps
+
+A shared app is an app that the deployment owns on This server and every org uses, such as the vault. It is an app with no org: the superadmin registers, deploys, rolls back and sets its secrets on the Shared apps card of the Superadmin page (`/api/superadmin/shared-apps`). Its container is `shared-<name>`, on the network `platform-shared`, and the runner checks it against the `shared` section of its policy. Its secrets are deployment secrets named `shared_<app>_<key>`; name them in `secret_env`.
+
+An org subscribes on the Shared tab of Explore (`PUT /api/dashboard/<org>/shared-apps/<name>/subscription` with `{"emails": [...]}`). The manifest's `access` field says what a subscription does:
+
+| `access.kind` | A subscription |
+| --- | --- |
+| `vaultwarden` | Signs in to the vault's admin page with its `ADMIN_TOKEN` and invites each email. Each person sets their own master password, so Platform never holds the keys of an org's items. The first officer creates the org's Vaultwarden organization; the org's items stay in it, and other orgs never see them |
+
+Ending a subscription keeps the accounts in the app; the app's admin removes them. A shared app that is not deployed is not offered to orgs. An org app cannot use `access`.
+
 ## Routes
 
 All routes are under `/api/apps`. They need a machine token, and the org is the org of the token.

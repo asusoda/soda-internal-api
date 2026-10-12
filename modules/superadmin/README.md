@@ -6,7 +6,7 @@ Routes for the superadmins of the deployment (the Discord user ids in `SYS_ADMIN
 
 | File | Holds |
 | --- | --- |
-| `api.py` | `/check`, `/dashboard`, `/guild_roles/<guild_id>`, `/add_org/<guild_id>`, `/remove_org/<org_id>`, `/update_officer_role/<org_id>`, `/audit`, `/publishers`, `/errors`, `/server`, `/server/services`, `/server/services/<name>` (PUT), `/limits`, `/limits/<org_id>` (GET, PUT) |
+| `api.py` | `/check`, `/dashboard`, `/guild_roles/<guild_id>`, `/add_org/<guild_id>`, `/remove_org/<org_id>`, `/update_officer_role/<org_id>`, `/audit`, `/publishers`, `/errors`, `/server`, `/server/services`, `/server/services/<name>` (PUT), `/limits`, `/limits/<org_id>` (GET, PUT), `/shared-apps` and `/shared-apps/<name>` (GET, PUT, DELETE), `/shared-apps/<name>/deploy`, `/rollback`, `/pod`, `/secrets` (PUT) |
 | `models.py` | `ServiceOwner`: the owner the superadmin set for a service |
 | `service.py` | The superadmin check, servers with no org, an officer's orgs, server roles, role checks, new orgs, `server()` (the server's health, the bot and the job queue), `server_services()` and `set_service_owner()` (the host agent's services and their owners) and each org's limits (`all_limits`, `org_limits`, `set_org_limits`) |
 

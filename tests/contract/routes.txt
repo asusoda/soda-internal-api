@@ -152,6 +152,9 @@
 /api/dashboard/<string:org_prefix>/notifications/reopen OPTIONS,POST dashboard.reopen_notifications
 /api/dashboard/<string:org_prefix>/notifications/resolve OPTIONS,POST dashboard.resolve_notifications
 /api/dashboard/<string:org_prefix>/overview GET,HEAD,OPTIONS dashboard.overview
+/api/dashboard/<string:org_prefix>/shared-apps GET,HEAD,OPTIONS dashboard.list_shared_apps
+/api/dashboard/<string:org_prefix>/shared-apps/<string:name>/subscription DELETE,OPTIONS dashboard.unsubscribe_shared_app
+/api/dashboard/<string:org_prefix>/shared-apps/<string:name>/subscription OPTIONS,PUT dashboard.subscribe_shared_app
 /api/dashboard/<string:org_prefix>/submodules GET,HEAD,OPTIONS dashboard.list_shared_submodules
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription DELETE,OPTIONS dashboard.unsubscribe_submodule
 /api/dashboard/<string:org_prefix>/submodules/<string:name>/subscription OPTIONS,PUT dashboard.subscribe_submodule
@@ -264,6 +267,14 @@
 /api/superadmin/server GET,HEAD,OPTIONS superadmin.get_server
 /api/superadmin/server/services GET,HEAD,OPTIONS superadmin.get_server_services
 /api/superadmin/server/services/<string:name> OPTIONS,PUT superadmin.put_server_service
+/api/superadmin/shared-apps GET,HEAD,OPTIONS superadmin.list_shared_apps
+/api/superadmin/shared-apps/<string:name> DELETE,OPTIONS superadmin.delete_shared_app
+/api/superadmin/shared-apps/<string:name> GET,HEAD,OPTIONS superadmin.get_shared_app
+/api/superadmin/shared-apps/<string:name> OPTIONS,PUT superadmin.put_shared_app
+/api/superadmin/shared-apps/<string:name>/deploy OPTIONS,POST superadmin.deploy_shared_app
+/api/superadmin/shared-apps/<string:name>/pod GET,HEAD,OPTIONS superadmin.shared_app_pod
+/api/superadmin/shared-apps/<string:name>/rollback OPTIONS,POST superadmin.rollback_shared_app
+/api/superadmin/shared-apps/<string:name>/secrets OPTIONS,PUT superadmin.put_shared_app_secrets
 /api/superadmin/submodules GET,HEAD,OPTIONS superadmin.get_submodules
 /api/superadmin/update_officer_role/<int:org_id> OPTIONS,PUT superadmin.update_officer_role
 /api/tools GET,HEAD,OPTIONS tools.list_tools

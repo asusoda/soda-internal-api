@@ -107,11 +107,11 @@ class RunPodProvider:
     integration = "runpod"
     godfather = True
 
-    def configured(self, db, org_id: int) -> bool:
-        return bool(secrets.get_secret(db, org_id, SECRET_NAME))
+    def configured(self, db, org_id: int | None) -> bool:
+        return org_id is not None and bool(secrets.get_secret(db, org_id, SECRET_NAME))
 
-    def client(self, db, org_id: int) -> RunPodClient:
-        key = secrets.get_secret(db, org_id, SECRET_NAME)
+    def client(self, db, org_id: int | None) -> RunPodClient:
+        key = secrets.get_secret(db, org_id, SECRET_NAME) if org_id is not None else None
         if not key:
             raise hosting.ProviderError(f"This organization has no RunPod API key (org secret {SECRET_NAME})", 400)
         return RunPodClient(key)
@@ -166,7 +166,7 @@ class RunPodProvider:
         if used:
             raise hosting.HostingError(f"RunPod does not take {', '.join(used)}; those fields are for This server")
 
-    def request(self, app_name: str, org_prefix: str, pod_id: str | None, manifest: dict, image: str, env: dict):
+    def request(self, app_name: str, org_prefix: str | None, pod_id: str | None, manifest: dict, image: str, env: dict):
         """The RunPod v2 call: POST /pods for a new pod, PATCH /pods/<id> to change one."""
         body: dict[str, Any] = {"image": image, "env": env}
         for field in ("disk", "ports", "args", "registry"):

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers, Plus } from 'lucide-react';
 import { AsuSignIn } from '../../components/asu-signin';
 import { Tooltip } from '../../components/tooltip';
+import { SharedApps } from './shared-apps';
 import { Badge, Button, Card, EmptyState, ErrorNote, PageSkeleton, Spinner } from '../../components/ui';
 import { api, send } from '../../lib/api';
 import { count, timeAgo } from '../../lib/format';
@@ -66,7 +67,9 @@ export function SubmodulesTab({ prefix, query }: { prefix: string; query: string
   const list = submodules.data.submodules.filter((s) => matchesQuery(s, query));
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">Content made once for every org, such as a campus. Subscribe once; each feature that is on gets its part.</p>
+      <p className="text-sm text-muted">Made once for every org. Subscribe once; your org gets its own part.</p>
+      <SharedApps prefix={prefix} query={query} />
+      <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Content</h2>
       {change.error ? <ErrorNote error={change.error} /> : null}
       {!list.length ? (
         <Card>

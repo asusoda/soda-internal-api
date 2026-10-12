@@ -44,3 +44,18 @@ def test_memory_cpu_ports_and_names_are_capped(policy, monkeypatch):
     used = {"Name": "app-other-big", "HostConfig": {"Memory": 1500 * 1024 * 1024}}
     monkeypatch.setattr(runner, "managed", lambda: [used])
     assert "MB left" in _refused(policy)
+
+
+def test_a_shared_app_uses_the_shared_section_and_no_org_can(policy, tmp_path):
+    shared_vault = {
+        **BODY,
+        "volumes": [{"host": "/srv/shared/vault", "path": "/data"}],
+        "ports": [{"container": 80, "host": 8082}],
+    }
+    checked = runner.check(policy, None, "vault", shared_vault)
+    assert checked["volumes"][0]["host"] == "/srv/shared/vault"
+    assert "not allowed" in _refused(policy, org="soda", volumes=[{"host": "/srv/shared/vault", "path": "/d"}])
+    assert "host port 8082" in _refused(policy, org="soda", ports=[{"container": 80, "host": 8082}])
+    named = runner.check(policy, None, "vault", {**BODY, "volumes": [{"name": "data", "path": "/data"}]})
+    assert named["volumes"][0]["host"] == str(tmp_path / ".shared" / "vault" / "data")
+    assert runner.container_name(None, "vault") == "shared-vault"

@@ -25,6 +25,7 @@ from modules.knowledge.search import search as search_chunks
 from modules.organizations import service as organizations
 from modules.organizations.models import Organization
 from modules.runpod import service as apps
+from modules.runpod import shared as shared_apps
 from modules.runpod import templates as app_templates
 from modules.submodules import service as submodules
 from submodules.asu.signin import service as asu
@@ -416,3 +417,20 @@ def reembed_passages(db, org):
 def knowledge_runs(db, org):
     limit = request.args.get("limit", type=int)
     return {"runs": runs.recent(db, _org_id(org), limit, failed_only=request.args.get("failed") == "1")}
+
+
+@_route("/shared-apps", ["GET"])
+def list_shared_apps(db, org):
+    """The shared apps the org can subscribe to, and its subscriptions."""
+    return {"apps": shared_apps.for_org(db, _org_id(org))}
+
+
+@_route("/shared-apps/<string:name>/subscription", ["PUT"])
+def subscribe_shared_app(db, org, name):
+    """Subscribe the org to a shared app. Body: {"emails": [...]}: the people to give access, such as officers."""
+    return shared_apps.subscribe(db, _org_id(org), name, json_body().get("emails"), _actor())
+
+
+@_route("/shared-apps/<string:name>/subscription", ["DELETE"])
+def unsubscribe_shared_app(db, org, name):
+    return shared_apps.unsubscribe(db, _org_id(org), name)

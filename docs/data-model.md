@@ -95,7 +95,7 @@ erDiagram
 
 | Module | Tables |
 | --- | --- |
-| core | `audit_log` (successful changes and job runs), `error_groups` (errors of each process and the dashboard, grouped), `org_secrets` (org secrets, encrypted with `SECRETS_KEY`), `webhooks` (outbound webhooks of each org and their events), `notifications` (each webhook event of an org, shown in Notifications), `org_limits` (the superadmin's limit overrides for each org), `usage_counters` (what each org used of a rate limit in each window) |
+| core | `audit_log` (successful changes and job runs), `error_groups` (errors of each process and the dashboard, grouped), `org_secrets` (org secrets, encrypted with `SECRETS_KEY`), `webhooks` (outbound webhooks of each org and their events), `notifications` (each webhook event of an org, shown in Notifications), `org_limits` (the superadmin's limit overrides for each org), `deployment_secrets` (secrets of the deployment, such as a shared app's admin token), `usage_counters` (what each org used of a rate limit in each window) |
 | organizations | `organizations`, `organization_configs` and `officers` (not used) |
 | users | `users`, `user_organization_memberships` |
 | points | `points` |
@@ -109,7 +109,7 @@ erDiagram
 | knowledge | `knowledge_sources`, `knowledge_versions`, `knowledge_chunks`, `knowledge_runs` (one row for each crawl or upload). A source and its chunks belong to an org, or with no org to a shared submodule (`submodule_id`) |
 | submodules | `submodules` (one row for each submodule), `submodule_subscriptions` (the orgs that subscribe to each) |
 | godfather | `compute_pods`, `compute_keys`, `compute_sessions`, `compute_connections` (one row for each pod certificate, kept 90 days) |
-| runpod | `runpod_apps`, `runpod_deployments` |
+| runpod | `runpod_apps` (with no org for a shared app), `runpod_deployments`, `shared_app_subscriptions` (the orgs that use a shared app, and whom Platform invited) |
 | feeds | `alert_feeds`, `alert_posts`, `alert_runs` (one row for each feed run) |
 | superadmin | `server_service_owners` (the owner of each container or host process that the host agent lists) |
 | uptime | `uptime_monitors`, `uptime_checks` (one row for each check, kept `UPTIME_RETENTION_DAYS`, default 30) |

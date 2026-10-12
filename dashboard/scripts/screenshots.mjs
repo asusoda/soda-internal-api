@@ -106,6 +106,13 @@ const SCREENS = [
   },
   { name: 'superadmin', path: 'admin' },
   {
+    name: 'superadmin-shared-apps',
+    path: 'admin',
+    before: async (page) => {
+      await page.getByRole('heading', { name: 'Shared apps' }).scrollIntoViewIfNeeded();
+    },
+  },
+  {
     name: 'superadmin-services',
     path: 'admin',
     before: async (page) => {

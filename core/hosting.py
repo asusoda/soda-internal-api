@@ -56,11 +56,11 @@ class HostingProvider(Protocol):
     # Whether Godfather can run member pods here: they need an SSH address
     godfather: bool
 
-    def configured(self, db, org_id: int) -> bool:
-        """Whether the org saved the keys this provider needs."""
+    def configured(self, db, org_id: int | None) -> bool:
+        """Whether the org saved the keys this provider needs. org_id None is the deployment, for shared apps."""
         ...
 
-    def client(self, db, org_id: int) -> HostingClient:
+    def client(self, db, org_id: int | None) -> HostingClient:
         """A client for the org's account. Raises ProviderError with status 400 when the org has no keys."""
         ...
 
@@ -89,7 +89,7 @@ class HostingProvider(Protocol):
         ...
 
     def request(
-        self, app_name: str, org_prefix: str, pod_id: str | None, manifest: dict, image: str, env: dict
+        self, app_name: str, org_prefix: str | None, pod_id: str | None, manifest: dict, image: str, env: dict
     ) -> tuple[str, str, dict]:
         """The call a deploy makes, as (method, path, body): create the pod, or change the one in pod_id."""
         ...
