@@ -10,7 +10,9 @@ Each app is one container named app-<org>-<app>, on a network of its org (platfo
 CPU cap. A shared app, which the deployment owns and every org uses, is shared-<app> on platform-shared, with the
 policy's "shared" section in place of an org's. A port is published only on the bind addresses of the policy (localhost and the podman gateway, where
 Nginx Proxy Manager reaches it), never on a public address. A volume is a folder under data_root, or a host
-path that the policy allows for that org. The parts of one app share a group network, where each answers to its
+path that the policy allows for that org. Every container runs with no-new-privileges, except the apps that an
+org's no_new_privileges_off lists: databases whose images drop privileges with gosu. The parts of one app share a
+group network, where each answers to its
 alias. The policy's host_control list names the other containers and systemd units that the superadmin may start,
 stop, restart and read the logs of. Standard library only. See docs/operations.md, "This server runner".
 """
@@ -100,6 +102,8 @@ def load_policy_dict(policy: dict) -> dict:
     policy.setdefault("port_range", [20000, 20999])
     policy.setdefault("orgs", {})
     policy.setdefault("host_control", {"containers": [], "units": []})
+    # A container on podman's default network keeps the bridge, and so the 10.88.0.1 bind address, in place
+    policy.setdefault("bridge_image", "docker.io/library/nginx:alpine")
     return policy
 
 
@@ -246,8 +250,11 @@ def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
     for value, label in ((group, "group"), (alias, "alias")):
         if value is not None and (not isinstance(value, str) or not NAME.match(value)):
             raise Refused(f"{label} is lowercase letters, digits and dashes")
+    # Postgres and Redis drop to their own user with gosu, which no-new-privileges stops on this kernel
+    no_new_privileges = app not in (_section(policy, org).get("no_new_privileges_off") or [])
     return {
         "image": image,
+        "no_new_privileges": no_new_privileges,
         "env": env,
         "memory_mb": memory,
         "cpus": float(cpus),
@@ -260,10 +267,40 @@ def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
     }
 
 
+BRIDGE = "platform-bridge"
+
+
+def ensure_bridge(policy: dict) -> None:
+    """Keep one small container on podman's default network. Without one, podman removes the podman0 bridge and its
+    address 10.88.0.1, which the policy's bind_ips and Nginx Proxy Manager use."""
+    if "10.88.0.1" not in policy["bind_ips"]:
+        return
+    if exists("container", "exists", BRIDGE):
+        podman("start", BRIDGE, check=False)
+        return
+    podman(
+        "run",
+        "-d",
+        "--name",
+        BRIDGE,
+        "--network",
+        "podman",
+        "--restart",
+        "always",
+        "--memory",
+        "16m",
+        "--entrypoint",
+        "sleep",
+        policy["bridge_image"],
+        "infinity",
+    )
+
+
 def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
     """Pull the image, then replace the app's container with one from the request. Returns the new container."""
     request = check(policy, org, app, body)
     name = container_name(org, app)
+    ensure_bridge(policy)
     # The apps of one group (the parts of one app) share a network, where each part answers to its alias
     network = f"platform-{org or 'shared'}" + (f"-{request['group']}" if request["group"] else "")
     with _lock:
@@ -290,8 +327,6 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
             str(request["cpus"]),
             "--pids-limit",
             "512",
-            "--security-opt",
-            "no-new-privileges",
             "--label",
             f"{LABEL}=1",
             "--label",
@@ -299,6 +334,8 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
             "--label",
             f"platform.app={app}",
         ]
+        if request["no_new_privileges"]:
+            args += ["--security-opt", "no-new-privileges"]
         if request["group"]:
             args += ["--label", f"platform.group={request['group']}"]
         if request["alias"]:
@@ -525,6 +562,7 @@ def serve(policy: dict) -> None:
     if os.path.exists(path):
         os.unlink(path)
     Handler.policy = policy
+    ensure_bridge(policy)
     server = Server(path, Handler)
     if os.geteuid() == 0:
         os.chown(path, 0, int(policy.get("socket_gid", 0)))
