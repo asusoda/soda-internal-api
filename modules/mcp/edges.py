@@ -6,17 +6,21 @@
   token for a tool that needs a scope the token does not have gets 403 insufficient_scope with that scope, so
   the client can sign in again and ask for it (step-up).
 - IssuerOnErrors: an error redirect from /authorize that the SDK makes gets iss (RFC 9207), as the metadata says.
-- RegistrationLog: a refused /register is logged with the reason and a summary of the request, because the
-  client often shows only a general error. Secrets and keys are never logged.
+- RefusalLog: a refused /register, /token or /revoke is logged with the reason and a summary of the request,
+  because the client often shows only a general error. Secrets, keys, codes and tokens are never logged.
+- ClientIdFromBasic: a /token or /revoke request with HTTP Basic client authentication and no client_id in the
+  form gets the client_id of the header in the form, because the SDK reads it from the form (RFC 6749 2.3.1).
 """
 
 import json
 import re
+import urllib.parse
 from typing import cast
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from anyio import to_thread
 from mcp.server.auth.provider import construct_redirect_uri
+from mcp.server.transport_security import DEFAULT_MAX_REQUEST_BODY_SIZE
 
 from core import audit
 from core.db import db_connect
@@ -233,7 +237,7 @@ class IssuerOnErrors:
         return await self.app(scope, receive, with_iss)
 
 
-# The registration fields whose values RegistrationLog writes. The other fields get their names only
+# The registration fields whose values RefusalLog writes. The other fields get their names only
 LOGGED_FIELDS = (
     "client_name",
     "redirect_uris",
@@ -303,13 +307,45 @@ def registration_summary(body: bytes) -> str:
     return redact_urls(f"{json.dumps(shown, default=str)[:1000]} other fields: {json.dumps(others)[:500]}")
 
 
-class RegistrationLog:
-    def __init__(self, app, path: str):
+# The form fields of /token and /revoke whose values RefusalLog writes. The others get "present" only
+LOGGED_FORM_FIELDS = (
+    "grant_type",
+    "client_id",
+    "redirect_uri",
+    "scope",
+    "resource",
+    "token_type_hint",
+    "client_assertion_type",
+)
+
+
+def form_summary(body: bytes, authorization: str | None) -> str:
+    """The safe part of a /token or /revoke request: some field values, the names of the others, and the kind
+    of client authentication. Codes, verifiers, tokens, secrets and assertions are never written."""
+    fields = urllib.parse.parse_qs(body.decode("utf-8", "replace"), keep_blank_values=True)
+    shown = {k: _cut_values(fields[k][0]) for k in LOGGED_FORM_FIELDS if k in fields}
+    others = sorted(k for k in fields if k not in LOGGED_FORM_FIELDS)
+    kind = (authorization or "").split(" ", 1)[0].lower() or "none"
+    return redact_urls(
+        f"{json.dumps(shown, default=str)[:1000]} other fields: {json.dumps(others)[:500]} authorization: {json.dumps(kind)}"
+    )
+
+
+class RefusalLog:
+    """Log each answer of 400 or more from POST <path><route>, with the answer and a safe summary of the request."""
+
+    def __init__(self, app, path: str, route: str = "/register", label: str = "client registration"):
         self.app = app
-        self.register = f"{path.rstrip('/')}/register"
+        self.route = f"{path.rstrip('/')}{route}"
+        self.label = label
+
+    def summary(self, scope, body: bytes) -> str:
+        if self.route.endswith("/register"):
+            return registration_summary(body)
+        return form_summary(body, _header(scope, b"authorization"))
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("path") != self.register or scope.get("method") != "POST":
+        if scope["type"] != "http" or scope.get("path") != self.route or scope.get("method") != "POST":
             await self.app(scope, receive, send)
             return
         kept, cut = bytearray(), False
@@ -337,11 +373,47 @@ class RegistrationLog:
         await self.app(scope, copied, watched)
         if answer["status"] >= 400:
             client = (scope.get("client") or ("unknown", 0))[0]
-            request = f"body larger than {MAX_LOGGED_BODY} bytes" if cut else registration_summary(bytes(kept))
+            request = f"body larger than {MAX_LOGGED_BODY} bytes" if cut else self.summary(scope, bytes(kept))
             logger.warning(
-                "client registration refused ip=%s status=%s answer=%s request=%s",
+                "%s refused ip=%s status=%s answer=%s request=%s",
+                self.label,
                 client,
                 answer["status"],
                 _cut_answer(answer["body"].decode("utf-8", "replace"))[:500],
                 request,
             )
+
+
+class ClientIdFromBasic:
+    """Put the client_id of an HTTP Basic header into the form of a /token or /revoke request that has none."""
+
+    def __init__(self, app, path: str):
+        self.app = app
+        self.routes = {f"{path.rstrip('/')}/token", f"{path.rstrip('/')}/revoke"}
+
+    async def __call__(self, scope, receive, send):
+        from modules.mcp.client_auth import basic_credentials
+
+        basic = basic_credentials(_header(scope, b"authorization") or "") if scope["type"] == "http" else None
+        if basic is None or scope.get("path") not in self.routes or scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+        messages, read, more = [], 0, True
+        # The same limit as the SDK's token and revocation routes, so every body that they take gets client_id
+        while more and read <= DEFAULT_MAX_REQUEST_BODY_SIZE:
+            message = await receive()
+            messages.append(message)
+            if message["type"] != "http.request":
+                break
+            read += len(message.get("body", b""))
+            more = message.get("more_body", False)
+        body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.request")
+        if more or "client_id" in urllib.parse.parse_qs(body.decode("utf-8", "replace")):
+            # Too large to change, or the form already names the client: pass it on unchanged
+            await self.app(scope, _replay(messages, receive), send)
+            return
+        body = body + (b"&" if body else b"") + urllib.parse.urlencode({"client_id": basic[0]}).encode()
+        headers = [(k, v) for k, v in scope.get("headers") or [] if k.lower() != b"content-length"]
+        headers.append((b"content-length", str(len(body)).encode()))
+        replayed = [{"type": "http.request", "body": body, "more_body": False}]
+        await self.app({**scope, "headers": headers}, _replay(replayed, receive), send)

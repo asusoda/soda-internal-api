@@ -1461,6 +1461,146 @@ def test_registration_log_cuts_urls_with_escaped_characters(oauth_client, caplog
     assert "secret" not in caplog.text
 
 
+# Client secrets in the Basic header or in the form (RFC 6749 2.3.1, RFC 7591 default client_secret_basic)
+
+
+def _basic(client_id: str, secret: str) -> dict:
+    import base64
+    from urllib.parse import quote
+
+    token = base64.b64encode(f"{quote(client_id)}:{quote(secret)}".encode()).decode()
+    return {"Authorization": f"Basic {token}"}
+
+
+def _secret_code(oauth_client, client, officer_headers, **registration) -> tuple[dict, str, str]:
+    """Register a client with a secret, sign in and approve. Returns (client, code, verifier)."""
+    registered = _register(oauth_client, **registration)
+    verifier, challenge = _pkce()
+    code = _approve(
+        oauth_client,
+        _sign_in(oauth_client, registered["client_id"], challenge),
+        _soda_id(client, officer_headers),
+        ["org:read"],
+    )
+    return registered, code, verifier
+
+
+def test_a_secret_in_the_basic_header_works_for_a_post_client(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    # No method given: the SDK records client_secret_post. The client follows RFC 7591 and sends Basic
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    assert registered["token_endpoint_auth_method"] == "client_secret_post"
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    # client_id only in the header, as RFC 6749 allows
+    granted = oauth_client.post(
+        "/mcp/token", data=form, headers=_basic(registered["client_id"], registered["client_secret"])
+    )
+    assert granted.status_code == 200, granted.text
+    refresh = {"grant_type": "refresh_token", "refresh_token": granted.json()["refresh_token"]}
+    again = oauth_client.post(
+        "/mcp/token", data=refresh, headers=_basic(registered["client_id"], registered["client_secret"])
+    )
+    assert again.status_code == 200, again.text
+    revoked = oauth_client.post(
+        "/mcp/revoke",
+        data={"token": again.json()["access_token"]},
+        headers=_basic(registered["client_id"], registered["client_secret"]),
+    )
+    assert revoked.status_code == 200
+    assert _rpc(oauth_client, again.json()["access_token"], "tools/list").status_code == 401
+
+
+def test_a_secret_in_the_form_works_for_a_basic_client(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(
+        oauth_client, client, officer_headers, token_endpoint_auth_method="client_secret_basic"
+    )
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT,
+        "code_verifier": verifier,
+        "client_id": registered["client_id"],
+        "client_secret": registered["client_secret"],
+    }
+    assert oauth_client.post("/mcp/token", data=form).status_code == 200
+
+
+def test_bad_client_secrets_are_refused_and_logged(oauth_client, client, officer_headers, monkeypatch, caplog):
+    import logging
+
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        wrong = oauth_client.post(
+            "/mcp/token", data=form, headers=_basic(registered["client_id"], "wrong-secret-value")
+        )
+        assert wrong.status_code == 401
+        assert wrong.json()["error"] == "invalid_client"
+        # The header and the form name different clients
+        other = oauth_client.post(
+            "/mcp/token",
+            data=form | {"client_id": "someone-else"},
+            headers=_basic(registered["client_id"], registered["client_secret"]),
+        )
+        assert other.status_code == 401
+        missing = oauth_client.post("/mcp/token", data=form | {"client_id": registered["client_id"]})
+        assert missing.status_code == 401
+    lines = [r.getMessage() for r in caplog.records if "token request refused" in r.getMessage()]
+    assert len(lines) == 3
+    # A Basic-only request is logged with the client_id of its header
+    assert '"basic"' in lines[0] and "Invalid client_secret" in lines[0] and registered["client_id"] in lines[0]
+    assert "Client secret is required" in lines[2] and registered["client_id"] in lines[2]
+    # Never the secret, the code or the verifier
+    for value in ("wrong-secret-value", registered["client_secret"], code, verifier):
+        assert value not in caplog.text
+
+
+def test_a_large_basic_only_token_request_gets_its_client_id(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    from modules.mcp import edges
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    # Larger than the refusal log keeps, smaller than the SDK's limit
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    form["pad"] = "x" * (edges.MAX_LOGGED_BODY + 40_000)
+    granted = oauth_client.post(
+        "/mcp/token", data=form, headers=_basic(registered["client_id"], registered["client_secret"])
+    )
+    assert granted.status_code == 200, granted.text
+
+
+def test_two_client_authentication_methods_are_refused(oauth_client, client, officer_headers, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("SECRETS_KEY", Fernet.generate_key().decode())
+    registered, code, verifier = _secret_code(oauth_client, client, officer_headers, token_endpoint_auth_method=None)
+    secret, client_id = registered["client_secret"], registered["client_id"]
+    form = {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT, "code_verifier": verifier}
+    assertion = {"client_assertion_type": ASSERTION_TYPE, "client_assertion": "x.y.z"}
+    for data, headers in [
+        # A valid Basic secret with a different form secret
+        (form | {"client_secret": "another-secret"}, _basic(client_id, secret)),
+        (form | assertion, _basic(client_id, secret)),
+        (form | {"client_id": client_id, "client_secret": secret} | assertion, {}),
+    ]:
+        refused = oauth_client.post("/mcp/token", data=data, headers=headers)
+        assert refused.status_code == 401
+        assert "one client authentication method" in refused.json()["error_description"]
+    # One method alone still works, and the code was not used by the refused requests
+    granted = oauth_client.post("/mcp/token", data=form, headers=_basic(client_id, secret))
+    assert granted.status_code == 200, granted.text
+
+
 def test_each_scope_is_in_one_group_of_the_consent_page(app):
     from modules.auth import scopes
     from modules.mcp import oauth_pages
