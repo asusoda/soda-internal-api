@@ -74,8 +74,8 @@ const AddStorefrontProductPage = () => {
       return;
     }
 
-    const stockCount = parseInt(String(stock));
-    if (Number.isNaN(stockCount) || stockCount < 0) {
+    const stockCount = Number(stock);
+    if (String(stock).trim() === '' || !Number.isInteger(stockCount) || stockCount < 0) {
       toast.error("Stock must be a whole number of 0 or more");
       return;
     }

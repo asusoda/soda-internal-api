@@ -14,6 +14,8 @@ const AddPoints = () => {
   const { currentOrg } = useAuth();
 
   const [eventFile, setEventFile] = useState<File[] | File | null>(null);
+  // A new key after each upload makes FileUpload start empty again
+  const [uploadKey, setUploadKey] = useState(0);
   const [eventName, setEventName] = useState('');
   const [eventPoints, setEventPoints] = useState('');
   const [userIdentifier, setUserIdentifier] = useState('');
@@ -48,6 +50,7 @@ const AddPoints = () => {
       const response = await apiClient.post<MessageResponse>(`/api/points/${currentOrg.prefix}/uploadEventCSV`, formData);
       alert(response.data.message || 'File uploaded successfully!');
       setEventFile(null); setEventName(''); setEventPoints('');
+      setUploadKey((key) => key + 1);
     } catch (error) {
       alert((axios.isAxiosError<ApiError>(error) && error.response?.data?.error) || 'Error uploading file.');
     }
@@ -117,7 +120,7 @@ const AddPoints = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">CSV File</label>
-                <FileUpload onChange={setEventFile} />
+                <FileUpload key={uploadKey} onChange={setEventFile} accept={{ 'text/csv': ['.csv'] }} />
                 <p className="text-xs text-gray-400 mt-1">
                   Upload a CSV file with participant emails (one per line)
                 </p>

@@ -27,10 +27,13 @@ const secondaryVariant = {
 
 export interface FileUploadProps {
   onChange?: (files: File[]) => void;
+  // The file types to take, as MIME types with their extensions, such as { "text/csv": [".csv"] }
+  accept?: Record<string, string[]>;
 }
 
 export const FileUpload = ({
-  onChange
+  onChange,
+  accept
 }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,6 +50,7 @@ export const FileUpload = ({
   const { getRootProps, isDragActive } = useDropzone({
     multiple: false,
     noClick: true,
+    accept,
     onDrop: handleFileChange,
     onDropRejected: (error) => {
       console.log(error);
@@ -63,6 +67,7 @@ export const FileUpload = ({
           ref={fileInputRef}
           id="file-upload-handle"
           type="file"
+          accept={accept ? Object.entries(accept).flatMap(([type, extensions]) => [type, ...extensions]).join(",") : undefined}
           onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
           className="hidden" />
         <div
