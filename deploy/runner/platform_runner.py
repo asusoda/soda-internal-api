@@ -335,31 +335,46 @@ def _lines(query: dict) -> str:
     return str(max(1, min(lines, MAX_LOG_LINES)))
 
 
+def _container_id(name: str) -> str:
+    """podman's own id of a container, so that no name from a request reaches a command line."""
+    info = _inspect(name)
+    if info is None:
+        raise Refused("No such container", 404)
+    return str(info["Id"])
+
+
 def app_logs(name: str, query: dict) -> dict:
-    return {"logs": _output("podman", "logs", "--tail", _lines(query), name)}
+    return {"logs": _output("podman", "logs", "--tail", _lines(query), _container_id(name))}
 
 
 def _controlled(policy: dict, kind: str, name: str) -> bool:
-    """Whether the policy lets the superadmin control this container or unit (names may use * patterns)."""
+    """Whether the policy lets the superadmin control this container (names may use * patterns) or unit."""
     patterns = (policy.get("host_control") or {}).get(kind) or []
     return bool(HOST_NAME.match(name)) and any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 
+def _policy_unit(policy: dict, name: str) -> str | None:
+    """The unit as the policy writes it. Units are exact names, so the command line takes the policy's text."""
+    return next((u for u in (policy.get("host_control") or {}).get("units") or [] if u == name), None)
+
+
 def host_control(policy: dict, kind: str, name: str, action: str, query: dict) -> dict:
     """Start, stop, restart or read the logs of a container or systemd unit that the policy lists."""
-    if kind not in ("containers", "units") or not _controlled(policy, kind, name):
-        raise Refused(f"{name} is not in the host_control list of the policy", 403)
-    if kind == "containers":
+    if kind == "containers" and _controlled(policy, kind, name):
         info = _inspect(name)
         if info is None:
             raise Refused("No such container", 404)
         if ((info.get("Config") or {}).get("Labels") or {}).get(LABEL) == "1":
             raise Refused("This is an app container. Control it through its app", 409)
+        container = str(info["Id"])
         if action == "logs":
-            return {"logs": _output("podman", "logs", "--tail", _lines(query), name)}
-        podman(action, name)
-        return {"name": name, "state": str(((_inspect(name) or {}).get("State") or {}).get("Status"))}
-    unit = f"{name}.service"
+            return {"logs": _output("podman", "logs", "--tail", _lines(query), container)}
+        podman(action, container)
+        return {"name": name, "state": str(((_inspect(container) or {}).get("State") or {}).get("Status"))}
+    known = _policy_unit(policy, name) if kind == "units" else None
+    if known is None:
+        raise Refused(f"{name} is not in the host_control list of the policy", 403)
+    unit = f"{known}.service"
     if action == "logs":
         return {"logs": _output("journalctl", "-u", unit, "-n", _lines(query), "--no-pager", "-o", "short-iso")}
     path = shutil.which("systemctl")

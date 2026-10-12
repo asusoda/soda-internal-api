@@ -118,7 +118,12 @@ def superadmin(monkeypatch, tmp_path):
 
 
 def test_the_superadmin_controls_only_the_services_the_policy_lists(client, superadmin, runner, monkeypatch):
-    runner.containers["twenty_db_1"] = {"Name": "twenty_db_1", "Config": {"Labels": {}}, "State": {"Status": "running"}}
+    runner.containers["twenty_db_1"] = {
+        "Name": "twenty_db_1",
+        "Id": "twenty_db_1",
+        "Config": {"Labels": {}},
+        "State": {"Status": "running"},
+    }
     base = "/api/superadmin/server/services"
     restarted = client.post(f"{base}/twenty_db_1/action", json={"action": "restart"}, headers=superadmin)
     assert restarted.status_code == 200 and ("restart", "twenty_db_1") in runner.calls

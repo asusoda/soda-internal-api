@@ -78,6 +78,7 @@ class FakePodman:
         image, command = args[i], args[i + 1 :]
         self.containers[name] = {
             "Name": name,
+            "Id": name,
             "Config": {"Labels": labels, "Image": image, "Env": env, "Cmd": command},
             "State": {"Status": "running", "StartedAt": "2026-10-12T00:00:00Z"},
             "HostConfig": {"PortBindings": bindings, "Memory": memory, "NanoCpus": nano},
