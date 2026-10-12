@@ -165,6 +165,43 @@ def test_a_wrong_admin_token_is_a_clear_error(client, superadmin, officer_header
     assert refused.status_code == 502 and "admin token" in refused.get_json()["error"]
 
 
+def test_one_shared_app_cannot_read_or_replace_another_apps_secret(client, superadmin, cleanup):
+    """A dash in an app name is two underscores, so soda-bot's TOKEN is not soda's BOT_TOKEN."""
+    assert client.put(f"{ADMIN}/soda-bot", json={"manifest": VAULT}, headers=superadmin).status_code == 200
+    assert client.put(f"{ADMIN}/soda", json={"manifest": VAULT}, headers=superadmin).status_code == 200
+    assert shared.secret_name("soda-bot", "TOKEN") == "shared_soda__bot_token"
+    assert shared.secret_name("soda", "BOT_TOKEN") == "shared_soda_bot_token"
+
+    saved = client.put(f"{ADMIN}/soda-bot/secrets", json={"secrets": {"TOKEN": "bot-token"}}, headers=superadmin)
+    assert saved.status_code == 200, saved.get_json()
+    assert saved.get_json()["secrets"] == ["token"]
+    assert client.get(f"{ADMIN}/soda", headers=superadmin).get_json()["secrets"] == []
+
+    other = client.put(f"{ADMIN}/soda/secrets", json={"secrets": {"BOT_TOKEN": "soda-token"}}, headers=superadmin)
+    assert other.status_code == 200, other.get_json()
+    assert other.get_json()["secrets"] == ["bot_token"]
+    assert client.get(f"{ADMIN}/soda-bot", headers=superadmin).get_json()["secrets"] == ["token"]
+
+    from core import secrets as secret_store
+    from core.db import db_connect
+
+    db = db_connect.SessionLocal()
+    try:
+        assert secret_store.get_deployment_secret(db, shared.secret_name("soda-bot", "TOKEN")) == "bot-token"
+        assert secret_store.get_deployment_secret(db, shared.secret_name("soda", "BOT_TOKEN")) == "soda-token"
+    finally:
+        db.close()
+
+    removed = client.put(f"{ADMIN}/soda/secrets", json={"secrets": {"BOT_TOKEN": None}}, headers=superadmin)
+    assert removed.status_code == 200, removed.get_json()
+    db = db_connect.SessionLocal()
+    try:
+        assert secret_store.get_deployment_secret(db, shared.secret_name("soda-bot", "TOKEN")) == "bot-token"
+        assert secret_store.get_deployment_secret(db, shared.secret_name("soda", "BOT_TOKEN")) is None
+    finally:
+        db.close()
+
+
 def test_only_the_superadmin_manages_shared_apps_and_orgs_cannot_use_access(client, officer_headers, runner, cleanup):
     assert client.get(ADMIN, headers=officer_headers).status_code == 403
     assert client.put(f"{ADMIN}/vault", json={"manifest": VAULT}, headers=officer_headers).status_code == 403

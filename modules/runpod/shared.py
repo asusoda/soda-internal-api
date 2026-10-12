@@ -1,8 +1,9 @@
 """Shared apps: apps the deployment owns on This server, which orgs subscribe to and use. No Flask here.
 
 A shared app is an App row with no org. The superadmin registers, deploys and rolls it back with the same hosting
-service as an org's app; its secrets are deployment secrets named shared_<app>_<key>. An org subscribes on the
-Shared tab of Explore. The manifest's "access" field says what a subscription does in the app:
+service as an org's app. Its secrets are deployment secrets named shared_<app>_<key>. A dash in the app name is
+two underscores, so one app's secret cannot match another's. An org subscribes on the Shared tab of Explore.
+The manifest's "access" field says what a subscription does in the app:
 
 - vaultwarden: Platform signs in to the Vaultwarden admin page with the app's ADMIN_TOKEN and invites each email.
   Each person sets their own master password, so Platform never holds the keys of an org's vault. The first officer
@@ -76,7 +77,7 @@ def put_shared(db, name: str, manifest: Any) -> dict:
 def get_shared(db, name: str) -> dict:
     app = _find(db, name)
     return service.get_app(db, None, name) | {
-        "secrets": [n[len(_secret_prefix(name)) :] for n in secrets.deployment_secret_names(db, _secret_prefix(name))],
+        "secrets": _secret_keys(db, name),
         "subscribers": [
             {"org_id": s.organization_id, "invited": len(s.invited or []), "since": iso(s.created_at)}
             for s in db.query(SharedAppSubscription).filter_by(app_id=app.id).all()
@@ -85,7 +86,24 @@ def get_shared(db, name: str) -> dict:
 
 
 def _secret_prefix(name: str) -> str:
-    return f"{SECRET_PREFIX}{name.replace('-', '_')}_"
+    """shared_<app>_ with each dash in the app name written as two underscores."""
+    return f"{SECRET_PREFIX}{name.replace('-', '__')}_"
+
+
+def secret_name(app_name: str, key: str) -> str:
+    """The deployment secret that a shared app's manifest names in secret_env."""
+    return _secret_prefix(app_name) + key.lower()
+
+
+def _secret_keys(db, name: str) -> list[str]:
+    """The env keys saved for this app. A secret that only shares the name prefix of another app is left out."""
+    prefix = _secret_prefix(name)
+    keys = []
+    for secret in secrets.deployment_secret_names(db, prefix):
+        key = secret[len(prefix) :]
+        if SECRET_KEY.match(key.upper()):
+            keys.append(key)
+    return keys
 
 
 def set_secrets(db, name: str, values: Any, actor: str | None) -> dict:
@@ -93,10 +111,15 @@ def set_secrets(db, name: str, values: Any, actor: str | None) -> dict:
     _find(db, name)
     if not isinstance(values, dict) or not values:
         raise SharedAppError('Send "secrets": an object of env key to value, or null to remove')
+    chosen = []
     for key, value in values.items():
         if not isinstance(key, str) or not SECRET_KEY.match(key):
             raise SharedAppError("A secret key is an env name in capitals, such as ADMIN_TOKEN")
-        secret = _secret_prefix(name) + key.lower()
+        secret = secret_name(name, key)
+        if len(secret) > 100:
+            raise SharedAppError("The secret name is too long. Use a shorter app name or env key")
+        chosen.append((secret, value))
+    for secret, value in chosen:
         try:
             if value is None:
                 secrets.delete_deployment_secret(db, secret)
@@ -104,14 +127,7 @@ def set_secrets(db, name: str, values: Any, actor: str | None) -> dict:
                 secrets.set_deployment_secret(db, secret, value, actor)
         except secrets.SecretsError as e:
             raise SharedAppError(str(e), 503) from e
-    return {
-        "secrets": [n[len(_secret_prefix(name)) :] for n in secrets.deployment_secret_names(db, _secret_prefix(name))]
-    }
-
-
-def secret_name(app_name: str, key: str) -> str:
-    """The deployment secret that a shared app's manifest names in secret_env."""
-    return _secret_prefix(app_name) + key.lower()
+    return {"secrets": _secret_keys(db, name)}
 
 
 # The org side
