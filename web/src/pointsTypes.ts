@@ -11,18 +11,18 @@ export interface PointHistoryEntry {
 }
 
 // A member with the fields of member_fields() in modules/users/service.py. asu_id and academic_standing are the
-// legacy keys of student_id and class_standing.
+// legacy keys of student_id and class_standing. The API sends those fields only to the org's officers.
 export interface MemberDetails {
   id: number;
   name: string | null;
   email: string | null;
   username: string | null;
-  asu_id: string | null;
-  academic_standing: string | null;
-  student_id: string | null;
-  class_standing: string | null;
-  major: string | null;
-  profile_fields: Record<string, string | number | boolean>;
+  asu_id?: string | null;
+  academic_standing?: string | null;
+  student_id?: string | null;
+  class_standing?: string | null;
+  major?: string | null;
+  profile_fields?: Record<string, string | number | boolean>;
 }
 
 // The member fields that the edit forms show, as PUT /api/points/<org_prefix>/users/<user_identifier> takes them.
