@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import config from '../../config';
+import useLatestRef from '../../hooks/useLatestRef';
 
 const AuthContext = createContext();
 
@@ -214,7 +215,27 @@ export const AuthProvider = ({ children }) => {
     return client;
   };
 
+  // The helpers above are new functions on each render. The effect below uses the
+  // latest ones through this ref, so that it runs only when the token changes.
+  const authHelpersRef = useLatestRef({
+    validateToken,
+    refreshAccessToken,
+    logout,
+    getUserInfo,
+    fetchOrganizations,
+    checkSuperAdminStatus,
+  });
+
   useEffect(() => {
+    const {
+      validateToken,
+      refreshAccessToken,
+      logout,
+      getUserInfo,
+      fetchOrganizations,
+      checkSuperAdminStatus,
+    } = authHelpersRef.current;
+
     const authenticateUser = async () => {
       setLoading(true);
       try {
@@ -258,7 +279,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     authenticateUser();
-  }, [token]);
+  }, [token, authHelpersRef]);
 
   const value = {
     token,

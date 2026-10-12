@@ -1,8 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+// Orb draws with WebGL, and jsdom has no WebGL context. Replace it with an
+// empty component so that the login page can render.
+jest.mock('./components/ui/Orb', () => () => null);
+
+test('renders the login page at the root route when signed out', async () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(
+    await screen.findByRole('heading', { name: /soda admin panel/i })
+  ).toBeInTheDocument();
 });

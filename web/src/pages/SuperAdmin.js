@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ThemedLoading from '../components/ui/ThemedLoading';
 import Orb from '../components/ui/Orb';
 import OrganizationCard from '../components/ui/OrganizationCard';
 import { toast } from 'react-toastify';
+import useLatestRef from '../hooks/useLatestRef';
 
 const SuperAdmin = () => {
   const { getApiClient, isSuperAdmin, loading, selectOrganization, currentOrg } = useAuth();
@@ -17,7 +18,6 @@ const SuperAdmin = () => {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [updatingRole, setUpdatingRole] = useState(false);
-  const [updatingPrefix, setUpdatingPrefix] = useState({});
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [calendarSettings, setCalendarSettings] = useState({
     notion_database_id: '',
@@ -26,6 +26,24 @@ const SuperAdmin = () => {
   });
   const [updatingCalendar, setUpdatingCalendar] = useState(false);
   const navigate = useNavigate();
+
+  // getApiClient is a new function on each render. Use the latest one through a
+  // ref so that fetchDashboardData is stable and the effect below runs only once.
+  const getApiClientRef = useLatestRef(getApiClient);
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setDashboardLoading(true);
+      const client = getApiClientRef.current();
+      const response = await client.get('/api/superadmin/dashboard');
+      setDashboardData(response.data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data: ' + error.message);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [getApiClientRef]);
 
   useEffect(() => {
     // Redirect if not superadmin (after loading is complete)
@@ -38,21 +56,7 @@ const SuperAdmin = () => {
     if (!loading && isSuperAdmin) {
       fetchDashboardData();
     }
-  }, [isSuperAdmin, loading, navigate]);
-
-  const fetchDashboardData = async () => {
-    try {
-      setDashboardLoading(true);
-      const client = getApiClient();
-      const response = await client.get('/api/superadmin/dashboard');
-      setDashboardData(response.data);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data: ' + error.message);
-    } finally {
-      setDashboardLoading(false);
-    }
-  };
+  }, [isSuperAdmin, loading, navigate, fetchDashboardData]);
 
   const fetchGuildRoles = async (guildId) => {
     if (roles[guildId]) return roles[guildId]; // Return cached roles
@@ -177,7 +181,6 @@ const SuperAdmin = () => {
 
   const updateOrganizationPrefix = async (orgId, newPrefix) => {
     try {
-      setUpdatingPrefix(prev => ({ ...prev, [orgId]: true }));
       const client = getApiClient();
       await client.put(`/api/organizations/${orgId}/settings`, {
         prefix: newPrefix
@@ -211,8 +214,6 @@ const SuperAdmin = () => {
     } catch (error) {
       console.error('Error updating organization prefix:', error);
       throw new Error('Failed to update prefix: ' + error.message);
-    } finally {
-      setUpdatingPrefix(prev => ({ ...prev, [orgId]: false }));
     }
   };
 

@@ -111,7 +111,7 @@ const TokenRetrival = () => {
     };
 
     handleTokenRetrival();
-  }, [location, navigate, setToken, setRefreshToken, setUser, setOrganizations, setIsSuperAdmin, config.apiUrl]);
+  }, [location, navigate, setToken, setRefreshToken, setUser, setOrganizations, setIsSuperAdmin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">

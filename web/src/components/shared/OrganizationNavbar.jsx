@@ -6,10 +6,6 @@ import OrganizationSwitcher from '../OrganizationSwitcher';
 import useOrgModules from '../../hooks/useOrgModules';
 import { 
   FaUsers, 
-  FaChartLine, 
-  FaPlus, 
-  FaClipboardList, 
-  FaCogs, 
   FaGamepad,
   FaPlay,
   FaTrophy,
@@ -24,7 +20,7 @@ import {
 import Orb from '../ui/Orb';
 
 const OrganizationNavbar = ({ children }) => {
-  const { logout, currentOrg, isSuperAdmin } = useAuth();
+  const { logout, currentOrg } = useAuth();
   const navigate = useNavigate();
   const [activeNavItem, setActiveNavItem] = useState(null);
   const { isEnabled } = useOrgModules();
@@ -43,7 +39,6 @@ const OrganizationNavbar = ({ children }) => {
   const goToMemberStore = () => window.open(`/store/${currentOrg?.prefix}`, '_blank');
   const goToCalendar = () => navigate(`/${currentOrg?.prefix}/calendar`);
   const goToCompute = () => navigate(`/${currentOrg?.prefix}/compute`);
-  const goToDiscordBots = () => navigate(`/${currentOrg?.prefix}/discord-bots`);
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden">

@@ -1,5 +1,4 @@
 import axios from "axios";
-import { useAuth } from "../auth/AuthContext";
 import config from "../../config";
 
 const apiClient = axios.create({

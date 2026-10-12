@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/auth/AuthContext';
+import useLatestRef from './useLatestRef';
 
 const useAuthToken = () => {
   const navigate = useNavigate();
@@ -25,13 +26,17 @@ const useAuthToken = () => {
     }
   };
 
-  useEffect(() => {
-    validateAndRefreshToken();  // Initial token validation
+  // Call the latest validateAndRefreshToken, so the interval uses the current token.
+  const validateRef = useLatestRef(validateAndRefreshToken);
 
-    const intervalId = setInterval(validateAndRefreshToken, 900000);  // 15 minutes
+  useEffect(() => {
+    const validate = () => validateRef.current();
+    validate();  // Initial token validation
+
+    const intervalId = setInterval(validate, 900000);  // 15 minutes
 
     return () => clearInterval(intervalId);  // Clear interval on unmount
-  }, []);  // Runs only once when the component mounts
+  }, [validateRef]);  // Runs only once when the component mounts
 
   return { validateAndRefreshToken };
 };

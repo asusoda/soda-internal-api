@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import apiClient from '../components/utils/axios';
 import useAuthToken from '../hooks/userAuth';
 import { useAuth } from '../components/auth/AuthContext';
@@ -9,7 +8,6 @@ import { FaSearch, FaUserPlus } from 'react-icons/fa';
 
 const UserPage = () => {
   useAuthToken();
-  const navigate = useNavigate();
   const { currentOrg } = useAuth();
 
   // State for finding/updating user
