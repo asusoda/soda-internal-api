@@ -101,7 +101,7 @@ def members_with_points(db, organization_id) -> list[dict]:
             **users.legacy_member_fields(user),
             "major": user.major,
             "discord_linked": bool(user.discord_id),
-            "points": totals.get(cast(int, user.id)) or 0,
+            "points": totals.get(user.id) or 0,
             "joined_at": membership.joined_at.isoformat() if membership.joined_at else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
@@ -179,7 +179,7 @@ def _matching(db, organization_id, ids: list[int] | None, event: str | None) -> 
 def delete_entries(db, organization_id, ids: list[int] | None = None, event: str | None = None) -> dict:
     """Delete point entries by id, or every entry of an event, in one commit."""
     rows = _matching(db, organization_id, ids, event)
-    deleted = [cast(int, row.id) for row in rows]
+    deleted = [row.id for row in rows]
     for row in rows:
         db.delete(row)
     db.commit()
@@ -240,7 +240,7 @@ def ranked_members(
                 and_(
                     UserOrganizationMembership.user_id == User.id,
                     UserOrganizationMembership.organization_id == org.id,
-                    UserOrganizationMembership.is_active,
+                    UserOrganizationMembership.is_active.is_(True),
                 ),
             )
             .filter(or_(Points.id.isnot(None), UserOrganizationMembership.id.isnot(None)))

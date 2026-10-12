@@ -95,13 +95,13 @@ Caution: a database needs two more steps, or it does not start or its data can b
 
 | Workflow | Does |
 | --- | --- |
-| `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard and site builds; workflow lint. A push to `main` in `asusoda/platform` then runs `cd.yml` |
-| `images.yml` | Builds the API, dashboard and site images on each PR. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-dashboard` and `-site` |
+| `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard and site builds; the images (`images.yml`); workflow lint. A push to `main` in `asusoda/platform` then runs `cd.yml` |
+| `images.yml` | `check.yml` calls it. Builds the API, dashboard and site images. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-dashboard` and `-site`, tagged with the commit sha and `main`. The build cache is the `buildcache` tag of each image |
 | `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform`. Each run is a deployment to the `production` environment on the repository's Deployments page |
 
 The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvector) from `mirror.gcr.io`, Google's copy of Docker Hub. It has no pull limit for anonymous users, so CI does not stop with `429 Too Many Requests`. Platform's own images go to GHCR.
 
-`Dockerfile.api` uses `uv sync --frozen`. If `uv.lock` does not agree with `pyproject.toml`, the build fails. Commit the two files together. The dashboard image gets `VITE_API_URL` and `VITE_SITE_URL` at build time (repository variables in CI), so a change to them needs a new build.
+`Dockerfile.api` uses `uv sync --locked --no-dev`. If `uv.lock` does not agree with `pyproject.toml`, the build fails. Commit the two files together. The images hold no server settings. The `dashboard` container reads `VITE_API_URL` and `VITE_SITE_URL` from its env when it starts, so a change to them needs only a new container. See [Frontends](frontends.md).
 
 ## Deploy
 
@@ -128,7 +128,7 @@ flowchart TD
   check --> cd["cd.yml connects to the server over SSH"]
   cd --> checkout["git checkout the commit that passed Check"]
   checkout --> backup["make backup"]
-  backup --> deploy["make deploy: build changed images, alembic upgrade head, up -d"]
+  backup --> deploy["make deploy: pull changed images, alembic upgrade head, up -d"]
   deploy -->|fails| rollback["make rollback"]
   deploy -->|passes| health["make health"]
   health -->|fails| rollback
@@ -138,15 +138,27 @@ flowchart TD
 `make deploy` does these steps:
 
 1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `.deploy/deployed-sha`. If the file is absent, the text is not a 40-character sha, or that commit is not in this checkout, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
-2. Select the images to build. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all three. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
+2. Select the changed images. A change in `dashboard/` or `Dockerfile.dashboard` selects `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` selects `site`. A change in a compose file or the `Makefile` selects all three. A change in `.github/` or another `.md` file selects nothing. All other changes select `api`.
 3. Tag the current images as `:previous`.
-4. Build the changed images. The old containers keep running during the build.
+4. Pull each changed image from GHCR as `$(IMAGE_REPO)-<service>:<commit>` and tag it with the local `:latest` name, for example `soda-internal-api:latest`. `IMAGE_REPO` defaults to `ghcr.io/asusoda/platform`. If a pull fails, build that image on the server. With `IMAGE_SOURCE=build`, build all of them on the server. The old containers keep running during this step.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.
-6. If the `soda-web` container of the removed `web` service exists, remove it. Remove the `soda-web` images if they exist. If this deploy built `api` or `dashboard`, recreate `api`, `bot` and `dashboard` together with `up -d`, and `mcp` too when its container exists. Docker Compose gets `--remove-orphans`, so a container of a removed service does not keep a port. podman-compose 1.0.6 does not get that flag, because its `--remove-orphans` removes every project container this command did not name, including `soda-site`. Then wait up to 60 seconds for each container to be healthy. Check that each container runs the new image. They are recreated together because `dashboard`, `bot` and `mcp` require the `api` container. podman-compose 1.0.6 recreates a service's dependencies with it. It cannot replace `api` while other containers require it.
-7. If this deploy built `site`, and `soda-site:latest` or the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. If this deploy did not build `site` and `soda-site:latest` exists, start `soda-site` with the same command. `site` does not require `api`, so the other containers keep running.
-8. If an image was not built and its container exists, that container must run the `:latest` tag. Copy the current SHA to `.deploy/rollback-sha` when it differs from the new commit. Write the new commit to `.deploy/deployed-sha`. Each write replaces the file in one step.
+6. If the `soda-web` container of the removed `web` service exists, remove it. Remove the `soda-web` images if they exist. If this deploy changed `api` or `dashboard`, recreate `api`, `bot` and `dashboard` together with `up -d --force-recreate`, and `mcp` and `worker` too when their containers exist. podman-compose 1.0.6 recreates a container only when the compose config hash changes, and a pulled image does not change the hash. Docker Compose gets `--remove-orphans`, so a container of a removed service does not keep a port. podman-compose 1.0.6 does not get that flag, because its `--remove-orphans` removes every project container this command did not name, including `soda-site`. Then wait up to 60 seconds for each container to be healthy. When the app answers on its host port, the deploy runs `podman healthcheck run`, so the container does not wait for the next health check. Check that each container runs the new image. They are recreated together because `dashboard`, `bot`, `mcp` and `worker` require the `api` container. podman-compose 1.0.6 recreates a service's dependencies with it. It cannot replace `api` while other containers require it.
+7. If this deploy changed `site`, and `soda-site:latest` or the `soda-site` container exists, recreate `site` alone with `up -d --no-deps --force-recreate`. If this deploy did not change `site` and `soda-site:latest` exists, start `soda-site` with `up -d --no-deps`. `site` does not require `api`, so the other containers keep running.
+8. If an image did not change and its container exists, that container must run the `:latest` tag. Copy the current SHA to `.deploy/rollback-sha` when it differs from the new commit. Write the new commit to `.deploy/deployed-sha`. Each write replaces the file in one step.
 
-Caution: set `VITE_API_URL` in `.env` before you build the dashboard. If it is empty, `Dockerfile.dashboard` stops the build and the deploy fails.
+Caution: set `VITE_API_URL` in `.env` before you deploy. If it is empty, the `dashboard` container stops and the deploy fails.
+
+Caution: when the `soda-worker` container exists, the deploy fails if `worker` stops. The worker stops at once on SQLite. On a SQLite server, remove it with `podman rm -f soda-worker`.
+
+### Image pulls
+
+`cd.yml` runs after the `images` job in `check.yml` pushes the images of the commit. The server pulls them over HTTPS. If the GHCR packages are private, log in once on the server with a token that has only `read:packages`:
+
+```bash
+echo "$TOKEN" | podman login ghcr.io -u <GitHub user> --password-stdin
+```
+
+If the packages are public, the server needs no login. If a pull fails, `make deploy` builds that image on the server, and the deploy takes some minutes longer.
 
 ## Upgrade an existing deployment
 
@@ -167,7 +179,7 @@ LeetCode: the API now posts the daily question as a job and keeps the "posted to
 
 ## Roll back
 
-`make rollback` restores an image only when this deploy tagged it. If `.deploy/rollback-api` is present, it tags `soda-internal-api:previous` as `latest` and starts the containers again. If `.deploy/rollback-site` is present, it tags `soda-site:previous` as `latest` and recreates `soda-site`. If `.deploy/rollback-sha` is present, `make rollback` writes that SHA back to `.deploy/deployed-sha`. The next deploy then builds the changes from that commit. `make deploy` removes the rollback files at the start of the next deploy.
+`make rollback` restores an image only when this deploy tagged it. If `.deploy/rollback-api` is present, it tags `soda-internal-api:previous` as `latest` and recreates `api`, `bot` and `dashboard`, and `mcp` and `worker` when their containers exist. It does not start `postgres`, or `worker` when its container does not exist. If `.deploy/rollback-site` is present, it tags `soda-site:previous` as `latest` and recreates `soda-site`. If `.deploy/rollback-sha` is present, `make rollback` writes that SHA back to `.deploy/deployed-sha`. The next deploy then builds the changes from that commit. `make deploy` removes the rollback files at the start of the next deploy.
 
 Caution: the rollback does not change the dashboard image or the database. If the failed deploy ran a migration, run `uv run alembic downgrade -1`, or copy back the file that `make backup` wrote to `data/backups/`.
 
@@ -195,7 +207,7 @@ The `site` service serves `site/` with `next start`, because the site uses redir
 1. Build and start it once: `docker compose --profile site up -d --no-deps site`. podman-compose 1.0.6 ignores profiles: use `podman-compose -f docker-compose.yml up -d --no-deps site`.
 2. Point the domain at the server, and forward it in the reverse proxy to `http://127.0.0.1:3010`.
 
-After this, `make deploy` rebuilds the site when `site/` or `docs/` changes. A deploy that does not rebuild the site starts `soda-site` again when `soda-site:latest` exists. `make health` checks the site.
+After this, `make deploy` pulls a new site image when `site/` or `docs/` changes. A deploy that does not change the site starts `soda-site` again when `soda-site:latest` exists. `make health` checks the site.
 
 ## Command-line tools
 

@@ -6,7 +6,6 @@ appears only as counts, never content.
 
 import datetime
 import os
-from typing import cast
 
 from sqlalchemy import func
 
@@ -39,7 +38,7 @@ scopes.declare("integrations:manage", "See which integrations are set, set or cl
 
 def overview(db, org: Organization) -> dict:
     """Modules, counts, problems and recent activity for one organization."""
-    org_id = cast(int, org.id)
+    org_id = org.id
     now = utcnow()
     sections = {
         "members": _members(db, org_id),
@@ -53,7 +52,7 @@ def overview(db, org: Organization) -> dict:
         "accounts": _accounts(db, org_id),
         "tokens": _tokens(db, org_id, now),
     }
-    entries = audit.list_entries(db, org=cast(str, org.prefix), limit=200)
+    entries = audit.list_entries(db, org=org.prefix, limit=200)
     return {
         "organization": {
             "id": org_id,
@@ -75,7 +74,7 @@ def overview(db, org: Organization) -> dict:
 
 def modules(db, org: Organization) -> dict:
     """Each module that is not Core, in category order, with its switch, its needs and its submodules."""
-    org_id = cast(int, org.id)
+    org_id = org.id
     result = []
     for category, names in CATEGORIES.items():
         if category == CORE:

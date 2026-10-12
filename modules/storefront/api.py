@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
 
 from core.db import db_connect
@@ -288,7 +288,7 @@ def get_order(org_prefix, order_id):
 def create_order(org_prefix):
     """Create a new order for an organization with dual authentication"""
     data = request.get_json()
-    user_email = getattr(request, "clerk_user_email", None)
+    user_email = g.get("clerk_user_email")
 
     if not user_email or "@" not in user_email:
         return jsonify({"error": "Authenticated user email is missing or invalid"}), 400
@@ -490,7 +490,4 @@ def get_store_products(org_prefix):
 @error_handler
 def purchase_products(org_prefix):
     """Public endpoint for customers to purchase products (Discord auth)"""
-    # create_order reads request.clerk_user_email; a Discord sign-in has none
-    if not hasattr(request, "clerk_user_email"):
-        request.clerk_user_email = None  # type: ignore[attr-defined]
     return create_order(org_prefix)

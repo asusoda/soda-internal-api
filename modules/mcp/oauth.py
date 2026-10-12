@@ -173,7 +173,12 @@ def resource_metadata_path() -> str:
 
 
 def server_metadata_paths() -> list[str]:
-    """Where a client looks for the authorization server metadata (RFC 8414) at the root of the host."""
+    """Where clients read the authorization server metadata (RFC 8414), at the root of the host.
+
+    A client that follows the MCP spec inserts the issuer's path: /.well-known/oauth-authorization-server/mcp.
+    Some clients, such as Composio, only read /.well-known/oauth-authorization-server and also need the issuer
+    to be the public URL, so the same document is there too.
+    """
     return [f"/.well-known/oauth-authorization-server{public_path()}", "/.well-known/oauth-authorization-server"]
 
 
@@ -268,11 +273,13 @@ class RateLimit:
     async def __call__(self, scope, receive, send):
         rule = self._rule(scope.get("path", "")) if scope["type"] == "http" else None
         if rule is None:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         client = scope.get("client") or ("unknown", 0)
         wait = self.allow(rule, str(client[0]))
         if not wait:
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         body = json.dumps({"error": "too_many_requests", "error_description": "Too many requests. Try again later"})
         await send(
             {
@@ -707,7 +714,7 @@ def load_refresh(db, client_id: str, refresh: str) -> dict | None:
         return None
     grant, token = found
     return {
-        "token_id": cast(int, token.id),
+        "token_id": token.id,
         "scopes": strings(token.scopes),
         "expires_at": _epoch(grant.refresh_expires_at),
         "resource": optional_text(grant.resource),
@@ -724,16 +731,16 @@ def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dic
     now = _now()
     checked = _still_officer(db, token)
     if checked is False:
-        machine_tokens.revoke(db, cast(int, token.organization_id), cast(int, token.id))
+        machine_tokens.revoke(db, token.organization_id, token.id)
         audit.record(
             "mcp oauth revoked",
             source="mcp",
             actor_kind="system",
             actor_id=optional_text(token.created_by),
-            details={"client_id": client_id, "token_id": cast(int, token.id), "reason": "not_officer"},
+            details={"client_id": client_id, "token_id": token.id, "reason": "not_officer"},
         )
         raise OAuthError("The officer who approved this connection is no longer an officer of the org")
-    if checked is None and cast(datetime.datetime, grant.checked_at) <= now - RECHECK_GRACE:
+    if checked is None and grant.checked_at <= now - RECHECK_GRACE:
         raise OAuthError("Platform cannot check the officer role now. Try again later")
     new_refresh = REFRESH_PREFIX + secrets.token_urlsafe(32)
     # The update finds the old hash only once, so a refresh token that two requests send rotates once
@@ -764,7 +771,7 @@ def _still_officer(db, token: MachineToken) -> bool | None:
     except DiscordUnavailable:
         logger.warning("Discord unavailable during the officer check of an MCP OAuth refresh", exc_info=True)
         return None
-    return cast(int, token.organization_id) in {cast(int, o.id) for o in orgs}
+    return token.organization_id in {o.id for o in orgs}
 
 
 def client_of_token(db, token_id: int) -> str | None:

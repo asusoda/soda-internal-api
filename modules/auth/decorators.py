@@ -1,7 +1,6 @@
 """Route decorators: who may call a view. Each answers with JSON and a status when it refuses."""
 
 from functools import wraps
-from typing import cast
 
 from flask import g, jsonify, request, session
 
@@ -57,7 +56,8 @@ def _session_refusal():
 def dual_auth_required(f):
     """Accept a Clerk session token, else a platform token in the session cookie or the header.
 
-    Sets request.clerk_user_email: the Clerk email, or the platform token's username.
+    Sets g.clerk_user_email: the Clerk email, or the platform token's username.
+    A Clerk sign-in also sets g.clerk_user.
     """
 
     @wraps(f)
@@ -70,8 +70,8 @@ def dual_auth_required(f):
                 if result:
                     email, clerk_user = result
                     logger.debug(f"Dual auth: Clerk authentication successful for {email}")
-                    request.clerk_user_email = email  # type: ignore[attr-defined]
-                    request.clerk_user = clerk_user  # type: ignore[attr-defined]
+                    g.clerk_user_email = email
+                    g.clerk_user = clerk_user
                     return f(*args, **kwargs)
                 logger.debug("Dual auth: Clerk token verification failed, trying Discord OAuth")
             except Exception as e:
@@ -84,7 +84,7 @@ def dual_auth_required(f):
                     return refusal
                 username = token_manager.retrieve_username(session["token"])
                 if username:
-                    request.clerk_user_email = username  # type: ignore[attr-defined]
+                    g.clerk_user_email = username
                 return f(*args, **kwargs)
             except Exception as e:
                 logger.debug(f"Dual auth: Session authentication error: {e}")
@@ -99,7 +99,7 @@ def dual_auth_required(f):
                 return _refuse(*_HEADER_REFUSALS[problem])
             username = token_manager.retrieve_username(token)
             if username:
-                request.clerk_user_email = username  # type: ignore[attr-defined]
+                g.clerk_user_email = username
             return f(*args, **kwargs)
         except Exception as e:
             logger.debug(f"Dual auth: Discord OAuth token authentication error: {e}")
@@ -241,7 +241,7 @@ def member_required(f):
                 directory = discord_directory()
                 if directory is None or not directory.is_ready():
                     return _refuse("Discord bot not available", 503)
-                if not directory.check_user_membership(int(user_discord_id), int(cast(str, organization.guild_id))):
+                if not directory.check_user_membership(int(user_discord_id), int(organization.guild_id)):
                     return _refuse("You must be a member of this organization to access this resource", 403)
                 kwargs["user_discord_id"] = user_discord_id
                 kwargs["organization"] = organization

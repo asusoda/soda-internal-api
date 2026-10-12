@@ -2,7 +2,6 @@
 
 import datetime
 import json
-from typing import cast
 
 import pytest
 from cryptography.fernet import Fernet
@@ -165,7 +164,7 @@ def _run(key="internships", **kwargs):
     db = db_connect.SessionLocal()
     try:
         org = db.query(Organization).filter_by(prefix="soda").one()
-        return service.run_now(db, cast(int, org.id), key, **kwargs)
+        return service.run_now(db, org.id, key, **kwargs)
     finally:
         db.close()
 

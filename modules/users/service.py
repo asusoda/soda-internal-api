@@ -479,7 +479,7 @@ def sync_discord_members(db, organization_id: int, members: list[dict], dry_run:
     for chunk in _chunks(ids):
         users |= {str(u.discord_id): u for u in db.query(User).filter(User.discord_id.in_(chunk)).all()}
     memberships: dict[int, UserOrganizationMembership] = {}
-    user_ids = [int(cast(int, u.id)) for u in users.values()]
+    user_ids = [int(u.id) for u in users.values()]
     for chunk in _chunks(user_ids):
         rows = (
             db.query(UserOrganizationMembership)
@@ -514,7 +514,7 @@ def sync_discord_members(db, organization_id: int, members: list[dict], dry_run:
             db.flush()
             db.add(UserOrganizationMembership(user_id=user.id, organization_id=organization_id))
             continue
-        membership = memberships.get(int(cast(int, user.id)))
+        membership = memberships.get(int(user.id))
         if membership is not None and membership.is_active:
             counts["already"] += 1
             continue

@@ -39,7 +39,7 @@ flask --app main org|jobs|config ...
 | `modules/<name>/` | One module: `README.md`, `service.py`, `api.py`, `models.py`, `jobs.py`, `tools.py`, only the files it needs |
 | `modules/registry.py`, `modules/manifest.py` | Blueprint mounts and module switches; categories, the module catalog, the modules of a new org, and model, job and tool modules |
 | `apps/` | App templates that officers create apps from on the Hosting page. No Platform code |
-| `deploy/` | The SQLite to Postgres copy script, the RunPod start script, the read-only host agent (`deploy/host-agent/`) and the This server runner (`deploy/runner/`) |
+| `deploy/` | The SQLite to Postgres copy script, the RunPod start script, the `config.js` writer and the `serve` config of the dashboard image (`deploy/frontend-config.mjs`, `deploy/dashboard-serve.json`), the read-only host agent (`deploy/host-agent/`) and the This server runner (`deploy/runner/`) |
 | `alembic/` | Migrations. Nothing creates tables at startup |
 | `tests/contract/` | Route tests, `snapshots.json`, and `routes.txt`, the list of every route |
 | `tests/test_module_layout.py` | Checks that each module is registered and documented in every place |

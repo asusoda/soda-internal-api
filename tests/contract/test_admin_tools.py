@@ -103,6 +103,7 @@ def test_pending_calls_are_audited_as_pending(client, restore_soda_config):
     db = db_connect.SessionLocal()
     try:
         entry = db.query(AuditEntry).filter_by(action="tool org.set_modules").order_by(AuditEntry.id.desc()).first()
+        assert entry is not None and entry.details is not None and entry.actor_id is not None
         assert entry.details["confirm"] == "pending"
         assert entry.actor_id.startswith("agent:test-agent#")
     finally:

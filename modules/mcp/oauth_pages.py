@@ -11,7 +11,6 @@ The pages are under the public URL of /mcp, such as https://api.example.org/mcp/
 """
 
 import html
-from typing import cast
 from urllib.parse import urlparse
 
 from anyio import to_thread
@@ -241,7 +240,7 @@ def _signed_in(db, key: str, discord_id: str):
     if not orgs:
         oauth.deny(db, row)
         return _message("Only an officer of an org can connect an MCP client. You are not an officer.", 403), None
-    consent_key = oauth.signed_in(db, row, discord_id, [cast(int, o.id) for o in orgs])
+    consent_key = oauth.signed_in(db, row, discord_id, [o.id for o in orgs])
     return _consent_page(db, row, consent_key), consent_key
 
 

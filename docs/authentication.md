@@ -98,12 +98,12 @@ To turn it on:
 
 The deploy on a push to `main` runs the migration and recreates the `mcp` container. When OAuth is on, `/mcp` returns 401 with `WWW-Authenticate: Bearer resource_metadata="...", scope="org:read"` for a request with no valid token. A client reads that URL to find the sign-in, and asks for the scopes in `scope` first.
 
-Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are at the root of the host, where clients look for them. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host, with the path of the public URL after the document name: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/mcp`. Clients look for them there. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
 
 | Route | Served by | Does |
 | --- | --- | --- |
 | `GET /.well-known/oauth-protected-resource/mcp` | API and MCP server | Protected resource metadata (RFC 9728). Names the public URL as the authorization server. `scopes_supported` is `org:read`, the scopes of a new connection |
-| `GET /.well-known/oauth-authorization-server/mcp`, `GET /.well-known/oauth-authorization-server` | API and MCP server | Authorization server metadata (RFC 8414). The issuer is the public URL |
+| `GET /.well-known/oauth-authorization-server/mcp`, `GET /.well-known/oauth-authorization-server` | API and MCP server | Authorization server metadata (RFC 8414). The issuer is the public URL. A client that follows the MCP spec reads the first path. Composio reads only the second, and refuses the metadata unless the issuer is the public URL, so the second path has the same document |
 | `POST /mcp/register` | MCP server | Registers a client. Returns `client_id`, and `client_secret` unless `token_endpoint_auth_method` is `none`. A client with a Client ID Metadata Document does not use it |
 | `GET /mcp/authorize` | MCP server | Starts the sign-in. Needs PKCE with `S256` |
 | `GET /mcp/oauth/login`, `GET /mcp/oauth/callback` | MCP server | Discord sign-in, then the consent page |
@@ -182,6 +182,10 @@ A new connection asks for `org:read` (the scope hint). An OAuth token also sees,
 Other machine tokens get no step-up: they see only the tools of their scopes, and a tool outside them gets the same answer as an unknown tool. The tools of connected services (integrations) also get no step-up.
 
 Each sign-in makes a new connection. The connection that the client had before stays on the Tokens page until its refresh token expires or an officer revokes it.
+
+### Refused registrations
+
+A client often shows only a general error, such as "Failed to register dynamic client", when `/mcp/register` refuses it. So the MCP server logs each refused registration as a warning: `client registration refused ip=... status=... answer=... request=...`. `answer` is the error that the client got. `request` has the client name, redirect URIs, `token_endpoint_auth_method`, grant and response types, `application_type`, `scope`, `client_uri` and `software_id`, and the names of the other fields. It never has the values of secrets or keys. Each URL in the line is cut to scheme, host, port and path, because a user, password, query or fragment can hold a credential. Read it with `podman logs soda-mcp 2>&1 | grep "registration refused"`.
 
 ### Rate limits
 

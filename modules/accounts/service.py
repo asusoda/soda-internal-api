@@ -9,7 +9,6 @@ token when they call the provider for the member; the platform refreshes it when
 
 import datetime
 import secrets as token_bytes
-from typing import cast
 
 from core import secrets
 from core.errors import ServiceError
@@ -90,7 +89,7 @@ def finish_login(db, state: str, provider_name: str, code: str, session_discord_
         raise AccountError("This link has expired or was already used. Ask for a new one.", 404)
     if session_discord_id is None or not token_bytes.compare_digest(str(login.discord_id), session_discord_id):
         raise AccountError("Finish the login in the same browser you started it in.", 403)
-    org_id, discord_id = cast(int, login.organization_id), str(login.discord_id)
+    org_id, discord_id = login.organization_id, str(login.discord_id)
     db.delete(login)
     db.commit()
     try:

@@ -11,7 +11,6 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import cast
 from urllib.parse import urlsplit
 
 from sqlalchemy import case, func
@@ -120,10 +119,8 @@ def _fields(db, org_id: int, body: dict, monitor: UptimeMonitor | None) -> dict:
         "target_kind": kind,
         "target": target,
         "expected_status": expected,
-        "timeout_seconds": _int(body, "timeout_seconds", cast(int, old.timeout_seconds) if old else 10, TIMEOUT_RANGE),
-        "interval_minutes": _int(
-            body, "interval_minutes", cast(int, old.interval_minutes) if old else 5, INTERVAL_RANGE
-        ),
+        "timeout_seconds": _int(body, "timeout_seconds", old.timeout_seconds if old else 10, TIMEOUT_RANGE),
+        "interval_minutes": _int(body, "interval_minutes", old.interval_minutes if old else 5, INTERVAL_RANGE),
         "enabled": enabled,
     }
 
@@ -197,13 +194,10 @@ def _describe(monitor: UptimeMonitor, recent: list[UptimeCheck], day: float | No
 
 def _describe_all(db, monitors: list[UptimeMonitor], limit: int, now: datetime.datetime | None = None) -> list[dict]:
     now = now or utcnow()
-    ids = [cast(int, m.id) for m in monitors]
+    ids = [m.id for m in monitors]
     day = _uptime(db, ids, now - datetime.timedelta(days=1))
     week = _uptime(db, ids, now - datetime.timedelta(days=7))
-    return [
-        _describe(m, _recent(db, cast(int, m.id), limit), day.get(cast(int, m.id)), week.get(cast(int, m.id)))
-        for m in monitors
-    ]
+    return [_describe(m, _recent(db, m.id, limit), day.get(m.id), week.get(m.id)) for m in monitors]
 
 
 def list_monitors(db, org_id: int) -> list[dict]:
@@ -298,7 +292,7 @@ def delete_monitors(db, org_id: int, monitor_ids: list[int]) -> dict:
         db.query(UptimeCheck).filter_by(monitor_id=monitor.id).delete()
         db.delete(monitor)
     db.commit()
-    return {"deleted": [cast(int, m.id) for m in monitors]}
+    return {"deleted": [m.id for m in monitors]}
 
 
 def _app_url(app: App) -> tuple[str | None, str | None]:
@@ -371,7 +365,7 @@ def _announce(monitor: UptimeMonitor, check: UptimeCheck) -> None:
         fields=tuple(fields),
         color=webhooks.GREEN if up else webhooks.RED,
     )
-    webhooks.emit(cast(int, monitor.organization_id), "monitor.up" if up else "monitor.down", message)
+    webhooks.emit(monitor.organization_id, "monitor.up" if up else "monitor.down", message)
 
 
 def check(db, monitors: list[UptimeMonitor], now: datetime.datetime | None = None) -> list[dict]:
@@ -382,7 +376,7 @@ def check(db, monitors: list[UptimeMonitor], now: datetime.datetime | None = Non
     now = now or utcnow()
     jobs = []
     for monitor in monitors:
-        jobs.append((_target(db, monitor), cast(int, monitor.timeout_seconds)))
+        jobs.append((_target(db, monitor), monitor.timeout_seconds))
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(_run, jobs))
     changed = []

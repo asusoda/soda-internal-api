@@ -6,6 +6,8 @@ runs here instead, as the `bot` compose service, from the same image as the API.
 """
 
 import asyncio
+import contextlib
+import signal
 import sys
 
 import discord
@@ -27,6 +29,17 @@ def main() -> int:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     bot = create_bot(loop)
+    # As PID 1 in its container, the process ignores SIGTERM with no handler, and `podman stop` waits 10s to kill it.
+    # Windows has no add_signal_handler.
+    # The loop keeps only a weak reference to a task, so close_tasks holds it. A second SIGTERM does nothing.
+    close_tasks: set[asyncio.Task] = set()
+
+    def on_sigterm() -> None:
+        if not close_tasks:
+            close_tasks.add(loop.create_task(bot.close()))
+
+    with contextlib.suppress(NotImplementedError):
+        loop.add_signal_handler(signal.SIGTERM, on_sigterm)
     try:
         logger.info("Starting Discord bot process")
         loop.run_until_complete(bot.start(config.BOT_TOKEN))
