@@ -1446,3 +1446,17 @@ def test_a_large_registration_passes_whole_and_is_not_kept(oauth_client, caplog,
     assert response.status_code == 400 and response.json()["error"] == "invalid_redirect_uri"
     line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
     assert "body larger than 100 bytes" in line
+
+
+def test_registration_log_cuts_urls_with_escaped_characters(oauth_client, caplog):
+    import logging
+
+    body = {
+        "redirect_uris": ["cursor://x/cb?a=1\\&token=redirect-secret"],
+        "client_uri": "https://x.test/?a=1\\&token=uri-secret",
+    }
+    with caplog.at_level(logging.WARNING, logger="modules.mcp.edges"):
+        assert oauth_client.post("/mcp/register", json=body).status_code == 400
+    line = next(r.getMessage() for r in caplog.records if "client registration refused" in r.getMessage())
+    assert "https://x.test/?…" in line and "cursor://x/cb?…" in line
+    assert "secret" not in caplog.text

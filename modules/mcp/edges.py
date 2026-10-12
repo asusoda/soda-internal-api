@@ -245,8 +245,9 @@ LOGGED_FIELDS = (
     "software_id",
 )
 MAX_LOGGED_BODY = 64 * 1024
-# A URL in a log line: a scheme, then anything up to a space, quote or bracket
-URL_IN_TEXT = re.compile(r"""\b[A-Za-z][A-Za-z0-9+.\-]*:/[^\s"'\\<>]*""")
+# A URL in a log line: a scheme, then anything up to a space, quote or bracket. It runs through
+# backslashes, so an escaped character cannot end a URL early and leave its query behind
+URL_IN_TEXT = re.compile(r"""\b[A-Za-z][A-Za-z0-9+.\-]*:/[^\s"'<>]*""")
 
 
 def redact_urls(text: str) -> str:
@@ -267,6 +268,25 @@ def redact_urls(text: str) -> str:
     return URL_IN_TEXT.sub(cut, text)
 
 
+def _cut_values(value):
+    """Each string in a JSON value with its URLs cut, before json.dumps escapes anything."""
+    if isinstance(value, str):
+        return redact_urls(value)
+    if isinstance(value, list):
+        return [_cut_values(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _cut_values(v) for k, v in value.items()}
+    return value
+
+
+def _cut_answer(text: str) -> str:
+    """The error that the client got, with its URLs cut. Text that is not JSON is cut as text."""
+    try:
+        return json.dumps(_cut_values(json.loads(text)))
+    except ValueError:
+        return redact_urls(text)
+
+
 def registration_summary(body: bytes) -> str:
     """The safe part of a registration request: some field values, and the names of the other fields."""
     try:
@@ -276,7 +296,7 @@ def registration_summary(body: bytes) -> str:
     if not isinstance(request, dict):
         return f"body is a JSON {type(request).__name__}, not an object"
     fields = cast(dict, request)
-    shown = {k: fields[k] for k in LOGGED_FIELDS if k in fields}
+    shown = {k: _cut_values(fields[k]) for k in LOGGED_FIELDS if k in fields}
     others = sorted(str(k) for k in fields if k not in LOGGED_FIELDS)
     # json.dumps escapes newlines and other control characters, so a field name cannot forge a log line
     return redact_urls(f"{json.dumps(shown, default=str)[:1000]} other fields: {json.dumps(others)[:500]}")
@@ -320,6 +340,6 @@ class RegistrationLog:
                 "client registration refused ip=%s status=%s answer=%s request=%s",
                 client,
                 answer["status"],
-                redact_urls(answer["body"][:500].decode("utf-8", "replace")),
+                _cut_answer(answer["body"].decode("utf-8", "replace"))[:500],
                 request,
             )
