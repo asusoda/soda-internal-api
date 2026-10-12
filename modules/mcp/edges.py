@@ -225,7 +225,7 @@ class IssuerOnErrors:
                         location = value.decode("latin-1")
                         query = parse_qs(urlsplit(location).query)
                         if "error" in query and "iss" not in query:
-                            value = construct_redirect_uri(location, iss=oauth.issuer_url()).encode("latin-1")
+                            value = construct_redirect_uri(location, iss=oauth.public_url()).encode("latin-1")
                     headers.append((key, value))
                 message = {**message, "headers": headers}
             await send(message)

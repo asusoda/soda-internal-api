@@ -271,7 +271,7 @@ def _decide(db, key: str, action: str, org: str, scopes: list[str], limits: dict
     redirect_uri, state, discord_id = str(row.redirect_uri), oauth.optional_text(row.state), str(row.discord_id)
     if action != "approve":
         oauth.deny(db, row)
-        location = construct_redirect_uri(redirect_uri, error="access_denied", state=state, iss=oauth.issuer_url())
+        location = construct_redirect_uri(redirect_uri, error="access_denied", state=state, iss=oauth.public_url())
         return RedirectResponse(location, 303), False
     try:
         org_id = int(org)
@@ -292,7 +292,7 @@ def _decide(db, key: str, action: str, org: str, scopes: list[str], limits: dict
         details={"client_id": str(row.client_id), "scopes": oauth.strings(row.scopes), "limits": row.limits or {}},
     )
     # iss (RFC 9207) lets a client that uses more than one authorization server check where the code came from
-    location = construct_redirect_uri(redirect_uri, code=code, state=state, iss=oauth.issuer_url())
+    location = construct_redirect_uri(redirect_uri, code=code, state=state, iss=oauth.public_url())
     return RedirectResponse(location, 303), False
 
 

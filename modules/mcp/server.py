@@ -134,7 +134,7 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
     # From strings, so the issuer keeps the URL as written: clients compare it as a string (RFC 8414)
     auth = AuthSettings.model_validate(
         {
-            "issuer_url": oauth.issuer_url(),
+            "issuer_url": public,
             "resource_server_url": public,
             "client_registration_options": oauth.REGISTRATION,
             "revocation_options": oauth.REVOCATION,
@@ -162,7 +162,12 @@ def build_app(host: str = "0.0.0.0"):  # nosec B104 - the container binds all in
         _client_route("/token", TokenHandler(provider, authenticator).handle),
         _client_route("/revoke", functools.partial(_revoke, provider, authenticator)),
     ]
-    root_metadata = [Route(oauth.server_metadata_path(), endpoint=metadata_route, methods=["GET", "OPTIONS"])]
+    oauth_routes.append(
+        Route("/.well-known/oauth-authorization-server", endpoint=metadata_route, methods=["GET", "OPTIONS"])
+    )
+    root_metadata = [
+        Route(where, endpoint=metadata_route, methods=["GET", "OPTIONS"]) for where in oauth.server_metadata_paths()
+    ]
     app = server.streamable_http_app(
         streamable_http_path=path,
         stateless_http=True,
