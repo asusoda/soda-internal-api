@@ -3,7 +3,7 @@
 from functools import partial
 from typing import cast
 
-from flask import Blueprint, g
+from flask import Blueprint, g, request
 
 from core.http.responses import json_body
 from modules.auth.routes import machine_route
@@ -75,6 +75,18 @@ def list_deployments(db, org, name):
 @_route("/<string:name>/pod", "apps:read", ["GET"])
 def get_pod(db, org, name):
     return {"pod": service.pod(db, _org_id(org), name)}
+
+
+@_route("/<string:name>/action", "apps:manage", ["POST"])
+def app_action(db, org, name):
+    """Start, stop or restart the app. Body: {"action": "restart"}."""
+    return service.app_action(db, _org_id(org), name, json_body().get("action"))
+
+
+@_route("/<string:name>/logs", "apps:read", ["GET"])
+def app_logs(db, org, name):
+    """The last lines of the app's output, ?lines=1..1000 (This server apps)."""
+    return service.app_logs(db, _org_id(org), name, request.args.get("lines", 200, type=int))
 
 
 @_route("/<string:name>/deploy", "apps:deploy", ["POST"])

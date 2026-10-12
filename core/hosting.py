@@ -80,8 +80,9 @@ class HostingProvider(Protocol):
         """The address of an http port of a pod that Platform can reach. Raises HostingError when there is none."""
         ...
 
-    def healthy(self, pod_id: str, port: int, path: str) -> bool:
-        """Whether the pod answers path on port with a status below 400."""
+    def healthy(self, pod_id: str, port: int, path: str | None) -> bool:
+        """Whether the pod answers path on port with a status below 400. path None checks that the port accepts a
+        connection."""
         ...
 
     def validate(self, manifest: dict) -> None:

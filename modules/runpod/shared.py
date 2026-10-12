@@ -118,8 +118,10 @@ def secret_name(app_name: str, key: str) -> str:
 
 
 def for_org(db, org_id: int) -> list[dict]:
-    """The deployed shared apps, and whether the org subscribes and whom it invited."""
+    """The deployed shared apps that orgs subscribe to (those with an access kind), and whether the org subscribes
+    and whom it invited. Others, such as the embedding server, are the deployment's own."""
     apps = db.query(App).filter(App.organization_id.is_(None), App.current_tag.isnot(None)).order_by(App.name).all()
+    apps = [a for a in apps if (_manifest(a).get("access") or {}).get("kind")]
     mine = {s.app_id: s for s in db.query(SharedAppSubscription).filter_by(organization_id=org_id).all()}
     out = []
     for app in apps:
@@ -183,6 +185,8 @@ def subscribe(db, org_id: int, name: str, emails: Any, actor: str | None) -> dic
     if not app.current_tag:
         raise SharedAppError("This shared app is not deployed yet", 409)
     access = (_manifest(app).get("access") or {}).get("kind")
+    if not access:
+        raise SharedAppError("Orgs do not subscribe to this shared app", 409)
     chosen = _emails(emails) if access else []
     results = ACCESS[access](db, app, chosen) if access else {}
     sub = db.query(SharedAppSubscription).filter_by(app_id=app.id, organization_id=org_id).first()

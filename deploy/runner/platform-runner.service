@@ -8,6 +8,9 @@ Type=simple
 ExecStart=/usr/bin/python3 /var/www/soda-internal-api/deploy/runner/platform_runner.py --config /etc/platform-runner.json
 Restart=always
 RestartSec=5
+# Stopping or restarting the runner must not stop the app containers it started: podman's conmon processes
+# start in this unit's cgroup
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target

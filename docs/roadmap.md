@@ -28,7 +28,8 @@ flowchart LR
 - [ ] An address for each This server app at `<app>-<org>.apps.thesoda.io`: a wildcard DNS record and certificate. Until then an app keeps a domain that Nginx Proxy Manager sends to its published port.
 - [ ] Move SoDA's services into This server apps, one at a time (see [Operations](./operations.md#move-a-service-that-already-runs-on-the-server)). Done: wiki and wtc. Next: the website and Wayfinder, which need an image; then the CRM, which is four containers.
 - [x] Shared apps: apps the deployment owns on This server, which every org subscribes to. A vault subscription invites the org's people; each org keeps its items in its own Vaultwarden organization.
-- [ ] Move the vault (vault.thesoda.io) into a shared app, and add the embedding server with Qwen3-Embedding-0.6B as the second shared app.
+- [x] Move the vault (vault.thesoda.io) into a shared app.
+- [ ] Add the embedding server with Qwen3-Embedding-0.6B as the second shared app.
 - [ ] Templates that make several apps and link them.
 - [ ] Take `canvas_url` from the org's subscribed submodules, not the deployment.
 - [ ] Deployment-wide limits on shared submodule passages and embeddings.

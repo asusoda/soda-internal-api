@@ -90,6 +90,21 @@ const SCREENS = [
   },
   { name: 'hosting-apps', path: 'hosting' },
   {
+    name: 'hosting-app-logs',
+    path: 'hosting',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'vault', exact: true }).click();
+      await page.getByRole('button', { name: 'Logs' }).click();
+    },
+  },
+  {
+    name: 'superadmin-service',
+    path: 'admin',
+    before: async (page) => {
+      await page.getByRole('button', { name: 'crm_server', exact: true }).click();
+    },
+  },
+  {
     name: 'hosting-server-app',
     path: 'hosting',
     before: async (page) => {

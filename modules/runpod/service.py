@@ -98,6 +98,27 @@ MANIFEST_SCHEMA: dict = {
             "propertyNames": {"pattern": r"^[0-9]{1,5}$"},
             "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 65535},
         },
+        "command": {
+            "description": "This server: the command and arguments in place of the image's own",
+            "type": "array",
+            "items": {"type": "string", "maxLength": 500},
+            "maxItems": 32,
+        },
+        "workdir": {
+            "description": "This server: the working folder in the container",
+            "type": "string",
+            "pattern": r"^/[^\s]{0,250}$",
+        },
+        "group": {
+            "description": "This server: the apps of one group, the parts of one app, share a network",
+            "type": "string",
+            "pattern": r"^[a-z0-9][a-z0-9-]{0,62}$",
+        },
+        "alias": {
+            "description": "This server: the name the other parts of the group reach this app by, such as db",
+            "type": "string",
+            "pattern": r"^[a-z0-9][a-z0-9-]{0,62}$",
+        },
         "volumes": {
             "description": "This server: a named folder of the app, or a host path the server allows for the org",
             "type": "array",
@@ -125,8 +146,16 @@ MANIFEST_SCHEMA: dict = {
             "properties": {
                 "port": {"type": "integer", "minimum": 1, "maximum": 65535},
                 "path": {"type": "string", "pattern": r"^/[^\s]*$"},
+                "tcp": {
+                    "description": "This server: check that the port accepts a connection, for a database",
+                    "const": True,
+                },
+                "running": {
+                    "description": "This server: healthy while the container runs, for a part with no port",
+                    "const": True,
+                },
             },
-            "required": ["port", "path"],
+            "oneOf": [{"required": ["port", "path"]}, {"required": ["port", "tcp"]}, {"required": ["running"]}],
             "additionalProperties": False,
         },
     },
@@ -420,6 +449,53 @@ def pod(db, org_id: int | None, name: str) -> dict | None:
         raise AppError(e.message, 502) from e
 
 
+ACTIONS = ("start", "stop", "restart")
+MAX_LOG_LINES = 1000
+
+
+def _deployed(db, org_id: int | None, name: str) -> tuple[App, hosting.HostingClient]:
+    app = _find(db, org_id, name)
+    if not app.pod_id:
+        raise AppError("The app is not deployed yet", 409)
+    return app, client_for(db, org_id, str(app.provider))
+
+
+def app_action(db, org_id: int | None, name: str, action: Any) -> dict:
+    """Start, stop or restart the app's pod or container. Returns the pod as its provider shows it."""
+    if action not in ACTIONS:
+        raise AppError(f"action must be one of {', '.join(ACTIONS)}")
+    app, client = _deployed(db, org_id, name)
+    pod_id = str(app.pod_id)
+    try:
+        restart = getattr(client, "restart_pod", None)
+        if action == "restart" and restart is not None:
+            restart(pod_id)
+        elif action == "restart":
+            client.stop_pod(pod_id)
+            client.start_pod(pod_id)
+        else:
+            (client.start_pod if action == "start" else client.stop_pod)(pod_id)
+        found = client.get_pod(pod_id)
+    except hosting.HostingError as e:
+        raise AppError(f"{action.capitalize()} failed: {e.message}", 502) from e
+    logger.info("app %s app=%s org=%s", action, name, org_id)
+    return {"action": action, "pod": found}
+
+
+def app_logs(db, org_id: int | None, name: str, lines: Any = 200) -> dict:
+    """The last lines of the app's output. This server only; RunPod shows logs in its own console."""
+    if not isinstance(lines, int) or isinstance(lines, bool):
+        lines = 200
+    app, client = _deployed(db, org_id, name)
+    read = getattr(client, "logs", None)
+    if read is None:
+        raise AppError(f"{_provider_of(app).title} shows logs in its own console", 409)
+    try:
+        return {"logs": read(str(app.pod_id), max(1, min(lines, MAX_LOG_LINES)))}
+    except hosting.HostingError as e:
+        raise AppError(f"Logs could not be read: {e.message}", 502) from e
+
+
 def _env(db, org_id: int | None, manifest: dict, redact: bool) -> dict[str, str]:
     env = dict(manifest.get("env") or {})
     for var, secret_name in (manifest.get("secret_env") or {}).items():
@@ -531,6 +607,13 @@ def rollback(
     return deploy(db, org_id, org_prefix, name, str(previous.tag), actor, dry_run, manifest=manifest)
 
 
+def _check(health: dict) -> str | None:
+    """The health check a provider runs: an HTTP path, None for a TCP connect, or "running" for the state alone."""
+    if health.get("running"):
+        return "running"
+    return health.get("path")
+
+
 def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     """Mark running deployments healthy when their health path answers, failed after HEALTH_TIMEOUT. Commits."""
     now = now or utcnow()
@@ -539,7 +622,7 @@ def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     running = db.query(AppDeployment, App).join(App, App.id == AppDeployment.app_id)
     for deployment, app in running.filter(AppDeployment.status == "deploying").all():
         health = _manifest(app)["health"]
-        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health["port"], health["path"]):
+        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health.get("port", 0), _check(health)):
             deployment.status, deployment.finished_at = "healthy", now
             counts["healthy"] += 1
             ended.append((app, deployment))

@@ -76,9 +76,11 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 ```
 
 - `memory` (MB) is required. It is the container's memory cap and counts against `runpod.server_memory_mb`. `cpus` is optional, default 0.5.
+- `command` (a list) replaces the image's command, and `workdir` sets the working folder.
+- `group` and `alias` join the parts of one app: the apps of one group share the network `platform-<org>-<group>`, and each part answers there to its alias, such as `db` or `redis`.
 - `publish` maps a container port to a host port, so that Nginx Proxy Manager can send a domain to it. The runner publishes it on localhost and the podman gateway only, never on a public address. The host port must be one the runner's policy gives the org, or in its port range.
 - `volumes`: `name` is a folder of the app under the runner's `data_root`. `host` is a host path that the runner's policy allows for that org. `read_only` is optional.
-- The container is named `app-<org>-<app>`, on a network of its org, with `--restart always`. Platform checks `health` from the server on the container's own address, so the health port does not have to be published.
+- The container is named `app-<org>-<app>`, on a network of its org, with `--restart always`. Platform checks `health` from the server on the container's own address, so the health port does not have to be published. For a part that does not speak HTTP, such as a database, use `"health": {"port": 5432, "tcp": true}`: the check passes when the port accepts a connection. For a part with no port, such as a worker, use `"health": {"running": true}`: healthy while the container runs. RunPod apps need a `path`.
 - Deleting the app stops and removes its container. Its data folders stay on the server.
 - Godfather does not use This server: its pods need SSH.
 
@@ -86,7 +88,7 @@ An app with `provider: server` uses these fields in place of `gpu`, `cpu`, `clou
 
 A shared app is an app that the deployment owns on This server and every org uses, such as the vault. It is an app with no org: the superadmin registers, deploys, rolls back and sets its secrets on the Shared apps card of the Superadmin page (`/api/superadmin/shared-apps`). Its container is `shared-<name>`, on the network `platform-shared`, and the runner checks it against the `shared` section of its policy. Its secrets are deployment secrets named `shared_<app>_<key>`; name them in `secret_env`.
 
-An org subscribes on the Shared tab of Explore (`PUT /api/dashboard/<org>/shared-apps/<name>/subscription` with `{"emails": [...]}`). The manifest's `access` field says what a subscription does:
+A shared app with no `access`, such as the embedding server, is the deployment's own: orgs do not see it or subscribe to it. An org subscribes on the Shared tab of Explore (`PUT /api/dashboard/<org>/shared-apps/<name>/subscription` with `{"emails": [...]}`). The manifest's `access` field says what a subscription does:
 
 | `access.kind` | A subscription |
 | --- | --- |
@@ -108,6 +110,8 @@ All routes are under `/api/apps`. They need a machine token, and the org is the 
 | `DELETE /<name>` | `apps:manage` | Removes the app record. The pod continues to run |
 | `GET /<name>/deployments` | `apps:read` | The latest 20 deployments |
 | `GET /<name>/pod` | `apps:read` | The pod as its provider shows it |
+| `POST /<name>/action` | `apps:manage` | `{"action": "start" \| "stop" \| "restart"}`. 409 when the app is not deployed |
+| `GET /<name>/logs` | `apps:read` | `?lines=1..1000`, default 200. This server apps; a RunPod app answers 409 |
 | `POST /<name>/deploy` | `apps:deploy` | `{"tag": "v1.2.0" or "sha256:...", "ref": "<git sha>", "dry_run": false}`. `ref` is only for apps with a repo; without it, Platform reads the default branch. A dry run returns the manifest and the RunPod request. 202 when the deploy starts |
 | `POST /<name>/rollback` | `apps:manage` | Deploys the newest healthy tag that is not the current tag, with the manifest of that deploy |
 

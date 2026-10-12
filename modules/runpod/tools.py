@@ -1,10 +1,11 @@
-"""App tools. Apps run on a hosting provider; RunPod is the only one."""
+"""App tools. Apps run on a hosting provider: RunPod or This server. Shared apps are the deployment's, so their
+tools work with the runpod module off."""
 
 from functools import partial
 
 from core import hosting
 from core.tools import tool as _tool
-from modules.runpod import service, templates
+from modules.runpod import service, shared, templates
 
 # Every tool here needs the runpod module on for the caller's org
 tool = partial(_tool, module="runpod")
@@ -56,7 +57,8 @@ def apps_register(db, org, caller, name: str, manifest=None, repo=None, manifest
 
 @tool(
     "apps.delete",
-    description="Forget an app. Its pod keeps running until it is terminated on its provider.",
+    description="Forget an app. On This server its container goes too; a RunPod pod keeps running until it is "
+    "terminated on RunPod.",
     scope="apps:manage",
     confirm=True,
     input_schema={"type": "object", "properties": {"name": NAME}, "required": ["name"], "additionalProperties": False},
@@ -156,3 +158,64 @@ def hosting_providers(db, org, caller):
 )
 def apps_create_from_template(db, org, caller, template: str, name: str, values=None, secrets=None, provider=None):
     return templates.create(db, int(org.id), template, name, values, secrets, provider, caller.actor)
+
+
+@tool(
+    "apps.action",
+    description="Start, stop or restart a deployed app.",
+    scope="apps:manage",
+    confirm=True,
+    input_schema={
+        "type": "object",
+        "properties": {"name": NAME, "action": {"enum": list(service.ACTIONS)}},
+        "required": ["name", "action"],
+        "additionalProperties": False,
+    },
+)
+def apps_action(db, org, caller, name: str, action: str):
+    return service.app_action(db, int(org.id), name, action)
+
+
+@tool(
+    "apps.logs",
+    description="The last lines of a This server app's output.",
+    scope="apps:read",
+    input_schema={
+        "type": "object",
+        "properties": {"name": NAME, "lines": {"type": "integer", "minimum": 1, "maximum": service.MAX_LOG_LINES}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+)
+def apps_logs(db, org, caller, name: str, lines: int = 200):
+    return service.app_logs(db, int(org.id), name, lines)
+
+
+@_tool(
+    "shared_apps.list",
+    description="The shared apps the deployment runs for every org, such as the vault: what each is, whether the org "
+    "subscribes, and whom it invited.",
+    scope="submodules:read",
+)
+def shared_apps_list(db, org, caller):
+    return {"apps": shared.for_org(db, int(org.id))}
+
+
+@_tool(
+    "shared_apps.subscribe",
+    description="Subscribe the org to a shared app and invite people by email. For the vault, each person gets an "
+    "invite and sets their own master password.",
+    scope="submodules:manage",
+    confirm=True,
+    input_schema={
+        "type": "object",
+        "properties": {
+            "name": NAME,
+            "emails": {"type": "array", "items": {"type": "string", "maxLength": 254}, "maxItems": shared.MAX_EMAILS},
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+)
+def shared_apps_subscribe(db, org, caller, name: str, emails=None):
+    return shared.subscribe(db, int(org.id), name, emails, caller.actor)

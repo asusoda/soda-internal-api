@@ -174,3 +174,29 @@ def test_only_the_superadmin_manages_shared_apps_and_orgs_cannot_use_access(clie
     assert own.status_code == 400 and "only for shared apps" in own.get_json()["error"]
     # A shared app that is not deployed is not offered to orgs
     assert client.get("/api/dashboard/soda/shared-apps", headers=officer_headers).get_json() == {"apps": []}
+
+
+def test_an_agent_lists_and_subscribes_with_tools(client, superadmin, runner, vault, cleanup):
+    from .test_admin_tools import _call, _issue
+
+    _deploy(client, superadmin, vault)
+    reader, manager = _issue("submodules:read"), _issue("submodules:manage")
+    listed = _call(client, reader, "shared_apps.list").get_json()["result"]["apps"]
+    assert [a["name"] for a in listed] == ["vault"]
+    unconfirmed = _call(client, manager, "shared_apps.subscribe", name="vault", emails=["ada@example.org"])
+    assert unconfirmed.get_json()["result"].get("confirm_required") and vault.invited == []
+    done = _call(client, manager, "shared_apps.subscribe", name="vault", emails=["ada@example.org"], confirm=True)
+    assert done.get_json()["result"]["results"] == {"ada@example.org": "invited"}
+
+
+def test_a_shared_app_without_access_is_the_deployments_own(client, superadmin, officer_headers, runner, cleanup):
+    internal = {k: v for k, v in VAULT.items() if k not in ("access", "secret_env")}
+    assert client.put(f"{ADMIN}/embeddings", json={"manifest": internal}, headers=superadmin).status_code == 200
+    assert client.post(f"{ADMIN}/embeddings/deploy", json={"tag": "1"}, headers=superadmin).status_code == 202
+    assert client.get("/api/dashboard/soda/shared-apps", headers=officer_headers).get_json() == {"apps": []}
+    refused = client.put(
+        "/api/dashboard/soda/shared-apps/embeddings/subscription",
+        json={"emails": ["a@example.org"]},
+        headers=officer_headers,
+    )
+    assert refused.status_code == 409

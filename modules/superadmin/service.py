@@ -4,10 +4,11 @@ services, and each org's limits. No Flask here."""
 import re
 from typing import Any, cast
 
-from core import host, jobs
+from core import host, hosting, jobs
 from core import limits as core_limits
 from core.config import superadmin_ids
 from core.errors import ServiceError
+from core.integrations import server as runner
 from core.integrations.discord import DiscordUnavailable
 from core.log import get_logger
 from core.time import utcnow
@@ -211,3 +212,54 @@ def set_service_owner(db, name: str, body: Any, actor: str | None) -> dict:
     db.commit()
     logger.info("service owner set name=%s owner=%s org=%s actor=%s", name, owner, org_id, actor)
     return {"name": name, "owner": owner, "organization_id": org_id}
+
+
+SERVICE_ACTIONS = ("start", "stop", "restart")
+
+
+def _target(name: str) -> tuple[str, str | None, str]:
+    """How to control a service of the host agent's list: ("app", org or None, container), ("containers", None,
+    name) or ("units", None, unit). Raises ServerError when the service cannot be controlled."""
+    snapshot = host.agent_snapshot()
+    found = next((s for s in (snapshot or {}).get("services", []) if s.get("name") == name), None)
+    if found is None:
+        raise ServerError("No service with this name on the server", 404)
+    if found.get("kind") == "container":
+        if name.startswith(("app-", "shared-")):
+            for app in runner.call("GET", "/apps")["apps"]:
+                if app.get("id") == name:
+                    return "app", (None if app.get("shared") else str(app["org"])), name
+        return "containers", None, name
+    if str(found.get("status") or "").startswith("systemd "):
+        return "units", None, name
+    raise ServerError("This process is not in a systemd unit, so it cannot be controlled", 409)
+
+
+def service_action(db, name: str, action: object, actor: str | None) -> dict:
+    """Start, stop or restart a service: an app container through its app, another container or unit through the
+    runner's host_control list."""
+    if action not in SERVICE_ACTIONS:
+        raise ServerError(f"action must be one of {', '.join(SERVICE_ACTIONS)}")
+    try:
+        kind, org, target = _target(name)
+        if kind == "app":
+            client = runner.ServerClient(org)
+            {"start": client.start_pod, "stop": client.stop_pod, "restart": client.restart_pod}[str(action)](target)
+            result = {"name": name, "state": str((client.get_pod(target) or {}).get("state"))}
+        else:
+            result = runner.host_action(kind, target, str(action))
+    except hosting.HostingError as e:
+        raise ServerError(e.message, e.status or 502) from e
+    logger.info("service %s name=%s actor=%s", action, name, actor)
+    return result
+
+
+def service_logs(db, name: str, lines: int = 200) -> dict:
+    """The last lines of a service's output."""
+    try:
+        kind, org, target = _target(name)
+        if kind == "app":
+            return {"logs": runner.ServerClient(org).logs(target, lines)}
+        return {"logs": runner.host_logs(kind, target, lines)}
+    except hosting.HostingError as e:
+        raise ServerError(e.message, e.status or 502) from e

@@ -8,7 +8,8 @@
   ],
   "registries": [
     "ghcr.io/",
-    "docker.io/library/nginx:"
+    "docker.io/library/nginx:",
+    "docker.io/vaultwarden/server:"
   ],
   "memory_mb_total": 1536,
   "memory_mb_max": 1024,
@@ -30,5 +31,13 @@
         3003
       ]
     }
+  },
+  "shared": {
+    "host_paths": [
+      "/var/www/vaultwarden/data"
+    ],
+    "host_ports": [
+      8081
+    ]
   }
 }

@@ -1342,6 +1342,12 @@ export function fixtures(now = Date.now()) {
       bot_ready: true,
       jobs: { backend: 'inline', queue: null },
     },
+    '/api/superadmin/server/services/crm_server/logs': {
+      logs: '2026-10-12T01:20:11Z Nest application successfully started\n2026-10-12T01:20:12Z Listening on port 3000\n2026-10-12T01:31:40Z GET /healthz 200 4ms\n',
+    },
+    [`/api/dashboard/${ORG.prefix}/apps/vault/logs`]: {
+      logs: '[INFO] Rocket has launched from http://0.0.0.0:80\n[INFO] GET /alive 200\n[INFO] GET /api/sync 200\n',
+    },
     '/api/superadmin/shared-apps': {
       apps: [
         {

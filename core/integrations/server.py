@@ -26,9 +26,8 @@ logger = get_logger(__name__)
 # The runner's socket, in the data folder that the containers mount at /app/data
 SOCKET = "data/runner.sock"
 TIMEOUT_SECONDS = 900  # a deploy can pull an image first
-# The host address that a Platform container reaches a published port on
-HOST_ADDRESS = "host.containers.internal"
-# Manifest fields that only RunPod reads
+# The podman gateway, where the runner publishes app ports and a Platform container reaches them
+HOST_ADDRESS = "10.88.0.1"
 RUNPOD_ONLY = ("gpu", "cpu", "cloud", "dataCenterIds", "mounts", "disk", "registry", "args")
 _organizations = sql_table("organizations", column("id"), column("prefix"))
 
@@ -119,6 +118,12 @@ class ServerClient:
     def delete_pod(self, pod_id: str) -> Any:
         return call("DELETE", _app_path(pod_id, self.org))
 
+    def restart_pod(self, pod_id: str) -> Any:
+        return call("POST", _app_path(pod_id, self.org) + "/restart")
+
+    def logs(self, pod_id: str, lines: int) -> str:
+        return str(call("GET", _app_path(pod_id, self.org) + f"/logs?lines={int(lines)}")["logs"])
+
 
 def _prefix(db, org_id: int | None) -> str | None:
     """The org's prefix, or None for the shared apps."""
@@ -180,11 +185,15 @@ class ServerProvider:
             raise RunnerError(f"Port {port} of {pod_id} is not published on this server", 409)
         return f"http://{HOST_ADDRESS}:{host}{path}"
 
-    def healthy(self, pod_id: str, port: int, path: str) -> bool:
-        """Whether the container answers path on port, asked by the runner on the host."""
+    def healthy(self, pod_id: str, port: int, path: str | None) -> bool:
+        """Whether the container answers path on port, or accepts a connection when path is None. The runner asks
+        from the host."""
+        query = {"port": port, "path": path} if path is not None else {"port": port, "tcp": 1}
         try:
             org = _org_of(pod_id)
-            answer = call("GET", _app_path(pod_id, org) + "/health?" + urlencode({"port": port, "path": path}))
+            if path == "running":
+                return self.status(call("GET", _app_path(pod_id, org))) == "RUNNING"
+            answer = call("GET", _app_path(pod_id, org) + "/health?" + urlencode(query))
         except RunnerError as e:
             logger.info("health check failed pod=%s error=%s", pod_id, e.message)
             return False
@@ -210,10 +219,21 @@ class ServerProvider:
             "ports": ports,
             "volumes": manifest.get("volumes") or [],
         }
-        if "cpus" in manifest:
-            body["cpus"] = manifest["cpus"]
+        for field in ("cpus", "command", "workdir", "group", "alias"):
+            if field in manifest:
+                body[field] = manifest[field]
         path = f"{_base(org_prefix)}/{app_name}"
         return ("PUT", path, body) if pod_id else ("PUT", path, {**body, "name": app_name})
 
 
 hosting.register(ServerProvider())
+
+
+def host_action(kind: str, name: str, action: str) -> dict:
+    """Start, stop or restart a container or systemd unit that is not an app, if the runner's policy lists it."""
+    return call("POST", f"/host/{quote(kind, safe='')}/{quote(name, safe='')}/{quote(action, safe='')}")
+
+
+def host_logs(kind: str, name: str, lines: int) -> str:
+    path = f"/host/{quote(kind, safe='')}/{quote(name, safe='')}/logs?lines={int(lines)}"
+    return str(call("GET", path)["logs"])

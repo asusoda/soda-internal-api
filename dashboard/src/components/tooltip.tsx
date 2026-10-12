@@ -72,9 +72,7 @@ export function Tooltip({
 
 type ChildProps = { className?: unknown; ref?: unknown; type?: unknown; 'aria-describedby'?: unknown };
 
-type RefCallback = (node: Element | null) => (() => void) | void;
-
-type BindRef = (child: unknown, trigger: unknown) => RefCallback;
+type BindRef = (child: unknown, trigger: unknown) => (node: Element | null) => (() => void) | void;
 
 // Puts the trigger on the child. A fragment gets a span. Event handlers from the child and from Base UI both run.
 function renderTrigger(
@@ -101,24 +99,23 @@ function renderTrigger(
   return cloneElement(children, merged);
 }
 
-// A new callback when the child ref or the trigger ref changes. React then cleans
-// up the previous refs and attaches these ones. The same callback stays while both refs stay.
+// A new callback when the child or trigger ref changes, so React detaches the old one.
 function useTriggerRef(): BindRef {
-  const composed = useRef<{ child: unknown; trigger: unknown; callback: RefCallback } | null>(null);
-
+  const latest = useRef({ child: undefined as unknown, trigger: undefined as unknown });
+  const composed = useRef<((node: Element | null) => (() => void) | void) | null>(null);
   return (child, trigger) => {
-    const current = composed.current;
-    if (current && current.child === child && current.trigger === trigger) return current.callback;
-    const callback: RefCallback = (node) => {
-      const cleanChild = attachRef(child, node);
-      const cleanTrigger = attachRef(trigger, node);
-      return () => {
-        cleanChild?.();
-        cleanTrigger?.();
+    if (!composed.current || latest.current.child !== child || latest.current.trigger !== trigger) {
+      latest.current = { child, trigger };
+      composed.current = (node) => {
+        const cleanChild = attachRef(child, node);
+        const cleanTrigger = attachRef(trigger, node);
+        return () => {
+          cleanChild?.();
+          cleanTrigger?.();
+        };
       };
-    };
-    composed.current = { child, trigger, callback };
-    return callback;
+    }
+    return composed.current;
   };
 }
 

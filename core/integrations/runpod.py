@@ -18,7 +18,7 @@ BASE_URL = "https://api.runpod.io/v2"
 TIMEOUT_SECONDS = 30
 SECRET_NAME = "runpod_api_key"  # nosec B105 - the name of an org secret, not its value
 # Manifest fields that only This server reads
-SERVER_ONLY = ("memory", "cpus", "publish", "volumes")
+SERVER_ONLY = ("memory", "cpus", "publish", "volumes", "command", "workdir", "group", "alias")
 
 
 class RunPodError(hosting.HostingError):
@@ -153,7 +153,9 @@ class RunPodProvider:
     def proxy_url(self, pod_id: str, port: int, path: str) -> str:
         return proxy_url(pod_id, port, path)
 
-    def healthy(self, pod_id: str, port: int, path: str) -> bool:
+    def healthy(self, pod_id: str, port: int, path: str | None) -> bool:
+        if path is None or path == "running":
+            return False
         try:
             return requests.get(proxy_url(pod_id, port, path), timeout=10).status_code < 400
         except requests.RequestException:
@@ -162,6 +164,8 @@ class RunPodProvider:
     def validate(self, manifest: dict) -> None:
         if ("gpu" in manifest) == ("cpu" in manifest):
             raise hosting.HostingError("A RunPod app needs gpu or cpu, not both")
+        if "path" not in manifest.get("health", {}):
+            raise hosting.HostingError("A RunPod app needs a health path; tcp checks are for This server")
         used = [field for field in SERVER_ONLY if field in manifest]
         if used:
             raise hosting.HostingError(f"RunPod does not take {', '.join(used)}; those fields are for This server")
