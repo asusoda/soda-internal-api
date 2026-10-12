@@ -98,12 +98,14 @@ To turn it on:
 
 The deploy on a push to `main` runs the migration and recreates the `mcp` container. When OAuth is on, `/mcp` returns 401 with `WWW-Authenticate: Bearer resource_metadata="...", scope="org:read"` for a request with no valid token. A client reads that URL to find the sign-in, and asks for the scopes in `scope` first.
 
-Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host, with the path of the public URL after the document name: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/mcp`. Clients look for them there. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are outside it, under `/.well-known/` on the host: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+
+The issuer is the host alone, such as `https://api.thesoda.io`, not the public URL. RFC 8414 puts the metadata of an issuer with no path at `/.well-known/oauth-authorization-server`. A client that follows the MCP spec reads the issuer from `authorization_servers` and looks there. A client that only reads the root of the host, such as Composio, looks there too. The routes in the metadata stay under the public URL, such as `/mcp/authorize`, and only the MCP server serves them.
 
 | Route | Served by | Does |
 | --- | --- | --- |
-| `GET /.well-known/oauth-protected-resource/mcp` | API and MCP server | Protected resource metadata (RFC 9728). Names the public URL as the authorization server. `scopes_supported` is `org:read`, the scopes of a new connection |
-| `GET /.well-known/oauth-authorization-server/mcp` | API and MCP server | Authorization server metadata (RFC 8414). The issuer is the public URL. There is no copy at `/.well-known/oauth-authorization-server`: there the issuer would have to be the host alone, and a strict client would refuse it |
+| `GET /.well-known/oauth-protected-resource/mcp` | API and MCP server | Protected resource metadata (RFC 9728). Names the issuer, the host alone, as the authorization server. `scopes_supported` is `org:read`, the scopes of a new connection |
+| `GET /.well-known/oauth-authorization-server` | API and MCP server | Authorization server metadata (RFC 8414). The issuer is the host alone, and the routes are under the public URL |
 | `POST /mcp/register` | MCP server | Registers a client. Returns `client_id`, and `client_secret` unless `token_endpoint_auth_method` is `none`. A client with a Client ID Metadata Document does not use it |
 | `GET /mcp/authorize` | MCP server | Starts the sign-in. Needs PKCE with `S256` |
 | `GET /mcp/oauth/login`, `GET /mcp/oauth/callback` | MCP server | Discord sign-in, then the consent page |
@@ -137,7 +139,7 @@ At `/mcp/token` and `/mcp/revoke`, the client sends `client_id`, `client_asserti
 
 - The algorithm is one of RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512 and EdDSA. A shared secret algorithm, such as HS256, is refused.
 - The signature matches a key of the client: the key with the `kid` of the JWT, of the key type of the algorithm.
-- `iss` and `sub` are the `client_id`. `aud` is the public URL, or its `/token` or `/revoke` URL.
+- `iss` and `sub` are the `client_id`. `aud` is the issuer, the public URL, or its `/token` or `/revoke` URL.
 - `exp` is in the future and at most 5 minutes away, with 30 seconds of leeway.
 - The `jti` was not used before. The `oauth_assertions` table keeps the hash of each `jti` until the assertion expires, for every process.
 
@@ -153,7 +155,7 @@ These steps show the flow.
 2. `/mcp/oauth/login` puts a sign-in key in a cookie and sends the browser to Discord with the key as the `state`.
 3. `/mcp/oauth/callback` checks the `state` against the cookie and gets the Discord user. It finds the active orgs where the user has the officer role. If there are none, it returns 403.
 4. The consent page shows the client name, its redirect URI, the officer's orgs, every scope and the limits of each integration. The scopes that the client asked for are selected. The cookie now holds a new consent key, so only this browser can send the form.
-5. On approve, the server sends the browser to the redirect URI with a code that is valid for 5 minutes. On deny, it sends `error=access_denied`. Both have `iss` (RFC 9207), the public URL.
+5. On approve, the server sends the browser to the redirect URI with a code that is valid for 5 minutes. On deny, it sends `error=access_denied`. Both have `iss` (RFC 9207), the issuer.
 6. The client sends the code and the PKCE verifier to `/mcp/token`. It gets an access token (`plat_...`, valid for 1 hour) and a refresh token (`platr_...`, valid for 30 days).
 
 ### Rules
