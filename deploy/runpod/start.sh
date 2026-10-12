@@ -34,6 +34,8 @@ WEB_URL="${WEB_URL:-https://${RUNPOD_POD_ID}-5000.proxy.runpod.net}"
 export DATABASE_URL="${DATABASE_URL:-sqlite:///$DATA/user.db}"
 export REDIRECT_URI="${REDIRECT_URI:-$API_URL/api/auth/callback}"
 export ACCOUNTS_BASE_URL="${ACCOUNTS_BASE_URL:-$API_URL}"
+# The MCP server has its own proxy host on the pod, so OAuth cannot use <API_URL>/mcp
+export MCP_PUBLIC_URL="${MCP_PUBLIC_URL:-https://${RUNPOD_POD_ID}-8001.proxy.runpod.net/mcp}"
 export CLIENT_URL="${CLIENT_URL:-$WEB_URL}"
 export DASHBOARD_URL="${DASHBOARD_URL:-$WEB_URL}"
 export CORS_EXTRA_ORIGINS="${CORS_EXTRA_ORIGINS:-$WEB_URL}"

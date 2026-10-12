@@ -38,6 +38,8 @@ type TokenList = {
   integrations: TokenIntegration[];
   // Platform scopes and the integrations each one calls for the agent
   uses?: Record<string, string[]>;
+  // The public URL of the MCP server (null when it has none) and whether clients can connect with OAuth
+  mcp?: { url: string | null; oauth: boolean };
 };
 
 // What each limit takes, with an example.
@@ -393,15 +395,17 @@ export function TokensPage() {
           <EmptyState icon={KeyRound} title="No active tokens" />
         )}
       </Card>
-      <McpCard />
+      <McpCard mcp={list.data?.mcp} />
     </>
   );
 }
 
-// How an agent reaches the tools of the org's modules: the MCP server and the header with a token from this page.
-function McpCard() {
+// How an agent reaches the tools of the org's modules: the MCP server, and a token from this page or OAuth.
+function McpCard({ mcp }: { mcp?: TokenList['mcp'] }) {
+  const [copied, setCopied] = useState(false);
+  const url = mcp?.url ?? null;
   const rows: [string, string][] = [
-    ['Server', '/mcp on port 8001'],
+    ['Server', url ?? '/mcp on port 8001'],
     ['Header', 'Authorization: Bearer plat_...'],
   ];
   return (
@@ -414,8 +418,32 @@ function McpCard() {
             <dd className="min-w-0 truncate">
               <Code>{value}</Code>
             </dd>
+            {label === 'Server' && url ? (
+              <Button
+                size="icon"
+                className="ml-auto shrink-0"
+                aria-label="Copy server URL"
+                onClick={() => {
+                  navigator.clipboard.writeText(url);
+                  setCopied(true);
+                }}
+              >
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              </Button>
+            ) : null}
           </div>
         ))}
+        <div className="flex items-start gap-3 px-4 py-2.5">
+          <dt className="w-16 shrink-0 pt-0.5 text-xs text-muted">OAuth</dt>
+          <dd className="min-w-0 space-y-1">
+            <Badge tone={mcp?.oauth ? 'ok' : 'muted'}>{mcp?.oauth ? 'On' : 'Off'}</Badge>
+            <p className="text-xs text-muted">
+              {mcp?.oauth
+                ? 'A client that supports OAuth needs only the server URL. An officer signs in with Discord and chooses the org, scopes and limits. Each connection shows above with the kind oauth.'
+                : 'Set ACCOUNTS_BASE_URL or MCP_PUBLIC_URL on the server to let clients connect with OAuth.'}
+            </p>
+          </dd>
+        </div>
       </dl>
     </Card>
   );

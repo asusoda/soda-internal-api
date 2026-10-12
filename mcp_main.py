@@ -1,9 +1,12 @@
 """Run the MCP server (streamable HTTP on /mcp, port MCP_PORT or 8001).
 
-Clients authenticate with a machine token: Authorization: Bearer plat_...
+Clients authenticate with a machine token: Authorization: Bearer plat_..., or get one with OAuth.
 """
 
 import os
+import socket
+import struct
+from pathlib import Path
 
 import uvicorn
 
@@ -16,13 +19,52 @@ from modules.mcp.server import build_app
 logger = get_logger(__name__)
 
 
+def default_gateway(route_file: str = "/proc/net/route") -> str | None:
+    """The IPv4 address of the default gateway, or None. In a container, the gateway is the host."""
+    try:
+        lines = Path(route_file).read_text().splitlines()[1:]
+    except OSError:
+        return None
+    for line in lines:
+        fields = line.split()
+        # Destination 00000000 is the default route; flag 0x2 marks a gateway
+        if len(fields) > 3 and fields[1] == "00000000" and int(fields[3], 16) & 0x2:
+            return socket.inet_ntoa(struct.pack("<L", int(fields[2], 16)))
+    return None
+
+
+def forwarded_allow_ips(route_file: str = "/proc/net/route") -> str:
+    """The addresses whose X-Forwarded-For uvicorn uses for the client IP.
+
+    FORWARDED_ALLOW_IPS wins, but "*" raises ValueError. Else this computer and the default gateway: the reverse proxy on the host
+    reaches the container from the gateway address, and no other client can send from it. Never "*":
+    uvicorn then takes the first X-Forwarded-For address, which the client sets.
+    """
+    configured = os.environ.get("FORWARDED_ALLOW_IPS", "")
+    if configured:
+        if "*" in [part.strip() for part in configured.split(",")]:
+            raise ValueError(
+                "FORWARDED_ALLOW_IPS must not be *: a client could then set its own IP. Name the proxy's address"
+            )
+        return configured
+    gateway = default_gateway(route_file)
+    return ",".join(["127.0.0.1", "::1", *([gateway] if gateway else [])])
+
+
 def main() -> None:
     init_sentry(config.SENTRY, "mcp")
     error_alerts.setup("mcp")
     load_tools()
     port = int(os.environ.get("MCP_PORT", "8001"))
-    logger.info("Starting MCP server on port %s", port)
-    uvicorn.run(build_app(), host="0.0.0.0", port=port, log_level="info")  # nosec B104
+    proxies = forwarded_allow_ips()
+    logger.info("Starting MCP server on port %s; X-Forwarded-For trusted from %s", port, proxies)
+    uvicorn.run(
+        build_app(),
+        host="0.0.0.0",  # nosec B104 - the container binds all interfaces; compose publishes on 127.0.0.1
+        port=port,
+        log_level="info",
+        forwarded_allow_ips=proxies,
+    )
 
 
 if __name__ == "__main__":

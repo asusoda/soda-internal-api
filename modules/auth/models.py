@@ -68,7 +68,7 @@ class MachineToken(Base):
     id = Column(Integer, primary_key=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
-    kind = Column(String(20), nullable=False)  # app, agent, cli
+    kind = Column(String(20), nullable=False)  # app, agent, cli, oauth
     scopes = Column(JSON, nullable=False)
     # Per-integration limits, such as {"github": {"repos": ["org/*"], "tools": ["github.*issue*"]}}
     limits = Column(JSON, nullable=True)

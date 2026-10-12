@@ -8,14 +8,16 @@ This page tells you how to deploy Platform, roll it back, move it to Postgres, r
 
 | Service | Command | Profile |
 | --- | --- | --- |
-| `api` | `alembic upgrade head`, then gunicorn with 1 worker and 8 threads on port 8000 | default |
+| `api` | `alembic upgrade head`, then gunicorn with 1 worker and 8 threads on `127.0.0.1:8000` | default |
 | `bot` | `python3 bot_main.py`. Run exactly one, or each scheduled post goes out more than once | default |
 | `dashboard` | The dashboard build (`Dockerfile.dashboard`) on port 5001 | default |
 | `web` | The old officer app (`Dockerfile.web`) on port 5000, for admin.thesoda.io | default |
 | `postgres` | Postgres 16 with pgvector | `postgres` |
 | `worker` | `python3 worker_main.py` | `postgres` |
-| `mcp` | `python3 mcp_main.py` on port 8001 | `mcp` |
+| `mcp` | `python3 mcp_main.py` on `127.0.0.1:8001`, reached at `<API URL>/mcp` | `mcp` |
 | `site` | The landing and docs site (`Dockerfile.site`, Next.js) on `127.0.0.1:3010`, for platform.thesoda.io | `site` |
+
+The `api` and `mcp` ports bind only `127.0.0.1`, so a client reaches them only through the reverse proxy and its TLS. Nginx Proxy Manager forwards the API host to `127.0.0.1:8000` and its `/mcp` location to `127.0.0.1:8001`.
 
 The API mounts `./data` (SQLite database and JWT keys), `./.env` and `./google-secret.json`.
 
