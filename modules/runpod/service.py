@@ -87,7 +87,7 @@ MANIFEST_SCHEMA: dict = {
         "secret_env": {
             "description": "Pod env var name to org secret name",
             "type": "object",
-            "additionalProperties": {"type": "string", "pattern": r"^app_[a-z0-9_]{1,96}$"},
+            "additionalProperties": {"type": "string", "pattern": r"^(app|shared)_[a-z0-9_]{1,96}$"},
         },
         "mounts": {"type": "object"},
         "memory": {"description": "This server: the memory cap in MB", "type": "integer", "minimum": 16},
@@ -112,6 +112,13 @@ MANIFEST_SCHEMA: dict = {
                 "required": ["path"],
                 "additionalProperties": False,
             },
+        },
+        "access": {
+            "description": "Shared apps: what an org's subscription does in the app (modules/runpod/shared.py)",
+            "type": "object",
+            "properties": {"kind": {"enum": ["vaultwarden"]}},
+            "required": ["kind"],
+            "additionalProperties": False,
         },
         "health": {
             "type": "object",
@@ -198,14 +205,14 @@ def _provider_of(app: App) -> hosting.HostingProvider:
     return _provider(str(app.provider or hosting.DEFAULT))
 
 
-def client_for(db, org_id: int, provider: str = hosting.DEFAULT) -> hosting.HostingClient:
+def client_for(db, org_id: int | None, provider: str = hosting.DEFAULT) -> hosting.HostingClient:
     found = _provider(provider)
     if not found.configured(db, org_id):
         raise AppError(f"Connect {found.title} on the Integrations page to deploy there", 503)
     return found.client(db, org_id)
 
 
-def _find(db, org_id: int, name: str) -> App:
+def _find(db, org_id: int | None, name: str) -> App:
     app = db.query(App).filter_by(organization_id=org_id, name=name).first()
     if app is None:
         raise AppError("No app with this name", 404)
@@ -246,11 +253,11 @@ def _safe_path(value: str, pattern: re.Pattern, name: str) -> str:
     return value
 
 
-def fetch_manifest(db, org_id: int, repo: str, path: str, ref: str | None) -> dict:
+def fetch_manifest(db, org_id: int | None, repo: str, path: str, ref: str | None) -> dict:
     """The manifest file in a GitHub repo at ref (the default branch when None), validated."""
     url = f"https://api.github.com/repos/{repo}/contents/{quote(path)}"
     headers = {"Accept": "application/vnd.github.raw+json", "User-Agent": "platform-runpod"}
-    token = secrets.get_secret(db, org_id, GITHUB_SECRET)
+    token = secrets.get_secret(db, org_id, GITHUB_SECRET) if org_id is not None else None
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
@@ -313,7 +320,7 @@ def _app_dict(db, app: App) -> dict:
 
 def put_app(
     db,
-    org_id: int,
+    org_id: int | None,
     name: str,
     manifest: Any = None,
     repo: Any = None,
@@ -341,10 +348,13 @@ def put_app(
     chosen = _provider(provider).name if provider is not None else None
     target = chosen or (str(app.provider) if app is not None else hosting.DEFAULT)
     _validated(manifest, target)
-    if target == SERVER:
+    if org_id is not None and "access" in manifest:
+        raise AppError("Invalid manifest: access is only for shared apps")
+    if target == SERVER and org_id is not None:
         _check_server(db, org_id, name, manifest, new or app.provider != SERVER)
     if app is None:
-        limits.check(db, org_id, APPS_LIMIT)
+        if org_id is not None:
+            limits.check(db, org_id, APPS_LIMIT)
         app = App(organization_id=org_id, name=name, provider=chosen or hosting.DEFAULT)
         db.add(app)
     elif chosen is not None and chosen != app.provider:
@@ -355,20 +365,20 @@ def put_app(
     app.manifest = json.dumps(manifest, sort_keys=True)
     app.updated_at = utcnow()
     db.commit()
-    if new:
+    if new and org_id is not None:
         uptime.watch_app(db, org_id, name)
     return _app_dict(db, app)
 
 
-def list_apps(db, org_id: int) -> list[dict]:
+def list_apps(db, org_id: int | None) -> list[dict]:
     return [_app_dict(db, a) for a in db.query(App).filter_by(organization_id=org_id).order_by(App.name).all()]
 
 
-def get_app(db, org_id: int, name: str) -> dict:
+def get_app(db, org_id: int | None, name: str) -> dict:
     return _app_dict(db, _find(db, org_id, name))
 
 
-def delete_app(db, org_id: int, name: str) -> dict:
+def delete_app(db, org_id: int | None, name: str) -> dict:
     """Forget the app. On This server its container goes too; a RunPod pod keeps running until it is terminated
     on RunPod. Commits."""
     app = _find(db, org_id, name)
@@ -381,13 +391,14 @@ def delete_app(db, org_id: int, name: str) -> dict:
                 raise AppError(f"The container was not removed: {e.message}", 502) from e
         pod_id = None
     db.query(AppDeployment).filter_by(app_id=app.id).delete(synchronize_session=False)
-    uptime.forget_app(db, org_id, name)
+    if org_id is not None:
+        uptime.forget_app(db, org_id, name)
     db.delete(app)
     db.commit()
     return {"deleted": True, "pod_id": pod_id}
 
 
-def deployments(db, org_id: int, name: str, limit: int = 20) -> list[dict]:
+def deployments(db, org_id: int | None, name: str, limit: int = 20) -> list[dict]:
     app = _find(db, org_id, name)
     rows = (
         db.query(AppDeployment)
@@ -399,7 +410,7 @@ def deployments(db, org_id: int, name: str, limit: int = 20) -> list[dict]:
     return [_deployment_dict(d) for d in rows]
 
 
-def pod(db, org_id: int, name: str) -> dict | None:
+def pod(db, org_id: int | None, name: str) -> dict | None:
     app = _find(db, org_id, name)
     if not app.pod_id:
         return None
@@ -409,13 +420,16 @@ def pod(db, org_id: int, name: str) -> dict | None:
         raise AppError(e.message, 502) from e
 
 
-def _env(db, org_id: int, manifest: dict, redact: bool) -> dict[str, str]:
+def _env(db, org_id: int | None, manifest: dict, redact: bool) -> dict[str, str]:
     env = dict(manifest.get("env") or {})
     for var, secret_name in (manifest.get("secret_env") or {}).items():
         if redact:
             env[var] = REDACTED
             continue
-        value = secrets.get_secret(db, org_id, secret_name)
+        if org_id is None:
+            value = secrets.get_deployment_secret(db, secret_name)
+        else:
+            value = secrets.get_secret(db, org_id, secret_name)
         if value is None:
             raise AppError(f"The org secret {secret_name} for {var} is not set", 409)
         env[var] = value
@@ -423,7 +437,7 @@ def _env(db, org_id: int, manifest: dict, redact: bool) -> dict[str, str]:
 
 
 def _request(
-    db, org_id: int, org_prefix: str, app: App, manifest: dict, tag: str, redact: bool
+    db, org_id: int | None, org_prefix: str | None, app: App, manifest: dict, tag: str, redact: bool
 ) -> tuple[str, str, dict]:
     """The provider call a deploy makes: create the pod, or change the existing one."""
     image = f"{manifest['image']}@{tag}" if tag.startswith("sha256:") else f"{manifest['image']}:{tag}"
@@ -434,8 +448,8 @@ def _request(
 
 def deploy(
     db,
-    org_id: int,
-    org_prefix: str,
+    org_id: int | None,
+    org_prefix: str | None,
     name: str,
     tag: Any,
     actor: str | None,
@@ -458,7 +472,7 @@ def deploy(
         raise AppError("ref applies only to apps registered with a repo")
     manifest = manifest if manifest is not None else _manifest(app)
     _validated(manifest, str(app.provider))
-    if app.provider == SERVER:
+    if app.provider == SERVER and org_id is not None:
         _check_server(db, org_id, name, manifest, new=False)
     if dry_run:
         method, path, body = _request(db, org_id, org_prefix, app, manifest, tag, redact=True)
@@ -500,7 +514,9 @@ def deploy(
     return {"deployment": _deployment_dict(deployment), "pod_id": app.pod_id}
 
 
-def rollback(db, org_id: int, org_prefix: str, name: str, actor: str | None, dry_run: bool = False) -> dict:
+def rollback(
+    db, org_id: int | None, org_prefix: str | None, name: str, actor: str | None, dry_run: bool = False
+) -> dict:
     """Deploy the newest healthy tag other than the current one, with the manifest it ran with."""
     app = _find(db, org_id, name)
     previous = (

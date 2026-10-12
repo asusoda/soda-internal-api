@@ -27,7 +27,7 @@ Shared content is made once for every organization, such as ASU's campus pages o
 
 ## Apps
 
-An app is a program in its own container or pod, never a Platform process, such as an org's own Discord agent or a password vault. The Hosting page deploys the organization's apps, from a manifest or a template, and rolls them back. An app runs on RunPod with the organization's own key, or on This server as a capped container that the deployment provides. Uptime watches any address, also one that Platform does not run. An app reaches Platform over MCP with a token of its organization.
+An app is a program in its own container or pod, never a Platform process, such as an org's own Discord agent or a password vault. The Hosting page deploys the organization's apps, from a manifest or a template, and rolls them back. An app runs on RunPod with the organization's own key, or on This server as a capped container that the deployment provides. A shared app, such as the vault, runs once for the whole deployment: an organization subscribes on the Shared tab of Explore and gets its own space in it. Uptime watches any address, also one that Platform does not run. An app reaches Platform over MCP with a token of its organization.
 
 ## Limits
 

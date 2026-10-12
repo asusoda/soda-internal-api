@@ -13,6 +13,7 @@ import { PublishersCard } from './publishers';
 import { ResourcesCard } from './resources';
 import { ServerCard } from './server';
 import { ServicesCard } from './services';
+import { SharedAppsCard } from './shared-apps';
 import { GuildsCard, OrganizationsCard } from './tables';
 
 type Open = { kind: 'role' | 'remove'; org: OrganizationDetail } | { kind: 'add'; guild: AvailableGuild } | null;
@@ -67,6 +68,7 @@ function Superadmin() {
       <div className="mb-6 space-y-6">
         <ServerCard />
         <ServicesCard orgs={dashboard.data ? orgs : (orgList.data ?? [])} />
+        <SharedAppsCard />
       </div>
 
       {!dashboard.error ? (

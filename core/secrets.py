@@ -1,4 +1,5 @@
-"""Per-organization secrets (API tokens an org brings for its own integrations), encrypted at rest.
+"""Per-organization secrets (API tokens an org brings for its own integrations), encrypted at rest, and the
+deployment's own secrets, such as the admin token of a shared app.
 
 Modules declare the secrets they read with declare(). Values are encrypted with Fernet using
 SECRETS_KEY; to rotate, put the new key first and keep the old one after a comma until every
@@ -38,6 +39,17 @@ class OrgSecret(Base):
     updated_by = Column(String(255), nullable=True)
 
     __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_org_secret_name"),)
+
+
+class DeploymentSecret(Base):
+    """A secret of the deployment, not of an org, such as the admin token of a shared app."""
+
+    __tablename__ = "deployment_secrets"
+
+    name = Column(String(100), primary_key=True)
+    ciphertext = Column(Text, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_by = Column(String(255), nullable=True)
 
 
 def declare(name: str, description: str) -> None:
@@ -145,3 +157,38 @@ def list_secrets(db, org_id: int) -> list[dict]:
         }
         for name, description in sorted(named.items())
     ]
+
+
+def set_deployment_secret(db, name: str, value: object, updated_by: str | None = None) -> None:
+    """Encrypt and store a secret of the deployment. Commits."""
+    if not isinstance(value, str) or not value.strip():
+        raise SecretsError("Value must be a non-empty string")
+    ciphertext = encrypt(value.strip())
+    if ciphertext is None:
+        raise SecretsError("SECRETS_KEY is not configured on this server")
+    row = db.get(DeploymentSecret, name)
+    if row is None:
+        row = DeploymentSecret(name=name)
+        db.add(row)
+    row.ciphertext, row.updated_at, row.updated_by = ciphertext, datetime.now(UTC), updated_by
+    db.commit()
+
+
+def get_deployment_secret(db, name: str) -> str | None:
+    """The decrypted value of a deployment secret, or None when it is unset or cannot be decrypted."""
+    row = db.get(DeploymentSecret, name)
+    return decrypt(str(row.ciphertext)) if row is not None else None
+
+
+def delete_deployment_secret(db, name: str) -> bool:
+    row = db.get(DeploymentSecret, name)
+    if row is None:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
+def deployment_secret_names(db, prefix: str) -> list[str]:
+    """The names of the deployment secrets that start with prefix. Never the values."""
+    return sorted(n for (n,) in db.query(DeploymentSecret.name).filter(DeploymentSecret.name.startswith(prefix)))

@@ -7,7 +7,8 @@ Unix socket in the Platform data folder. The runner is the security boundary: it
     python3 platform_runner.py --config /etc/platform-runner.json
 
 Each app is one container named app-<org>-<app>, on a network of its org (platform-<org>), with a memory and
-CPU cap. A port is published only on the bind addresses of the policy (localhost and the podman gateway, where
+CPU cap. A shared app, which the deployment owns and every org uses, is shared-<app> on platform-shared, with the
+policy's "shared" section in place of an org's. A port is published only on the bind addresses of the policy (localhost and the podman gateway, where
 Nginx Proxy Manager reaches it), never on a public address. A volume is a folder under data_root, or a host
 path that the policy allows for that org. Standard library only. See docs/operations.md, "This server runner".
 """
@@ -94,8 +95,14 @@ def load_policy_dict(policy: dict) -> dict:
     return policy
 
 
-def container_name(org: str, app: str) -> str:
-    return f"app-{org}-{app}"
+def container_name(org: str | None, app: str) -> str:
+    """app-<org>-<app>, or shared-<app> for a shared app (org None)."""
+    return f"shared-{app}" if org is None else f"app-{org}-{app}"
+
+
+def _section(policy: dict, org: str | None) -> dict:
+    """The policy entry of an org, or the shared section for a shared app."""
+    return (policy.get("shared") if org is None else policy["orgs"].get(org)) or {}
 
 
 def _inspect(name: str) -> dict | None:
@@ -133,6 +140,7 @@ def describe(info: dict) -> dict:
     return {
         "id": info["Name"].lstrip("/"),
         "org": labels.get("platform.org"),
+        "shared": labels.get("platform.shared") == "1",
         "app": labels.get("platform.app"),
         "image": (info.get("Config") or {}).get("Image"),
         "state": str(state.get("Status") or "unknown"),
@@ -143,18 +151,19 @@ def describe(info: dict) -> dict:
     }
 
 
-def _allowed_host_path(policy: dict, org: str, path: str) -> bool:
+def _allowed_host_path(policy: dict, org: str | None, path: str) -> bool:
     real = os.path.realpath(path)
-    for allowed in (policy["orgs"].get(org) or {}).get("host_paths") or []:
+    for allowed in _section(policy, org).get("host_paths") or []:
         base = os.path.realpath(allowed)
         if real == base or real.startswith(base.rstrip("/") + "/"):
             return True
     return False
 
 
-def check(policy: dict, org: str, app: str, body: dict) -> dict:
-    """The run request after the policy checks, with each volume's host path. Raises Refused."""
-    if not ORG.match(org) or not NAME.match(app):
+def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
+    """The run request after the policy checks, with each volume's host path. org None is a shared app. Raises
+    Refused."""
+    if (org is not None and not ORG.match(org)) or not NAME.match(app):
         raise Refused("org is an org prefix, and app is lowercase letters, digits and dashes")
     image = body.get("image")
     if not isinstance(image, str) or not IMAGE.match(image):
@@ -182,7 +191,7 @@ def check(policy: dict, org: str, app: str, body: dict) -> dict:
     if not isinstance(cpus, (int, float)) or isinstance(cpus, bool) or not 0.05 <= cpus <= policy["cpus_max"]:
         raise Refused(f"cpus must be from 0.05 to {policy['cpus_max']}")
 
-    org_ports = set((policy["orgs"].get(org) or {}).get("host_ports") or [])
+    org_ports = set(_section(policy, org).get("host_ports") or [])
     low, high = policy["port_range"]
     ports = []
     for port in body.get("ports") or []:
@@ -204,7 +213,8 @@ def check(policy: dict, org: str, app: str, body: dict) -> dict:
         if volume.get("name"):
             if not NAME.match(str(volume["name"])):
                 raise Refused("a volume name is lowercase letters, digits and dashes")
-            host = str(Path(policy["data_root"], org, app, str(volume["name"])))
+            # .shared cannot be an org prefix, which has no dots
+            host = str(Path(policy["data_root"], org or ".shared", app, str(volume["name"])))
         elif volume.get("host"):
             host = str(volume["host"])
             if not _allowed_host_path(policy, org, host):
@@ -215,10 +225,10 @@ def check(policy: dict, org: str, app: str, body: dict) -> dict:
     return {"image": image, "env": env, "memory_mb": memory, "cpus": float(cpus), "ports": ports, "volumes": volumes}
 
 
-def run(policy: dict, org: str, app: str, body: dict) -> dict:
+def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
     """Pull the image, then replace the app's container with one from the request. Returns the new container."""
     request = check(policy, org, app, body)
-    name, network = container_name(org, app), f"platform-{org}"
+    name, network = container_name(org, app), f"platform-{org or 'shared'}"
     with _lock:
         if not exists("image", "exists", request["image"]):
             podman("pull", "--quiet", request["image"], timeout=900)
@@ -248,7 +258,7 @@ def run(policy: dict, org: str, app: str, body: dict) -> dict:
             "--label",
             f"{LABEL}=1",
             "--label",
-            f"platform.org={org}",
+            f"platform.org={org}" if org is not None else "platform.shared=1",
             "--label",
             f"platform.app={app}",
         ]
@@ -267,7 +277,7 @@ def run(policy: dict, org: str, app: str, body: dict) -> dict:
     return describe(info)
 
 
-def health(org: str, app: str, port: int, path: str) -> dict:
+def health(org: str | None, app: str, port: int, path: str) -> dict:
     """GET path on the container's port, from the host: on 127.0.0.1 when the port is published, else on the
     container's own address."""
     info = _inspect(container_name(org, app))
@@ -331,9 +341,12 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if method == "GET" and parts == ["apps"]:
                 return self._answer(200, {"apps": [describe(i) for i in managed()]})
-            if len(parts) < 3 or parts[0] != "apps" or not ORG.match(parts[1]) or not NAME.match(parts[2]):
+            if len(parts) >= 2 and parts[0] == "shared" and NAME.match(parts[1]):
+                org, app, action = None, parts[1], (parts[2] if len(parts) > 2 else None)
+            elif len(parts) >= 3 and parts[0] == "apps" and ORG.match(parts[1]) and NAME.match(parts[2]):
+                org, app, action = parts[1], parts[2], (parts[3] if len(parts) > 3 else None)
+            else:
                 return self._answer(404, {"error": "Not found"})
-            org, app, action = parts[1], parts[2], (parts[3] if len(parts) > 3 else None)
             name = container_name(org, app)
             if method == "PUT" and action is None:
                 return self._answer(200, run(self.policy, org, app, self._body()))

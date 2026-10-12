@@ -98,7 +98,9 @@ def containers(root: str, total: int | None, domains: dict[int, list[str]]) -> l
                 "image": c.get("Image"),
                 "project": labels.get("com.docker.compose.project"),
                 # A container that Platform's own compose file starts
-                "platform": labels.get("com.docker.compose.project.working_dir") == root,
+                # Platform's own compose containers, and the shared apps that the runner starts for the deployment
+                "platform": labels.get("com.docker.compose.project.working_dir") == root
+                or labels.get("platform.shared") == "1",
                 # The org of a container that Platform starts for an app
                 "org": labels.get("platform.org"),
                 "memory_used": size(used),

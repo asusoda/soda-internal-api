@@ -8,6 +8,8 @@ from modules.auth.decorators import superadmin_required
 from modules.auth.routes import respond
 from modules.auth.tokens import token_manager
 from modules.organizations.models import Organization
+from modules.runpod import service as apps
+from modules.runpod import shared
 
 from . import service
 
@@ -390,3 +392,81 @@ def get_submodules():
         return respond(db, lambda db: {"submodules": submodules.overview(db)})
     finally:
         db.close()
+
+
+def _superadmin_actor() -> str:
+    principal = current_principal()
+    return f"superadmin:{principal.discord_id}" if principal and principal.discord_id else "superadmin"
+
+
+def _shared(work):
+    db = next(db_connect.get_db())
+    try:
+        return respond(db, work)
+    finally:
+        db.close()
+
+
+@superadmin_blueprint.route("/shared-apps", methods=["GET"])
+@superadmin_required
+def list_shared_apps():
+    """The shared apps: apps the deployment owns on This server, which orgs subscribe to."""
+    return _shared(lambda db: {"apps": shared.list_shared(db)})
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>", methods=["GET"])
+@superadmin_required
+def get_shared_app(name):
+    """One shared app with its deployments, the names of its secrets and its subscribers."""
+    return _shared(lambda db: shared.get_shared(db, name))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>", methods=["PUT"])
+@superadmin_required
+def put_shared_app(name):
+    """Register a shared app or replace its manifest. Body: {"manifest": {...}}. It runs on This server."""
+    manifest = (request.get_json(silent=True) or {}).get("manifest")
+    return _shared(lambda db: shared.put_shared(db, name, manifest))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>", methods=["DELETE"])
+@superadmin_required
+def delete_shared_app(name):
+    """Remove a shared app and its container. Its data folders stay on the server."""
+    return _shared(lambda db: apps.delete_app(db, None, name))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/deploy", methods=["POST"])
+@superadmin_required
+def deploy_shared_app(name):
+    """Deploy a tag of a shared app. Body: {"tag": "1.2.3", "dry_run": false}."""
+    body = request.get_json(silent=True) or {}
+    actor = _superadmin_actor()
+    return _shared(
+        lambda db: (apps.deploy(db, None, None, name, body.get("tag"), actor, bool(body.get("dry_run"))), 202)
+    )
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/rollback", methods=["POST"])
+@superadmin_required
+def rollback_shared_app(name):
+    """Deploy the last healthy tag before the current one."""
+    body = request.get_json(silent=True) or {}
+    actor = _superadmin_actor()
+    return _shared(lambda db: (apps.rollback(db, None, None, name, actor, bool(body.get("dry_run"))), 202))
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/pod", methods=["GET"])
+@superadmin_required
+def shared_app_pod(name):
+    """The container of a shared app, as the runner describes it."""
+    return _shared(lambda db: {"pod": apps.pod(db, None, name)})
+
+
+@superadmin_blueprint.route("/shared-apps/<string:name>/secrets", methods=["PUT"])
+@superadmin_required
+def put_shared_app_secrets(name):
+    """Save secrets of a shared app. Body: {"secrets": {"ADMIN_TOKEN": "...", "OLD_KEY": null}}."""
+    values = (request.get_json(silent=True) or {}).get("secrets")
+    actor = _superadmin_actor()
+    return _shared(lambda db: shared.set_secrets(db, name, values, actor))
