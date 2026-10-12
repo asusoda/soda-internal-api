@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider, DeleteButton, useConfirm } from './confirm';
@@ -44,7 +44,9 @@ describe('ConfirmProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Delete item' }));
     expect(await screen.findByRole('alertdialog')).toBeTruthy();
 
-    view.rerender(page(false));
+    await act(async () => {
+      view.rerender(page(false));
+    });
 
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(onDelete).not.toHaveBeenCalled();

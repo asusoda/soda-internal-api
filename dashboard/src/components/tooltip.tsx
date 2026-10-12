@@ -1,6 +1,6 @@
 import { mergeProps } from '@base-ui/react/merge-props';
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
-import { cloneElement, isValidElement, type ReactNode, useId } from 'react';
+import { cloneElement, Fragment, isValidElement, type ReactNode, useId, useRef } from 'react';
 
 type Side = 'right' | 'top' | 'bottom';
 
@@ -41,11 +41,12 @@ export function Tooltip({
   children: ReactNode;
 }) {
   const id = useId();
+  const bindRef = useTriggerRef();
   return (
     <BaseTooltip.Root disabled={disabled} disableHoverablePopup>
       <BaseTooltip.Trigger
         delay={HOVER_MS}
-        render={(props, state: TriggerState) => renderTrigger(children, props, state.open ? id : undefined)}
+        render={(props, state: TriggerState) => renderTrigger(children, props, state.open ? id : undefined, bindRef)}
       />
       <BaseTooltip.Portal>
         <BaseTooltip.Positioner side={side} sideOffset={side === 'right' ? 8 : 6} className="z-50">
@@ -69,34 +70,76 @@ export function Tooltip({
   );
 }
 
-type ChildProps = { className?: unknown; ref?: unknown; type?: unknown };
+type ChildProps = { className?: unknown; ref?: unknown; type?: unknown; 'aria-describedby'?: unknown };
 
-// Puts the trigger on the child. Event handlers from the child and from Base UI both run.
-function renderTrigger(children: ReactNode, props: React.ComponentPropsWithRef<'button'>, describedBy: string | undefined) {
-  const described = [props['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined;
-  const triggerProps = { ...props, 'aria-describedby': described };
-  if (isValidElement<ChildProps>(children)) {
-    const childProps = children.props;
-    const merged = mergeProps(childProps, triggerProps);
-    merged.ref = composeRef(childProps.ref, props.ref);
-    if (typeof childProps.className === 'function') merged.className = childProps.className;
-    if (children.type !== 'button') delete merged.type;
-    return cloneElement(children, merged);
+type BindRef = (child: unknown, trigger: unknown) => (node: Element | null) => (() => void) | void;
+
+// Puts the trigger on the child. A fragment gets a span. Event handlers from the child and from Base UI both run.
+function renderTrigger(
+  children: ReactNode,
+  props: React.ComponentPropsWithRef<'button'>,
+  describedBy: string | undefined,
+  bindRef: BindRef,
+) {
+  if (!isValidElement<ChildProps>(children) || children.type === Fragment) {
+    const { type: _type, ref: _ref, ...spanProps } = props;
+    return (
+      <span {...spanProps} ref={bindRef(undefined, props.ref)} aria-describedby={joinDescribed(props['aria-describedby'], describedBy)}>
+        {children}
+      </span>
+    );
   }
-  const { type: _type, ...spanProps } = triggerProps;
-  return <span {...spanProps}>{children}</span>;
+  const childProps = children.props;
+  const { type: _triggerType, ...triggerRest } = props;
+  const described = joinDescribed(childProps['aria-describedby'], props['aria-describedby'], describedBy);
+  const triggerProps = described ? { ...triggerRest, 'aria-describedby': described } : triggerRest;
+  const merged = mergeProps(childProps, triggerProps);
+  merged.ref = bindRef(childProps.ref, props.ref);
+  if (typeof childProps.className === 'function') merged.className = childProps.className;
+  return cloneElement(children, merged);
 }
 
-function composeRef(childRef: unknown, triggerRef: unknown) {
-  if (!childRef) return triggerRef;
-  if (!triggerRef) return childRef;
-  return (node: Element | null) => {
-    writeRef(childRef, node);
-    writeRef(triggerRef, node);
+// One ref callback for the life of the tooltip, so a re-render does not detach the child ref.
+function useTriggerRef(): BindRef {
+  const latest = useRef({ child: undefined as unknown, trigger: undefined as unknown });
+  const composed = useRef<((node: Element | null) => (() => void) | void) | null>(null);
+  if (!composed.current) {
+    composed.current = (node) => {
+      const cleanChild = attachRef(latest.current.child, node);
+      const cleanTrigger = attachRef(latest.current.trigger, node);
+      return () => {
+        cleanChild?.();
+        cleanTrigger?.();
+      };
+    };
+  }
+  return (child, trigger) => {
+    latest.current.child = child;
+    latest.current.trigger = trigger;
+    return composed.current as (node: Element | null) => (() => void) | void;
   };
 }
 
-function writeRef(ref: unknown, node: Element | null) {
-  if (typeof ref === 'function') ref(node);
-  else if (ref && typeof ref === 'object' && 'current' in ref) (ref as { current: Element | null }).current = node;
+function joinDescribed(...values: unknown[]): string | undefined {
+  const ids = values.flatMap((value) => (typeof value === 'string' ? value.split(/\s+/) : []));
+  const unique = ids.filter((id, index) => id && ids.indexOf(id) === index);
+  return unique.length ? unique.join(' ') : undefined;
+}
+
+// Calls the cleanup a callback ref returns, and clears an object ref.
+function attachRef(ref: unknown, node: Element | null): (() => void) | void {
+  if (typeof ref === 'function') {
+    const clean = ref(node);
+    if (typeof clean === 'function') return clean;
+    return () => {
+      ref(null);
+    };
+  }
+  if (ref && typeof ref === 'object' && 'current' in ref) {
+    const box = ref as { current: Element | null };
+    box.current = node;
+    return () => {
+      box.current = null;
+    };
+  }
 }
