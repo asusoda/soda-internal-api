@@ -16,8 +16,9 @@ afterEach(() => {
 const store = { organization: { name: 'SoDA', prefix: 'soda', description: null }, products: [] };
 const profile = { user: { name: 'Alice', email: 'alice@asu.edu' }, current_organization: { points: 50 } };
 
-function renderAt(path: string, element: ReactNode, route: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function renderAt(path: string, element: ReactNode, route: string, client = newClient()) {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
@@ -63,6 +64,18 @@ describe('member store sign-in', () => {
 
     expect(await screen.findByRole('link', { name: 'Member sign-in' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/auth\/logout$/), expect.objectContaining({ method: 'POST', credentials: 'include' }));
+  });
+
+  it('clears the cached data of every org on sign-out', async () => {
+    const user = userEvent.setup();
+    stubApi({ signedIn: true });
+    const client = newClient();
+    client.setQueryData(['member-store', 'ais', 'profile'], profile);
+    renderAt('/store/soda', <MemberStorePage />, '/store/:prefix', client);
+
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await screen.findByRole('link', { name: 'Member sign-in' });
+    expect(client.getQueryData(['member-store', 'ais', 'profile'])).toBeUndefined();
   });
 
   it('shows the error of a failed sign-in', async () => {

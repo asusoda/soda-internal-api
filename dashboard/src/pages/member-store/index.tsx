@@ -61,7 +61,8 @@ export function MemberStorePage() {
   // Ends the API session, which holds the Discord sign-in
   const signOut = useMutation({
     mutationFn: () => memberApi('/api/auth/logout', { method: 'POST', body: '{}' }),
-    onSuccess: () => client.resetQueries({ queryKey: ['member-store', prefix] }),
+    // The cache holds the stores of every org that this browser opened, so all of them are cleared
+    onSuccess: () => client.resetQueries({ queryKey: ['member-store'] }),
   });
 
   const total = cart.reduce((n, line) => n + line.product.price * line.quantity, 0);
