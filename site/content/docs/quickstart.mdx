@@ -18,10 +18,11 @@ cd bedrock
 uv sync
 doppler login
 doppler setup
+doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"
 make dev
 ```
 
-Platform gets its settings from [Doppler](https://www.doppler.com). `doppler setup` selects the project and config. Set the settings in that config before `make dev`. The values you need first are `CLIENT_ID` and `CLIENT_SECRET` from the Discord application, `BOT_TOKEN`, and `SYS_ADMIN` set to your own Discord user id.
+Platform gets its settings from [Doppler](https://www.doppler.com). `doppler setup` selects the project and config. The next command makes a read-only service token for that config: `make dev` gives the token to the containers, so it accepts only a service token. Set the settings in that config before `make dev`. The values you need first are `CLIENT_ID` and `CLIENT_SECRET` from the Discord application, `BOT_TOKEN`, and `SYS_ADMIN` set to your own Discord user id.
 
 The API runs at `http://localhost:8000` and the dashboard at `http://localhost:5001`.
 

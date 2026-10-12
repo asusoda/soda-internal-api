@@ -1,4 +1,4 @@
-.PHONY: help doppler-check doppler-check-server build up down logs shell clean deploy dev prod rollback status health discard-local-changes check ci backup migrate
+.PHONY: help doppler-check doppler-check-service build up down logs shell clean deploy dev prod rollback status health discard-local-changes check ci backup migrate
 
 # Use bash as the shell for all commands
 SHELL := /usr/bin/env bash
@@ -17,7 +17,8 @@ CONTAINER_CMD := $(shell if command -v podman > /dev/null 2>&1; then echo "podma
 # On the host, Compose reads the build args, POSTGRES_PASSWORD and the container caps from Doppler, and Alembic
 # reads DATABASE_URL. Each container gets DOPPLER_TOKEN and reads its settings itself (deploy/docker-entrypoint.sh).
 # DOPPLER_TOKEN comes from the environment, or from the Doppler CLI configuration of this directory. For deploy it
-# comes from the configuration of PROJECT_DIR. deploy and rollback accept only a service token (doppler-check-server).
+# comes from the configuration of PROJECT_DIR. Targets that start containers accept only a service token
+# (doppler-check-service).
 ifndef DOPPLER_TOKEN
 doppler_token = $(shell command -v doppler > /dev/null 2>&1 && doppler configure get token --plain --scope "$(1)" 2>/dev/null)
 DOPPLER_TOKEN := $(call doppler_token,$(CURDIR))
@@ -62,10 +63,11 @@ doppler-check:
 	@[ -n "$$DOPPLER_TOKEN" ] || { \
 		echo -e "$(RED)[ERROR]$(NC) No Doppler token. Run doppler setup in this directory, or set DOPPLER_TOKEN. See docs/operations.md."; exit 1; }
 
-# The containers get DOPPLER_TOKEN. On a server it must be a service token, which reads only one config.
-doppler-check-server: doppler-check
+# The containers get DOPPLER_TOKEN, so it must be a service token, which reads only one config
+doppler-check-service: doppler-check
 	@case "$$DOPPLER_TOKEN" in dp.st.*) ;; *) \
-		echo -e "$(RED)[ERROR]$(NC) This target needs a Doppler service token (dp.st.). See docs/operations.md, \"Settings\"."; \
+		echo -e "$(RED)[ERROR]$(NC) This target gives DOPPLER_TOKEN to the containers, so it needs a Doppler service token (dp.st.)."; \
+		echo "See docs/getting-started.md (your machine) or docs/operations.md, \"Settings\" (a server)."; \
 		exit 1 ;; esac
 
 # Build container images
@@ -91,7 +93,7 @@ build-dashboard: doppler-check
 	@DOCKER_BUILDKIT=1 $(COMPOSE_SET) build dashboard
 
 # Start services in development mode
-up: doppler-check
+up: doppler-check-service
 	@echo -e "$(GREEN)[INFO]$(NC) Starting services..."
 	@export COMMIT_HASH=$$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
 		$(COMPOSE_SET) up -d
@@ -143,7 +145,7 @@ discard-local-changes:
 # .deploy/deployed-sha stores the last commit that finished this target.
 # .deploy/rollback-sha stores that commit when a later deploy finishes, so rollback can restore it.
 # .deploy/rollback-api and .deploy/rollback-site record that this deploy tagged that image as previous.
-deploy: doppler-check-server
+deploy: doppler-check-service
 	@set -e; \
 		echo -e "$(GREEN)[INFO]$(NC) Starting deployment process..."; \
 		if [ "$$(pwd)" != "$(PROJECT_DIR)" ]; then \
@@ -359,14 +361,14 @@ deploy: doppler-check-server
 		echo -e "$(GREEN)[INFO]$(NC) Deployment completed successfully!"
 
 # Development environment
-dev: doppler-check
+dev: doppler-check-service
 	@echo -e "$(GREEN)[INFO]$(NC) Starting development environment with hot reloading..."
 	@export COMMIT_HASH=$$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
 		$(COMPOSE_SET) -f docker-compose.yml -f docker-compose.dev.yml up
 
 
 # Rollback to previous version
-rollback: doppler-check-server
+rollback: doppler-check-service
 	@echo -e "$(YELLOW)[WARNING]$(NC) Rolling back to previous version..."
 	@set -e; \
 	ROLLED=0; \

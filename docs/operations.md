@@ -29,7 +29,7 @@ Doppler holds the settings of Platform. Platform reads no `.env` file and no key
 - `IS_PROD`, `RUN_BOT_IN_API`, `LOG_FORMAT`, `FLASK_ENV`, `FLASK_DEBUG` and `GIT_COMMIT_HASH` come from the image or `docker-compose.yml`. Each one replaces a Doppler value of the same name. Doppler sets all other values.
 - `make` runs Compose and Alembic on the host in `doppler run`. Compose reads the build args, `POSTGRES_PASSWORD` and the container caps from Doppler. Alembic reads `DATABASE_URL`.
 - `make` gives `DOPPLER_TOKEN` to the containers. It reads the token from the environment, or from the Doppler CLI configuration of the project folder. For `make deploy`, the project folder is `PROJECT_DIR`.
-- `make deploy` and `make rollback` accept only a service token (`dp.st.`). A personal or CLI token can read every project, so it must not go into a container.
+- `make up`, `make dev`, `make deploy` and `make rollback` give the token to the containers, so they accept only a service token (`dp.st.`). A personal or CLI token can read every project, so it must not go into a container.
 - `doppler run` uses `--no-fallback`, so it writes no copy of the settings to the disk. If Doppler is not available, a container does not start and `make deploy` stops.
 - If a container with `IS_PROD=true` has no `DOPPLER_TOKEN`, it stops with an error.
 - `GOOGLE_SERVICE_ACCOUNT` holds the JSON key of the Google service account. It replaces `google-secret.json`.

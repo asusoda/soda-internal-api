@@ -26,7 +26,10 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
    ```bash
    doppler login
    doppler setup      # select the Platform project and your development config
+   doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"
    ```
+
+   `make up` and `make dev` give the Doppler token to the containers, so they accept only a service token. The last command makes a read-only service token for your config and keeps it for this folder. Your account token then cannot go into a container.
 
 3. In that config, set the values in the table below.
 4. Start the containers with `make dev`. The API is at http://localhost:8000, the dashboard at http://localhost:5001 and the old `web/` app at http://localhost:5000.

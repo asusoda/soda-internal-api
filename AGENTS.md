@@ -19,7 +19,7 @@ The procedures are in `.agents/skills/` (linked from `.claude/skills/`) and list
 
 ```bash
 uv sync                          # install dependencies
-doppler setup                    # select the Doppler config that holds the settings
+doppler setup                    # select the Doppler config; make up and make dev need a service token (docs/getting-started.md)
 make dev                         # start the containers with logs and the reloader
 make up | down | logs | status | shell | build
 make check                       # fix lint and format, then ty, pytest, alembic check

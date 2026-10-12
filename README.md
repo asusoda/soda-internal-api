@@ -51,6 +51,7 @@ cd platform
 uv sync
 uv run pre-commit install
 doppler login && doppler setup   # the settings: Discord app, bot token, secrets
+doppler configs tokens create local --plain | doppler configure set token --scope "$PWD"
 make dev
 ```
 
