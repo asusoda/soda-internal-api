@@ -155,10 +155,10 @@ A module declares a job in its `jobs.py` with `@job(name, cron=..., retry=...)` 
 
 Apps and agents read and change Platform data through tools. A module declares a tool in its `tools.py` with `@tool` from `core/tools.py`. Platform serves each tool two ways:
 
-- Over MCP (streamable HTTP) from `mcp_main.py`, at `<ACCOUNTS_BASE_URL>/mcp`, such as `https://api.thesoda.io/mcp`. The reverse proxy forwards it to port 8001, which binds only `127.0.0.1` on the server.
+- Over MCP (streamable HTTP) from `mcp_main.py`, at the API URL with `/mcp`, such as `https://api.thesoda.io/mcp`. The reverse proxy forwards it to port 8001, which binds only `127.0.0.1` on the server.
 - Over HTTP from the API: `GET /api/tools` lists the tools, and `POST /api/tools/<name>` calls one with the arguments as the JSON body.
 
-Both need a machine token: `Authorization: Bearer plat_...`. An MCP client can also get a token with OAuth at `<ACCOUNTS_BASE_URL>/mcp` ([authentication](./authentication.md#oauth-for-mcp-clients)). The `mcp` module is Core, so it is always on. A caller sees only the tools that its token scopes allow and whose module its org has turned on. An OAuth token also sees the module tools that need another scope, and asks for it with step-up ([authentication](./authentication.md#step-up)). The MCP card on the Tokens page of the dashboard shows the server, the header and whether OAuth is on. For other tokens, an unknown tool and a refused tool both return 404, so a token cannot find tools it may not use. A tool always acts on the caller's org. It has no org argument.
+Both need a machine token: `Authorization: Bearer plat_...`. An MCP client can also get a token with OAuth at that URL ([authentication](./authentication.md#oauth-for-mcp-clients)). The `mcp` module is Core, so it is always on. A caller sees only the tools that its token scopes allow and whose module its org has turned on. An OAuth token also sees the module tools that need another scope, and asks for it with step-up ([authentication](./authentication.md#step-up)). The MCP card on the Tokens page of the dashboard shows the server, the header and whether OAuth is on. For other tokens, an unknown tool and a refused tool both return 404, so a token cannot find tools it may not use. A tool always acts on the caller's org. It has no org argument.
 
 | Tools | Scope | Module |
 | --- | --- | --- |

@@ -3,7 +3,7 @@
 Every request carries a machine token (Authorization: Bearer plat_...). The tool list is built
 per request from that token, so a client sees only the tools its scopes and its org's modules allow.
 
-With a public URL (oauth.public_url: MCP_PUBLIC_URL, else <ACCOUNTS_BASE_URL>/mcp), the server is also
+With a public URL (oauth.public_url: MCP_PUBLIC_URL, else the API URL with /mcp), the server is also
 an OAuth authorization server (oauth.py, oauth_pages.py): a client registers itself, an officer approves
 it, and the client gets a machine token of kind oauth. /mcp then answers 401 with the protected resource
 metadata URL, so a client can find the sign-in. The OAuth routes are under the public path, such as

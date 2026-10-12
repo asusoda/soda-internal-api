@@ -145,6 +145,7 @@ def test_the_api_has_no_documents_when_oauth_is_off(client, monkeypatch):
 
     monkeypatch.setattr(config, "MCP_PUBLIC_URL", "")
     monkeypatch.delenv("ACCOUNTS_BASE_URL", raising=False)
+    monkeypatch.delenv("REDIRECT_URI", raising=False)
     assert client.get("/.well-known/oauth-protected-resource/mcp").status_code == 404
     assert client.get("/.well-known/oauth-authorization-server").status_code == 404
 
@@ -167,6 +168,30 @@ def test_public_url(monkeypatch, override, base, expected):
 
     monkeypatch.setattr(config, "MCP_PUBLIC_URL", override)
     monkeypatch.setenv("ACCOUNTS_BASE_URL", base)
+    monkeypatch.delenv("REDIRECT_URI", raising=False)
+    assert oauth.public_url() == expected
+
+
+@pytest.mark.parametrize(
+    ("accounts", "redirect", "expected"),
+    [
+        # Production has only REDIRECT_URI, the officer sign-in callback on the API
+        ("", "https://api.thesoda.io/api/auth/callback", "https://api.thesoda.io/mcp"),
+        ("", "https://api.thesoda.io/api/auth/callback/", "https://api.thesoda.io/mcp"),
+        ("https://accounts.example", "https://api.thesoda.io/api/auth/callback", "https://accounts.example/mcp"),
+        # The default of core/config.py and other paths are not an API URL
+        ("", "http://localhost:5000/callback", ""),
+        ("", "https://api.thesoda.io/other/callback", ""),
+        ("", "", ""),
+    ],
+)
+def test_public_url_from_the_sign_in_callback(monkeypatch, accounts, redirect, expected):
+    from core.config import config
+    from modules.mcp import oauth
+
+    monkeypatch.setattr(config, "MCP_PUBLIC_URL", "")
+    monkeypatch.setenv("ACCOUNTS_BASE_URL", accounts)
+    monkeypatch.setenv("REDIRECT_URI", redirect)
     assert oauth.public_url() == expected
 
 
@@ -902,6 +927,7 @@ def test_origin_is_checked_without_oauth(app, monkeypatch):
 
     monkeypatch.setattr(config, "MCP_PUBLIC_URL", "")
     monkeypatch.delenv("ACCOUNTS_BASE_URL", raising=False)
+    monkeypatch.delenv("REDIRECT_URI", raising=False)
     with TestClient(build_app(host="testserver")) as test_client:
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
         refused = test_client.post("/mcp", json=body, headers={"Origin": "https://evil.example"})

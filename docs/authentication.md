@@ -88,7 +88,7 @@ flowchart TD
 
 The MCP server is also an OAuth 2.1 authorization server, so an MCP client can connect with no token to paste. The client identifies itself with a Client ID Metadata Document, or registers itself (dynamic client registration, RFC 7591). An officer signs in with Discord and approves an org, scopes and integration limits. The client then gets a machine token of kind `oauth`. The code is in `modules/mcp/`: `oauth.py`, `oauth_pages.py`, `client_auth.py` and `edges.py`. The `mcp` SDK serves the protocol routes. The rules follow the MCP spec of 2026-07-28.
 
-The public URL of the MCP server is `<ACCOUNTS_BASE_URL>/mcp`, such as `https://api.thesoda.io/mcp`. `MCP_PUBLIC_URL` replaces it when the MCP server has its own host, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. OAuth is on when this URL uses HTTPS, or HTTP on `localhost`. If the URL is missing or not valid, the MCP server logs a warning, has no OAuth routes and works as before. The Tokens page shows the URL and whether OAuth is on.
+The public URL of the MCP server is the API URL with `/mcp`, such as `https://api.thesoda.io/mcp`. The API URL is `ACCOUNTS_BASE_URL`, else `REDIRECT_URI` without `/api/auth/callback`, so a server with officer sign-in needs no new setting. `MCP_PUBLIC_URL` replaces it when the MCP server has its own host, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. OAuth is on when this URL uses HTTPS, or HTTP on `localhost`. If the URL is missing or not valid, the MCP server logs a warning, has no OAuth routes and works as before. The Tokens page shows the URL and whether OAuth is on.
 
 To turn it on:
 

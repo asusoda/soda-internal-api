@@ -19,6 +19,7 @@ import datetime
 import hashlib
 import http.client
 import json
+import os
 import secrets
 import socket
 import ssl
@@ -148,9 +149,22 @@ def url_problem(url: str) -> str | None:
     return None
 
 
+# The path of REDIRECT_URI on the API, the officer sign-in callback
+SIGN_IN_CALLBACK = "/api/auth/callback"
+
+
+def api_base_url() -> str:
+    """The public URL of the API: ACCOUNTS_BASE_URL, else REDIRECT_URI without /api/auth/callback, else ""."""
+    if providers.base_url():
+        return providers.base_url()
+    redirect = os.environ.get("REDIRECT_URI", "").strip().rstrip("/")
+    return redirect.removesuffix(SIGN_IN_CALLBACK) if redirect.endswith(SIGN_IN_CALLBACK) else ""
+
+
 def configured_url() -> str:
-    """MCP_PUBLIC_URL, else <ACCOUNTS_BASE_URL>/mcp, else "". A URL with no path gets /mcp."""
-    url = config.MCP_PUBLIC_URL or (f"{providers.base_url()}/mcp" if providers.base_url() else "")
+    """MCP_PUBLIC_URL, else <API URL>/mcp (api_base_url), else "". A URL with no path gets /mcp."""
+    base = api_base_url()
+    url = config.MCP_PUBLIC_URL or (f"{base}/mcp" if base else "")
     if url and urlparse(url).path in ("", "/"):
         url = url.rstrip("/") + "/mcp"
     return url.rstrip("/")

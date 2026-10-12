@@ -440,7 +440,7 @@ function McpCard({ mcp }: { mcp?: TokenList['mcp'] }) {
             <p className="text-xs text-muted">
               {mcp?.oauth
                 ? 'A client that supports OAuth needs only the server URL. An officer signs in with Discord and chooses the org, scopes and limits. Each connection shows above with the kind oauth.'
-                : 'Set ACCOUNTS_BASE_URL or MCP_PUBLIC_URL on the server to let clients connect with OAuth.'}
+                : 'The server has no https API URL. Set REDIRECT_URI, ACCOUNTS_BASE_URL or MCP_PUBLIC_URL to let clients connect with OAuth.'}
             </p>
           </dd>
         </div>
