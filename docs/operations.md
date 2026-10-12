@@ -69,6 +69,8 @@ The runner lets orgs deploy apps to this server (provider `server` on the Hostin
 2. Copy `deploy/runner/platform-runner.service` to `/etc/systemd/system/`.
 3. Start it: `systemctl daemon-reload && systemctl enable --now platform-runner`.
 
+The unit has `KillMode=process`, so a restart of the runner, for example after a policy change, does not stop the app containers.
+
 The Hosting page then lists This server as a provider. An app container is named `app-<org>-<app>` and has the labels `platform.managed=1`, `platform.org` and `platform.app`, so the [host agent](#host-agent) gives it to its org.
 
 The `shared` key of the policy has `host_paths` and `host_ports` too: the ones that shared apps (no org) may use, such as the vault's folder and port. No org may use them.
