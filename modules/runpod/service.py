@@ -146,8 +146,16 @@ MANIFEST_SCHEMA: dict = {
             "properties": {
                 "port": {"type": "integer", "minimum": 1, "maximum": 65535},
                 "path": {"type": "string", "pattern": r"^/[^\s]*$"},
+                "tcp": {
+                    "description": "This server: check that the port accepts a connection, for a database",
+                    "const": True,
+                },
+                "running": {
+                    "description": "This server: healthy while the container runs, for a part with no port",
+                    "const": True,
+                },
             },
-            "required": ["port", "path"],
+            "oneOf": [{"required": ["port", "path"]}, {"required": ["port", "tcp"]}, {"required": ["running"]}],
             "additionalProperties": False,
         },
     },
@@ -599,6 +607,13 @@ def rollback(
     return deploy(db, org_id, org_prefix, name, str(previous.tag), actor, dry_run, manifest=manifest)
 
 
+def _check(health: dict) -> str | None:
+    """The health check a provider runs: an HTTP path, None for a TCP connect, or "running" for the state alone."""
+    if health.get("running"):
+        return "running"
+    return health.get("path")
+
+
 def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     """Mark running deployments healthy when their health path answers, failed after HEALTH_TIMEOUT. Commits."""
     now = now or utcnow()
@@ -607,7 +622,7 @@ def check_deployments(db, now: datetime.datetime | None = None) -> dict:
     running = db.query(AppDeployment, App).join(App, App.id == AppDeployment.app_id)
     for deployment, app in running.filter(AppDeployment.status == "deploying").all():
         health = _manifest(app)["health"]
-        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health["port"], health["path"]):
+        if app.pod_id and _provider_of(app).healthy(str(app.pod_id), health.get("port", 0), _check(health)):
             deployment.status, deployment.finished_at = "healthy", now
             counts["healthy"] += 1
             ended.append((app, deployment))

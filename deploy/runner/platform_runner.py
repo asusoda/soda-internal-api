@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import socketserver
 import subprocess  # nosec B404 - runs podman with fixed arguments
 import sys
@@ -388,24 +389,32 @@ def host_control(policy: dict, kind: str, name: str, action: str, query: dict) -
     return {"name": name, "state": state}
 
 
-def health(org: str | None, app: str, port: int, path: str) -> dict:
+def health(org: str | None, app: str, port: int, path: str | None) -> dict:
     """GET path on the container's port, from the host: on 127.0.0.1 when the port is published, else on the
-    container's own address."""
+    container's own address. With path None, only check that the port accepts a connection."""
     info = _inspect(container_name(org, app))
     if info is None:
         return {"ok": False, "error": "No container"}
-    if not CONTAINER_PATH.match(path):
+    if path is not None and not CONTAINER_PATH.match(path):
         return {"ok": False, "error": "The path is not valid"}
     published = next((p["host"] for p in describe(info)["ports"] if p["container"] == int(port)), None)
     networks = ((info.get("NetworkSettings") or {}).get("Networks") or {}).values()
     ip = next((n.get("IPAddress") for n in networks if n.get("IPAddress")), None)
-    targets = ([f"127.0.0.1:{published}"] if published else []) + ([f"{ip}:{int(port)}"] if ip else [])
+    targets = ([("127.0.0.1", published)] if published else []) + ([(ip, int(port))] if ip else [])
     if not targets:
         return {"ok": False, "error": "The container has no address"}
     error = "No answer"
-    for target in targets:
+    for address, target_port in targets:
+        if path is None:
+            try:
+                with socket.create_connection((address, target_port), timeout=5):
+                    return {"ok": True}
+            except OSError as e:
+                error = type(e).__name__
+            continue
         try:
-            with urllib.request.urlopen(f"http://{target}{path}", timeout=5) as response:  # nosec B310 - http to a container
+            url = f"http://{address}:{target_port}{path}"
+            with urllib.request.urlopen(url, timeout=5) as response:  # nosec B310 - http to a container
                 return {"ok": response.status < 400, "status": response.status}
         except urllib.error.HTTPError as e:
             return {"ok": False, "status": e.code}
@@ -473,7 +482,8 @@ class Handler(BaseHTTPRequestHandler):
             if method == "GET" and action == "health":
                 query = parse_qs(url.query)
                 port = int((query.get("port") or ["0"])[0])
-                return self._answer(200, health(org, app, port, (query.get("path") or ["/"])[0]))
+                path = None if query.get("tcp") else (query.get("path") or ["/"])[0]
+                return self._answer(200, health(org, app, port, path))
             info = _inspect(name)
             if info is None or ((info.get("Config") or {}).get("Labels") or {}).get(LABEL) != "1":
                 return self._answer(404, {"error": "No app container"})
