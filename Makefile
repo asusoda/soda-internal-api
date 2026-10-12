@@ -322,6 +322,10 @@ deploy:
 				wait_for_health soda-mcp 60; \
 				check_image soda-mcp soda-internal-api:latest; \
 			fi; \
+			if [ "$$WORKER_ON" -eq 1 ]; then \
+				wait_for_health soda-worker 60; \
+				check_image soda-worker soda-internal-api:latest; \
+			fi; \
 		fi; \
 		if [ "$$BUILD_API" -eq 1 ]; then \
 			if ! curl -fsS http://127.0.0.1:8000/health | grep -q "$$NEW_HEAD"; then \

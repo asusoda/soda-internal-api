@@ -148,6 +148,8 @@ flowchart TD
 
 Caution: set `VITE_API_URL` in `.env` before you deploy. If it is empty, the `dashboard` container stops and the deploy fails.
 
+Caution: when the `soda-worker` container exists, the deploy fails if `worker` stops. The worker stops at once on SQLite. On a SQLite server, remove it with `podman rm -f soda-worker`.
+
 ### Image pulls
 
 `cd.yml` runs after the `images` job in `check.yml` pushes the images of the commit. The server pulls them over HTTPS. If the GHCR packages are private, log in once on the server with a token that has only `read:packages`:
