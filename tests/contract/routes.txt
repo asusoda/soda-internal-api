@@ -1,4 +1,4 @@
-/.well-known/oauth-authorization-server/<path:issuer> GET,HEAD,OPTIONS mcp_well_known.authorization_server
+/.well-known/oauth-authorization-server GET,HEAD,OPTIONS mcp_well_known.authorization_server
 /.well-known/oauth-protected-resource/<path:resource> GET,HEAD,OPTIONS mcp_well_known.protected_resource
 /api/accounts/<string:org_prefix>/me GET,HEAD,OPTIONS accounts.my_accounts
 /api/accounts/<string:org_prefix>/me/<string:provider> DELETE,OPTIONS accounts.remove_my_account

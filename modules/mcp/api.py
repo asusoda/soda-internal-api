@@ -72,7 +72,7 @@ def protected_resource(resource):
     return _document(oauth.resource_metadata() if _on(request.path) else None)
 
 
-@well_known_blueprint.route("/oauth-authorization-server/<path:issuer>", methods=["GET"])
-def authorization_server(issuer):
+@well_known_blueprint.route("/oauth-authorization-server", methods=["GET"])
+def authorization_server():
     """Authorization server metadata (RFC 8414) of the MCP server."""
     return _document(oauth.server_metadata() if _on(request.path) else None)
