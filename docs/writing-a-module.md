@@ -32,7 +32,7 @@ If `service.py` has more than one concern, split it into more Flask-free files. 
 | Flask-free files | `service.py`, `models.py`, `jobs.py` and `tools.py` are in the "service modules do not import Flask" contract in `pyproject.toml` by wildcard. Add each other Flask-free file, such as `crawl.py`, to that list |
 | Dashboard page | An entry in `PAGES` in `dashboard/src/pages/registry.tsx`, with `module` and the sidebar section of the module's category |
 | Routes | `tests/contract/routes.txt`: run `UPDATE_ROUTES=1 uv run pytest tests/contract/test_routes.py` |
-| Docs | The module `README.md`, a row under its category in `modules/README.md` and in the module table of `README.md`, the `Modules:` line in `AGENTS.md` and `CLAUDE.md`, and each table in `docs/data-model.md` |
+| Docs | The module `README.md`, a row under its category in `modules/README.md` and in the module table of `README.md`, the `Modules:` line in `AGENTS.md`, and each table in `docs/data-model.md` |
 
 If the module needs more than its README, add `docs/modules/<name>.md`, a row in `docs/README.md`, and the page in `site/scripts/sync-docs.ts`.
 
@@ -48,7 +48,7 @@ flowchart LR
   module --> pyproject["pyproject.toml: Flask-free contract"]
   module --> pages["dashboard/src/pages/registry.tsx: PAGES"]
   module --> routes["tests/contract/routes.txt"]
-  module --> docs["README files, AGENTS.md, CLAUDE.md, docs/data-model.md"]
+  module --> docs["README files, AGENTS.md, docs/data-model.md"]
   layout["tests/test_module_layout.py"] -.->|checks| manifest
   layout -.->|checks| registry
   layout -.->|checks| optional

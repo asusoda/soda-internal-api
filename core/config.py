@@ -46,6 +46,10 @@ class Config:
             # Officer dashboard (dashboard/). Login sends officers back here when they start from it
             self.DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "").rstrip("/")
 
+            # Public URL of the MCP server's /mcp, for OAuth (modules/mcp/oauth.py). Empty gives
+            # <ACCOUNTS_BASE_URL>/mcp. Set it when the MCP server has its own host
+            self.MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+
             self.DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/user.db")
 
             self.BOT_TOKEN = os.environ.get("BOT_TOKEN")

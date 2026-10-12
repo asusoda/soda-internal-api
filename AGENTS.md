@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Instructions for AI agents in this repo. `CLAUDE.md` and `AGENTS.md` have the same text; change both.
+Instructions for AI agents in this repo. `CLAUDE.md` is a link to this file, and `.claude/` is a link to `.agents/`.
 
 Platform is shared infrastructure for student orgs: a Flask API, a Discord bot, a job worker and an MCP server on one database. Each org is a Discord server and turns modules on or off. In prose, call the project "Platform" and use the terms in the `technical-writing` skill.
 
 ## Skills
 
-The procedures are in `.agents/skills/` (linked from `.claude/skills/`) and listed in `.agents/README.md`.
+The procedures are in `.agents/skills/` and listed in `.agents/README.md`. The Claude Code settings are in `.agents/settings.json`.
 
 - `check`: before each commit.
 - `new-module`: to add a module.
@@ -44,8 +44,7 @@ flask --app main org|jobs|config ...
 | `alembic/` | Migrations. Nothing creates tables at startup |
 | `tests/contract/` | Route tests, `snapshots.json`, and `routes.txt`, the list of every route |
 | `tests/test_module_layout.py` | Checks that each module is registered and documented in every place |
-| `dashboard/`, `site/` | Dashboard and member store (Vite), docs and landing site |
-| `web/` | Old officer app, kept for SoDA at admin.thesoda.io |
+| `dashboard/`, `site/` | Dashboard and member store (Vite), docs and landing site. SoDA serves the dashboard at admin.thesoda.io |
 | `docs/` | Guides, indexed in `docs/README.md` |
 
 Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games, godfather, integrations, knowledge, leetcode, mcp, organizations, points, public, runpod, storefront, submodules, superadmin, uptime, users.
@@ -67,9 +66,9 @@ Modules: accounts, agents, alerts, auth, bot, calendar, dashboard, feeds, games,
 
 ## Cloud Agent
 
-Cloud Agents do not use Docker. `uv` and Node 26 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps. `pnpm install --frozen-lockfile` in `web/` installs the old officer app.
+Cloud Agents do not use Docker. `uv` and Node 26 are on `PATH`. `uv sync --frozen` installs the Python dependencies. `npm ci` in `dashboard/` and in `site/` installs those apps.
 
-Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs the Node version in `.nvmrc`, Python 3.12, the uv environment, the Doppler CLI, the npm dependencies of `dashboard/` and `site/`, and the pnpm dependencies of `web/`. Login shells in the repo put that Node first on `PATH`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
+Amp orbs run `.agents/setup` once and keep the result in a snapshot. It installs the Node version in `.nvmrc`, Python 3.12, the uv environment, the Doppler CLI and the npm dependencies of `dashboard/` and `site/`. Login shells in the repo put that Node first on `PATH`. A second run takes less than a second. Change it when you add a toolchain or a dependency manager.
 
 On boot, the API listens on port 8000 and the dashboard listens on port 5173. The database is SQLite at `data/user.db`. `RUN_BOT_IN_API` is `false`. The boot script creates an org with prefix `robotics` when that prefix is missing.
 

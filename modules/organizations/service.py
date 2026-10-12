@@ -273,7 +273,8 @@ def delete_secret(db, org_id: int, name: str) -> bool:
 
 
 def token_list(db, org_id: int) -> dict:
-    """The org's active machine tokens, the scopes a token can hold, and each integration with the scopes that reach it.
+    """The org's active machine tokens, the scopes a token can hold, each integration with the scopes that reach it,
+    and how a client reaches the MCP server (mcp).
 
     An integration's scopes give its own tools: tools names the Platform tools under each scope, and remote is true
     when the tools come from the service's own MCP server. Its through scopes are Platform scopes that call it for
@@ -317,7 +318,16 @@ def token_list(db, org_id: int) -> dict:
         "scopes": scopes.SCOPES,
         "integrations": integrations,
         "uses": uses,
+        "mcp": mcp_connection(),
     }
+
+
+def mcp_connection() -> dict:
+    """How a client reaches the MCP server: its public URL, or None when it has none, and whether OAuth is on."""
+    from modules.mcp import oauth
+
+    url = oauth.public_url()
+    return {"url": url or None, "oauth": bool(url)}
 
 
 def issue_token(db, org_id: int, data: dict, created_by: str | None) -> dict:

@@ -21,7 +21,8 @@ services:
       - -c
       - alembic upgrade head && exec gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:8000 main:app
     ports:
-      - "8000:8000"
+      # Loopback only: Nginx Proxy Manager forwards api.thesoda.io here, with TLS
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
     environment:
@@ -109,7 +110,7 @@ services:
       - soda-network
 
   mcp:
-    # MCP server for agents (streamable HTTP at :8001/mcp, machine tokens). Off unless started
+    # MCP server for agents (streamable HTTP at :8001/mcp, machine tokens or OAuth). Off unless started
     # with --profile mcp.
     image: soda-internal-api:latest
     container_name: soda-mcp
@@ -122,7 +123,8 @@ services:
     depends_on:
       - api
     ports:
-      - "8001:8001"
+      # Loopback only: the proxy forwards <API URL>/mcp here, with TLS
+      - "127.0.0.1:8001:8001"
     volumes:
       - ./data:/app/data
     environment:
@@ -168,41 +170,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    networks:
-      - soda-network
-
-  web:
-    # The old officer app (web/), kept for admin.thesoda.io. The dashboard service is the new one.
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      cache_from:
-        - soda-web:latest
-      args:
-        - REACT_APP_API_URL=${REACT_APP_API_URL:-}
-    image: soda-web:latest
-    container_name: soda-web
-    restart: unless-stopped
-    # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
-    mem_limit: ${WEB_MEM_LIMIT:-256m}
-    cpus: ${WEB_CPUS:-0.5}
-    ports:
-      - "5000:5000"
-    depends_on:
-      - api
-    environment:
-      - IS_PROD=true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     networks:
       - soda-network
 

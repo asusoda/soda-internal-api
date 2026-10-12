@@ -19,7 +19,7 @@ from modules.feeds.api import feeds_blueprint
 from modules.games.api import game_blueprint
 from modules.godfather.api import godfather_blueprint
 from modules.knowledge.api import knowledge_blueprint
-from modules.mcp.api import tools_blueprint
+from modules.mcp.api import tools_blueprint, well_known_blueprint
 from modules.organizations import service as organizations
 from modules.organizations.api import organizations_blueprint
 from modules.points.api import points_blueprint
@@ -53,6 +53,7 @@ MOUNTS = [
     Mount(superadmin_blueprint, "/api/superadmin"),
     Mount(storefront_blueprint, "/api/storefront", module="storefront"),
     Mount(tools_blueprint, "/api/tools"),
+    Mount(well_known_blueprint, "/.well-known"),
     Mount(agents_blueprint, "/api/agents", module="agents"),
     Mount(knowledge_blueprint, "/api/knowledge"),
     Mount(accounts_blueprint, "/api/accounts", module="accounts"),

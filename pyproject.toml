@@ -38,7 +38,7 @@ dependencies = [
     "sqlalchemy==2.0.49",
     "typing-extensions>=4.13.1",
     "urllib3==2.6.3",
-    "werkzeug==3.1.8",
+    "werkzeug==3.1.9",
     "yarl>=1.23.0",
     "zipp==3.23.1",
     "google-auth>=2.49.2",
@@ -116,7 +116,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.bandit]
-exclude_dirs = ["tests", "web", "node_modules", ".venv"]
+exclude_dirs = ["tests", "node_modules", ".venv"]
 
 # Module boundaries, checked in CI by `lint-imports` (docs/writing-a-module.md).
 [tool.importlinter]
@@ -191,6 +191,10 @@ source_modules = [
     "modules.leetcode.cog",
     "modules.leetcode.daily",
     "modules.manifest",
+    "modules.mcp.client_auth",
+    "modules.mcp.edges",
+    "modules.mcp.oauth",
+    "modules.mcp.oauth_pages",
     "modules.mcp.runtime",
     "modules.mcp.server",
     "modules.organizations.config",

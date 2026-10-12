@@ -146,6 +146,7 @@ MODEL_MODULES = [
     "modules.games.models",
     "modules.knowledge.models",
     "modules.leetcode.models",
+    "modules.mcp.models",
     "modules.calendar.models",
     "modules.godfather.models",
     "modules.organizations.models",
@@ -175,6 +176,7 @@ JOB_MODULES = [
     "modules.godfather.jobs",
     "modules.feeds.jobs",
     "modules.uptime.jobs",
+    "modules.mcp.jobs",
 ]
 
 # Importing a tools module registers its tools with core.tools

@@ -32,7 +32,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
    `make up` and `make dev` give the Doppler token to the containers, so they accept only a service token. The last command makes a read-only service token for your config and keeps it for this folder. Your account token then cannot go into a container.
 
 3. In that config, set the values in the table below.
-4. Start the containers with `make dev`. The API is at http://localhost:8000, the dashboard at http://localhost:5001 and the old `web/` app at http://localhost:5000.
+4. Start the containers with `make dev`. The API is at http://localhost:8000, and the dashboard at http://localhost:5001.
 5. Create an org:
 
    ```bash
@@ -59,6 +59,8 @@ Doppler holds the settings. `core/config.py` reads them from the environment, an
 | `SECRET_KEY` or `FLASK_SECRET_KEY` | Signs session cookies. If neither is set, a random key is used and sessions end at each restart |
 | `SECRETS_KEY` | A Fernet key that encrypts org secrets. If it is not set, orgs cannot save secrets |
 | `DATABASE_URL` | Default `sqlite:///./data/user.db`. Use `postgresql://...` for Postgres |
+| `MCP_PUBLIC_URL` | Only when the MCP server has its own host: its public URL, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. The default is `<ACCOUNTS_BASE_URL>/mcp`. MCP clients can connect with OAuth at this URL. See [Authentication](./authentication.md#oauth-for-mcp-clients) |
+| `FORWARDED_ALLOW_IPS` | Only when the reverse proxy in front of the MCP server connects from an address other than this computer or the default gateway. The MCP server reads the client IP from `X-Forwarded-For` of these addresses, for the OAuth rate limits. Never `*` |
 | `ACCESS_ENFORCE` | `false` logs refused requests and lets them through. `true` refuses them. See [Authentication](./authentication.md) |
 | `GOOGLE_SERVICE_ACCOUNT` | The JSON key of the Google service account, for Google Calendar. If it is not set, Google Calendar is off |
 
@@ -131,4 +133,4 @@ Caution: older versions of the script wrote the keys to `/workspace/data/keys.en
 | `RUN_BOT` | `false` to not start the bot process. The API still uses `BOT_TOKEN` |
 | `API_URL`, `WEB_URL` | Only for a custom domain. The defaults are the pod proxy URLs, `https://<pod id>-8000.proxy.runpod.net` and `-5000` |
 
-Agents connect to the MCP server at `https://<pod id>-8001.proxy.runpod.net/mcp` with a machine token.
+Agents connect to the MCP server at `https://<pod id>-8001.proxy.runpod.net/mcp` with a machine token. `start.sh` sets `MCP_PUBLIC_URL` to that URL, so OAuth works there too. Add `<that URL>/oauth/callback` to the redirects of the Discord app.

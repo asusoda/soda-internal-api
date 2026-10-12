@@ -82,11 +82,6 @@ build-api: doppler-check
 	@export COMMIT_HASH=$$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
 		DOCKER_BUILDKIT=1 $(COMPOSE_SET) build api
 
-# Build only web
-build-web: doppler-check
-	@echo -e "$(GREEN)[INFO]$(NC) Building web image..."
-	@DOCKER_BUILDKIT=1 $(COMPOSE_SET) build web
-
 # Build only the dashboard
 build-dashboard: doppler-check
 	@echo -e "$(GREEN)[INFO]$(NC) Building dashboard image..."
@@ -128,7 +123,7 @@ discard-local-changes:
 	@printf "$(GREEN)[INFO]$(NC) Local changes discarded successfully!\n"
 
 # Deploy to production
-# web, dashboard, bot and mcp are created with --requires on the api container. When any image changes,
+# dashboard, bot and mcp are created with --requires on the api container. When any image changes,
 # all of them are recreated together. podman-compose 1.0.6 recreates a service's dependencies with it, so
 # `up -d dashboard` also tries to replace api. It then removes the other containers that require api and
 # fails to replace api ("has dependent containers"), which leaves only api and dashboard running.
@@ -190,7 +185,6 @@ deploy: doppler-check-service
 			CHANGED_FILES=$$(git diff --name-only "$$OLD_HEAD" "$$NEW_HEAD"); \
 		fi; \
 		BUILD_API=0; \
-		BUILD_WEB=0; \
 		BUILD_DASHBOARD=0; \
 		BUILD_SITE=0; \
 		if [ -n "$$CHANGED_FILES" ]; then \
@@ -198,14 +192,12 @@ deploy: doppler-check-service
 			printf "%s\n" "$$CHANGED_FILES"; \
 			while IFS= read -r FILE; do \
 				case "$$FILE" in \
-					web/*|Dockerfile.web) \
-						BUILD_WEB=1 ;; \
 					dashboard/*|Dockerfile.dashboard) \
 						BUILD_DASHBOARD=1 ;; \
 					site/*|docs/*|Dockerfile.site|Dockerfile.site.dockerignore) \
 						BUILD_SITE=1 ;; \
 					docker-compose.yml|docker-compose.dev.yml|Makefile) \
-						BUILD_API=1; BUILD_WEB=1; BUILD_DASHBOARD=1; BUILD_SITE=1 ;; \
+						BUILD_API=1; BUILD_DASHBOARD=1; BUILD_SITE=1 ;; \
 					.github/*|*.md|CLAUDE.md|AGENTS.md|.pre-commit-config.yaml) \
 						;; \
 					*) \
@@ -217,7 +209,6 @@ deploy: doppler-check-service
 		fi; \
 		SERVICES_TO_BUILD=""; \
 		if [ "$$BUILD_API" -eq 1 ]; then SERVICES_TO_BUILD="$$SERVICES_TO_BUILD api"; fi; \
-		if [ "$$BUILD_WEB" -eq 1 ]; then SERVICES_TO_BUILD="$$SERVICES_TO_BUILD web"; fi; \
 		if [ "$$BUILD_DASHBOARD" -eq 1 ]; then SERVICES_TO_BUILD="$$SERVICES_TO_BUILD dashboard"; fi; \
 		MCP_ON=0; PROFILE_ARGS=""; \
 		if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then MCP_ON=1; fi; \
@@ -238,10 +229,6 @@ deploy: doppler-check-service
 				write_file .deploy/rollback-api api; \
 			fi; \
 		fi; \
-		if [ "$$BUILD_WEB" -eq 1 ]; then \
-			echo -e "$(GREEN)[INFO]$(NC) Tagging web image as previous..."; \
-			$(CONTAINER_CMD) tag soda-web:latest soda-web:previous 2>/dev/null || true; \
-		fi; \
 		if [ "$$BUILD_DASHBOARD" -eq 1 ]; then \
 			echo -e "$(GREEN)[INFO]$(NC) Tagging dashboard image as previous..."; \
 			$(CONTAINER_CMD) tag soda-dashboard:latest soda-dashboard:previous 2>/dev/null || true; \
@@ -253,8 +240,14 @@ deploy: doppler-check-service
 		fi; \
 		echo -e "$(GREEN)[INFO]$(NC) Running database migrations..."; \
 		$(WITH_SETTINGS) uv run alembic upgrade head || { echo -e "$(RED)[ERROR]$(NC) Database migration failed!"; exit 1; }; \
+		if $(CONTAINER_CMD) inspect soda-web >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[INFO]$(NC) Removing the soda-web container of the removed web service..."; \
+			$(CONTAINER_CMD) rm -f soda-web; \
+		fi; \
+		$(CONTAINER_CMD) rmi soda-web:latest 2>/dev/null || true; \
+		$(CONTAINER_CMD) rmi soda-web:previous 2>/dev/null || true; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
-			SERVICES_TO_START="api bot web dashboard"; \
+			SERVICES_TO_START="api bot dashboard"; \
 			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
 			echo -e "$(GREEN)[INFO]$(NC) Recreating changed services:$$SERVICES_TO_START"; \
 			$(COMPOSE_SET) -f docker-compose.yml $$PROFILE_ARGS up -d $$ORPHAN_ARGS $$SERVICES_TO_START; \
@@ -298,11 +291,9 @@ deploy: doppler-check-service
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
 			wait_for_health soda-internal-api 60; \
 			wait_for_health soda-bot 60; \
-			wait_for_health soda-web 60; \
 			wait_for_health soda-dashboard 60; \
 			check_image soda-internal-api soda-internal-api:latest; \
 			check_image soda-bot soda-internal-api:latest; \
-			check_image soda-web soda-web:latest; \
 			check_image soda-dashboard soda-dashboard:latest; \
 			if [ "$$MCP_ON" -eq 1 ]; then \
 				wait_for_health soda-mcp 60; \
@@ -342,7 +333,6 @@ deploy: doppler-check-service
 		if [ -z "$$SERVICES_TO_BUILD" ]; then \
 			check_if_present soda-internal-api soda-internal-api:latest; \
 			check_if_present soda-bot soda-internal-api:latest; \
-			check_if_present soda-web soda-web:latest; \
 			check_if_present soda-dashboard soda-dashboard:latest; \
 			if [ "$$MCP_ON" -eq 1 ]; then check_if_present soda-mcp soda-internal-api:latest; fi; \
 		fi; \
@@ -470,7 +460,7 @@ backup:
 # Health check
 health:
 	@FAILED=0; \
-	CONTAINERS="soda-internal-api soda-bot soda-web soda-dashboard"; \
+	CONTAINERS="soda-internal-api soda-bot soda-dashboard"; \
 	if $(CONTAINER_CMD) inspect soda-mcp >/dev/null 2>&1; then CONTAINERS="$$CONTAINERS soda-mcp"; fi; \
 	if $(CONTAINER_CMD) inspect soda-site >/dev/null 2>&1; then CONTAINERS="$$CONTAINERS soda-site"; fi; \
 	for CONTAINER_NAME in $$CONTAINERS; do \

@@ -1,18 +1,16 @@
 # Frontends
 
-Platform has two officer frontends. `dashboard/` is the new one. Officers use it to see and control what each org runs. Members use its store pages, `/store/<org>`. `web/` is the old officer app, kept for SoDA at admin.thesoda.io.
+Platform has one frontend, `dashboard/`. Officers use it to see and control what each org runs. Members use its store pages, `/store/<org>`. SoDA serves it at admin.thesoda.io.
 
-This diagram shows the API routes that each frontend calls and the credential it sends.
+This diagram shows the API routes that each part of the dashboard calls and the credential it sends.
 
 ```mermaid
 flowchart LR
   officer["dashboard/ officer pages"] -->|"platform token"| dash["/api/dashboard/#lt;org#gt;/..."]
   officer -->|"platform token"| mods["/api/points, /api/storefront, /api/calendar and other module routes"]
-  store["dashboard/ member store, /store/#lt;org#gt;"] --> login["POST /api/points/#lt;org#gt;/member_login"]
+  store["dashboard/ member store, /store/#lt;org#gt;"] --> login["GET /api/auth/store_login (Discord sign-in)"]
   store -->|"session cookie"| orders["/api/storefront/#lt;org#gt;/members/..."]
-  web["web/"] -->|"platform token"| mods
   officer --> auth["/api/auth/login, /api/auth/exchange"]
-  web --> auth
 ```
 
 ## Officer dashboard
@@ -49,7 +47,7 @@ The dashboard has one React Query client, made in `dashboard/src/lib/query-clien
 | Hosting | The org's bots, agents, sites and services on its hosting providers, grouped by kind, with the provider of each: RunPod or This server. Register app has a Provider select. A This server app shows its container, cap and ports in place of a pod. Templates creates an app from a template in `apps/`, then opens the deploy form. Register a manifest or repo, see the pod and deployments, deploy a tag with a dry-run preview, roll back, restart, stop or start, read the logs of a This server app, delete. `runpod` module |
 | Knowledge | Sources filtered by domain: upload documents one at a time or in a batch, add, edit, pause and run crawls, delete sources, change the passage size and search settings, and test a search. Submodules are on Explore. `knowledge` module |
 | Uptime | Monitors with state, uptime over 24 hours and 7 days, last latency and the last 30 checks. Add, edit, pause, check now and delete. `uptime` module |
-| Tokens | Machine tokens: create in a dialog and revoke. The MCP card shows how an agent connects: the server `/mcp` on port 8001 and the header `Authorization: Bearer plat_...`. A token's scopes set the tools the agent can call |
+| Tokens | Machine tokens: create in a dialog and revoke. The MCP card shows how an agent connects: the public URL of the MCP server (or `/mcp` on port 8001 when there is none), the header `Authorization: Bearer plat_...`, and whether clients can connect with OAuth. A token's scopes set the tools the agent can call |
 | Activity | Five tabs. Notifications: problems that need an officer (failed feed runs, failed deploys, knowledge sources that could not be fetched) and each webhook event of the org (errors, failed jobs, pods, deploys, store orders, new members), with no webhook needed. Errors: the org's errors from the error log, with the request or job, logger line, host, release and the stack trace, where Platform frames show apart from library frames. Changes: the org's audit log with pages. Knowledge runs: the last crawls and uploads with their errors. CI runs: the latest GitHub Actions runs for the repos the org lists. In Notifications and Errors, select rows to resolve, reopen or delete them together. Only events can be deleted; a problem goes away when its cause is fixed. The bell in the top bar shows the open count and the newest notifications. `/notifications` opens Activity |
 | Settings | General, branding, org secrets, and the org's limits with what it uses |
 | Superadmin | The server's health, its containers and host processes with their owners (from the host agent), orgs, officer roles, each org's limits and use, Discord servers without an org, the audit log of all orgs, and the errors of every org and of the server. Only the superadmin sees it |
@@ -154,15 +152,7 @@ An old path that opens another page goes in `REDIRECTS` in the same file.
 
 The member store is two open pages of `dashboard/`, outside the officer pages:
 
-- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order.
-- `/store/<org>/login` signs a member in with `POST /api/points/<org>/member_login`.
+- `/store/<org>` shows the products in stock. A signed-in member also sees a cart, their points and their orders, and can place an order or sign out.
+- `/store/<org>/login` signs a member in with Discord at `GET /api/auth/store_login?org=<org>&client=dashboard`. The API returns the member to `/store/<org>` on `DASHBOARD_URL`. If `DASHBOARD_URL` is not set, it returns them to `CLIENT_URL`.
 
-These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need a Discord session on the API. The browser sends the cookie only when the dashboard and the API are on the same site.
-
-## Old officer app
-
-`web/` is the old officer app (Vite and TypeScript). SoDA serves it at admin.thesoda.io from the `web` compose service on port 5000. The dashboard runs beside it on port 5001. `web/` signs in with `POST /api/auth/exchange`. Its build reads `REACT_APP_API_URL`.
-
-The member store of `web/` (`/store/<org>`) signs members in with Discord at `GET /api/auth/store_login`. It sends its requests with the API session cookie.
-
-The dashboard has the pages of `web/`: member details are on Points (Add member, and Edit details in a member's history), and the store, calendar, Godfather and superadmin pages have dashboard pages. `web/` has no Jeopardy or bot pages. Those pages called paths that the API does not have, so they were removed, and the dashboard does not have them.
+These pages use the API session cookie, not the officer token. The order routes (`/api/storefront/<org>/members/...`) need the Discord session that the sign-in starts. The browser sends the cookie only when the dashboard and the API are on the same site.

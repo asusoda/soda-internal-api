@@ -11,7 +11,6 @@ Platform is a Flask API with a Discord bot, a job worker and an MCP server. All 
 | Job worker | `worker_main.py` | | Runs jobs from the Procrastinate queue. Postgres only |
 | MCP server | `mcp_main.py` | 8001 | Module tools for agents, over MCP |
 | Dashboard | `dashboard/` | 5001 (5173 in dev) | The officer pages for each org and the member store (Vite, React) |
-| Web | `web/` | 5000 | The old officer app (Vite and TypeScript), kept for SoDA at admin.thesoda.io |
 
 The database is Postgres in production, or SQLite for a small deployment. Alembic makes the schema.
 
@@ -20,7 +19,6 @@ This diagram shows the processes, their clients and the outside services.
 ```mermaid
 flowchart LR
   dashboard["dashboard/"] --> api["API: main.py, port 8000"]
-  web["web/"] --> api
   website["thesoda.io"] --> api
   agents["Apps and agents"] -->|"Bearer plat_..."| mcp["MCP server: mcp_main.py, port 8001"]
   agents -->|"/api/tools"| api
@@ -122,7 +120,7 @@ Every org shares the same processes, containers and database. Three layers keep 
 
 ```mermaid
 flowchart TB
-  subgraph server["One server: api, bot, mcp, worker, web, dashboard, site"]
+  subgraph server["One server: api, bot, mcp, worker, dashboard, site"]
     caps["Container caps: memory and CPU for each service"]
     subgraph process["Each process"]
       limits["Per-org limits: counts and rates for each module"]
@@ -155,10 +153,10 @@ A module declares a job in its `jobs.py` with `@job(name, cron=..., retry=...)` 
 
 Apps and agents read and change Platform data through tools. A module declares a tool in its `tools.py` with `@tool` from `core/tools.py`. Platform serves each tool two ways:
 
-- Over MCP (streamable HTTP) from `mcp_main.py`, at `http://<host>:8001/mcp`.
+- Over MCP (streamable HTTP) from `mcp_main.py`, at `<ACCOUNTS_BASE_URL>/mcp`, such as `https://api.thesoda.io/mcp`. The reverse proxy forwards it to port 8001, which binds only `127.0.0.1` on the server.
 - Over HTTP from the API: `GET /api/tools` lists the tools, and `POST /api/tools/<name>` calls one with the arguments as the JSON body.
 
-Both need a machine token: `Authorization: Bearer plat_...`. The `mcp` module is Core, so it is always on. A caller sees only the tools that its token scopes allow and whose module its org has turned on. The MCP card on the Tokens page of the dashboard shows the server and the header. An unknown tool and a refused tool both return 404, so a token cannot find tools it may not use. A tool always acts on the caller's org. It has no org argument.
+Both need a machine token: `Authorization: Bearer plat_...`. An MCP client can also get a token with OAuth at `<ACCOUNTS_BASE_URL>/mcp` ([authentication](./authentication.md#oauth-for-mcp-clients)). The `mcp` module is Core, so it is always on. A caller sees only the tools that its token scopes allow and whose module its org has turned on. An OAuth token also sees the module tools that need another scope, and asks for it with step-up ([authentication](./authentication.md#step-up)). The MCP card on the Tokens page of the dashboard shows the server, the header and whether OAuth is on. For other tokens, an unknown tool and a refused tool both return 404, so a token cannot find tools it may not use. A tool always acts on the caller's org. It has no org argument.
 
 | Tools | Scope | Module |
 | --- | --- | --- |
@@ -219,7 +217,7 @@ No tool returns a secret value or a webhook URL. `tokens.create` returns the new
 
 The flows that need a browser have no tool: the OAuth sign-in to an integration, the ASU sign-in, file upload and download on a pod, and the Godfather CLI sign-in. Superadmin routes and member routes have no tool.
 
-Each call, allowed or refused, is a row in `audit_log` with `action=tool <name>`, `source=mcp` or `api`, and the token as the actor. A call that waits for confirm has `details.confirm=pending`. The MCP server keeps no session state, so you can run more than one. Start it with `docker compose --profile mcp up -d mcp`.
+Each call, allowed or refused, is a row in `audit_log` with `action=tool <name>`, `source=mcp` or `api`, and the token as the actor. A call that waits for confirm has `details.confirm=pending`. The MCP server keeps no session state, and OAuth keeps its state in the database, so you can run more than one. Start it with `docker compose --profile mcp up -d mcp`.
 
 ## Outside services
 

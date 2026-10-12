@@ -9,7 +9,7 @@ This page tells you how callers sign in and how a route decides who may call it.
 | Platform access token and refresh token | Officers in `dashboard/` | Discord sign-in at `/api/auth/login` |
 | Session cookie | The same officers, and members who signed in with Discord | Flask, signed with `SECRET_KEY` |
 | Clerk session token | Members on the public website storefront | Clerk |
-| Machine token (`plat_...`) | Apps, agents and CLIs | An officer, or the Godfather CLI sign-in |
+| Machine token (`plat_...`) | Apps, agents and CLIs | An officer, the Godfather CLI sign-in, or OAuth on the MCP server |
 | App token | Older integrations | `GET /api/auth/appToken`. Use a machine token for new work |
 
 ## Officer sign-in
@@ -83,6 +83,120 @@ flowchart TD
   org -->|no| r403b["403"]
   org -->|yes| view["View runs with g.machine_caller"]
 ```
+
+## OAuth for MCP clients
+
+The MCP server is also an OAuth 2.1 authorization server, so an MCP client can connect with no token to paste. The client identifies itself with a Client ID Metadata Document, or registers itself (dynamic client registration, RFC 7591). An officer signs in with Discord and approves an org, scopes and integration limits. The client then gets a machine token of kind `oauth`. The code is in `modules/mcp/`: `oauth.py`, `oauth_pages.py`, `client_auth.py` and `edges.py`. The `mcp` SDK serves the protocol routes. The rules follow the MCP spec of 2026-07-28.
+
+The public URL of the MCP server is `<ACCOUNTS_BASE_URL>/mcp`, such as `https://api.thesoda.io/mcp`. `MCP_PUBLIC_URL` replaces it when the MCP server has its own host, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. OAuth is on when this URL uses HTTPS, or HTTP on `localhost`. If the URL is missing or not valid, the MCP server logs a warning, has no OAuth routes and works as before. The Tokens page shows the URL and whether OAuth is on.
+
+To turn it on:
+
+1. In the reverse proxy of the API host, forward `/mcp` and every path under it to the MCP server on port 8001. Do not remove the `/mcp` prefix.
+2. Add `<public URL>/oauth/callback`, such as `https://api.thesoda.io/mcp/oauth/callback`, to the redirects of the Discord app (`CLIENT_ID`).
+3. Set `SECRETS_KEY` if clients with a client secret must register. Public clients with PKCE do not need it.
+
+The deploy on a push to `main` runs the migration and recreates the `mcp` container. When OAuth is on, `/mcp` returns 401 with `WWW-Authenticate: Bearer resource_metadata="...", scope="org:read"` for a request with no valid token. A client reads that URL to find the sign-in, and asks for the scopes in `scope` first.
+
+Every OAuth route is under the public URL, so the proxy needs only the one location. The two discovery documents are at the root of the host, where clients look for them. The API serves them, and the MCP server serves them too, for a host that has only the MCP server.
+
+| Route | Served by | Does |
+| --- | --- | --- |
+| `GET /.well-known/oauth-protected-resource/mcp` | API and MCP server | Protected resource metadata (RFC 9728). Names the public URL as the authorization server. `scopes_supported` is `org:read`, the scopes of a new connection |
+| `GET /.well-known/oauth-authorization-server/mcp`, `GET /.well-known/oauth-authorization-server` | API and MCP server | Authorization server metadata (RFC 8414). The issuer is the public URL |
+| `POST /mcp/register` | MCP server | Registers a client. Returns `client_id`, and `client_secret` unless `token_endpoint_auth_method` is `none`. A client with a Client ID Metadata Document does not use it |
+| `GET /mcp/authorize` | MCP server | Starts the sign-in. Needs PKCE with `S256` |
+| `GET /mcp/oauth/login`, `GET /mcp/oauth/callback` | MCP server | Discord sign-in, then the consent page |
+| `POST /mcp/oauth/consent` | MCP server | The officer approves or denies |
+| `POST /mcp/token` | MCP server | Gives tokens for a code (`authorization_code`) or a refresh token (`refresh_token`). A key client sends `client_assertion` |
+| `POST /mcp/revoke` | MCP server | Revokes the access token and the refresh token of a connection (RFC 7009). A key client sends `client_assertion` |
+
+### Client ID Metadata Documents
+
+A client can use the HTTPS URL of a JSON document about itself as its `client_id`, such as `https://app.example.com/oauth/client.json` (draft-ietf-oauth-client-id-metadata-document). The MCP spec prefers it to `/mcp/register`, which it marks deprecated. The authorization server metadata has `client_id_metadata_document_supported: true`, so the client does not call `/mcp/register`. When a request has such a `client_id`, the MCP server fetches the document, checks it and keeps it in `oauth_clients`.
+
+The `client_id` URL must use `https` and have a path. It must not have a fragment, a user name or password, or `.` and `..` segments. It can have 2048 characters at most.
+
+The fetch:
+
+- The host must resolve only to public addresses. The server connects to an address that passed the check, so a second DNS lookup cannot send it to the private network. The certificate must match the host name.
+- The server does not follow redirects. Any status other than 200 is an error.
+- The server reads 5 KB at most and waits 5 seconds at most.
+
+The document must be a JSON object with `client_id` equal to the URL, `client_name` and `redirect_uris`. It must not have `client_secret`. `token_endpoint_auth_method` must be `none`, absent, or `private_key_jwt` (see [Client keys](#client-keys)). The redirect URIs follow the same rules as for a registered client. `grant_types` must include `authorization_code`, and `response_types` must include `code`.
+
+The server keeps a valid document for its `Cache-Control: max-age`, at most 24 hours, and 1 hour when the header has no `max-age`. `no-store` and `no-cache` make it fetch the document at each request. The server does not keep a failed fetch or a document that is not valid: the request fails with `Client ID ... not found`, and the next request fetches again.
+
+The consent page shows the host of the `client_id` URL as the client, such as `app.example.com`. For a client from `/mcp/register`, it says that Platform cannot check the name. For a redirect URI on `localhost`, `127.0.0.1` or `[::1]`, it shows a warning: any program on the computer can use that address and give the name of another client.
+
+### Client keys
+
+A document client can authenticate with a key pair instead of no secret: `private_key_jwt` (RFC 7523). Its document has `token_endpoint_auth_method: private_key_jwt` and its public keys, as `jwks` (a JWK set) or `jwks_uri` (an https URL of one), not both. A key in the document must not have private members, such as `d`. `token_endpoint_auth_signing_alg` can fix the algorithm. The code is in `modules/mcp/client_auth.py`.
+
+At `/mcp/token` and `/mcp/revoke`, the client sends `client_id`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer` and `client_assertion`, a JWT that it signs with its private key. The server checks:
+
+- The algorithm is one of RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512 and EdDSA. A shared secret algorithm, such as HS256, is refused.
+- The signature matches a key of the client: the key with the `kid` of the JWT, of the key type of the algorithm.
+- `iss` and `sub` are the `client_id`. `aud` is the public URL, or its `/token` or `/revoke` URL.
+- `exp` is in the future and at most 5 minutes away, with 30 seconds of leeway.
+- The `jti` was not used before. The `oauth_assertions` table keeps the hash of each `jti` until the assertion expires, for every process.
+
+The server fetches a `jwks_uri` with the same rules as a document, but reads 20 KB at most. It keeps the keys in the process for the time of the cache headers. If a JWT has a `kid` that is not in the kept keys, it fetches them again, at most once a minute, so a client can change its keys. A failed check gets 401 `invalid_client`.
+
+A client from `/mcp/register` cannot use `private_key_jwt`: the SDK refuses that method at registration.
+
+### The flow
+
+These steps show the flow.
+
+1. The client sends the browser to `/mcp/authorize`. The server stores the request and sends the browser to `/mcp/oauth/login`.
+2. `/mcp/oauth/login` puts a sign-in key in a cookie and sends the browser to Discord with the key as the `state`.
+3. `/mcp/oauth/callback` checks the `state` against the cookie and gets the Discord user. It finds the active orgs where the user has the officer role. If there are none, it returns 403.
+4. The consent page shows the client name, its redirect URI, the officer's orgs, every scope and the limits of each integration. The scopes that the client asked for are selected. The cookie now holds a new consent key, so only this browser can send the form.
+5. On approve, the server sends the browser to the redirect URI with a code that is valid for 5 minutes. On deny, it sends `error=access_denied`. Both have `iss` (RFC 9207), the public URL.
+6. The client sends the code and the PKCE verifier to `/mcp/token`. It gets an access token (`plat_...`, valid for 1 hour) and a refresh token (`platr_...`, valid for 30 days).
+
+### Rules
+
+- The access token is a machine token of kind `oauth`, with the org, scopes and limits that the officer chose and the officer's Discord id as `created_by`. It is on the Tokens page. Revoke it there to disconnect the client: its refresh token also stops working.
+- The limits are the same as the limits of a token from the Tokens page, such as `repos` and `tools` for GitHub. The consent page has a field for each one. An empty field gives no limit.
+- A refresh gives a new access token and a new refresh token, and the old ones stop working. The machine token keeps its id, so the Tokens page shows one row for each connection.
+- Each refresh checks that the officer who approved the connection still has the officer role in the org. If not, the server revokes the token and the refresh fails. If Discord does not answer, the refresh works when the last check is less than 24 hours old. An access token lasts 1 hour, so a connection stops within an hour after the officer loses the role. If Discord does not answer at that refresh, it can continue for up to 24 hours more.
+- An officer cannot make a token of kind `oauth` with `POST .../tokens`.
+- The officer check always applies, also when `ACCESS_ENFORCE=false`.
+- If a request has `resource` (RFC 8707), it must be the public URL or a path above it on the same origin, such as `https://api.thesoda.io`. A `resource` of another server gets `error=invalid_target`.
+- A redirect URI must use HTTPS, or HTTP on `localhost`, `127.0.0.1` or `[::1]`, as the MCP spec says. App schemes such as `cursor://` are refused.
+- The database keeps a SHA-256 hash of each key, code and refresh token. It keeps a client secret encrypted with `SECRETS_KEY`. Without `SECRETS_KEY`, only public clients can register.
+- The server keeps up to 5000 clients from `/mcp/register` and, apart from those, up to 5000 cached metadata documents. The `mcp.cleanup_oauth` job deletes registered clients with no grant that were not used for 7 days, and cached documents with no grant and no open request at once.
+- OAuth tokens open the MCP server. Other machine tokens open it too, as before.
+- The `iss` parameter is on every redirect back to the client, also the errors that the SDK sends from `/mcp/authorize`.
+
+### Origin check
+
+A request to `/mcp` with an `Origin` header that is not allowed gets 403, against DNS rebinding (the Streamable HTTP transport of the MCP spec). The allowed origins are the origin of the public URL, such as `https://api.thesoda.io`, and any port on `localhost`, `127.0.0.1` and `[::1]`, for local tools such as MCP Inspector. A request with no `Origin`, as from a desktop app, a CLI or a server, passes. The check is on also when OAuth is off.
+
+### Step-up
+
+A new connection asks for `org:read` (the scope hint). An OAuth token also sees, in `tools/list`, the module tools of its org that need a scope it does not have. Their description says which scope. When the client calls one, `/mcp` returns 403 with `WWW-Authenticate: Bearer error="insufficient_scope", scope="<scope>", resource_metadata="..."`. A `batch` call gets all the missing scopes in one answer. The client then signs in again and asks for its scopes and the new one. The consent page selects them, and the officer decides. Each refused call is in the audit log with `details.step_up`.
+
+Other machine tokens get no step-up: they see only the tools of their scopes, and a tool outside them gets the same answer as an unknown tool. The tools of connected services (integrations) also get no step-up.
+
+Each sign-in makes a new connection. The connection that the client had before stays on the Tokens page until its refresh token expires or an officer revokes it.
+
+### Rate limits
+
+Each client IP has a limit on the OAuth routes. Over the limit, the route returns 429 with `Retry-After`. Each process of the MCP server counts on its own. The limits are `RATE_LIMITS` in `modules/mcp/oauth.py`.
+
+The client IP comes from `X-Forwarded-For` when the request comes from a trusted address. `mcp_main.py` trusts `127.0.0.1`, `::1` and the default gateway. In a container, the gateway is the host, where the reverse proxy runs. The log line `X-Forwarded-For trusted from ...` at the start shows the list. If the proxy connects from another address, set `FORWARDED_ALLOW_IPS` to it. Each request line of `podman logs soda-mcp` starts with the client IP, so you can check it.
+
+Caution: do not set `FORWARDED_ALLOW_IPS=*`. uvicorn then uses the first address of `X-Forwarded-For`, which the client sets, and a client can get past the limit. The MCP server does not start with `*` in the list.
+
+| Path under the public URL | Requests of one IP |
+| --- | --- |
+| `/register` | 10 an hour |
+| `/authorize`, `/oauth/*` | 30 a minute each |
+| `/token` | 60 a minute |
+| `/revoke` | 30 a minute |
 
 ## Decorators
 

@@ -3,7 +3,7 @@ name: api-contract
 description: Change an HTTP route that a live client depends on without breaking it, and update the contract snapshots when a change is intended. Use when editing any route in points, storefront, calendar, auth, public, users or organizations.
 ---
 
-thesoda.io (asusoda/website) and the `web/` app call the API directly. `docs/api-contract.md` lists every route a client depends on, and `tests/contract/test_contract.py` checks each one's status code and JSON shape against `tests/contract/snapshots.json`.
+thesoda.io (asusoda/website) and the `dashboard/` app call the API directly. `docs/api-contract.md` lists every route a client depends on, and `tests/contract/test_contract.py` checks each one's status code and JSON shape against `tests/contract/snapshots.json`.
 
 1. Before changing a route, find it in `docs/api-contract.md` and in `CASES` in `test_contract.py`.
 2. Keep the path, method, status codes and response keys. Add fields rather than renaming or removing them.

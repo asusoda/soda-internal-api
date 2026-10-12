@@ -29,3 +29,7 @@ export type MemberProfile = { user: { name: string | null; email: string | null 
 export type CartLine = { product: StoreProduct; quantity: number };
 
 export const storePath = (prefix: string) => `/store/${encodeURIComponent(prefix)}`;
+
+// Starts the member's Discord sign-in. The API returns the browser to the store, with ?error= when it fails.
+export const storeLoginUrl = (prefix: string) =>
+  `${API_URL}/api/auth/store_login?org=${encodeURIComponent(prefix)}&client=dashboard`;

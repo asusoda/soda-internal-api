@@ -8,14 +8,15 @@ This page tells you how to set the settings in Doppler, deploy Platform, roll it
 
 | Service | Command | Profile |
 | --- | --- | --- |
-| `api` | `alembic upgrade head`, then gunicorn with 1 worker and 8 threads on port 8000 | default |
+| `api` | `alembic upgrade head`, then gunicorn with 1 worker and 8 threads on `127.0.0.1:8000` | default |
 | `bot` | `python3 bot_main.py`. Run exactly one, or each scheduled post goes out more than once | default |
-| `dashboard` | The dashboard build (`Dockerfile.dashboard`) on port 5001 | default |
-| `web` | The old officer app (`Dockerfile.web`) on port 5000, for admin.thesoda.io | default |
+| `dashboard` | The dashboard build (`Dockerfile.dashboard`) on port 5001, for admin.thesoda.io | default |
 | `postgres` | Postgres 16 with pgvector | `postgres` |
 | `worker` | `python3 worker_main.py` | `postgres` |
-| `mcp` | `python3 mcp_main.py` on port 8001 | `mcp` |
+| `mcp` | `python3 mcp_main.py` on `127.0.0.1:8001`, reached at `<API URL>/mcp` | `mcp` |
 | `site` | The landing and docs site (`Dockerfile.site`, Next.js) on `127.0.0.1:3010`, for platform.thesoda.io | `site` |
+
+The `api` and `mcp` ports bind only `127.0.0.1`, so a client reaches them only through the reverse proxy and its TLS. Nginx Proxy Manager forwards the API host to `127.0.0.1:8000` and its `/mcp` location to `127.0.0.1:8001`.
 
 The API mounts only `./data` (SQLite database and JWT keys). The settings come from Doppler. See [Settings](#settings).
 
@@ -63,7 +64,6 @@ Each container has a memory and a CPU cap, so one process cannot take the whole 
 | `bot` | 768m | 1 | `BOT_MEM_LIMIT`, `BOT_CPUS` |
 | `worker` | 1536m | 1 | `WORKER_MEM_LIMIT`, `WORKER_CPUS` |
 | `mcp` | 768m | 1 | `MCP_MEM_LIMIT`, `MCP_CPUS` |
-| `web` | 256m | 0.5 | `WEB_MEM_LIMIT`, `WEB_CPUS` |
 | `dashboard` | 256m | 0.5 | `DASHBOARD_MEM_LIMIT`, `DASHBOARD_CPUS` |
 | `site` | 384m | 0.5 | `SITE_MEM_LIMIT`, `SITE_CPUS` |
 | `postgres` | 1g | 1 | `POSTGRES_MEM_LIMIT`, `POSTGRES_CPUS` |
@@ -126,8 +126,8 @@ Caution: a database needs two more steps, or it does not start or its data can b
 | Workflow | Does |
 | --- | --- |
 | `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard and site builds; workflow lint. A push to `main` in `asusoda/platform` then runs `cd.yml` |
-| `images.yml` | Builds the API, web, dashboard and site images on each PR. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-web`, `-dashboard` and `-site` |
-| `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform` |
+| `images.yml` | Builds the API, dashboard and site images on each PR. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-dashboard` and `-site` |
+| `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform`. Each run is a deployment to the `production` environment on the repository's Deployments page |
 
 The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvector) from `mirror.gcr.io`, Google's copy of Docker Hub. It has no pull limit for anonymous users, so CI does not stop with `429 Too Many Requests`. Platform's own images go to GHCR.
 
@@ -168,11 +168,11 @@ flowchart TD
 `make deploy` does these steps:
 
 1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `.deploy/deployed-sha`. If the file is absent, the text is not a 40-character sha, or that commit is not in this checkout, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
-2. Select the images to build. A change in `web/` or `Dockerfile.web` builds `web`. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all four. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
+2. Select the images to build. A change in `dashboard/` or `Dockerfile.dashboard` builds `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` builds `site`. A change in a compose file or the `Makefile` builds all three. A change in `.github/` or another `.md` file builds nothing. All other changes build `api`.
 3. Tag the current images as `:previous`.
 4. Build the changed images. The old containers keep running during the build.
 5. Run `uv run alembic upgrade head` on the host in `doppler run`. If it fails, the deploy stops and the old containers keep running.
-6. If it built `api`, `web` or `dashboard`, recreate `api`, `bot`, `web` and `dashboard` together with `up -d`, and `mcp` too when its container exists. Docker Compose gets `--remove-orphans`, so a container of a removed service does not keep a port. podman-compose 1.0.6 does not get that flag. That flag removes every project container this command did not name, including `soda-site`. Then wait up to 60 seconds for each container to be healthy. Check that each container runs the new image. They are recreated together because `web`, `dashboard`, `bot` and `mcp` require the `api` container. podman-compose 1.0.6 recreates a service's dependencies with it. It cannot replace `api` while other containers require it.
+6. If the `soda-web` container of the removed `web` service exists, remove it. Remove the `soda-web` images if they exist. If this deploy built `api` or `dashboard`, recreate `api`, `bot` and `dashboard` together with `up -d`, and `mcp` too when its container exists. Docker Compose gets `--remove-orphans`, so a container of a removed service does not keep a port. podman-compose 1.0.6 does not get that flag, because its `--remove-orphans` removes every project container this command did not name, including `soda-site`. Then wait up to 60 seconds for each container to be healthy. Check that each container runs the new image. They are recreated together because `dashboard`, `bot` and `mcp` require the `api` container. podman-compose 1.0.6 recreates a service's dependencies with it. It cannot replace `api` while other containers require it.
 7. If this deploy built `site`, and `soda-site:latest` or the `soda-site` container exists, recreate `site` alone with `up -d --no-deps`. If this deploy did not build `site` and `soda-site:latest` exists, start `soda-site` with the same command. `site` does not require `api`, so the other containers keep running.
 8. If an image was not built and its container exists, that container must run the `:latest` tag. Copy the current SHA to `.deploy/rollback-sha` when it differs from the new commit. Write the new commit to `.deploy/deployed-sha`. Each write replaces the file in one step.
 
@@ -185,7 +185,7 @@ Do the first deploy after a large upgrade by hand. For an upgrade from `asusoda/
 1. Pause CD, or do the deploy before the next push to `main`.
 2. Run `make backup`. If the old `Makefile` has no `backup` target, copy `data/user.db` to `data/user.db.pre-upgrade`. Keep `data/jwt_*.pem`.
 3. Run `uv run alembic current`. The result must be `a1b2c3d4e5f6`, the last SoDA migration.
-4. Add `VITE_API_URL` to Doppler, for example `https://api.thesoda.io`. Keep `REACT_APP_API_URL` for `web/`.
+4. Add `VITE_API_URL` to Doppler, for example `https://api.thesoda.io`.
 5. If the database has no `alembic_version` table (`create_all` made it), run `uv run alembic stamp a1b2c3d4e5f6`. If you do not, `alembic upgrade head` stops with "table already exists".
 6. Keep the current commit for a rollback: `OLD=$(git rev-parse HEAD)`.
 7. Run `git fetch origin main`, then `git reset --hard origin/main`.
