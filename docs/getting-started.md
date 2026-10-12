@@ -49,6 +49,7 @@ To run the API with no container, run `uv run alembic upgrade head`, then `uv ru
 | `SECRETS_KEY` | A Fernet key that encrypts org secrets. If it is not set, orgs cannot save secrets |
 | `DATABASE_URL` | Default `sqlite:///./data/user.db`. Use `postgresql://...` for Postgres |
 | `MCP_PUBLIC_URL` | Only when the MCP server has its own host: its public URL, such as `https://<pod id>-8001.proxy.runpod.net/mcp`. The default is `<ACCOUNTS_BASE_URL>/mcp`. MCP clients can connect with OAuth at this URL. See [Authentication](./authentication.md#oauth-for-mcp-clients) |
+| `MCP_OAUTH_CIMD` | `false` stops the OAuth metadata from offering Client ID Metadata Documents, so clients register at `/mcp/register`. Composio needs `false`. Default `true` |
 | `FORWARDED_ALLOW_IPS` | Only when the reverse proxy in front of the MCP server connects from an address other than this computer or the default gateway. The MCP server reads the client IP from `X-Forwarded-For` of these addresses, for the OAuth rate limits. Never `*` |
 | `ACCESS_ENFORCE` | `false` logs refused requests and lets them through. `true` refuses them. See [Authentication](./authentication.md) |
 

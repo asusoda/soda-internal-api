@@ -35,6 +35,9 @@ class Config:
             # Public URL of the MCP server's /mcp, for OAuth (modules/mcp/oauth.py). Empty gives
             # <ACCOUNTS_BASE_URL>/mcp. Set it when the MCP server has its own host
             self.MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+            # Advertise Client ID Metadata Documents in the OAuth metadata. A client that has a metadata URL
+            # then skips /register; set false for a client that needs to register, such as Composio
+            self.MCP_OAUTH_CIMD = os.environ.get("MCP_OAUTH_CIMD", "true").strip().lower() != "false"
 
             self.DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/user.db")
 
