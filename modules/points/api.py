@@ -5,7 +5,7 @@ from core.db import db_connect
 from core.http.cached import cached_json, org_key
 from core.http.request_log import bearer_token
 from core.log import logger
-from modules.auth.access import awarded_by, decide, is_org_officer
+from modules.auth.access import awarded_by, decide, discord_directory, is_org_officer
 from modules.auth.decorators import auth_required
 from modules.auth.tokens import token_manager
 from modules.organizations import service as organizations
@@ -118,6 +118,12 @@ def get_member_profile(org_prefix):
             return jsonify({"error": ORG_NOT_FOUND}), 404
 
         if discord_id:
+            # As member_required: the Discord user must be in the org's server
+            directory = discord_directory()
+            if directory is None or not directory.is_ready():
+                return jsonify({"error": "Discord bot not available"}), 503
+            if not directory.check_user_membership(int(discord_id), int(organization.guild_id)):
+                return jsonify({"error": "You must be a member of this organization to access this resource"}), 403
             user = db.query(User).filter_by(discord_id=str(discord_id)).first()
         else:
             user = db.query(User).filter_by(id=member_user_id).first()

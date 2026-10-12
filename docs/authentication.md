@@ -120,4 +120,4 @@ Turn on enforcement when the log shows no `would_deny` lines from real callers.
 - `POST /api/points/<org>/member_login` needs a Clerk token with the same email as the body. In report mode it logs `member_login_unverified` and goes through.
 - Store sign-in: `GET /api/auth/store_login?org=<prefix>` sends the member to Discord with the `identify` scope. The callback at `REDIRECT_URI` writes `session["discord_id"]`, which `member_required` reads, and sends the browser to `<CLIENT_URL>/store/<prefix>`. With `?client=dashboard`, it uses `DASHBOARD_URL`. If the `state` does not match, the callback refuses the sign-in in report mode too, and adds `?error=` to the store URL.
 - `/api/accounts/discord/callback` also writes `session["discord_id"]`.
-- `GET /api/points/<org>/member_profile` finds the member by the Discord session, else by the session of `member_login`.
+- `GET /api/points/<org>/member_profile` finds the member by the Discord session, else by the session of `member_login`. With a Discord session, it checks membership of the org's server as `member_required` does.

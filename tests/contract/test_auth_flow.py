@@ -150,3 +150,16 @@ def test_officer_login_after_an_unfinished_store_login_returns_to_auth(client, d
     state = _query(client.get("/api/auth/login"))["state"][0]
     response = client.get(f"/api/auth/callback?code=abc&state={state}")
     assert response.headers["Location"].startswith(f"{config.CLIENT_URL}/auth/?code=")
+
+
+class OutsiderBot(LoginBot):
+    def check_user_membership(self, user_id, guild_id):
+        return False
+
+
+def test_member_profile_needs_the_orgs_server(member_client, app, monkeypatch):
+    assert member_client.get("/api/points/soda/member_profile").status_code == 200
+    monkeypatch.setattr(app, "discord_directory", OutsiderBot())
+    response = member_client.get("/api/points/soda/member_profile")
+    assert response.status_code == 403
+    assert "user" not in response.get_json()
