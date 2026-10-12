@@ -401,7 +401,7 @@
     "status": 200
   },
   "public-leaderboard": {
-    "caller": "dashboard",
+    "caller": "none",
     "request": "GET /api/public/soda/leaderboard",
     "shape": {
       "leaderboard": [

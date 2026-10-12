@@ -43,7 +43,7 @@ CASES = [
         {"name": "Alice", "email": MEMBER_EMAIL, "username": "alice", "asu_id": "1200000001"},
     ),
     ("member-profile", "dashboard", "GET", "/api/points/soda/member_profile", "member", None),
-    ("public-leaderboard", "dashboard", "GET", "/api/public/soda/leaderboard", None, None),
+    ("public-leaderboard", "none", "GET", "/api/public/soda/leaderboard", None, None),
     ("organizations", "dashboard", "GET", "/api/organizations/", "officer", None),
     ("org-users", "dashboard", "GET", "/api/points/soda/users", "officer", None),
     ("org-users-no-auth", "dashboard", "GET", "/api/points/soda/users", None, None),

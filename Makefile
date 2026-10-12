@@ -213,9 +213,9 @@ deploy:
 		if $(CONTAINER_CMD) inspect soda-web >/dev/null 2>&1; then \
 			echo -e "$(GREEN)[INFO]$(NC) Removing the soda-web container of the removed web service..."; \
 			$(CONTAINER_CMD) rm -f soda-web; \
-			$(CONTAINER_CMD) rmi soda-web:latest 2>/dev/null || true; \
-			$(CONTAINER_CMD) rmi soda-web:previous 2>/dev/null || true; \
 		fi; \
+		$(CONTAINER_CMD) rmi soda-web:latest 2>/dev/null || true; \
+		$(CONTAINER_CMD) rmi soda-web:previous 2>/dev/null || true; \
 		if [ -n "$$SERVICES_TO_BUILD" ]; then \
 			SERVICES_TO_START="api bot dashboard"; \
 			if [ "$$MCP_ON" -eq 1 ]; then SERVICES_TO_START="$$SERVICES_TO_START mcp"; fi; \
