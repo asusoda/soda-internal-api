@@ -9,12 +9,14 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the checks of the old push. On main, a new push waits:
+# a cancelled check would skip the deploy of that commit.
 jobs:
   check:
     timeout-minutes: 20
     concurrency:
       group: check-python-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -44,7 +46,7 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: check-postgres-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -88,7 +90,7 @@ jobs:
     timeout-minutes: 15
     concurrency:
       group: check-dashboard-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -113,7 +115,7 @@ jobs:
     timeout-minutes: 15
     concurrency:
       group: check-web-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -143,7 +145,7 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: check-site-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -167,7 +169,7 @@ jobs:
     timeout-minutes: 10
     concurrency:
       group: check-lint-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
