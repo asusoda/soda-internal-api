@@ -1,7 +1,7 @@
 # Builds the landing and docs site (site/) and serves it with Next.js on port 3000.
 # The build copies the repo's docs/ into the site, so the context is the repo root.
 # Dockerfile.site.dockerignore replaces .dockerignore for this image.
-FROM mirror.gcr.io/library/node:22-alpine AS builder
+FROM mirror.gcr.io/library/node:26-alpine AS builder
 WORKDIR /repo/site
 COPY site/package.json site/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -10,7 +10,7 @@ COPY site/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM mirror.gcr.io/library/node:22-alpine
+FROM mirror.gcr.io/library/node:26-alpine
 RUN addgroup -g 1001 -S nodejs && adduser -S appuser -u 1001
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000

@@ -1,8 +1,8 @@
 # Build stage
-FROM mirror.gcr.io/library/node:18-alpine AS builder
+FROM mirror.gcr.io/library/node:26-alpine AS builder
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@10.10.0 --activate
+# Install pnpm. Node 25 and later do not include corepack.
+RUN npm install -g pnpm@10.10.0
 
 # Set working directory
 WORKDIR /app
@@ -23,12 +23,12 @@ ARG REACT_APP_API_URL
 RUN pnpm run build
 
 # Production stage
-FROM mirror.gcr.io/library/node:18-alpine
+FROM mirror.gcr.io/library/node:26-alpine
 
 # Install pnpm and serve globally
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@10.10.0 --activate && mkdir -p $PNPM_HOME && pnpm add -g serve
+RUN npm install -g pnpm@10.10.0 && mkdir -p $PNPM_HOME && pnpm add -g serve
 
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs

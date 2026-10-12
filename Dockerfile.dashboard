@@ -1,5 +1,5 @@
 # Builds the officer dashboard and the member store (dashboard/) and serves them on port 5001.
-FROM mirror.gcr.io/library/node:22-alpine AS builder
+FROM mirror.gcr.io/library/node:26-alpine AS builder
 WORKDIR /app
 COPY dashboard/package.json dashboard/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -12,7 +12,7 @@ ENV VITE_API_URL=$VITE_API_URL VITE_SITE_URL=$VITE_SITE_URL
 RUN test -n "$VITE_API_URL" || (echo "VITE_API_URL is not set. Set it in .env (for example https://api.thesoda.io) and build again." >&2; exit 1)
 RUN npm run build
 
-FROM mirror.gcr.io/library/node:22-alpine
+FROM mirror.gcr.io/library/node:26-alpine
 RUN npm install -g serve@14 && addgroup -g 1001 -S nodejs && adduser -S appuser -u 1001
 WORKDIR /app
 COPY --from=builder --chown=appuser:nodejs /app/dist ./dist

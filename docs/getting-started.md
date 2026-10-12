@@ -9,7 +9,7 @@ This page tells you how to run Platform on your machine, and on one RunPod pod w
 | uv | Python 3.12, dependencies and the virtual environment |
 | Podman and podman-compose, or Docker | The containers. The Makefile finds the one you have |
 | make | Every command |
-| Node 22 (`.nvmrc`) | Only to run `dashboard/` or `site/` outside a container |
+| Node 26 (`.nvmrc`) | Only to run `dashboard/` or `site/` outside a container |
 
 ## Run it on your machine
 
@@ -98,7 +98,7 @@ flowchart TD
 Caution: keep `/workspace/data/keys.env`. It holds `SECRET_KEY` and `SECRETS_KEY`. If you lose it, the stored org secrets cannot be read.
 
 1. Create a network volume and mount it at `/workspace`.
-2. Create a pod from the image `nikolaik/python-nodejs:python3.12-nodejs20` with the ports `8000/http`, `5000/http` and `8001/http`.
+2. Create a pod from the image `nikolaik/python-nodejs:python3.12-nodejs26` with the ports `8000/http`, `5000/http` and `8001/http`.
 3. Set the start command:
 
    ```

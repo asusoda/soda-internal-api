@@ -15,14 +15,21 @@ step() {
   echo "<== $name ($((SECONDS - start))s)"
 }
 
-# CI and the Docker images use the Node major version in .nvmrc. The orb has a
-# different Node in /usr/local/bin that other orb tools use, so install the
-# pinned version next to it and put it first on PATH for shells in this repo.
+# CI and the Docker images use the Node major version in .nvmrc. When the orb
+# Node in /usr/local/bin is a different version, keep it for the orb tools that
+# use it, install the pinned version next to it and put that version first on
+# PATH for shells in this repo.
 repo_root="$PWD"
 node_major="$(tr -d ' v\n' < .nvmrc)"
 node_dir="$HOME/.local/share/node-$node_major"
 
 install_node() {
+  local system_node
+  system_node="$(command -v node || true)"
+  if [ -n "$system_node" ] && [ "$("$system_node" -p 'process.versions.node.split(".")[0]')" = "$node_major" ]; then
+    echo "The orb Node $("$system_node" --version) matches .nvmrc"
+    return
+  fi
   if [ -x "$node_dir/bin/node" ]; then
     echo "Node $("$node_dir/bin/node" --version) is installed"
     return
