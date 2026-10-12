@@ -38,7 +38,7 @@ class FakePodman:
             self._run(list(args[1:]))
         elif args[0] == "rm":
             self.containers.pop(args[-1], None)
-        elif args[0] in ("start", "stop", "restart"):
+        elif args[0] in ("start", "stop", "restart") and args[-1] in self.containers:
             self.containers[args[-1]]["State"]["Status"] = "exited" if args[0] == "stop" else "running"
         return ""
 

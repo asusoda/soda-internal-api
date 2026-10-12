@@ -63,6 +63,8 @@ The runner lets orgs deploy apps to this server (provider `server` on the Hostin
 | `memory_mb_total`, `memory_mb_max`, `cpus_max` | The memory of all app containers together, and the caps of one container |
 | `port_range` | The host ports any org may publish |
 | `orgs.<prefix>.host_paths`, `orgs.<prefix>.host_ports` | Host paths and host ports that only this org may use, for services it ran on the server before |
+| `orgs.<prefix>.no_new_privileges_off` | Apps of the org that run without `no-new-privileges`: Postgres and Redis images drop to their own user with `gosu`, which that option stops on this server. Only list databases |
+| `bridge_image` | The image of `platform-bridge`, a small container that the runner keeps on podman's default network so that the bridge address `10.88.0.1` stays in place |
 | `orgs.<prefix>.public_ports` | Host ports of the org that bind every address, not only `bind_ips`, for a service that clients reach by the server's IP. Keep it short |
 | `shared.host_paths`, `shared.host_ports` | Host paths and host ports that only shared apps may use |
 | `host_control.containers`, `host_control.units` | The other containers and systemd units that the superadmin may start, stop, restart and read the logs of on the Services card. Container names may use `*`, such as `twenty_*`; units are exact names. App containers are controlled through their apps |
@@ -83,6 +85,11 @@ The `shared` key of the policy has `host_paths` and `host_ports` too: the ones t
 2. Register the app with `provider: server` and a manifest with the same image, env, `publish` and `volumes` as the old container.
 3. Stop the old container (for a systemd unit, `systemctl disable --now <unit>`), then deploy the same tag at once. The domain does not change, because the new container takes the same host port. The service is down for a few seconds.
 4. To go back, delete the app and start the old container or unit again.
+
+Caution: a database needs two more steps, or it does not start or its data can be damaged.
+
+- Add the app to the org's `no_new_privileges_off` in the policy. Postgres and Redis images drop to their own user with `gosu`, and `no-new-privileges` stops that, so the container hangs.
+- Save the old container's settings (`podman inspect` to a root-only file), stop it, make a cold copy of its data folder, then remove it. Renaming it is not enough: its restart policy would start it again after a reboot, on the same data folder as the new container. This podman cannot change a container's restart policy.
 
 ## Images and CI
 

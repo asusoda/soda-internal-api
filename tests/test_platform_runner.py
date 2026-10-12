@@ -87,3 +87,25 @@ def test_a_tcp_health_check_only_needs_the_port_to_accept(monkeypatch):
     finally:
         listener.close()
     assert runner.health("soda", "db", 5432, None)["ok"] is False
+
+
+def test_only_a_listed_database_runs_without_no_new_privileges(policy):
+    policy["orgs"]["soda"]["no_new_privileges_off"] = ["crm-db"]
+    assert runner.check(policy, "soda", "crm-db", BODY)["no_new_privileges"] is False
+    assert runner.check(policy, "soda", "crm-server", BODY)["no_new_privileges"] is True
+    assert runner.check(policy, "ais", "crm-db", BODY)["no_new_privileges"] is True
+
+
+def test_the_bridge_container_is_made_once(monkeypatch):
+    calls = []
+    state = {"exists": False}
+    monkeypatch.setattr(runner, "exists", lambda *args: state["exists"])
+    monkeypatch.setattr(runner, "podman", lambda *args, **kw: calls.append(args) or "")
+    policy = runner.load_policy_dict({"bind_ips": ["127.0.0.1", "10.88.0.1"]})
+    runner.ensure_bridge(policy)
+    assert calls[0][:4] == ("run", "-d", "--name", "platform-bridge")
+    state["exists"] = True
+    runner.ensure_bridge(policy)
+    assert calls[1] == ("start", "platform-bridge")
+    runner.ensure_bridge(runner.load_policy_dict({"bind_ips": ["127.0.0.1"]}))
+    assert len(calls) == 2
