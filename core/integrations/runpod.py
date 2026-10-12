@@ -154,7 +154,7 @@ class RunPodProvider:
         return proxy_url(pod_id, port, path)
 
     def healthy(self, pod_id: str, port: int, path: str | None) -> bool:
-        if path is None:
+        if path is None or path == "running":
             return False
         try:
             return requests.get(proxy_url(pod_id, port, path), timeout=10).status_code < 400

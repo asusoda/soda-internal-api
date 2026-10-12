@@ -173,3 +173,18 @@ def test_runpod_needs_an_http_health_path(client, officer_headers, apps):
     tcp = {**MANIFEST, "health": {"port": 8080, "tcp": True}}
     refused = client.put(f"/api/dashboard/soda/apps/{name}", json={"manifest": tcp}, headers=officer_headers)
     assert refused.status_code == 400 and "health path" in refused.get_json()["error"]
+
+
+def test_a_worker_with_no_port_is_healthy_while_it_runs(client, officer_headers, runner, apps):
+    from core.db import db_connect
+    from modules.runpod import service
+
+    worker = {k: v for k, v in CRM_DB.items() if k not in ("alias", "health")} | {"health": {"running": True}}
+    name = _deployed(client, officer_headers, apps, worker)
+    db = db_connect.SessionLocal()
+    try:
+        service.check_deployments(db)
+    finally:
+        db.close()
+    detail = client.get(f"/api/dashboard/soda/apps/{name}", headers=officer_headers).get_json()
+    assert detail["latest_deployment"]["status"] == "healthy"

@@ -191,6 +191,8 @@ class ServerProvider:
         query = {"port": port, "path": path} if path is not None else {"port": port, "tcp": 1}
         try:
             org = _org_of(pod_id)
+            if path == "running":
+                return self.status(call("GET", _app_path(pod_id, org))) == "RUNNING"
             answer = call("GET", _app_path(pod_id, org) + "/health?" + urlencode(query))
         except RunnerError as e:
             logger.info("health check failed pod=%s error=%s", pod_id, e.message)

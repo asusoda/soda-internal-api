@@ -305,7 +305,7 @@ def _app_url(app: App) -> tuple[str | None, str | None]:
     """The health URL of the app's pod, else the public url of its manifest. Returns (url, error)."""
     manifest = json.loads(str(app.manifest))
     health = manifest.get("health") or {}
-    if app.pod_id and health.get("port") and health.get("path"):
+    if app.pod_id and health.get("port") and str(health.get("path", "")).startswith("/"):
         try:
             provider = hosting.get(str(app.provider or hosting.DEFAULT))
             return provider.proxy_url(str(app.pod_id), int(health["port"]), str(health["path"])), None
