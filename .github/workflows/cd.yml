@@ -112,3 +112,47 @@ jobs:
           fi
 
           echo "Deployment completed successfully."
+
+  # Runs deploy/ansible/firewall.yml against the same server after the deploy passes.
+  firewall:
+    name: Firewall
+    needs: deploy
+    permissions: {}
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.deploy_sha }}
+        persist-credentials: false
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        version: "latest-known"
+        python-version: "3.12"
+        enable-cache: false
+
+    - name: Run the firewall playbook
+      working-directory: deploy/ansible
+      env:
+        VPS_HOST: ${{ secrets.VPS_HOST }}
+        VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+        VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+        VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        VPS_SSH_PASSWORD: ${{ secrets.VPS_SSH_PASSWORD }}
+        # The deploy step does not check the host key either.
+        ANSIBLE_HOST_KEY_CHECKING: "False"
+        ANSIBLE_FORCE_COLOR: "1"
+      run: |
+        set -eu
+        if [ -n "$VPS_SSH_KEY" ]; then
+          (umask 077 && printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key")
+          export ANSIBLE_PRIVATE_KEY_FILE="$RUNNER_TEMP/vps_key"
+          # Like the deploy step, sign in with the key when it is set.
+          unset VPS_SSH_PASSWORD
+        else
+          # Ansible needs sshpass to sign in with a password.
+          sudo apt-get update -q && sudo apt-get install -y -q sshpass
+        fi
+        uv run --frozen --only-group deploy ansible-playbook firewall.yml

@@ -1,0 +1,16 @@
+# The SoDA server. The connection values come from the environment, so no secret is in the repo.
+# cd.yml sets them from the VPS_* secrets.
+all:
+  hosts:
+    production:
+      ansible_host: "{{ lookup('ansible.builtin.env', 'VPS_HOST') }}"
+      ansible_port: "{{ lookup('ansible.builtin.env', 'VPS_SSH_PORT') or '22' }}"
+      ansible_user: "{{ lookup('ansible.builtin.env', 'VPS_USERNAME') or 'root' }}"
+      # Empty when the connection uses a key (ANSIBLE_PRIVATE_KEY_FILE).
+      ansible_password: "{{ lookup('ansible.builtin.env', 'VPS_SSH_PASSWORD') }}"
+      ansible_become_password: "{{ lookup('ansible.builtin.env', 'VPS_SSH_PASSWORD') }}"
+      firewall_health_urls:
+        - https://api.thesoda.io/health
+        - https://mcp.thesoda.io/.well-known/oauth-authorization-server
+      # 80 and 443 are open only to Cloudflare. 81 is the Nginx Proxy Manager admin page.
+      firewall_closed_ports: [80, 443, 81, 5001, 8000, 8001, 3010]

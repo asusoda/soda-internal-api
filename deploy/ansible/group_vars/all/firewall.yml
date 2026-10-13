@@ -1,0 +1,20 @@
+# Defaults for firewall.yml. inventory.yml sets the values of each server.
+
+# SSH ports open to every address. The playbook adds the ports in the sshd config.
+firewall_ssh_ports: ["{{ ansible_port | default(22) }}"]
+# The sources that may open 80 and 443.
+firewall_web_sources: "{{ cloudflare_ipv4 + cloudflare_ipv6 }}"
+# Compare cloudflare_ipv4 and cloudflare_ipv6 with the live lists before a change.
+firewall_check_cloudflare: true
+# Host ports that podman publishes on every address, as port/proto. ufw cannot close them:
+# podman sends that traffic to the container (DNAT) before ufw's input rules see it.
+# The before.init script drops new connections to them that come in on a public interface.
+firewall_published_ports_blocked: [5001/tcp]
+# The interfaces that face the internet. Empty: the interfaces of the default IPv4 and IPv6 routes.
+firewall_public_interfaces: []
+# URLs that must return 200 after the change, from the machine that runs the playbook.
+firewall_health_urls: []
+# Ports of ansible_host that must not accept a connection from the machine that runs the playbook.
+firewall_closed_ports: []
+# Seconds before the server turns ufw off again when the playbook does not confirm the first start.
+firewall_revert_after: 600

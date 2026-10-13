@@ -91,13 +91,53 @@ Caution: a database needs two more steps, or it does not start or its data can b
 - Add the app to the org's `no_new_privileges_off` in the policy. Postgres and Redis images drop to their own user with `gosu`, and `no-new-privileges` stops that, so the container hangs.
 - Save the old container's settings (`podman inspect` to a root-only file), stop it, make a cold copy of its data folder, then remove it. Renaming it is not enough: its restart policy would start it again after a reboot, on the same data folder as the new container. This podman cannot change a container's restart policy.
 
+## Firewall
+
+`deploy/ansible/firewall.yml` sets up ufw on the SoDA server. The `firewall` job of `cd.yml` runs it after each deploy that passes. From the internet, the server then accepts only these connections:
+
+| Port | From |
+| --- | --- |
+| The SSH port (`VPS_SSH_PORT`) and each `Port` in the sshd config | Every address |
+| 80 and 443 | Cloudflare only (`deploy/ansible/group_vars/all/cloudflare.yml`) |
+
+ufw drops all other incoming connections, also to 81 (the Nginx Proxy Manager admin page). Connections from the host do not change. Connections from containers do not change, with one exception: ufw drops a connection from a container to a host process that is not in a container. Nginx Proxy Manager runs on the host network, so it still reaches `127.0.0.1:8000`, `127.0.0.1:8001` and `10.88.0.1:5001`. Containers on a podman network still get DNS from aardvark-dns. A container also still reaches a published port on `10.88.0.1`, because podman sends that connection to the app container.
+
+Podman sends traffic for a published host port to the container (DNAT) before ufw's input rules see it. ufw alone does not close 5001, which `docker-compose.yml` publishes on every address. The playbook writes `/etc/ufw/before.init`, which ufw runs when it starts and stops. It drops new connections to the ports in `firewall_published_ports_blocked` (default `5001/tcp`) that come in on a public interface. An org's `public_ports` in the runner policy stay open, because the playbook does not add them.
+
+The playbook does these steps:
+
+1. Compare the Cloudflare ranges with https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6. If they are different, stop before a change.
+2. Add the rules, with the comments `platform-ssh`, `platform-cloudflare` and `platform-podman-dns`. Remove the rules with these comments that are not in the lists. Do not remove other rules. The job output lists them.
+3. If ufw is off, start a systemd timer (`platform-firewall-revert`) that runs `ufw --force disable` after 600 seconds. Then start ufw.
+4. Open a new SSH connection, and get each URL in `firewall_health_urls` through Cloudflare. If this passes, stop the timer. If it fails, turn ufw off again. If the server cannot be reached, the timer turns ufw off.
+5. From the GitHub runner, make sure that each port in `firewall_closed_ports` does not accept a connection. If one does, the job fails and ufw stays on.
+
+Caution: a proxy host in Nginx Proxy Manager that Cloudflare does not proxy (a DNS-only record) stops working. Turn on the Cloudflare proxy for each such host before the first run.
+
+When Cloudflare changes its ranges, the `firewall` job fails at step 1 and shows the changes. Do these steps:
+
+1. Update `deploy/ansible/group_vars/all/cloudflare.yml`.
+2. Update the real IP config of Nginx Proxy Manager (`set_real_ip_from`), or app logs and the per-IP limits of the MCP server get Cloudflare's addresses.
+3. Push to `main`. The next deploy removes the old ranges and adds the new ones.
+
+To open the Nginx Proxy Manager admin page, use an SSH tunnel: `ssh -L 8181:127.0.0.1:81 <user>@<server>`, then open http://localhost:8181.
+
+To run the playbook from your machine, with no change first (`--check`):
+
+```bash
+cd deploy/ansible
+VPS_HOST=<server> VPS_USERNAME=root VPS_SSH_PORT=22 uv run --only-group deploy ansible-playbook firewall.yml --check --diff
+```
+
+`inventory.yml` reads `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_PORT` and `VPS_SSH_PASSWORD` from the environment, and has the URLs and ports of the SoDA server. `group_vars/all/firewall.yml` has the defaults. The user must be root or have sudo with no password.
+
 ## Images and CI
 
 | Workflow | Does |
 | --- | --- |
 | `check.yml` | On each push and PR: `make ci` and bandit; migrations and tests on Postgres 16; the dashboard and site builds; the images (`images.yml`); workflow lint. A push to `main` in `asusoda/platform` then runs `cd.yml` |
 | `images.yml` | `check.yml` calls it. Builds the API, dashboard and site images. On `main` it pushes them to GHCR as `ghcr.io/<owner>/<repo>-api`, `-dashboard` and `-site`, tagged with the commit sha and `main`. The build cache is the `buildcache` tag of each image |
-| `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform`. Each run is a deployment to the `production` environment on the repository's Deployments page |
+| `cd.yml` | Deploys the example SoDA server for the commit that passed Check. `check.yml` calls it only in `asusoda/platform`. Each run is a deployment to the `production` environment on the repository's Deployments page. After the deploy, its `firewall` job runs the [firewall playbook](#firewall) |
 
 The Dockerfiles, the compose file and CI pull base images (Python, Node, pgvector) from `mirror.gcr.io`, Google's copy of Docker Hub. It has no pull limit for anonymous users, so CI does not stop with `429 Too Many Requests`. Platform's own images go to GHCR.
 
@@ -132,13 +172,14 @@ flowchart TD
   deploy -->|fails| rollback["make rollback"]
   deploy -->|passes| health["make health"]
   health -->|fails| rollback
-  health -->|passes| done["Deploy done"]
+  health -->|passes| firewall["firewall job: deploy/ansible/firewall.yml"]
+  firewall --> done["Deploy done"]
 ```
 
 `make deploy` does these steps:
 
 1. Check out `DEPLOY_SHA` when it is set. Get `origin/$(BRANCH)` when `DEPLOY_SHA` is empty. `BRANCH` defaults to `main`. Compare the new commit with the SHA in `.deploy/deployed-sha`. If the file is absent, the text is not a 40-character sha, or that commit is not in this checkout, use `DEPLOY_FROM`. If `DEPLOY_FROM` is empty, use the `HEAD` from before the fetch.
-2. Select the changed images. A change in `dashboard/` or `Dockerfile.dashboard` selects `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` selects `site`. A change in a compose file or the `Makefile` selects all three. A change in `.github/` or another `.md` file selects nothing. All other changes select `api`.
+2. Select the changed images. A change in `dashboard/` or `Dockerfile.dashboard` selects `dashboard`. A change in `site/`, `docs/` or `Dockerfile.site` selects `site`. A change in a compose file or the `Makefile` selects all three. A change in `.github/`, `deploy/ansible/` or another `.md` file selects nothing. All other changes select `api`.
 3. Tag the current images as `:previous`.
 4. Pull each changed image from GHCR as `$(IMAGE_REPO)-<service>:<commit>` and tag it with the local `:latest` name, for example `soda-internal-api:latest`. `IMAGE_REPO` defaults to `ghcr.io/asusoda/platform`. If a pull fails, build that image on the server. With `IMAGE_SOURCE=build`, build all of them on the server. The old containers keep running during this step.
 5. Run `uv run alembic upgrade head` on the host. If it fails, the deploy stops and the old containers keep running.

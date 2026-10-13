@@ -41,6 +41,10 @@ jobs:
     - name: Run bandit security checks
       run: uv run bandit -c pyproject.toml -r . -f txt
 
+    - name: Check the Ansible playbook
+      working-directory: deploy/ansible
+      run: uv run --frozen --only-group deploy ansible-playbook --syntax-check firewall.yml
+
   # The same tests and migrations against Postgres, the production database from phase 2 on.
   postgres:
     timeout-minutes: 20
