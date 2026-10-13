@@ -189,7 +189,7 @@ deploy:
 						BUILD_SITE=1 ;; \
 					docker-compose.yml|docker-compose.dev.yml|Makefile) \
 						BUILD_API=1; BUILD_DASHBOARD=1; BUILD_SITE=1 ;; \
-					.github/*|*.md|CLAUDE.md|AGENTS.md|.pre-commit-config.yaml) \
+					.github/*|deploy/ansible/*|*.md|CLAUDE.md|AGENTS.md|.pre-commit-config.yaml) \
 						;; \
 					*) \
 						BUILD_API=1 ;; \

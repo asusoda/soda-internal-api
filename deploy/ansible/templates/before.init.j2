@@ -1,0 +1,47 @@
+#!/bin/sh
+# Managed by deploy/ansible/firewall.yml. The next deploy replaces changes made on the server.
+#
+# ufw runs this script with "start" before it loads its rules, and with "stop" after it removes them.
+# Podman sends traffic for a published host port to the container (DNAT) before ufw's input rules
+# see it. The chain below drops new connections to those ports that come in on a public interface.
+# Connections from the host and from containers do not come in on a public interface, so
+# Nginx Proxy Manager still reaches 10.88.0.1:5001.
+set -e
+
+CHAIN=platform-published
+INTERFACES="{{ firewall_interfaces | join(' ') }}"
+PORTS="{{ firewall_published_ports_blocked | join(' ') }}"
+
+remove_chain() {
+    for ipt in iptables ip6tables; do
+        while $ipt -w -t mangle -D PREROUTING -j "$CHAIN" 2>/dev/null; do :; done
+        $ipt -w -t mangle -F "$CHAIN" 2>/dev/null || true
+        $ipt -w -t mangle -X "$CHAIN" 2>/dev/null || true
+    done
+}
+
+case "$1" in
+start)
+    remove_chain
+    for ipt in iptables ip6tables; do
+        $ipt -w -t mangle -N "$CHAIN"
+        for interface in $INTERFACES; do
+            for entry in $PORTS; do
+                $ipt -w -t mangle -A "$CHAIN" -i "$interface" -p "${entry#*/}" --dport "${entry%/*}" \
+                    -m addrtype --dst-type LOCAL -m conntrack --ctstate NEW -j DROP
+            done
+        done
+        $ipt -w -t mangle -I PREROUTING -j "$CHAIN"
+    done
+    ;;
+stop|flush-all)
+    remove_chain
+    ;;
+status)
+    iptables -w -t mangle -S "$CHAIN" 2>/dev/null || true
+    ;;
+*)
+    echo "'$1' not supported"
+    echo "Usage: before.init {start|stop|flush-all|status}"
+    ;;
+esac

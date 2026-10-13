@@ -1,0 +1,288 @@
+# Sets up ufw on the server: SSH from every address, 80 and 443 only from Cloudflare, nothing else in.
+# cd.yml runs it after each deploy. See "Firewall" in docs/operations.md.
+- name: Set up the firewall
+  hosts: production
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Check that the server is Debian or Ubuntu
+      ansible.builtin.assert:
+        that: ansible_facts.os_family == 'Debian'
+        fail_msg: This playbook uses ufw and apt. The server is {{ ansible_facts.distribution }}.
+
+    - name: Read the services
+      ansible.builtin.service_facts:
+
+    - name: Check that firewalld does not run
+      ansible.builtin.assert:
+        that: ansible_facts.services['firewalld.service'].state | default('') != 'running'
+        fail_msg: firewalld runs on the server. Stop it, or ufw and firewalld both change the rules.
+
+    - name: Get the live Cloudflare ranges
+      ansible.builtin.uri:
+        url: https://www.cloudflare.com/ips-{{ item }}
+        return_content: true
+      check_mode: false
+      register: firewall_cloudflare_live
+      until: firewall_cloudflare_live is succeeded
+      retries: 3
+      delay: 5
+      loop: [v4, v6]
+      delegate_to: localhost
+      become: false
+      when: firewall_check_cloudflare | bool
+
+    - name: Check that the Cloudflare ranges are current
+      vars:
+        live: "{{ firewall_cloudflare_live.results | map(attribute='content') | map('split') | flatten | sort }}"
+        known: "{{ (cloudflare_ipv4 + cloudflare_ipv6) | sort }}"
+      ansible.builtin.assert:
+        that: live == known
+        fail_msg: >-
+          Cloudflare changed its ranges. Added: {{ live | difference(known) }}. Removed: {{ known | difference(live) }}.
+          Update group_vars/all/cloudflare.yml and the real IP config of Nginx Proxy Manager.
+      when: firewall_check_cloudflare | bool
+
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Read the sshd config
+      ansible.builtin.command: sshd -T
+      check_mode: false
+      register: firewall_sshd
+      changed_when: false
+      failed_when: false
+
+    - name: Read the ufw status
+      ansible.builtin.command: ufw status
+      check_mode: false
+      register: firewall_status
+      changed_when: false
+
+    - name: Set the ports, interfaces and state
+      ansible.builtin.set_fact:
+        firewall_was_active: "{{ 'Status: active' in firewall_status.stdout }}"
+        firewall_ssh_ports_all: >-
+          {{ (firewall_ssh_ports | map('string')) + (firewall_sshd.stdout | default('') | regex_findall('(?m)^port (\d+)$'))
+             | unique | sort }}
+        firewall_interfaces: >-
+          {{ firewall_public_interfaces or
+             ([ansible_facts.default_ipv4.interface | default(''), ansible_facts.default_ipv6.interface | default('')]
+              | select | unique) }}
+
+    - name: Check that the public interfaces are known
+      ansible.builtin.assert:
+        that: firewall_interfaces | length > 0
+        fail_msg: The server has no default route. Set firewall_public_interfaces.
+
+    - name: Apply the rules
+      block:
+        - name: Remove a revert timer of an earlier run
+          ansible.builtin.systemd_service:
+            name: platform-firewall-revert.timer
+            state: stopped
+          failed_when: false
+          when: not firewall_was_active
+
+        # If the playbook loses the server after ufw starts, the server turns ufw off again.
+        - name: Schedule a revert of the first start
+          ansible.builtin.command: >-
+            systemd-run --collect --unit=platform-firewall-revert --on-active={{ firewall_revert_after }}
+            --timer-property=AccuracySec=1s /usr/sbin/ufw --force disable
+          changed_when: true
+          when: not firewall_was_active
+
+        - name: Turn on IPv6 rules
+          ansible.builtin.lineinfile:
+            path: /etc/default/ufw
+            regexp: ^IPV6=
+            line: IPV6=yes
+          register: firewall_ipv6
+
+        - name: Deny incoming traffic by default
+          community.general.ufw:
+            default: deny
+            direction: incoming
+
+        - name: Allow outgoing traffic by default
+          community.general.ufw:
+            default: allow
+            direction: outgoing
+
+        - name: Allow SSH
+          community.general.ufw:
+            rule: allow
+            port: "{{ item }}"
+            proto: tcp
+            comment: platform-ssh
+          loop: "{{ firewall_ssh_ports_all }}"
+
+        - name: Allow 80 and 443 from Cloudflare
+          community.general.ufw:
+            rule: allow
+            proto: tcp
+            from_ip: "{{ item }}"
+            port: 80,443
+            comment: platform-cloudflare
+          loop: "{{ firewall_web_sources }}"
+
+        # aardvark-dns answers the containers of a podman network on the address of its bridge.
+        - name: Allow DNS from podman networks
+          community.general.ufw:
+            rule: allow
+            interface_in: podman+
+            port: "53"
+            comment: platform-podman-dns
+
+        - name: Read the added rules
+          ansible.builtin.command: ufw show added
+          check_mode: false
+          register: firewall_added
+          changed_when: false
+
+        - name: Remove old SSH rules
+          community.general.ufw:
+            rule: allow
+            port: "{{ item }}"
+            proto: tcp
+            delete: true
+          loop: >-
+            {{ firewall_added.stdout | regex_findall("(?m)^ufw allow (\d+)/tcp comment 'platform-ssh'$")
+               | difference(firewall_ssh_ports_all) }}
+
+        # ufw shows a single address without its prefix length (/32 or /128).
+        - name: Remove old Cloudflare rules
+          community.general.ufw:
+            rule: allow
+            proto: tcp
+            from_ip: "{{ item }}"
+            port: 80,443
+            delete: true
+          loop: >-
+            {{ firewall_added.stdout
+               | regex_findall("(?m)^ufw allow from (\S+) to any port 80,443 proto tcp comment 'platform-cloudflare'$")
+               | map('regex_replace', '^([0-9.]+)$', '\1/32') | map('regex_replace', '^([0-9a-fA-F:]+)$', '\1/128')
+               | difference(firewall_web_sources) }}
+
+        - name: Install the rules for published ports
+          ansible.builtin.template:
+            src: before.init.j2
+            dest: /etc/ufw/before.init
+            owner: root
+            group: root
+            mode: "0750"
+          register: firewall_before_init
+
+        - name: Start ufw
+          community.general.ufw:
+            state: enabled
+
+        - name: Load the changed config
+          community.general.ufw:
+            state: reloaded
+          when: firewall_was_active and (firewall_before_init is changed or firewall_ipv6 is changed)
+
+        - name: Read the rules for published ports
+          ansible.builtin.command: iptables -w -t mangle -S
+          check_mode: false
+          register: firewall_mangle
+          changed_when: false
+          when: not ansible_check_mode and firewall_published_ports_blocked | length > 0
+
+        - name: Check that the rules for published ports are loaded
+          ansible.builtin.assert:
+            that:
+              - "'-A PREROUTING -j platform-published' in firewall_mangle.stdout"
+              - "'--dport ' ~ (item | split('/') | first) ~ ' ' in firewall_mangle.stdout"
+          loop: "{{ firewall_published_ports_blocked }}"
+          when: not ansible_check_mode
+
+        # A new SSH connection must get through ufw. The connection before ufw started stays open.
+        - name: Close the SSH connection
+          ansible.builtin.meta: reset_connection
+
+        - name: Connect again over SSH
+          ansible.builtin.wait_for_connection:
+            timeout: 60
+
+        - name: Check the public URLs
+          ansible.builtin.uri:
+            url: "{{ item }}"
+            status_code: 200
+          register: firewall_health
+          until: firewall_health is succeeded
+          retries: 5
+          delay: 5
+          loop: "{{ firewall_health_urls }}"
+          delegate_to: localhost
+          become: false
+          when: not ansible_check_mode
+
+        - name: Cancel the revert
+          ansible.builtin.systemd_service:
+            name: platform-firewall-revert.timer
+            state: stopped
+          when: not firewall_was_active and not ansible_check_mode
+
+      rescue:
+        - name: Turn off ufw again
+          ansible.builtin.command: ufw --force disable
+          changed_when: true
+          failed_when: false
+          ignore_unreachable: true
+          register: firewall_disable
+          when: not firewall_was_active
+
+        - name: Cancel the revert after ufw is off
+          ansible.builtin.systemd_service:
+            name: platform-firewall-revert.timer
+            state: stopped
+          failed_when: false
+          when: not firewall_was_active and firewall_disable.rc | default(1) == 0
+
+        - name: Stop the run
+          vars:
+            result: >-
+              {{ 'ufw stays on with the new rules.' if firewall_was_active
+                 else 'ufw is off again.' if firewall_disable.rc | default(1) == 0
+                 else 'The playbook cannot reach the server. The revert timer turns ufw off '
+                      ~ firewall_revert_after ~ ' seconds after the start.' }}
+          ansible.builtin.fail:
+            msg: "The firewall change failed at \"{{ ansible_failed_task.name }}\": {{ ansible_failed_result.msg | default('') }} {{ result }}"
+
+    # Run after the rescue block: an open port is a fault in the rules, and ufw stays on.
+    - name: Check that the closed ports do not accept a connection from outside
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ item }}"
+        state: stopped
+        timeout: 10
+        connect_timeout: 3
+      loop: "{{ firewall_closed_ports }}"
+      delegate_to: localhost
+      become: false
+      when: not ansible_check_mode
+
+    - name: Read the ufw status
+      ansible.builtin.command: ufw status verbose
+      check_mode: false
+      register: firewall_status_after
+      changed_when: false
+
+    - name: Read the rules that the playbook did not add
+      ansible.builtin.command: ufw show added
+      check_mode: false
+      register: firewall_added_after
+      changed_when: false
+
+    - name: Show the ufw status
+      vars:
+        other_rules: >-
+          {{ firewall_added_after.stdout_lines | select('match', '^ufw ') | reject('search', "comment 'platform-") }}
+      ansible.builtin.debug:
+        msg: >-
+          {{ firewall_status_after.stdout_lines
+             + ((['Rules that this playbook did not add. Remove them if they are not necessary:'] + other_rules)
+                if other_rules else []) }}
