@@ -39,7 +39,8 @@ logger = get_logger(__name__)
 COOKIE = "platform_mcp_oauth"
 
 # The presets and the All and None buttons of the consent page. The buttons stay hidden when scripts do not run,
-# and the check boxes work without them.
+# and the check boxes work without them. The script tag has data-cfasync="false": Cloudflare Rocket Loader otherwise
+# changes its type and runs it from a loader script that the CSP blocks, so the script does not run.
 SCRIPT = """(() => {
   const boxes = [...document.querySelectorAll('input[name=scope]')];
   const presets = [...document.querySelectorAll('[data-preset]')];
@@ -81,6 +82,7 @@ SCRIPT = """(() => {
 SCRIPT_HASH = base64.b64encode(hashlib.sha256(SCRIPT.encode()).digest()).decode()
 
 STYLE = """
+[hidden] { display: none !important; }
 .presets { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
 .presets button[aria-pressed=true] { background: #1f6feb; color: #fff; border-color: #1f6feb; }
 button { font: inherit; padding: 0.25rem 0.75rem; border: 1px solid #888; border-radius: 0.25rem; background: #f6f6f6;
@@ -363,7 +365,7 @@ def _consent_page(db, row, consent_key: str, error: str | None = None, chosen: d
         "Revoke it there to disconnect the client. If you stop being an officer of the org, "
         "the connection stops at its next refresh, within an hour. If Discord cannot be reached then, "
         "it can continue for up to 24 hours more.</p>"
-        f"<script>{SCRIPT}</script>"
+        f'<script data-cfasync="false">{SCRIPT}</script>'
     )
     return _page(f"Connect {oauth.client_name(info)}", body, 400 if error else 200, width="44rem")
 
