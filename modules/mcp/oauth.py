@@ -310,6 +310,26 @@ def check_redirect_uri(uri: str) -> None:
         raise OAuthError(f"Redirect URI {uri} must not have a fragment")
 
 
+def same_loopback_uri(registered: str, requested: str) -> bool:
+    """True when both URIs are http on the same loopback host and differ at most in the port (RFC 8252 7.3)."""
+    a, b = urlsplit(registered), urlsplit(requested)
+    if a.scheme.lower() != "http" or (a.hostname or "") not in LOOPBACK_HOSTS:
+        return False
+    parts = ("scheme", "hostname", "username", "password", "path", "query", "fragment")
+    return all(getattr(a, part) == getattr(b, part) for part in parts)
+
+
+class Client(OAuthClientInformationFull):
+    """The SDK's client information, with any port allowed on a loopback redirect URI."""
+
+    def validate_redirect_uri(self, redirect_uri: AnyUrl | None) -> AnyUrl:
+        if redirect_uri is not None and any(
+            same_loopback_uri(str(uri), str(redirect_uri)) for uri in self.redirect_uris or []
+        ):
+            return redirect_uri
+        return super().validate_redirect_uri(redirect_uri)
+
+
 def register_client(db, info: dict) -> None:
     """Store a client from the SDK's registration handler. Raises OAuthError. Commits."""
     secret = info.pop("client_secret", None)
@@ -870,7 +890,7 @@ class Provider(sdk.OAuthAuthorizationServerProvider[sdk.AuthorizationCode, Platf
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
         info = await _run(resolve_client, client_id)
-        return OAuthClientInformationFull.model_validate(info) if info is not None else None
+        return Client.model_validate(info) if info is not None else None
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         # Platform scopes are granted on the consent page, so a client can ask for any of them
