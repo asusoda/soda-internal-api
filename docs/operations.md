@@ -100,7 +100,7 @@ Caution: a database needs two more steps, or it does not start or its data can b
 | The SSH port (`VPS_SSH_PORT`) and each `Port` in the sshd config | Every address |
 | 80 and 443 | Cloudflare only (`deploy/ansible/group_vars/all/cloudflare.yml`) |
 
-ufw drops all other incoming connections, also to 81 (the Nginx Proxy Manager admin page). Connections from the host and from containers do not change. Nginx Proxy Manager runs on the host network, so it still reaches `127.0.0.1:8000`, `127.0.0.1:8001` and `10.88.0.1:5001`. Containers on a podman network still get DNS from aardvark-dns.
+ufw drops all other incoming connections, also to 81 (the Nginx Proxy Manager admin page). Connections from the host and from containers do not change. Nginx Proxy Manager runs on the host network, so it still reaches `127.0.0.1:8000`, `127.0.0.1:8001` and `10.88.0.1:5001`. Containers on a podman network still get DNS from aardvark-dns. A container also still reaches a published port on `10.88.0.1`, such as the Uptime check of an app on This server, because podman sends that connection to the app container. ufw drops a connection from a container to a host process that is not in a container.
 
 Podman sends traffic for a published host port to the container (DNAT) before ufw's input rules see it. ufw alone does not close 5001, which `docker-compose.yml` publishes on every address. The playbook writes `/etc/ufw/before.init`, which ufw runs when it starts and stops. It drops new connections to the ports in `firewall_published_ports_blocked` (default `5001/tcp`) that come in on a public interface. An org's `public_ports` in the runner policy stay open, because the playbook does not add them.
 

@@ -61,9 +61,17 @@
       register: firewall_status
       changed_when: false
 
+    - name: Read the revert timer
+      ansible.builtin.systemd_service:
+        name: platform-firewall-revert.timer
+      register: firewall_revert_timer
+
+    # A pending revert timer means that no run confirmed the last start, so this run starts ufw as the first time.
     - name: Set the ports, interfaces and state
       ansible.builtin.set_fact:
-        firewall_was_active: "{{ 'Status: active' in firewall_status.stdout }}"
+        firewall_was_active: >-
+          {{ 'Status: active' in firewall_status.stdout
+             and firewall_revert_timer.status.ActiveState | default('') != 'active' }}
         firewall_ssh_ports_all: >-
           {{ (firewall_ssh_ports | map('string')) + (firewall_sshd.stdout | default('') | regex_findall('(?m)^port (\d+)$'))
              | unique | sort }}
