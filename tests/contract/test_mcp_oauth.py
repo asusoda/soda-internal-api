@@ -1703,7 +1703,8 @@ def test_the_consent_page_shows_presets_and_groups(oauth_client):
     assert page.status_code == 200, page.text
 
     # The CSP lets only the script of the page run
-    script = page.text.split("<script>")[1].split("</script>")[0]
+    # data-cfasync="false" makes Cloudflare Rocket Loader leave the script as it is, so the CSP lets it run
+    script = page.text.split('<script data-cfasync="false">')[1].split("</script>")[0]
     digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
     assert digest == oauth_pages.SCRIPT_HASH
     assert f"script-src 'sha256-{digest}'" in page.headers["content-security-policy"]
