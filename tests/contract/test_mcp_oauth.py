@@ -721,6 +721,76 @@ def test_a_localhost_redirect_gets_a_warning(oauth_client, documents):
     assert "This address is on your computer" in page.text
 
 
+def _consent_from_authorize(oauth_client, authorize) -> str:
+    """Follow a 302 from /authorize through the Discord sign-in. Returns the consent key."""
+    assert authorize.status_code == 302, authorize.text
+    login = oauth_client.get(f"/mcp/oauth/login?{urlparse(authorize.headers['location']).query}")
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    page = oauth_client.get("/mcp/oauth/callback", params={"state": state, "code": "discord-code"})
+    assert page.status_code == 200, page.text
+    return page.text.split('name="consent" value="')[1].split('"')[0]
+
+
+def test_a_loopback_redirect_can_use_any_port(oauth_client, client, officer_headers, documents):
+    # The document of Claude Code has no port in its redirect URIs, and Claude Code asks for a random port
+    loopback = ["http://localhost/callback", "http://127.0.0.1/callback"]
+    documents["answers"][DOCUMENT_URL] = (200, {}, _document(redirect_uris=loopback))
+    redirect = "http://localhost:57166/callback"
+    verifier, challenge = _pkce()
+    consent_key = _consent_from_authorize(oauth_client, _authorize(oauth_client, DOCUMENT_URL, challenge, redirect))
+    response = oauth_client.post(
+        "/mcp/oauth/consent",
+        data={
+            "consent": consent_key,
+            "org": str(_soda_id(client, officer_headers)),
+            "scope": ["org:read"],
+            "action": "approve",
+        },
+    )
+    assert response.status_code == 303, response.text
+    location = urlparse(response.headers["location"])
+    assert f"{location.scheme}://{location.netloc}{location.path}" == redirect
+    code = parse_qs(location.query)["code"][0]
+    form = {"grant_type": "authorization_code", "code": code, "client_id": DOCUMENT_URL, "code_verifier": verifier}
+    # The token request must name the same port as the authorization request
+    other_port = _token(oauth_client, **form, redirect_uri="http://localhost:50000/callback")
+    assert other_port.status_code == 400
+    tokens = _token(oauth_client, **form, redirect_uri=redirect)
+    assert tokens.status_code == 200, tokens.text
+
+
+def test_a_registered_loopback_redirect_can_use_another_port(oauth_client):
+    registered = _register(oauth_client, redirect_uris=["http://127.0.0.1:33418/callback"])
+    authorize = _authorize(oauth_client, registered["client_id"], _pkce()[1], "http://127.0.0.1:41000/callback")
+    assert authorize.status_code == 302, authorize.text
+    assert urlparse(authorize.headers["location"]).path == "/mcp/oauth/login"
+
+
+@pytest.mark.parametrize(
+    "redirect",
+    [
+        "http://127.0.0.1:57166/callback",
+        "http://localhost:57166/other",
+        "http://localhost:57166/callback?next=x",
+        "https://localhost:57166/callback",
+        "http://user@localhost:57166/callback",
+        "http://localhost:57166/callback#frag",
+        "http://evil.test/callback",
+    ],
+)
+def test_a_loopback_redirect_must_match_all_but_the_port(oauth_client, documents, redirect):
+    documents["answers"][DOCUMENT_URL] = (200, {}, _document(redirect_uris=["http://localhost/callback"]))
+    authorize = _authorize(oauth_client, DOCUMENT_URL, _pkce()[1], redirect)
+    assert authorize.status_code == 400
+    assert "not registered for client" in authorize.text
+
+
+def test_other_redirects_must_match_exactly(oauth_client):
+    registered = _register(oauth_client)
+    authorize = _authorize(oauth_client, registered["client_id"], _pkce()[1], "https://client.test:8443/callback")
+    assert authorize.status_code == 400
+
+
 @pytest.mark.parametrize(
     ("answer", "reason"),
     [

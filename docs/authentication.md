@@ -169,6 +169,7 @@ These steps show the flow.
 - The officer check always applies, also when `ACCESS_ENFORCE=false`.
 - If a request has `resource` (RFC 8707), it must be the public URL or a path above it on the same origin, such as `https://api.thesoda.io`. A `resource` of another server gets `error=invalid_target`.
 - A redirect URI must use HTTPS, or HTTP on `localhost`, `127.0.0.1` or `[::1]`, as the MCP spec says. App schemes such as `cursor://` are refused.
+- The redirect URI of `/mcp/authorize` must be equal to a registered redirect URI. For HTTP on `localhost`, `127.0.0.1` or `[::1]`, the port can be different (RFC 8252, section 7.3). A local client such as Claude Code registers `http://localhost/callback` and asks for a random port when it runs. The host, path and query must be equal.
 - The database keeps a SHA-256 hash of each key, code and refresh token. It keeps a client secret encrypted with `SECRETS_KEY`. Without `SECRETS_KEY`, only public clients can register.
 - The server keeps up to 5000 clients from `/mcp/register` and, apart from those, up to 5000 cached metadata documents. The `mcp.cleanup_oauth` job deletes registered clients with no grant that were not used for 7 days, and cached documents with no grant and no open request at once.
 - OAuth tokens open the MCP server. Other machine tokens open it too, as before.
