@@ -76,9 +76,11 @@ def test_an_org_starts_stops_restarts_and_reads_logs(client, officer_headers, ru
     assert stopped.status_code == 200 and stopped.get_json()["pod"]["state"] == "exited"
     restarted = client.post(f"{base}/action", json={"action": "restart"}, headers=officer_headers)
     assert restarted.get_json()["pod"]["state"] == "running"
-    assert ("restart", f"app-soda-{name}") in runner.calls
+    assert ("restart", f"app-soda--{name}") in runner.calls
     logs = client.get(f"{base}/logs?lines=50", headers=officer_headers).get_json()["logs"]
-    assert f"app-soda-{name}" in logs and ("logs", "--tail", "50", f"app-soda-{name}") in [c[1:] for c in runner.calls]
+    assert f"app-soda--{name}" in logs and ("logs", "--tail", "50", f"app-soda--{name}") in [
+        c[1:] for c in runner.calls
+    ]
     assert client.post(f"{base}/action", json={"action": "delete"}, headers=officer_headers).status_code == 400
 
 
@@ -93,8 +95,8 @@ def test_an_app_that_is_not_deployed_has_no_controls(client, officer_headers, ru
 
 def test_the_parts_of_an_app_share_a_group_network(client, officer_headers, runner, apps):
     name = _deployed(client, officer_headers, apps, CRM_DB)
-    info = runner.containers[f"app-soda-{name}"]
-    assert info["Extra"]["--network"] == "platform-soda-crm" and info["Extra"]["--network-alias"] == "db"
+    info = runner.containers[f"app-soda--{name}"]
+    assert info["Extra"]["--network"] == "app-soda--crm" and info["Extra"]["--network-alias"] == "db"
     assert info["Extra"]["--workdir"] == "/var/lib/postgresql"
     assert info["Config"]["Image"] == "docker.io/library/postgres:1"
     assert info["Config"]["Cmd"] == ["postgres", "-c", "max_connections=50"]

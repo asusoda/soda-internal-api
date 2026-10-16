@@ -175,7 +175,7 @@ def create(
     """
     found = get_template(template)
     if not isinstance(name, str) or not service.NAME_PATTERN.match(name) or name == service.RESERVED_NAME:
-        raise AppError("name must be lowercase letters, digits and dashes, up to 63")
+        raise AppError("name must be lowercase letters, digits and single dashes, up to 63")
     if db.query(service.App).filter_by(organization_id=org_id, name=name).first():
         raise AppError("An app with this name exists", 409)
     if provider is not None:

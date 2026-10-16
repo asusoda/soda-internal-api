@@ -154,6 +154,8 @@ def update_organization_settings(org_id):
                 return jsonify(
                     {"error": "Prefix can only contain lowercase letters, numbers, hyphens, and underscores"}
                 ), 400
+            if "--" in new_prefix and new_prefix != org.prefix:
+                return jsonify({"error": "Prefix cannot contain two hyphens in a row"}), 400
 
             existing_org = service.find_by_prefix(db, new_prefix)
             if existing_org and existing_org.id != org_id:

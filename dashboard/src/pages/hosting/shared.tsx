@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { cx } from '../../components/ui';
 
 export const DEFAULT_MANIFEST_PATH = 'platform.app.yaml';
-export const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+// No two dashes in a row: they separate the org and the app in a container name on This server
+export const NAME_PATTERN = /^(?!.*--)[a-z0-9][a-z0-9-]{0,62}$/;
 export const TAG_PATTERN = /^([A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|sha256:[a-f0-9]{64})$/;
 export const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 

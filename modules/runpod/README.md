@@ -22,5 +22,6 @@ Deploys an org's own apps to pods on a hosting provider: register an app's manif
 - Webhook events: `app.deployed`, when a deploy becomes healthy or fails. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `runpod_apps`, `runpod_deployments`, `shared_app_subscriptions`.
 - Limits: `runpod.apps`, checked before a new app is made; `runpod.server_apps` and `runpod.server_memory_mb`, checked when an app on This server is registered or deployed. See [docs/limits.md](../../docs/limits.md).
+- An app name has no two dashes in a row. On This server, each deploy saves the container name that the runner answers as the app's `pod_id`, because the runner moves a container with an old name to `app-<org>--<app>`.
 
 See [docs/modules/runpod-apps.md](../../docs/modules/runpod-apps.md).

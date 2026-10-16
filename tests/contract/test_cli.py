@@ -59,6 +59,7 @@ def test_org_create_with_modules_on_and_off(cli, client, remove_org):
     [
         (["--prefix", "soda", "--guild-id", "1010"], "taken"),
         (["--prefix", "Bad Prefix", "--guild-id", "1010"], "Prefix must be"),
+        (["--prefix", "acm--w", "--guild-id", "1010"], "Prefix must be"),
         (["--prefix", "newone", "--guild-id", "1001"], "already has"),
         (["--prefix", "newone", "--guild-id", "1010", "--off", "auth"], "Unknown or required"),
     ],
