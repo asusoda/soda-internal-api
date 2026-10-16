@@ -105,6 +105,7 @@ def test_checkout_refuses_a_charge_above_the_balance(client, clerk_headers, db, 
     quantity = int(before // 300) + 1
     response = _checkout(client, clerk_headers, mug, total=1, price=300, quantity=quantity)
     assert response.status_code == 400
+    assert "Insufficient points" in response.get_json()["error"]
     assert _balance(db) == before
     assert _stock(db, mug) == 10
 

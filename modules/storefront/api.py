@@ -382,7 +382,7 @@ def update_order_status(org_prefix, order_id):
         if not org:
             return jsonify({"error": "Organization not found"}), 404
 
-        order = service.order(db, order_id, org.id)
+        order = service.order(db, order_id, org.id, for_update=True)
         if not order:
             return jsonify({"error": "Order not found"}), 404
 
@@ -420,7 +420,7 @@ def delete_order(org_prefix, order_id):
         if not org:
             return jsonify({"error": "Organization not found"}), 404
 
-        order = service.order(db, order_id, org.id)
+        order = service.order(db, order_id, org.id, for_update=True)
         if not order:
             return jsonify({"error": "Order not found"}), 404
 

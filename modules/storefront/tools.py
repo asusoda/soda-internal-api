@@ -68,7 +68,8 @@ def store_delete_products(db, org, caller, ids: list[int]):
     "store.update_orders",
     description=(
         "Set the status, the message to the buyer, or both, of up to 100 orders. "
-        "A change to cancelled puts the items back in stock and refunds the points. A cancelled order cannot change."
+        "A change to cancelled puts the items back in stock and refunds the points. "
+        "A cancelled order cannot change to another status."
     ),
     scope="store:write",
     module="storefront",

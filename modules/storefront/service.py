@@ -205,10 +205,11 @@ def orders(db, organization_id):
         return []
 
 
-def order(db, order_id, organization_id):
-    """The org's order with this id, or None."""
+def order(db, order_id, organization_id, for_update: bool = False):
+    """The org's order with this id, or None. With for_update, the row stays locked until the commit."""
     try:
-        return db.query(Order).filter(Order.id == order_id, Order.organization_id == organization_id).first()
+        query = db.query(Order).filter(Order.id == order_id, Order.organization_id == organization_id)
+        return (query.with_for_update() if for_update else query).first()
     except Exception as e:
         logger.error(f"Error getting storefront order: {str(e)}")
         return None
@@ -358,8 +359,9 @@ def remove_order(db, order: Order, organization_id) -> None:
     db.delete(order)
 
 
-def _all(db, model, ids: list[int], organization_id, label: str) -> list:
-    rows = db.query(model).filter(model.id.in_(ids), model.organization_id == organization_id).all()
+def _all(db, model, ids: list[int], organization_id, label: str, for_update: bool = False) -> list:
+    query = db.query(model).filter(model.id.in_(ids), model.organization_id == organization_id)
+    rows = (query.with_for_update() if for_update else query).all()
     missing = sorted(set(ids) - {row.id for row in rows})
     if missing:
         raise StoreError(f"No {label} with ids {', '.join(str(i) for i in missing)}", 404)
@@ -407,7 +409,7 @@ def order_list(db, organization_id, status: str | None = None) -> list[dict]:
 
 def update_orders(db, organization_id, ids: list[int], data: dict) -> list[dict]:
     """Set the status or message of orders in one commit. If one id is missing, nothing changes."""
-    rows = _all(db, Order, ids, organization_id, "orders")
+    rows = _all(db, Order, ids, organization_id, "orders", for_update=True)
     for row in rows:
         change_order(db, row, data)
     db.commit()
@@ -416,7 +418,7 @@ def update_orders(db, organization_id, ids: list[int], data: dict) -> list[dict]
 
 def delete_orders(db, organization_id, ids: list[int]) -> dict:
     """Delete orders in one commit. Stock and points go back as remove_order does."""
-    for row in _all(db, Order, ids, organization_id, "orders"):
+    for row in _all(db, Order, ids, organization_id, "orders", for_update=True):
         remove_order(db, row, organization_id)
     db.commit()
     return {"deleted": sorted(ids)}
