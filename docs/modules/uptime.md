@@ -21,7 +21,7 @@ An `app` target on RunPod uses the health URL of the app's pod (`health.port` an
 ## Checks
 
 - The `uptime.check_due` job runs every minute. It checks each enabled monitor whose interval has passed, in orgs that have the module on.
-- A check sends a GET, follows at most 5 redirects and does not read the body. Each URL and each redirect must resolve to public addresses. `core/net.py` checks them, as for knowledge crawls.
+- A check sends a GET, follows at most 5 redirects and does not read the body. Each URL and each redirect must resolve to public addresses. `core/net.py` checks them, as for knowledge crawls. The connection goes to an address that passed the check.
 - A check is up when the status matches `expected_status`. Else it is down, with the status or the error.
 - The `uptime.prune` job removes checks older than `UPTIME_RETENTION_DAYS` (default 30).
 

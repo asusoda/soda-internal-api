@@ -198,7 +198,7 @@ def test_redirect_to_a_private_address_is_refused(monkeypatch):
         return [(socket.AF_INET, 0, 0, "", (address, port))]
 
     monkeypatch.setattr(socket, "getaddrinfo", resolve)
-    monkeypatch.setattr(fetch.requests, "get", lambda *a, **k: Redirect())
+    monkeypatch.setattr(fetch.net, "get", lambda *a, **k: Redirect())
     with pytest.raises(fetch.FetchRejected):
         fetch.fetch_http("https://example.edu/page")
 

@@ -39,7 +39,7 @@ flowchart LR
   module -->|"org_values returns None"| env[".env default"]
 ```
 
-A URL that an org saves must be http or https on a host with only public addresses. Platform checks this when the org saves the URL and again before each call, and does not follow redirects. A deployment default in `.env` can be on the private network, such as `http://firecrawl:3002`.
+A URL that an org saves must be http or https on a host with only public addresses. Platform checks this when the org saves the URL and again at each call, and does not follow redirects. Each call connects to an address that passed the check, so a second DNS answer cannot send it to the private network. A deployment default in `.env` can be on the private network, such as `http://firecrawl:3002`.
 
 Search compares only vectors of the same embedding model. An org with its own model searches its own vectors, and the vectors of public sources only if the publisher used the same model. Text search still covers every source. On Postgres the vector column holds 1024 numbers, so the model must return 1024. Test says so when it does not.
 

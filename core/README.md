@@ -21,6 +21,7 @@ Shared code that modules use: config, database, logs, HTTP hooks, Discord and Ru
 | `cache.py` | `TTLCache` and the shared `cache`: values by tuple key, each with a time to live, in one process. Concurrent misses on a key compute once |
 | `http/` | `responses.py` (`json_body`, `error`, `error_handler`), `request_log.py` (one line for each request, `bearer_token()`), `audit_hook.py` (writes successful changes to the audit log), `cached.py` (`cached_json`: an org read kept in `cache` with an ETag, and the hook that drops the cached org reads after a successful write) |
 | `integrations/` | `discord.py` (`DiscordDirectory`, messages and reactions over Discord's REST API) and `runpod.py` (RunPod REST client and the `runpod` hosting provider) |
+| `net.py` | `check_public()` and `public_addresses()`, which refuse a URL whose host resolves to a non-public address. `get()` and `post()` send a request that connects only to an address that passed the check |
 | `hosting.py` | Hosting providers: the `HostingProvider` and `HostingClient` protocols, the registry (`register()`, `get()`, `listing()`) and `HostingError`. See [docs/modules/godfather.md](../docs/modules/godfather.md#adding-a-hosting-provider) |
 
 ## Surface
