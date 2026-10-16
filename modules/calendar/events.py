@@ -101,8 +101,9 @@ class CalendarEventDTO:
         date_prop_raw = extract_property(properties, "Date", "date")
         start_str = date_prop_raw.get("start") if date_prop_raw else None
         end_str = date_prop_raw.get("end") if date_prop_raw else None
+        time_zone = date_prop_raw.get("time_zone") if date_prop_raw else None
 
-        start_dict = DateParser.parse_notion_date(start_str)
+        start_dict = DateParser.parse_notion_date(start_str, time_zone)
         if not start_dict:
             logger.warning(
                 "Cannot create CalendarEventDTO for Notion page %s: Invalid or missing start date.",
@@ -110,8 +111,8 @@ class CalendarEventDTO:
             )
             return None
 
-        end_dict_parsed = DateParser.parse_notion_date(end_str)
-        end_dict = DateParser.ensure_end_date(start_dict, end_dict_parsed)
+        end_dict_parsed = DateParser.parse_notion_date(end_str, time_zone)
+        end_dict = DateParser.ensure_end_date(start_dict, DateParser.exclusive_end(end_dict_parsed))
 
         gcal_id_from_notion = extract_property(properties, "gcal_id", "rich_text")
 

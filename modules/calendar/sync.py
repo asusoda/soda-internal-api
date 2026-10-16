@@ -105,8 +105,11 @@ def update_google_calendar(
             span.set_data("duplicates_failed", failed_count)
             logger.info(f"Cleaned up {deleted_count} duplicate events, {failed_count} failed.")
 
-    # Google event ids that are not keys of the lookup by Notion page id
-    orphaned_events = set(gcal_events_by_gcal_id.keys()) - set(gcal_events_by_notion_id.keys())
+    # Managed Google events whose Notion page is not in the parsed events
+    synced_page_ids = {event_dto.notion_page_id for event_dto in parsed_events}
+    orphaned_events = {
+        gcal_id for gcal_id, event in gcal_events_by_gcal_id.items() if _notion_page_id(event) not in synced_page_ids
+    } - duplicates_to_delete
     if orphaned_events:
         with operation_span(
             parent_transaction, op="cleanup", description="delete_orphaned_events", logger=logger
@@ -147,7 +150,7 @@ def _write_event(
     else:
         result = gcal.create_event(calendar_id, event_data, notion_page_id, parent_transaction)
         if result:
-            gcal_event_id, jump_url = result
+            jump_url, gcal_event_id = result
             return {
                 "notion_page_id": notion_page_id,
                 "gcal_event_id": gcal_event_id,
