@@ -50,7 +50,7 @@ def test_points_record_the_signed_in_officer(client, officer_headers):
 
 
 @pytest.mark.parametrize("path", ["/api/public/soda/leaderboard", "/api/public/soda/users"])
-def test_public_lists_hide_member_details(client, officer_headers, enforce, path):
+def test_public_lists_hide_member_details(client, officer_headers, path):
     anonymous = client.get(path).get_data(as_text=True)
     assert MEMBER_EMAIL not in anonymous
     assert "1200000001" not in anonymous

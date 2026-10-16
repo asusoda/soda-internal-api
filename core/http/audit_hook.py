@@ -33,7 +33,7 @@ def _actor(token_manager) -> tuple[str | None, str | None]:
     kind, discord_id = credential(token_manager)
     if discord_id:
         return kind, str(discord_id)
-    email = getattr(request, "clerk_user_email", None)
+    email = g.get("clerk_user_email")
     if email:
         return "clerk", email
     return kind, None

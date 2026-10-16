@@ -59,7 +59,7 @@ def members_list(db, org, caller, query: str | None = None, limit: int = 500):
     },
 )
 def members_add(db, org, caller, discord_id: str | None = None, **fields):
-    user, ok, message = service.manage_user_in_organization(db, int(org.id), fields, discord_id)
+    user, ok, message = service.manage_user_in_organization(db, int(org.id), fields, discord_id, by_officer=True)
     if not ok or user is None:
         raise ToolError(message, 400)
     return {"message": message, "member": service.member_dict(user, service.active_membership(db, user.id, org.id))}

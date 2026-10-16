@@ -172,3 +172,61 @@ def test_member_details_reach_only_the_orgs_officers_in_report_mode(client, monk
     assert {"asu_id", "student_id", "academic_standing", "class_standing", "major", "profile_fields"}.isdisjoint(
         other.get_json()["user"]
     )
+
+
+def test_officer_cannot_change_the_officer_role_or_prefix(client):
+    headers = headers_for(OFFICER_DISCORD_ID)
+    for body in ({"officer_role_id": "1001"}, {"prefix": "taken"}):
+        assert client.put("/api/organizations/1/settings", json=body, headers=headers).status_code == 403, body
+    same_role = {"officer_role_id": "2001"}
+    assert (
+        client.put("/api/organizations/1/settings", json=same_role, headers=headers_for(SUPERADMIN_ID)).status_code
+        == 200
+    )
+
+
+def test_settings_config_keeps_keys_that_have_their_own_routes(client, restore_soda_config):
+    from core.db import db_connect
+    from modules.organizations.models import Organization
+
+    headers = headers_for(OFFICER_DISCORD_ID)
+    body = {"config": {"access": {"knowledge_publisher": True}, "theme": "dark"}}
+    assert client.put("/api/organizations/1/settings", json=body, headers=headers).status_code == 200
+    for bad in ({"config": None}, {"config": ["x"]}, {"points_per_message": -1}, {"points_cooldown": "60"}):
+        assert client.put("/api/organizations/1/settings", json=bad, headers=headers).status_code == 400, bad
+    db = db_connect.SessionLocal()
+    try:
+        org = db.query(Organization).filter_by(id=1).one()
+        config = org.config or {}
+        assert config.get("theme") == "dark"
+        assert "access" not in config
+        assert org.points_per_message != -1
+    finally:
+        db.close()
+
+
+def test_officer_cannot_edit_a_member_of_another_org(client):
+    from core.db import db_connect
+    from modules.users.models import User, UserOrganizationMembership
+
+    body = {"name": "Taken", "email": "bob@asu.edu", "discord_id": "900000000000000077"}
+    assert client.post("/api/users/ais/users", json=body, headers=headers_for(AIS_OFFICER_ID)).status_code == 201
+    db = db_connect.SessionLocal()
+    try:
+        bob = db.query(User).filter_by(email="bob@asu.edu").one()
+        assert (bob.name, bob.discord_id) == ("Bob", None)
+        rows = db.query(UserOrganizationMembership).filter_by(user_id=bob.id, organization_id=2).all()
+        assert rows
+        for row in rows:
+            db.delete(row)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_superadmin_check_refuses_an_expired_token_with_401(client):
+    from modules.auth.tokens import token_manager
+
+    token = token_manager.generate_token("u", SUPERADMIN_ID, exp_minutes=-1)
+    response = client.get("/api/superadmin/check", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401

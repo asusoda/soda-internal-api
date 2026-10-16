@@ -445,7 +445,7 @@ def add_user_to_organization(org_prefix):
             "profile_fields": fields.get("profile_fields"),
         }
 
-        user = link_or_create_user(organization.id, user_data, data.get("discord_id"))
+        user = link_or_create_user(organization.id, user_data, data.get("discord_id"), by_officer=True)
 
         if not user:
             return jsonify({"error": "Failed to create or link user"}), 500

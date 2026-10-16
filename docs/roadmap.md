@@ -77,7 +77,7 @@ Campus content is a submodule in `submodules/`, such as `submodules/asu`. Anothe
 - `error_handler` returns the exception text to the client.
 - `GET /api/organizations/<id>/stats`, `/activity` and `/roles` return fixed sample data.
 - `superadmin_required` accepts a session only with `role == "admin"`, which sign-in never sets. Only the header path works.
-- `GameCog` and `HelperCog` use `bot.guilds[0]`, the first server of the bot, not the org of the request. Game state is in memory and a restart loses it.
+- `GameCog` uses `bot.guilds[0]`, the first server of the bot, not the org of the request. Game state is in memory and a restart loses it.
 - The calendar sync needs the Notion properties `Name`, `Date`, `Location`, `Description` and `gcal_id`. If one has a different name, the sync skips the event and logs a warning.
 - The points CSV upload gives no progress or result. Errors go only to the log.
 

@@ -1,10 +1,10 @@
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify, request
 
 from core.db import db_connect
 from core.errors import ServiceError
 from core.log import get_logger
 from modules.auth.access import current_principal, discord_directory
-from modules.auth.decorators import superadmin_required
+from modules.auth.decorators import header_token_refusal, superadmin_required
 from modules.auth.routes import respond
 from modules.auth.tokens import token_manager
 from modules.organizations.models import Organization
@@ -30,7 +30,11 @@ def check_superadmin():
             logger.error("Invalid Authorization header format")
             return jsonify({"error": "Authorization header required"}), 401
 
-        token_data = token_manager.decode_token(auth_header.split(" ")[1])
+        token = auth_header.split(" ")[1]
+        refusal = header_token_refusal(token)
+        if refusal:
+            return refusal
+        token_data = token_manager.decode_token(token)
         if not token_data:
             logger.error("Failed to decode token")
             return jsonify({"error": "Invalid token"}), 401
@@ -60,7 +64,8 @@ def get_dashboard():
         guilds = directory.list_guilds()
         db = next(db_connect.get_db())
         existing_orgs = db.query(Organization).all()
-        officer_id = session.get("user", {}).get("discord_id")
+        principal = current_principal()
+        officer_id = principal.discord_id if principal else None
         officer_orgs = service.officer_orgs(directory, existing_orgs, officer_id)
 
         return jsonify(
