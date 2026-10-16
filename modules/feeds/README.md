@@ -18,9 +18,10 @@ Posts new job listings and hackathons to Discord channels: each feed reads one s
 ## Surface
 
 - Routes: `/api/feeds/<org>/feeds` and `/api/feeds/<org>/presets`. Officers of the org only. `GET /feeds/<key>/history` returns the runs and items of a feed. `GET /presets` returns the feeds that the org's subscribed submodules offer.
-- Jobs: `feeds.run_due`, schedule `*/15 * * * *`; `feeds.run_feed`, started by the run route.
+- Jobs: `feeds.run_due`, schedule `*/15 * * * *`; `feeds.run_feed`, started by the run route. While a run of a feed is queued, the run route returns 409. A run writes the row of an item before it posts the item, so two runs at the same time do not post it twice.
 - Tools: `feeds.list`, `feeds.presets`, `feeds.history`, `feeds.save`, `feeds.run`, `feeds.delete` (confirm), all with scope `feeds:manage`. Tools marked confirm run only with `confirm=true`.
 - Tables: `alert_feeds` (with `destination_id`), `alert_posts`, `alert_runs`. Secrets: `alert_webhook_<feed key>`, only for a feed made before migration `c6e8a0b2d4f6`.
+- Limits: `feeds.feeds` (default 20). See [docs/limits.md](../../docs/limits.md).
 - Switch: `feeds`. Migration `a3c5e7f9b1d3` made it from the `job_webhook` and `hackathon_webhook` switches: on when either was on.
 
 See [docs/modules/feeds.md](../../docs/modules/feeds.md).

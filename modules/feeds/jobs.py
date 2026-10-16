@@ -16,7 +16,7 @@ def run_due() -> None:
         db.close()
 
 
-@job("feeds.run_feed")
+@job("feeds.run_feed", once=("org_id", "key"))
 def run_feed(org_id: int, key: str, post_existing: bool = False, org_prefix: str | None = None) -> None:
     """Run one feed now, on request."""
     from modules.feeds import service

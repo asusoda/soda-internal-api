@@ -15,8 +15,9 @@ import time
 from typing import cast
 
 import requests
+from sqlalchemy.exc import IntegrityError
 
-from core import secrets, webhooks
+from core import limits, secrets, webhooks
 from core.errors import ServiceError
 from core.log import get_logger
 from core.time import utcnow
@@ -47,6 +48,16 @@ COLORS = {"github_jobs": 0x3447EB, "hackathons": 0x9B59B6}
 USER_AGENT = "PlatformFeeds/1.0"
 
 secrets.declare_prefix(SECRET_PREFIX, "Discord webhook URL a feed posts to")
+
+FEEDS_LIMIT = "feeds.feeds"
+limits.declare(
+    FEEDS_LIMIT,
+    "feeds",
+    "Feeds",
+    20,
+    unit="feeds",
+    usage=lambda db, org_id: db.query(AlertFeed).filter_by(organization_id=org_id).count(),
+)
 
 
 class FeedError(ServiceError, ValueError):
@@ -188,6 +199,8 @@ def put_feed(db, org_id: int, key: str, body: dict, actor: str | None = None) ->
         raise FeedError("key must be lowercase letters, digits and dashes, up to 40 characters")
     feed = db.query(AlertFeed).filter_by(organization_id=org_id, key=key).first()
     created = feed is None
+    if created:
+        limits.check(db, org_id, FEEDS_LIMIT)
     kind = body.get("kind", feed.kind if feed else None)
     if kind not in KINDS:
         raise FeedError(f"kind must be one of {', '.join(KINDS)}")
@@ -273,20 +286,30 @@ def run(db, feed: AlertFeed, post_existing: bool = False) -> dict:
     seeding = feed.seeded_at is None and not post_existing
     posted = 0
     error = None
+    db.commit()
     for item in new:
-        if not seeding:
-            if posted >= MAX_POSTS_PER_RUN:
-                break
-            try:
-                post_webhook(webhook, {"embeds": [embed(item, str(feed.kind))]})
-            except requests.RequestException as e:
-                # Unposted items stay new and go out on the next run
-                error = f"Discord webhook failed: {e}"
-                break
-            posted += 1
-            time.sleep(POST_GAP_SECONDS)
-        db.add(AlertPost(feed_id=feed.id, item_key=item.key, title=item.title[:300], posted=not seeding))
-        db.commit()
+        if not seeding and posted >= MAX_POSTS_PER_RUN:
+            break
+        # The row is written before the post. A run that runs at the same time gets the unique key error and skips it.
+        row = AlertPost(feed_id=feed.id, item_key=item.key, title=item.title[:300], posted=not seeding)
+        db.add(row)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            continue
+        if seeding:
+            continue
+        try:
+            post_webhook(webhook, {"embeds": [embed(item, str(feed.kind))]})
+        except requests.RequestException as e:
+            # Unposted items stay new and go out on the next run
+            db.delete(row)
+            db.commit()
+            error = f"Discord webhook failed: {e}"
+            break
+        posted += 1
+        time.sleep(POST_GAP_SECONDS)
     if feed.seeded_at is None:
         feed.seeded_at = utcnow()
     feed.last_error = error
