@@ -49,7 +49,7 @@ function Services() {
       <Button onClick={() => setPicking(true)} aria-label="Templates">
         <LayoutTemplate className="size-4" /> <span className="hidden sm:inline">Templates</span>
       </Button>
-      <Button variant="primary" onClick={() => setRegistering(true)} aria-label="Register app">
+      <Button variant="primary" onClick={() => setRegistering(true)} aria-label="Register app" disabled={!list.data}>
         <Plus className="size-4" /> <span className="hidden sm:inline">Register app</span>
       </Button>
     </div>

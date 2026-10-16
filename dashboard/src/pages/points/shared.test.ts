@@ -14,4 +14,10 @@ describe('memberChanges', () => {
       academic_standing: null,
     });
   });
+
+  it('treats whitespace as empty and ignores padding', () => {
+    expect(memberChanges(member, { name: ' Ada ', asu_id: '', academic_standing: '   ', major: '' })).toEqual({
+      academic_standing: null,
+    });
+  });
 });

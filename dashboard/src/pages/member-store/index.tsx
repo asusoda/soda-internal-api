@@ -215,7 +215,7 @@ export function MemberStorePage() {
                   </div>
                   {order.error ? <ErrorNote error={order.error} /> : null}
                   {signedIn ? (
-                    <Button variant="primary" className="w-full" onClick={() => order.mutate()} disabled={order.isPending || !store.data}>
+                    <Button variant="primary" className="w-full" onClick={() => order.mutate()} disabled={order.isPending || !store.data || store.isError}>
                       Place order
                     </Button>
                   ) : (
