@@ -124,6 +124,7 @@ class GameCog(commands.Cog):
         self.gameboard = None
         self.stage = None
         self.game = None
+        self.guild = None
         self.question_post = {}
         return True
 
@@ -161,9 +162,9 @@ class GameCog(commands.Cog):
         Asynchronously starts the game.
 
         Returns:
-            bool: True if the game started, False when no game is set or setup_game did not run.
+            bool: True if the game started. False when no game is set, setup_game did not run, or the game runs.
         """
-        if self.game is None or self.guild is None:
+        if self.game is None or self.guild is None or not self.game.is_announced or self.game.is_started:
             return False
         self.game.start()
         self.scoreboard_channel = await self.guild.create_text_channel("scoreboard", category=self.game_category)
@@ -180,10 +181,8 @@ class GameCog(commands.Cog):
         """
         if self.game is None:
             return
-        members = self.game.get_members()
-        random.shuffle(members)  # Shuffle the members list to randomize team assignments
-
-        player_count = len(members)
+        members = list(self.game.get_members())
+        random.shuffle(members)
         team_count = len(self.game.teams)
 
         if team_count == 0:
@@ -192,16 +191,9 @@ class GameCog(commands.Cog):
         for team in self.game.teams:
             team.members.clear()
 
-        # Distribute members evenly across teams
+        # Each member joins one team; team sizes differ by one at most
         for i, member in enumerate(members):
             self.game.teams[i % team_count].members.append(member)
-
-        # Handle any remaining members if the division isn't exact
-        remaining_members = player_count % team_count
-        if remaining_members > 0:
-            extra_members = members[-remaining_members:]
-            for i, member in enumerate(extra_members):
-                self.game.teams[i].members.append(member)
 
     async def assign_roles(self):
         """
@@ -217,14 +209,17 @@ class GameCog(commands.Cog):
                 if isinstance(member, discord.Member):
                     await member.add_roles(team.role)
 
-    async def setup_game(self):
+    async def setup_game(self, guild: discord.Guild):
         """
-        Asynchronously sets up the game environment in the Discord server.
+        Asynchronously sets up the game environment in the Discord server of the org that runs the game.
+
+        Args:
+            guild (discord.Guild): The Discord server of the org.
         """
         if self.game is None:
             return False
 
-        self.guild = self.bot.guilds[0]
+        self.guild = guild
 
         category = await self.guild.create_category("Jeopardy")
         await category.edit(position=0)
