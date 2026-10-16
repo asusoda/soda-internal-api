@@ -131,6 +131,8 @@ def update_organization_settings(org_id):
         if not org:
             return jsonify({"error": "Organization not found"}), 404
 
+        if not isinstance(data, dict):
+            return jsonify({"error": "Send a JSON object"}), 400
         if ("officer_role_id" in data or "prefix" in data) and not _superadmin_caller():
             return jsonify({"error": "Only the superadmin can change the officer role or the prefix"}), 403
         if "officer_role_id" in data:
