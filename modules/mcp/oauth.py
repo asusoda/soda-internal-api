@@ -608,9 +608,16 @@ def discord_directory():
     return _directory
 
 
-def officer_orgs(db, discord_id: str) -> list[Organization]:
-    """Active orgs where the member holds the officer role, by name. Raises DiscordUnavailable."""
-    orgs = db.query(Organization).filter_by(is_active=True).order_by(Organization.name).all()
+def officer_orgs(db, discord_id: str, org_id: int | None = None) -> list[Organization]:
+    """Active orgs where the member holds the officer role, by name. With org_id, only that org.
+
+    An org whose guild Discord does not answer for is left out. Raises DiscordUnavailable when Discord
+    answers for none of them.
+    """
+    query = db.query(Organization).filter_by(is_active=True)
+    if org_id is not None:
+        query = query.filter_by(id=org_id)
+    orgs = query.order_by(Organization.name).all()
     if discord_id in superadmin_ids():
         return orgs
     directory = discord_directory()
@@ -787,7 +794,7 @@ def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dic
 def _still_officer(db, token: MachineToken) -> bool | None:
     """Whether the officer who approved the token still has the officer role in its org. None if Discord cannot tell."""
     try:
-        orgs = officer_orgs(db, str(token.created_by))
+        orgs = officer_orgs(db, str(token.created_by), int(token.organization_id))
     except DiscordUnavailable:
         logger.warning("Discord unavailable during the officer check of an MCP OAuth refresh", exc_info=True)
         return None
