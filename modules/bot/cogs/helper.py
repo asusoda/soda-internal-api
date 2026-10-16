@@ -296,12 +296,16 @@ class HelperCog(commands.Cog):
         description="Clears the game environment from the Discord server.",
         guild_ids=[1011586463219060807],
     )
+    @discord.default_permissions(manage_guild=True)
     async def clear(self, interaction, dummy: str | None = None):
         """
-        Clears the game environment from the Discord server.
+        Clears the game environment from the Discord server where the command runs.
         """
+        guild = interaction.guild
+        if guild is None or not interaction.user.guild_permissions.manage_guild:
+            await interaction.response.send_message("You need the Manage Server permission.", ephemeral=True)
+            return
         await interaction.response.defer()
-        guild = self.bot.guilds[0]
         for category in guild.categories:
             if category.name == "Jeopardy":
                 for channel in category.channels:

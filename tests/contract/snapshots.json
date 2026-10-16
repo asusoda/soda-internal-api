@@ -406,8 +406,6 @@
     "shape": {
       "leaderboard": [
         {
-          "asu_id": "string",
-          "email": "string",
           "name": "string",
           "total_points": "number"
         }
