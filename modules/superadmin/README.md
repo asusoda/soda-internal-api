@@ -12,7 +12,7 @@ Routes for the superadmins of the deployment (the Discord user ids in `SYS_ADMIN
 
 ## Surface
 
-- Routes: `/api/superadmin`. Each route except `/check` needs a superadmin, also when `ACCESS_ENFORCE` is false. `/check` answers for the caller's own token. `PUT /limits/<org_id>` takes `{"limits": {key: number | null | "default"}}`; see [docs/limits.md](../../docs/limits.md). `PUT /server/services/<name>` takes `{"owner": "platform" | "infrastructure" | "org" | null, "organization_id": 1}`; see [docs/operations.md](../../docs/operations.md#host-agent).
+- Routes: `/api/superadmin`. Each route except `/check` needs a superadmin, also when `ACCESS_ENFORCE` is false. `/check` answers for the caller's own token. `PUT /limits/<org_id>` takes `{"limits": {key: number | null | "default"}}`; see [docs/limits.md](../../docs/limits.md). `DELETE /remove_org/<org_id>` deletes the org and each row that belongs to it. Submodules that the org owns stay, with no owner. If an app of the org has a pod, or the org has a godfather pod, it returns 409 and deletes nothing. `PUT /server/services/<name>` takes `{"owner": "platform" | "infrastructure" | "org" | null, "organization_id": 1}`; see [docs/operations.md](../../docs/operations.md#host-agent).
 - Jobs: none.
 - Tools: none.
 - Tables: `server_service_owners`.
@@ -20,4 +20,3 @@ Routes for the superadmins of the deployment (the Discord user ids in `SYS_ADMIN
 ## Known gaps
 
 - `/add_org` makes the org with `service.new_organization`, not with `organizations.service.create_organization`. A taken prefix is not checked.
-- `/remove_org` deletes the org row with no cascade.

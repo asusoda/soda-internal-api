@@ -195,20 +195,17 @@ def add_organization(guild_id):
 @superadmin_blueprint.route("/remove_org/<int:org_id>", methods=["DELETE"])
 @superadmin_required
 def remove_organization(org_id):
-    """Delete an org."""
+    """Delete an org and the rows that belong to it. 409 while the org has apps or pods on a provider."""
+    db = next(db_connect.get_db())
     try:
-        db = next(db_connect.get_db())
-        org = db.query(Organization).filter_by(id=org_id).first()
-
-        if not org:
-            return jsonify({"error": "Organization not found"}), 404
-
-        org_name = org.name
-        db.delete(org)
-        db.commit()
-
+        org_name = service.delete_organization(db, org_id)
         return jsonify({"message": f"Organization {org_name} removed successfully!"})
+    except ServiceError as e:
+        db.rollback()
+        return jsonify({"error": e.message}), e.status
     except Exception as e:
+        logger.exception(f"Error in remove_organization: {e}")
+        db.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         db.close()

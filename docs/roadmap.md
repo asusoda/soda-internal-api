@@ -72,7 +72,6 @@ Campus content is a submodule in `submodules/`, such as `submodules/asu`. Anothe
 
 ## Known faults
 
-- `DELETE /api/superadmin/remove_org/<id>` deletes the org row with no cascade. Rows that refer to the org stay, or the delete fails.
 - Checkout reads the points balance and writes the purchase with no row lock. Two checkouts at the same time can both pass the balance check.
 - `error_handler` returns the exception text to the client.
 - `GET /api/organizations/<id>/stats`, `/activity` and `/roles` return fixed sample data.

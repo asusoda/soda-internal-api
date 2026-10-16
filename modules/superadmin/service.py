@@ -4,17 +4,22 @@ services, and each org's limits. No Flask here."""
 import re
 from typing import Any
 
+from sqlalchemy import Table, delete, or_, select, update
+
 from core import host, hosting, jobs
 from core import limits as core_limits
 from core.config import superadmin_ids
+from core.db import Base
 from core.errors import ServiceError
 from core.integrations import server as runner
 from core.integrations.discord import DiscordUnavailable
 from core.log import get_logger
 from core.time import utcnow
+from modules.godfather.models import ComputePod
 from modules.organizations import service as organizations
 from modules.organizations.config import OrganizationSettings
 from modules.organizations.models import Organization
+from modules.runpod.models import App
 from modules.superadmin.models import ServiceOwner
 
 logger = get_logger(__name__)
@@ -23,6 +28,56 @@ logger = get_logger(__name__)
 def is_superadmin(discord_id: object) -> bool:
     """Whether the Discord id is one of the ids in SYS_ADMIN."""
     return str(discord_id) in superadmin_ids()
+
+
+ORG_HAS_PODS = "The org has apps or pods on a hosting provider. Delete them first, then delete the org"
+
+
+def _org_filters(table: Table, owned: dict[str, Any], org_id: int) -> list[Any]:
+    """The conditions that select the rows of table that belong to the org, directly or through a parent row."""
+    filters = []
+    for fk in table.foreign_keys:
+        parent = fk.column.table
+        if parent.name == "organizations":
+            if fk.ondelete != "SET NULL":
+                filters.append(fk.parent == org_id)
+        elif parent.name in owned:
+            ids = select(fk.column).where(owned[parent.name])
+            filters.append(fk.parent.in_(ids))
+    return filters
+
+
+def delete_organization(db, org_id: int) -> str:
+    """Delete the org and every row that belongs to it. Returns the org's name. Commits.
+
+    Rows that refer to the org with ON DELETE SET NULL, such as submodules, stay and lose the org.
+    Refuses with 409 while an app of the org has a pod, or the org has a godfather pod.
+    """
+    org = db.get(Organization, org_id)
+    if org is None:
+        raise ServiceError("Organization not found", 404)
+    pods = db.query(ComputePod.id).filter_by(organization_id=org_id).first()
+    apps = db.query(App.id).filter(App.organization_id == org_id, App.pod_id.is_not(None)).first()
+    if pods is not None or apps is not None:
+        raise ServiceError(ORG_HAS_PODS, 409)
+    name = str(org.name)
+    tables = Base.metadata.sorted_tables
+    owned: dict[str, Any] = {}
+    for table in tables:
+        filters = _org_filters(table, owned, org_id)
+        if filters:
+            owned[table.name] = or_(*filters)
+    for table in reversed(tables):
+        for fk in table.foreign_keys:
+            if fk.column.table.name == "organizations" and fk.ondelete == "SET NULL":
+                db.execute(update(table).where(fk.parent == org_id).values({fk.parent.name: None}))
+        if table.name in owned:
+            db.execute(delete(table).where(owned[table.name]))
+    db.expunge(org)
+    db.execute(delete(Organization.__table__).where(Organization.__table__.c.id == org_id))
+    db.commit()
+    logger.info("org deleted id=%s name=%s", org_id, name)
+    return name
 
 
 def available_guilds(guilds: list[dict], orgs: list[Organization]) -> list[dict]:
