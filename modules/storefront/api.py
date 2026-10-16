@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
 
@@ -10,7 +8,7 @@ from modules.auth.decorators import auth_required, dual_auth_required, org_offic
 from modules.organizations.service import find_by_prefix
 from modules.points.models import Points
 from modules.storefront import service
-from modules.storefront.models import Order, OrderItem, Product
+from modules.storefront.models import Order, Product
 from modules.users.models import User, UserOrganizationMembership
 
 storefront_blueprint = Blueprint("storefront", __name__)
@@ -191,7 +189,10 @@ def delete_product(org_prefix, product_id):
         if not org:
             return jsonify({"error": "Organization not found"}), 404
 
-        success = service.delete_product(db, product_id, org.id)
+        try:
+            success = service.delete_product(db, product_id, org.id)
+        except service.StoreError as e:
+            return jsonify({"error": e.message}), e.status
         if not success:
             return jsonify({"error": "Product not found"}), 404
 
@@ -296,6 +297,10 @@ def create_order(org_prefix):
         return jsonify({"error": "Total amount is required"}), 400
     if not data.get("items") or len(data["items"]) == 0:
         return jsonify({"error": "Order items are required"}), 400
+    try:
+        total_amount = service.parse_total(data["total_amount"])
+    except service.StoreError as e:
+        return jsonify({"error": e.message}), e.status
 
     db = next(db_connect.get_db())
     try:
@@ -319,77 +324,51 @@ def create_order(org_prefix):
         if not membership:
             return jsonify({"error": "User is not a member of this organization"}), 403
 
-        total_amount = float(data["total_amount"])
-
-        points_sum = (
-            db.query(func.sum(Points.points))
-            .filter(Points.user_id == user.id, Points.organization_id == org.id)
-            .scalar()
-            or 0
-        )
-
-        if points_sum < total_amount:
-            return jsonify({"error": f"Insufficient points. You have {points_sum} points but need {total_amount}"}), 400
-
-        order_items = []
-        priced = []
-        for item in data["items"]:
-            if not all(k in item for k in ["product_id", "quantity", "price"]):
-                return jsonify({"error": "Each item must have product_id, quantity, and price"}), 400
-            if int(item["quantity"]) < 1:
-                return jsonify({"error": "Quantity must be at least 1"}), 400
-
-            product = service.product(db, int(item["product_id"]), org.id)
-            if not product:
-                return jsonify({"error": f"Product {item['product_id']} not found"}), 404
-            if product.stock < int(item["quantity"]):
-                return jsonify({"error": f"Insufficient stock for product {product.name}"}), 400
-
-            product.stock -= int(item["quantity"])
-            priced.append((product, int(item["quantity"]), float(item["price"])))
-
-            order_items.append(
-                OrderItem(
-                    product_id=int(item["product_id"]),
-                    quantity=int(item["quantity"]),
-                    price_at_time=float(item["price"]),
-                )
-            )
-
-        if price_mismatch(org_prefix, total_amount, priced):
-            return jsonify({"error": "Prices have changed. Reload the store and try again."}), 409
-
-        new_order = Order(user_id=user.id, total_amount=total_amount, status="completed")
-        created_order = service.create_order(db, new_order, order_items, org.id)
-
-        # A negative point entry pays for the order
-        point_deduction = Points(
-            user_id=user.id,
-            organization_id=org.id,
-            points=-int(total_amount),
-            event=f"Storefront Purchase - Order #{created_order.id}",
-            timestamp=datetime.now(UTC),
-            awarded_by_officer="System",
-        )
-        db.add(point_deduction)
-        db.commit()
-
-        return jsonify(
-            {
-                "message": "Order placed and points deducted successfully",
-                "id": created_order.id,
-                "points_deducted": int(total_amount),
-                "order": {
-                    "id": created_order.id,
-                    "user_id": created_order.user_id,
-                    "total_amount": created_order.total_amount,
-                    "status": created_order.status,
-                    "created_at": created_order.created_at.isoformat(),
-                },
-            }
-        ), 201
+        return place_order(db, org, user, org_prefix, total_amount, data["items"])
     finally:
         db.close()
+
+
+def place_order(db, org, user, org_prefix, total_amount: float, items):
+    """Price the items from the catalog, then write the order, the stock change and the points charge in one commit.
+
+    The charge is the catalog total, not the client's total. Returns the response of the checkout routes.
+    """
+    try:
+        order_items, priced = service.price_items(db, org.id, items)
+    except service.StoreError as e:
+        return jsonify({"error": e.message}), e.status
+
+    if price_mismatch(org_prefix, total_amount, priced):
+        return jsonify({"error": "Prices have changed. Reload the store and try again."}), 409
+
+    charge = service.catalog_total(priced)
+    points_sum = (
+        db.query(func.sum(Points.points)).filter(Points.user_id == user.id, Points.organization_id == org.id).scalar()
+        or 0
+    )
+    if points_sum < charge:
+        need = service.points_number(charge)
+        return jsonify({"error": f"Insufficient points. You have {points_sum} points but need {need}"}), 400
+
+    service.take_stock(priced)
+    new_order = Order(user_id=user.id, total_amount=charge, status="completed")
+    created_order = service.create_order(db, new_order, order_items, org.id, charge=charge)
+
+    return jsonify(
+        {
+            "message": "Order placed and points deducted successfully",
+            "id": created_order.id,
+            "points_deducted": service.points_number(charge),
+            "order": {
+                "id": created_order.id,
+                "user_id": created_order.user_id,
+                "total_amount": created_order.total_amount,
+                "status": created_order.status,
+                "created_at": created_order.created_at.isoformat(),
+            },
+        }
+    ), 201
 
 
 @storefront_blueprint.route("/<string:org_prefix>/orders/<int:order_id>", methods=["PUT"])
@@ -409,7 +388,7 @@ def update_order_status(org_prefix, order_id):
 
         data = request.get_json()
         try:
-            service.change_order(order, data)
+            service.change_order(db, order, data)
         except service.StoreError as e:
             return jsonify({"error": e.message}), e.status
         db.commit()
