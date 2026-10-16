@@ -4,8 +4,6 @@ The routes register on storefront_blueprint. modules/registry.py imports the blu
 register before the blueprint is mounted.
 """
 
-from datetime import UTC, datetime
-
 from flask import g, jsonify, request
 from sqlalchemy import func
 
@@ -15,8 +13,8 @@ from modules.auth.decorators import dual_auth_required, member_required
 from modules.organizations.service import find_by_prefix
 from modules.points.models import Points
 from modules.storefront import service
-from modules.storefront.api import price_mismatch, storefront_blueprint
-from modules.storefront.models import Order, OrderItem
+from modules.storefront.api import place_order, price_mismatch, storefront_blueprint
+from modules.storefront.models import Order
 from modules.users.models import User, UserOrganizationMembership
 from modules.users.service import get_or_create_user, get_or_create_user_from_clerk
 
@@ -134,41 +132,24 @@ def create_member_order(org_prefix, **kwargs):
     if not data.get("items") or len(data["items"]) == 0:
         return jsonify({"error": "Order items are required"}), 400
 
-    new_order = Order(
-        user_id=user.id,
-        discord_user_id=user_discord_id,  # legacy column
-        total_amount=float(data["total_amount"]),
-        status="pending",
-    )
-
-    order_items = []
-    for item in data["items"]:
-        if not all(k in item for k in ["product_id", "quantity", "price"]):
-            return jsonify({"error": "Each item must have product_id, quantity, and price"}), 400
-        if int(item["quantity"]) < 1:
-            return jsonify({"error": "Quantity must be at least 1"}), 400
-        order_items.append(
-            OrderItem(
-                product_id=int(item["product_id"]), quantity=int(item["quantity"]), price_at_time=float(item["price"])
-            )
-        )
-
     db = next(db_connect.get_db())
     try:
-        priced = []
-        for item in order_items:
-            product = service.product(db, item.product_id, organization.id)
-            if not product:
-                return jsonify({"error": f"Product {item.product_id} not found"}), 404
-            if product.stock < item.quantity:
-                return jsonify({"error": f"Insufficient stock for product {product.name}"}), 400
+        try:
+            total_amount = service.parse_total(data["total_amount"])
+            order_items, priced = service.price_items(db, organization.id, data["items"])
+        except service.StoreError as e:
+            return jsonify({"error": e.message}), e.status
 
-            product.stock -= item.quantity
-            priced.append((product, item.quantity, item.price_at_time))
-
-        if price_mismatch(org_prefix, new_order.total_amount, priced):
+        if price_mismatch(org_prefix, total_amount, priced):
             return jsonify({"error": "Prices have changed. Reload the store and try again."}), 409
 
+        service.take_stock(priced)
+        new_order = Order(
+            user_id=user.id,
+            discord_user_id=user_discord_id,  # legacy column
+            total_amount=service.catalog_total(priced),
+            status="pending",
+        )
         created_order = service.create_order(db, new_order, order_items, organization.id)
         return jsonify(
             {
@@ -197,9 +178,13 @@ def get_member_order(org_prefix, order_id, **kwargs):
 
     db = next(db_connect.get_db())
     try:
+        user = db.query(User).filter_by(discord_id=user_discord_id).first() if user_discord_id else None
+        if not user:
+            return jsonify({"error": "Order not found"}), 404
+
         order = (
             db.query(Order)
-            .filter(Order.id == order_id, Order.organization_id == organization.id, Order.user_id == user_discord_id)
+            .filter(Order.id == order_id, Order.organization_id == organization.id, Order.user_id == user.id)
             .first()
         )
 
@@ -414,6 +399,10 @@ def clerk_checkout(org_prefix):
         return jsonify({"error": "Total amount is required"}), 400
     if not data.get("items") or len(data["items"]) == 0:
         return jsonify({"error": "Order items are required"}), 400
+    try:
+        total_amount = service.parse_total(data["total_amount"])
+    except service.StoreError as e:
+        return jsonify({"error": e.message}), e.status
 
     db = next(db_connect.get_db())
     try:
@@ -441,73 +430,6 @@ def clerk_checkout(org_prefix):
         if not membership:
             return jsonify({"error": "User is not a member of this organization"}), 403
 
-        total_amount = float(data["total_amount"])
-
-        points_sum = (
-            db.query(func.sum(Points.points))
-            .filter(Points.user_id == user.id, Points.organization_id == org.id)
-            .scalar()
-            or 0
-        )
-
-        if points_sum < total_amount:
-            return jsonify({"error": f"Insufficient points. You have {points_sum} points but need {total_amount}"}), 400
-
-        order_items = []
-        priced = []
-        for item in data["items"]:
-            if not all(k in item for k in ["product_id", "quantity", "price"]):
-                return jsonify({"error": "Each item must have product_id, quantity, and price"}), 400
-            if int(item["quantity"]) < 1:
-                return jsonify({"error": "Quantity must be at least 1"}), 400
-
-            product = service.product(db, int(item["product_id"]), org.id)
-            if not product:
-                return jsonify({"error": f"Product {item['product_id']} not found"}), 404
-            if product.stock < int(item["quantity"]):
-                return jsonify({"error": f"Insufficient stock for product {product.name}"}), 400
-
-            product.stock -= int(item["quantity"])
-            priced.append((product, int(item["quantity"]), float(item["price"])))
-
-            order_items.append(
-                OrderItem(
-                    product_id=int(item["product_id"]),
-                    quantity=int(item["quantity"]),
-                    price_at_time=float(item["price"]),
-                )
-            )
-
-        if price_mismatch(org_prefix, total_amount, priced):
-            return jsonify({"error": "Prices have changed. Reload the store and try again."}), 409
-
-        new_order = Order(user_id=user.id, total_amount=total_amount, status="completed")
-        created_order = service.create_order(db, new_order, order_items, org.id)
-
-        point_deduction = Points(
-            user_id=user.id,
-            organization_id=org.id,
-            points=-int(total_amount),
-            event=f"Storefront Purchase - Order #{created_order.id}",
-            timestamp=datetime.now(UTC),
-            awarded_by_officer="System",
-        )
-        db.add(point_deduction)
-        db.commit()
-
-        return jsonify(
-            {
-                "message": "Order placed and points deducted successfully",
-                "id": created_order.id,
-                "points_deducted": int(total_amount),
-                "order": {
-                    "id": created_order.id,
-                    "user_id": created_order.user_id,
-                    "total_amount": created_order.total_amount,
-                    "status": created_order.status,
-                    "created_at": created_order.created_at.isoformat(),
-                },
-            }
-        ), 201
+        return place_order(db, org, user, org_prefix, total_amount, data["items"])
     finally:
         db.close()

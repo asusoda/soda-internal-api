@@ -331,7 +331,7 @@ def global_leaderboard(db) -> list[dict]:
             func.coalesce(func.sum(case((in_semester, Points.points), else_=0)), 0).label("curr_sem_points"),
         )
         .outerjoin(Points)  # keeps users with no points
-        .group_by(User.uuid)
+        .group_by(User.id, User.name, User.uuid)
         .order_by(func.sum(Points.points).desc(), User.name.asc())
         .all()
     )
