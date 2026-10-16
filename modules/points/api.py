@@ -7,6 +7,7 @@ from core.http.request_log import bearer_token
 from core.log import logger
 from modules.auth.access import awarded_by, decide, discord_directory, is_org_officer
 from modules.auth.decorators import auth_required
+from modules.auth.routes import officer_route
 from modules.auth.tokens import token_manager
 from modules.organizations import service as organizations
 from modules.points import service
@@ -558,6 +559,12 @@ def delete_points_by_event(org_prefix):
         return jsonify({"error": "An error occurred while deleting points"}), 500
     finally:
         db.close()
+
+
+@officer_route(points_blueprint, "/entries/<int:entry_id>", ["DELETE"])
+def delete_entry(db, org, entry_id):
+    """Delete one point entry of the org by its id. An entry of another org is not found."""
+    return {"message": "Points deleted successfully", "deleted_points": service.delete_entry(db, org.id, entry_id)}
 
 
 @points_blueprint.route("/<string:org_prefix>/users/<string:user_identifier>", methods=["PUT", "PATCH"])

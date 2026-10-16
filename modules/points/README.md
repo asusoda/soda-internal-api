@@ -13,7 +13,7 @@ Keeps the points that an org's members earn. Officers add members, give points b
 
 ## Surface
 
-- Routes: `/api/points`, behind the `points` switch. Most routes need an officer of the org. `/<org_prefix>/leaderboard` is open and shows emails only to a signed-in caller. `/member_login` needs a Clerk token, and `/member_profile` reads the session it sets.
+- Routes: `/api/points`, behind the `points` switch. Most routes need an officer of the org. `DELETE /<org_prefix>/entries/<id>` deletes one entry by its id; `DELETE /<org_prefix>/delete_points` deletes a member's first entry for an event. `/<org_prefix>/leaderboard` is open and shows emails only to a signed-in caller. `/member_login` needs a Clerk token, and `/member_profile` reads the session it sets.
 - Jobs: `points.import_event_csv`, started by the CSV upload.
 - Tools: `points.leaderboard` (scope `points:read`); `points.entries`, `points.history` (scope `members:read`); `points.award`, `points.import_csv`, `points.delete` (confirm) (scope `points:write`). A member is an email, uuid, username or Discord id. `points.award` gives points to up to 100 members in one commit.
 - Tables: `points`. Members and memberships are in `modules/users`.
@@ -21,5 +21,5 @@ Keeps the points that an org's members earn. Officers add members, give points b
 
 ## Known gaps
 
-- Views in `api.py` open their own session and query. The leaderboards, the member list, point adds and the event delete are in `service.py`. Move the rest one route at a time, with the contract tests.
+- Views in `api.py` open their own session and query. The leaderboards, the member list, point adds and the event and entry deletes are in `service.py`. Move the rest one route at a time, with the contract tests.
 - The camelCase routes (`getUserPoints`, `getUserTotalPoints`) are aliases. See Cleanup in `docs/roadmap.md`.

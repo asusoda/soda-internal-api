@@ -6,7 +6,7 @@ Keeps the points that an org's members earn at events. Officers add members, giv
 
 The Points page (Storage > Points) has two tabs:
 
-- **Members**: the leaderboard with each member's total. Search by name or email. Add a member, or give points to one member.
+- **Members**: the leaderboard with each member's total. Search by name or email. Add a member, or give points to one member. Open a member to see their entries and delete one entry.
 - **Events**: the points given at each event. Upload an attendance CSV for an event, or delete the points of an event.
 
 ## Attendance CSV
@@ -42,7 +42,8 @@ All routes are under `/api/points/<org>`.
 | `PUT /users/<id>` | Changes a member's fields |
 | `GET /users/<id>/points` | One member's point entries |
 | `POST /assign_points` | Gives points to one member: `user_identifier`, `points`, `event` |
-| `DELETE /delete_points` | Deletes the points of one event |
+| `DELETE /delete_points` | Deletes a member's first entry for one event: `user_email`, `event` |
+| `DELETE /entries/<id>` | Deletes one point entry of the org by its id. An entry of another org gets 404 |
 | `POST /uploadEventCSV` | Form fields `file`, `event_name`, `event_points`. Starts the CSV job |
 | `GET /get_points` | Every point entry of the org |
 | `GET /leaderboard` | The leaderboard. Open to everyone. Emails show only to a signed-in caller |

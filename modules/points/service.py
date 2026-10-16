@@ -88,6 +88,17 @@ def delete_event_entry(db, organization_id, user_email, event) -> Points:
     return entry
 
 
+def delete_entry(db, organization_id, entry_id: int) -> dict:
+    """Delete the point entry with this id in the org and return it. Commits."""
+    entry = db.query(Points).filter_by(id=entry_id, organization_id=organization_id).first()
+    if entry is None:
+        raise PointsError("Points entry not found", 404)
+    deleted = point_json(entry)
+    db.delete(entry)
+    db.commit()
+    return deleted
+
+
 def members_with_points(db, organization_id) -> list[dict]:
     """The org's active members with their contact fields and total points, in membership order."""
     totals = totals_by_user(db, organization_id)
