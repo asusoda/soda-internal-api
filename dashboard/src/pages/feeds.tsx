@@ -90,7 +90,7 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
         className="grid gap-5 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!taken) create.mutate();
+          if (feeds.isSuccess && !taken) create.mutate();
         }}
       >
         {choices.length ? (
@@ -140,8 +140,8 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
           <Input type="number" min={1} max={168} value={draft.every} onChange={set('every')} />
         </Field>
         <div className="sm:col-span-2">
-          <FormActions error={taken ? `A feed named ${draft.key} exists.` : create.error}>
-            <Button variant="primary" disabled={create.isPending || !draft.destination || taken}>
+          <FormActions error={feeds.error ?? (taken ? `A feed named ${draft.key} exists.` : create.error)}>
+            <Button variant="primary" disabled={create.isPending || !feeds.isSuccess || !draft.destination || taken}>
               Create feed
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
@@ -256,7 +256,11 @@ function FeedsPage({ kind, title }: { kind: Kind; title: string }) {
   });
   const run = useMutation({ mutationFn: (key: string) => send(`/api/feeds/${prefix}/feeds/${key}/run`, 'POST', {}), onSuccess: refresh });
   const remove = useMutation({ mutationFn: (key: string) => send(`/api/feeds/${prefix}/feeds/${key}`, 'DELETE'), onSuccess: refresh });
-  const actionError = toggle.error ?? run.error ?? remove.error;
+  // The error of the action that ran last
+  const actionError = [toggle, run, remove].reduce<(typeof toggle | typeof run | typeof remove) | null>(
+    (last, m) => (!last || m.submittedAt > last.submittedAt ? m : last),
+    null,
+  )?.error;
   const newFeed = (
     <Button variant="primary" onClick={() => setAdding(true)}>
       <Plus className="size-4" /> New feed
@@ -275,7 +279,7 @@ function FeedsPage({ kind, title }: { kind: Kind; title: string }) {
       </Dialog>
       {feeds.error || actionError ? (
         <div className="mb-4">
-          <ErrorNote error={feeds.error ?? actionError} />
+          <ErrorNote error={actionError ?? feeds.error} />
         </div>
       ) : null}
       <Card>
