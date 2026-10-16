@@ -118,6 +118,12 @@ register_cache_invalidation(app)
 
 
 @app.before_request
+def start_job_scheduler():
+    """Start the inline job scheduler when the API serves. Importing main for a CLI command starts nothing."""
+    jobs.start_inline_scheduler()
+
+
+@app.before_request
 def refuse_disabled_routes():
     """A path that starts with a DISABLED_ROUTES prefix gets the 404 of an unknown route."""
     if config.DISABLED_ROUTES and request.path.startswith(config.DISABLED_ROUTES):
@@ -127,9 +133,9 @@ def refuse_disabled_routes():
 register_modules(app)
 load_tools()
 
-# On Postgres the worker process (worker_main.py) runs the jobs; on SQLite a thread here runs the periodic jobs.
+# On Postgres the worker process (worker_main.py) runs the jobs. On SQLite a thread here runs the periodic
+# jobs; start_job_scheduler starts it at the first request.
 load_jobs()
-jobs.start_inline_scheduler()
 
 # `flask --app main org|jobs|config ...`
 register_cli(app)

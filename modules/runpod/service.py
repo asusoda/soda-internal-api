@@ -523,6 +523,25 @@ def _request(
     return _provider_of(app).request(str(app.name), org_prefix, pod_id, manifest, image, env)
 
 
+FIRST_DEPLOY_RUNS = "The first deploy of this app still runs. Wait for it to finish, then deploy again"
+
+
+def _claim(db, app: App) -> None:
+    """Lock the app row until the next commit and refuse a deploy while the first deploy creates the pod.
+
+    The update locks the row on Postgres and takes the write lock on SQLite, so a second deploy waits here
+    and then reads the pod id and deployments that the first deploy committed.
+    """
+    db.query(App).filter(App.id == app.id).update({App.id: App.id}, synchronize_session=False)
+    db.refresh(app)
+    if app.pod_id:
+        return
+    creating = db.query(AppDeployment.id).filter_by(app_id=app.id, status="deploying").first()
+    if creating is not None:
+        db.rollback()
+        raise AppError(FIRST_DEPLOY_RUNS, 409)
+
+
 def deploy(
     db,
     org_id: int | None,
@@ -562,6 +581,7 @@ def deploy(
 
     client = client_for(db, org_id, str(app.provider))
     _, _, body = _request(db, org_id, org_prefix, app, manifest, tag, redact=False)
+    _claim(db, app)
     db.query(AppDeployment).filter_by(app_id=app.id, status="deploying").update(
         {"status": "failed", "finished_at": utcnow(), "error": "Replaced by a later deployment"},
         synchronize_session=False,
@@ -572,6 +592,8 @@ def deploy(
     )
     app.manifest = stored
     db.add(deployment)
+    # The deploying row without a pod id is the claim that _claim refuses; the commit ends the lock
+    db.commit()
     try:
         if not app.pod_id:
             created = client.create_pod(body)

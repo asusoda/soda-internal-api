@@ -46,5 +46,5 @@ In the Discord Developer Portal, turn on the **Server Members** intent for the a
 
 ## Jeopardy limits
 
-- One game runs at a time for the whole deployment, in the first server of the bot.
+- One game runs at a time for the whole deployment. `POST /api/bot/setactivegame` sets it up in the server of the caller's org. If the caller is an officer in more than one server of the bot, set `guild_id`.
 - The game routes at `/api/bot` need the bot inside the API process. Under gunicorn they fail. Turn them off with `DISABLED_ROUTES=/api/bot/` if you do not use them.

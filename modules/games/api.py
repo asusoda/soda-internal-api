@@ -1,5 +1,9 @@
+import asyncio
 import json
+from collections.abc import Coroutine
+from typing import Any
 
+import discord
 from flask import Blueprint, current_app, jsonify, request
 
 from core.db import db_connect as db
@@ -49,6 +53,44 @@ def _ready_bot() -> BotFork | None:
     if isinstance(bot, BotFork) and bot.is_ready():
         return bot
     return None
+
+
+async def _on_bot(bot: BotFork, coro: Coroutine[Any, Any, Any]) -> Any:
+    """Run coro on the bot's event loop and wait for its result. Discord objects work only on that loop."""
+    try:
+        loop = bot.loop
+    except AttributeError:
+        loop = None
+    if loop is None or loop is asyncio.get_running_loop() or not loop.is_running():
+        return await coro
+    return await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(coro, loop))
+
+
+def _game_guild(bot: BotFork) -> tuple[discord.Guild | None, str | None]:
+    """The Discord server of the org that runs the game, or None and the reason.
+
+    It is the guild_id argument, or else the one server of the bot where the caller is an officer and games is on.
+    """
+    principal = current_principal()
+    allowed = None
+    if principal is not None and principal.discord_id and not is_superadmin(principal.discord_id):
+        allowed = officer_guild_ids(principal.discord_id) or frozenset()
+    requested = request.args.get("guild_id")
+    guilds = [
+        guild
+        for guild in bot.guilds
+        if (allowed is None or str(guild.id) in allowed) and (requested is None or str(guild.id) == requested)
+    ]
+    session = db.SessionLocal()
+    try:
+        guilds = [guild for guild in guilds if service.enabled_for_guilds(session, [guild.id])]
+    finally:
+        session.close()
+    if len(guilds) == 1:
+        return guilds[0], None
+    if not guilds:
+        return None, "The bot is not in a server of an org where you are an officer and games is on"
+    return None, "You are an officer in more than one server of the bot. Set guild_id to the server of the game"
 
 
 def _game_cog(bot: BotFork) -> GameCog | None:
@@ -203,8 +245,14 @@ async def set_active_game():
         if game_to_set:
             cog = _game_cog(bot)
             if cog:
+                if cog.is_setup():
+                    return jsonify({"error": "A game is set up in Discord. Clean it with /cleanactivegame first"}), 409
+                guild, reason = _game_guild(bot)
+                if guild is None:
+                    return jsonify({"error": reason}), 400
                 cog.set_game(game_to_set, date, time)
-                logger.info(f"Active game set successfully: {name}")
+                await _on_bot(bot, cog.setup_game(guild))
+                logger.info(f"Active game set successfully: {name} guild={guild.id}")
                 return jsonify({"message": "Active game set successfully"}), 200
             else:
                 logger.error("GameCog not found on auth_bot")
@@ -255,7 +303,7 @@ async def clean_active_game():
     try:
         cog = _game_cog(bot)
         if cog:
-            await cog.clear_game()
+            await _on_bot(bot, cog.clear_game())
             logger.info("Active game cleaned successfully via GameCog")
             return jsonify({"message": "Active game cleaned successfully"}), 200
         else:
@@ -298,7 +346,7 @@ async def start_active_game():
     try:
         cog = _game_cog(bot)
         if cog:
-            if not await cog.start_game():
+            if not await _on_bot(bot, cog.start_game()):
                 return jsonify({"error": "No active game is set up"}), 400
             logger.info("Active game started successfully via GameCog")
             return jsonify({"message": "Active game started successfully"}), 200
@@ -321,7 +369,7 @@ async def end_active_game():
     try:
         cog = _game_cog(bot)
         if cog:
-            if not await cog.end_game():
+            if not await _on_bot(bot, cog.end_game()):
                 return jsonify({"error": "No active game is set up"}), 400
             logger.info("Active game ended successfully via GameCog")
             return jsonify({"message": "Active game ended successfully"}), 200
@@ -347,7 +395,7 @@ async def reveal_question():
     try:
         cog = _game_cog(bot)
         if cog:
-            if not await cog.show_question(uuid):
+            if not await _on_bot(bot, cog.show_question(uuid)):
                 return jsonify({"error": "No active game is set up or the question is not found"}), 400
             logger.info(f"Question {uuid} revealed successfully via GameCog")
             return jsonify({"message": "Question revealed successfully"}), 200
@@ -373,7 +421,7 @@ async def reveal_answer():
     try:
         cog = _game_cog(bot)
         if cog:
-            if not await cog.show_answer(uuid):
+            if not await _on_bot(bot, cog.show_answer(uuid)):
                 return jsonify({"error": "No active game is set up or the question is not found"}), 400
             logger.info(f"Answer for question {uuid} revealed successfully via GameCog")
             return jsonify({"message": "Answer revealed successfully"}), 200
@@ -400,7 +448,7 @@ async def award_points():
     try:
         cog = _game_cog(bot)
         if cog:
-            if not await cog.award_points(team, int(points)):
+            if not await _on_bot(bot, cog.award_points(team, int(points))):
                 return jsonify({"error": "No active game is set or the team is not found"}), 400
             logger.info(f"Awarded {points} to team {team} successfully via GameCog")
             return jsonify({"message": "Points awarded successfully"}), 200

@@ -218,6 +218,34 @@ def test_runpod_failure_is_recorded(client, manager, deployer, fake):
     assert client.get(f"/api/apps/{name}", headers=manager).get_json()["pod_id"] is None
 
 
+def test_second_first_deploy_waits_for_the_pod(client, manager, deployer, fake):
+    from modules.organizations.models import Organization
+
+    name = _register(client, manager)
+    seen: list[Any] = []
+    create = fake.create_pod
+
+    def create_while_another_deploys(body):
+        # A second deploy arrives while the first one creates the pod
+        db = db_connect.SessionLocal()
+        try:
+            org_id = db.query(Organization.id).filter_by(prefix="ais").scalar()
+            service.deploy(db, org_id, "ais", name, "v2", "ci")
+        except service.AppError as e:
+            seen.append(e.status)
+        finally:
+            db.close()
+        return create(body)
+
+    fake.create_pod = create_while_another_deploys
+    assert client.post(f"/api/apps/{name}/deploy", json={"tag": "v1"}, headers=deployer).status_code == 202
+    assert seen == [409]
+    assert [call[0] for call in fake.calls] == ["POST"]
+    # The pod exists now, so the next deploy updates it
+    assert client.post(f"/api/apps/{name}/deploy", json={"tag": "v2"}, headers=deployer).status_code == 202
+    assert [call[0] for call in fake.calls] == ["POST", "PATCH"]
+
+
 @pytest.mark.parametrize(
     "manifest",
     [

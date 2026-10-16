@@ -91,7 +91,7 @@ export function RemoveDialog({ org, onClose }: { org: OrganizationDetail; onClos
       }}
     >
       <div className="rounded-lg border border-bad/30 bg-bad/10 p-3 text-sm text-pretty text-bad">
-        This deletes <strong className="font-semibold">{org.name}</strong> and its settings. You cannot undo it.
+        This deletes <strong className="font-semibold">{org.name}</strong> and all of its data: members, points, orders and settings. You cannot undo it.
       </div>
       <Field label={`Type ${org.prefix} to confirm`}>
         <Input
