@@ -78,7 +78,7 @@ def price_items(db, organization_id, items) -> tuple[list[OrderItem], list[tuple
             raise StoreError("Each item must have a numeric product_id, quantity, and price") from None
         if quantity < 1:
             raise StoreError("Quantity must be at least 1")
-        found = product(db, product_id, organization_id)
+        found = product(db, product_id, organization_id, for_update=True)
         if not found:
             raise StoreError(f"Product {product_id} not found", 404)
         wanted[found.id] += quantity
@@ -187,10 +187,11 @@ def products(db, organization_id):
         return []
 
 
-def product(db, product_id, organization_id):
-    """The org's product with this id, or None."""
+def product(db, product_id, organization_id, for_update=False):
+    """The org's product with this id, or None. for_update locks the row until the caller commits."""
     try:
-        return db.query(Product).filter(Product.id == product_id, Product.organization_id == organization_id).first()
+        query = db.query(Product).filter(Product.id == product_id, Product.organization_id == organization_id)
+        return (query.with_for_update() if for_update else query).first()
     except Exception as e:
         logger.error(f"Error getting storefront product: {str(e)}")
         return None
@@ -295,7 +296,7 @@ def change_product(product: Product, data: dict) -> None:
 def _restock(db, order: Order, organization_id) -> None:
     """Put the items of the order back in stock. The caller commits."""
     for item in order.items:
-        found = product(db, item.product_id, organization_id)
+        found = product(db, item.product_id, organization_id, for_update=True)
         if found:
             found.stock += item.quantity
 
