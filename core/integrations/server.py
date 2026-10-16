@@ -4,8 +4,8 @@ The runner (deploy/runner/platform_runner.py) runs on the host as root and liste
 folder. This module only talks to that socket. The runner checks each request against its policy file, so the
 memory cap, the published ports and the host paths an org may use are decided on the server, not here.
 
-An app's pod id is its container name, app-<org>-<app>. A shared app has no org (org_id None): the deployment owns
-it, and its container is shared-<app>. Godfather does not use this provider: its pods need SSH.
+An app's pod id is its container name, app-<org>--<app>, or app-<org>-<app> until the app's first deploy with the
+current runner. A shared app has no org (org_id None): the deployment owns it, and its container is shared-<app>. Godfather does not use this provider: its pods need SSH.
 """
 
 import http.client
@@ -75,10 +75,14 @@ def _base(org: str | None) -> str:
 
 
 def _app_path(pod_id: str, org: str | None) -> str:
-    prefix = "shared-" if org is None else f"app-{org}-"
-    if not pod_id.startswith(prefix):
+    """The runner path of an app from its container name. The runner checks the container's labels against the org
+    of the path, so a legacy name that another org's container also has reaches only this org's container."""
+    prefixes = ("shared-",) if org is None else (f"app-{org}--", f"app-{org}-")
+    prefix = next((p for p in prefixes if pod_id.startswith(p)), None)
+    app = pod_id[len(prefix) :] if prefix else ""
+    if not app or app.startswith("-") or "--" in app:
         raise RunnerError("This container is not an app of this org", 404)
-    return f"{_base(org)}/{quote(pod_id[len(prefix) :], safe='')}"
+    return f"{_base(org)}/{quote(app, safe='')}"
 
 
 class ServerClient:
@@ -107,6 +111,7 @@ class ServerClient:
         return call("PUT", f"{_base(self.org)}/{quote(app, safe='')}", body)
 
     def update_pod(self, pod_id: str, body: dict) -> dict:
+        """Deploy again. The answer's id is the container name, which changes when a legacy name moves."""
         return call("PUT", _app_path(pod_id, self.org), body)
 
     def start_pod(self, pod_id: str) -> Any:

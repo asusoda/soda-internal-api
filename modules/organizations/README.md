@@ -23,5 +23,5 @@ Config keys: `modules` (a module name set to false for each module that is off; 
 
 ## Known gaps
 
-- Views in `api.py` open their own session and query the org. The settings route checks the prefix in the view, not with `PREFIX_PATTERN` in `service.py`.
+- Views in `api.py` open their own session and query the org. The settings route checks the prefix in the view, not with `PREFIX_PATTERN` in `service.py`. Both refuse two dashes in a row (`--`), which separate the org and the app in a container name on This server.
 - `/stats`, `/activity` and `/roles` return fixed sample data.

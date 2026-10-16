@@ -75,7 +75,22 @@ The runner lets orgs deploy apps to this server (provider `server` on the Hostin
 
 The unit has `KillMode=process`, so a restart of the runner, for example after a policy change, does not stop the app containers.
 
-The Hosting page then lists This server as a provider. An app container is named `app-<org>-<app>` and has the labels `platform.managed=1`, `platform.org` and `platform.app`, so the [host agent](#host-agent) gives it to its org.
+The Hosting page then lists This server as a provider. An app container is named `app-<org>--<app>` and has the labels `platform.managed=1`, `platform.org` and `platform.app`, so the [host agent](#host-agent) gives it to its org. The runner starts, stops, removes and reads the logs of a container only when its `platform.org` and `platform.app` labels match the org and app of the request. A host port that a container of another org publishes, running or stopped, is refused.
+
+An org prefix or app name with two dashes in a row (`--`) cannot have apps on this server. Platform refuses such a prefix or app name for a new org or app.
+
+### Container names of an earlier runner
+
+An earlier runner named a container `app-<org>-<app>` and a network `platform-<org>` or `platform-<org>-<group>`. Two orgs could get the same name, such as org `acm` with app `w-site` and org `acm-w` with app `site`. The current runner moves each app at its next deploy:
+
+1. It finds the app's container by the new name first, then by the old name. It uses a container only if its labels name the org and app of the request.
+2. It removes the old container before it starts the new one, so the host ports and volumes are free.
+3. It starts `app-<org>--<app>` on `app-<org>` or `app-<org>--<group>`. Platform keeps the new name as the app's pod id.
+4. While other parts of the group are still on the old network, the new container joins that network too. When every part is on the new network, the runner removes the old network. It does not change an old network that has a container of another org or group.
+
+If the new name is in use by a container of another org, the deploy fails with 409. Look at the container's labels with `podman inspect`, and remove the container that has no app. Shared apps keep the name `shared-<app>` and move to the network `shared-apps`.
+
+To update the runner, deploy Platform first, then restart the runner: `systemctl restart platform-runner`. The app containers keep running.
 
 The `shared` key of the policy has `host_paths` and `host_ports` too: the ones that shared apps (no org) may use, such as the vault's folder and port. No org may use them.
 

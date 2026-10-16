@@ -90,7 +90,7 @@ def test_an_app_deploys_to_a_capped_container_and_becomes_healthy(client, office
 
     deployed = client.post(f"{base}/deploy", json={"tag": "1.32.0"}, headers=officer_headers)
     assert deployed.status_code == 202, deployed.get_json()
-    container = f"app-soda-{name}"
+    container = f"app-soda--{name}"
     info = runner.containers[container]
     assert info["HostConfig"]["Memory"] == 256 * 1024 * 1024
     assert info["Config"]["Image"] == "docker.io/vaultwarden/server:1.32.0"
@@ -155,3 +155,38 @@ def test_this_server_limits_apps_and_memory(client, officer_headers, runner, app
 def test_godfather_refuses_this_server(client, officer_headers, runner):
     refused = client.post("/api/compute/soda/pods", json={"provider": "server"}, headers=officer_headers)
     assert refused.status_code == 400 and "cannot run Godfather pods" in refused.get_json()["error"]
+
+
+def test_a_legacy_container_moves_to_its_new_name_at_the_next_deploy(client, officer_headers, runner, apps_cleanup):
+    from core.db import db_connect
+    from modules.runpod.models import App
+
+    name = _name(apps_cleanup)
+    base = f"/api/dashboard/soda/apps/{name}"
+    assert client.put(base, json={"manifest": VAULT, "provider": "server"}, headers=officer_headers).status_code == 200
+    # An app that an earlier runner deployed as app-soda-<name>
+    legacy = f"app-soda-{name}"
+    assert client.post(f"{base}/deploy", json={"tag": "1.31.0"}, headers=officer_headers).status_code == 202
+    runner.containers[legacy] = {**runner.containers.pop(f"app-soda--{name}"), "Name": legacy, "Id": legacy}
+    db = db_connect.SessionLocal()
+    try:
+        db.query(App).filter_by(name=name).update({"pod_id": legacy})
+        db.commit()
+    finally:
+        db.close()
+    assert client.get(f"{base}/pod", headers=officer_headers).get_json()["pod"]["id"] == legacy
+
+    deployed = client.post(f"{base}/deploy", json={"tag": "1.32.0"}, headers=officer_headers)
+    assert deployed.status_code == 202 and deployed.get_json()["pod_id"] == f"app-soda--{name}"
+    assert legacy not in runner.containers
+    assert runner.containers[f"app-soda--{name}"]["Config"]["Image"] == "docker.io/vaultwarden/server:1.32.0"
+    assert client.get(f"{base}/pod", headers=officer_headers).get_json()["pod"]["id"] == f"app-soda--{name}"
+    assert _check_deployments()["healthy"] >= 1
+
+
+def test_a_pod_id_reaches_only_an_app_of_the_org():
+    assert server._app_path("app-acm--w-site", "acm") == "/apps/acm/w-site"
+    assert server._app_path("app-acm-w-site", "acm") == "/apps/acm/w-site"
+    for pod_id, org in [("app-acm-w--site", "acm"), ("app-acm---x", "acm"), ("app-ais--web", "acm")]:
+        with pytest.raises(server.RunnerError):
+            server._app_path(pod_id, org)

@@ -42,7 +42,8 @@ scopes.declare("apps:manage", "Register app manifests and roll apps back", uses=
 scopes.declare("apps:deploy", "Deploy a new image tag of an app", uses=("runpod",))
 webhooks.declare("app.deployed", "App deploys", "An app deploy ends: healthy, or failed with the reason.")
 
-NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+# Two dashes in a row separate the org and the app in a container name on This server
+NAME_PATTERN = re.compile(r"^(?!.*--)[a-z0-9][a-z0-9-]{0,62}$")
 TAG_PATTERN = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|sha256:[a-f0-9]{64})$")
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 PATH_PATTERN = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]{0,199}$")
@@ -112,7 +113,7 @@ MANIFEST_SCHEMA: dict = {
         "group": {
             "description": "This server: the apps of one group, the parts of one app, share a network",
             "type": "string",
-            "pattern": r"^[a-z0-9][a-z0-9-]{0,62}$",
+            "pattern": r"^(?!.*--)[a-z0-9][a-z0-9-]{0,62}$",
         },
         "alias": {
             "description": "This server: the name the other parts of the group reach this app by, such as db",
@@ -362,7 +363,7 @@ def put_app(
     provider names the hosting provider of a new app, runpod when missing. An app with a pod keeps its provider.
     """
     if not NAME_PATTERN.match(name):
-        raise AppError("name must be lowercase letters, digits and dashes, up to 63")
+        raise AppError("name must be lowercase letters, digits and single dashes, up to 63")
     if name == RESERVED_NAME:
         raise AppError(f"{RESERVED_NAME} is not available as an app name")
     if (manifest is None) == (repo is None):
@@ -576,7 +577,10 @@ def deploy(
             created = client.create_pod(body)
             app.pod_id = str(created["id"])
         else:
-            client.update_pod(str(app.pod_id), body)
+            updated = client.update_pod(str(app.pod_id), body)
+            # This server moves a container with a legacy name to its new name
+            if app.provider == SERVER and isinstance(updated, dict) and updated.get("id"):
+                app.pod_id = str(updated["id"])
     except (hosting.HostingError, KeyError, TypeError) as e:
         deployment.status, deployment.finished_at = "failed", utcnow()
         title = _provider_of(app).title

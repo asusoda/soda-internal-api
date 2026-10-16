@@ -6,13 +6,16 @@ Unix socket in the Platform data folder. The runner is the security boundary: it
 
     python3 platform_runner.py --config /etc/platform-runner.json
 
-Each app is one container named app-<org>-<app>, on a network of its org (platform-<org>), with a memory and
-CPU cap. A shared app, which the deployment owns and every org uses, is shared-<app> on platform-shared, with the
+Each app is one container named app-<org>--<app>, on a network of its org (app-<org>), with a memory and
+CPU cap. No org prefix, app name or group holds two dashes in a row, so a name belongs to one org and one app. The
+labels platform.org and platform.app name the owner, and the runner acts on a container only when they match the
+request. A container from an earlier runner, named app-<org>-<app>, moves to the new name at its next deploy. A
+shared app, which the deployment owns and every org uses, is shared-<app> on shared-apps, with the
 policy's "shared" section in place of an org's. A port is published only on the bind addresses of the policy (localhost and the podman gateway, where
 Nginx Proxy Manager reaches it), never on a public address. A volume is a folder under data_root, or a host
 path that the policy allows for that org. Every container runs with no-new-privileges, except the apps that an
 org's no_new_privileges_off lists: databases whose images drop privileges with gosu. The parts of one app share a
-group network, where each answers to its
+group network (app-<org>--<group>), where each answers to its
 alias. The policy's host_control list names the other containers and systemd units that the superadmin may start,
 stop, restart and read the logs of. Standard library only. See docs/operations.md, "This server runner".
 """
@@ -35,8 +38,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
-# An org prefix (modules/organizations PREFIX_PATTERN)
-ORG = re.compile(r"^[a-z0-9_-]{2,20}$")
+# An app name or a group: no two dashes in a row, which separate the parts of container and network names
+APP = re.compile(r"^(?!.*--)[a-z0-9][a-z0-9-]{0,62}$")
+# An org prefix (modules/organizations PREFIX_PATTERN), with no two dashes in a row
+ORG = re.compile(r"^(?!.*--)[a-z0-9_-]{2,20}$")
 IMAGE = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,250}(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$")
 ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 CONTAINER_PATH = re.compile(r"^/[A-Za-z0-9_./-]{0,250}$")
@@ -108,8 +113,61 @@ def load_policy_dict(policy: dict) -> dict:
 
 
 def container_name(org: str | None, app: str) -> str:
-    """app-<org>-<app>, or shared-<app> for a shared app (org None)."""
-    return f"shared-{app}" if org is None else f"app-{org}-{app}"
+    """app-<org>--<app>, or shared-<app> for a shared app (org None)."""
+    return f"shared-{app}" if org is None else f"app-{org}--{app}"
+
+
+def legacy_name(org: str | None, app: str) -> str | None:
+    """The name an earlier runner gave the app's container, app-<org>-<app>. Another org's app can have this name
+    too. None for a shared app, whose name did not change."""
+    return None if org is None else f"app-{org}-{app}"
+
+
+def network_name(org: str | None, group: str | None) -> str:
+    """The network of an org (app-<org>) or of a group of its apps (app-<org>--<group>). Shared apps use
+    shared-apps."""
+    base = "shared-apps" if org is None else f"app-{org}"
+    return base + (f"--{group}" if group else "")
+
+
+def legacy_network(org: str | None, group: str | None) -> str:
+    """The network name of an earlier runner. Another org's network can have this name too."""
+    return f"platform-{org or 'shared'}" + (f"-{group}" if group else "")
+
+
+def _labels(info: dict) -> dict:
+    return (info.get("Config") or {}).get("Labels") or {}
+
+
+def _owner(labels: dict) -> str | None:
+    """The org that a managed container belongs to: its prefix, "" for a shared app, None for no owner."""
+    if labels.get(LABEL) != "1":
+        return None
+    if labels.get("platform.shared") == "1":
+        return ""
+    return labels.get("platform.org") or None
+
+
+def owns(info: dict, org: str | None, app: str) -> bool:
+    """Whether the container's labels name this org (or the shared apps, org None) and this app."""
+    labels = _labels(info)
+    return _owner(labels) == (org or "") and labels.get("platform.app") == app
+
+
+def _in_group(info: dict, org: str | None, group: str | None) -> bool:
+    """Whether the container's labels name this org (or the shared apps) and this group (None for no group)."""
+    labels = _labels(info)
+    return _owner(labels) == (org or "") and labels.get("platform.group") == group
+
+
+def find(org: str | None, app: str) -> dict | None:
+    """The app's container: the current name first, then the legacy name. A container whose labels name another org
+    or app does not count."""
+    for name in (container_name(org, app), legacy_name(org, app)):
+        info = _inspect(name) if name else None
+        if info is not None and owns(info, org, app):
+            return info
+    return None
 
 
 def _section(policy: dict, org: str | None) -> dict:
@@ -136,12 +194,10 @@ def managed() -> list[dict]:
     return [info for info in (_inspect(n) for n in names) if info]
 
 
-def describe(info: dict) -> dict:
-    """The container as the API sees it: state, image, cap and ports."""
-    labels = (info.get("Config") or {}).get("Labels") or {}
-    state = info.get("State") or {}
+def _published(info: dict) -> list[tuple[int, int]]:
+    """The (container port, host port) pairs of a container."""
     bindings = (info.get("HostConfig") or {}).get("PortBindings") or {}
-    ports = sorted(
+    return sorted(
         {
             (int(key.split("/")[0]), int(b["HostPort"]))
             for key, binds in bindings.items()
@@ -149,6 +205,13 @@ def describe(info: dict) -> dict:
             if b.get("HostPort")
         }
     )
+
+
+def describe(info: dict) -> dict:
+    """The container as the API sees it: state, image, cap and ports."""
+    labels = _labels(info)
+    state = info.get("State") or {}
+    ports = _published(info)
     return {
         "id": info["Name"].lstrip("/"),
         "org": labels.get("platform.org"),
@@ -176,8 +239,8 @@ def _allowed_host_path(policy: dict, org: str | None, path: str) -> bool:
 def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
     """The run request after the policy checks, with each volume's host path. org None is a shared app. Raises
     Refused."""
-    if (org is not None and not ORG.match(org)) or not NAME.match(app):
-        raise Refused("org is an org prefix, and app is lowercase letters, digits and dashes")
+    if (org is not None and not ORG.match(org)) or not APP.match(app):
+        raise Refused("org is an org prefix, and app is lowercase letters, digits and single dashes")
     image = body.get("image")
     if not isinstance(image, str) or not IMAGE.match(image):
         raise Refused("image must be a name with a tag or a sha256 digest")
@@ -242,9 +305,10 @@ def check(policy: dict, org: str | None, app: str, body: dict) -> dict:
     if workdir is not None and (not isinstance(workdir, str) or not CONTAINER_PATH.match(workdir) or ".." in workdir):
         raise Refused("workdir must be an absolute path in the container")
     group, alias = body.get("group"), body.get("alias")
-    for value, label in ((group, "group"), (alias, "alias")):
-        if value is not None and (not isinstance(value, str) or not NAME.match(value)):
-            raise Refused(f"{label} is lowercase letters, digits and dashes")
+    if group is not None and (not isinstance(group, str) or not APP.match(group)):
+        raise Refused("group is lowercase letters, digits and single dashes")
+    if alias is not None and (not isinstance(alias, str) or not NAME.match(alias)):
+        raise Refused("alias is lowercase letters, digits and dashes")
     # Postgres and Redis drop to their own user with gosu, which no-new-privileges stops on this kernel
     no_new_privileges = app not in (_section(policy, org).get("no_new_privileges_off") or [])
     return {
@@ -293,7 +357,7 @@ def ensure_bridge(policy: dict) -> None:
 
 def _within_memory(policy: dict, org: str | None, app: str, memory: int) -> None:
     """Raise Refused when the app would put the server over memory_mb_total. The app's own container does not count."""
-    others = sum(_memory_mb(i) for i in managed() if i["Name"].lstrip("/") != container_name(org, app))
+    others = sum(_memory_mb(i) for i in managed() if not owns(i, org, app))
     if others + memory > policy["memory_mb_total"]:
         raise Refused(
             f"This server has {policy['memory_mb_total'] - others} MB left for apps; the app asks for {memory} MB",
@@ -301,23 +365,79 @@ def _within_memory(policy: dict, org: str | None, app: str, memory: int) -> None
         )
 
 
+def _ports_free(org: str | None, ports: list[dict]) -> None:
+    """Raise Refused when a container of another org, running or stopped, publishes one of the host ports."""
+    wanted = {p["host"] for p in ports if p["host"] is not None}
+    for info in managed():
+        if _owner(_labels(info)) == (org or ""):
+            continue
+        taken = wanted & {host for _, host in _published(info)}
+        if taken:
+            raise Refused(f"host port {min(taken)} is in use by an app of another org", 409)
+
+
+def _network_members(network: str) -> list[dict]:
+    """The containers on a network, running or stopped, as podman inspect shows them."""
+    names = [n for n in podman("ps", "-a", "--filter", f"network={network}", "--format", "{{.Names}}").split() if n]
+    return [info for info in (_inspect(n) for n in names) if info]
+
+
+def _ensure_network(network: str, org: str | None, group: str | None) -> None:
+    if exists("network", "exists", network):
+        return
+    labels = ["--label", f"{LABEL}=1", "--label", f"platform.org={org}" if org is not None else "platform.shared=1"]
+    if group:
+        labels += ["--label", f"platform.group={group}"]
+    podman("network", "create", *labels, network)
+
+
+def _join_legacy_network(org: str | None, group: str | None, network: str, name: str, alias: str | None) -> None:
+    """Move the group from the network of an earlier runner to network. The runner changes the legacy network only
+    when every container on it has the labels of this org and group. While a part is not on network yet, the new
+    container joins the legacy network too. When every part is on network, the legacy network is removed."""
+    old = legacy_network(org, group)
+    if not exists("network", "exists", old):
+        return
+    members = [m for m in _network_members(old) if m["Name"].lstrip("/") != name]
+    if not all(_in_group(m, org, group) for m in members):
+        return
+    if any(network not in ((m.get("NetworkSettings") or {}).get("Networks") or {}) for m in members):
+        podman("network", "connect", *(["--alias", alias] if alias else []), old, name, check=False)
+        return
+    for member in members:
+        podman("network", "disconnect", old, str(member["Id"]), check=False)
+    podman("network", "rm", old, check=False)
+
+
 def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
-    """Pull the image, then replace the app's container with one from the request. Returns the new container."""
+    """Pull the image, then replace the app's container with one from the request. Returns the new container.
+
+    A container of the app under its legacy name is removed before the new one starts, as --replace does."""
     request = check(policy, org, app, body)
     name = container_name(org, app)
     ensure_bridge(policy)
     # The apps of one group (the parts of one app) share a network, where each part answers to its alias
-    network = f"platform-{org or 'shared'}" + (f"-{request['group']}" if request["group"] else "")
+    network = network_name(org, request["group"])
     with _lock:
         # check() does not hold _lock, so count the cap again before the container is created
         _within_memory(policy, org, app, request["memory_mb"])
+        _ports_free(org, request["ports"])
+        current = _inspect(name)
+        if current is not None and not owns(current, org, app):
+            raise Refused(f"The container {name} is not this app's. The server operator must remove it", 409)
+        old_name = legacy_name(org, app)
+        legacy = _inspect(old_name) if old_name else None
+        if legacy is not None and not owns(legacy, org, app):
+            legacy = None
         if not exists("image", "exists", request["image"]):
             podman("pull", "--quiet", request["image"], timeout=900)
-        if not exists("network", "exists", network):
-            podman("network", "create", network)
+        _ensure_network(network, org, request["group"])
         for volume in request["volumes"]:
             if volume["host"].startswith(policy["data_root"].rstrip("/") + "/"):
                 Path(volume["host"]).mkdir(parents=True, exist_ok=True, mode=0o750)
+        if legacy is not None:
+            # The old container holds the host ports and volumes of the app
+            podman("rm", "--force", str(legacy["Id"]))
         args = [
             "run",
             "-d",
@@ -346,7 +466,7 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
         if request["group"]:
             args += ["--label", f"platform.group={request['group']}"]
         if request["alias"]:
-            args += ["--network-alias", request["alias"]]
+            args += ["--label", f"platform.alias={request['alias']}", "--network-alias", request["alias"]]
         if request["workdir"]:
             args += ["--workdir", request["workdir"]]
         for key, value in sorted(request["env"].items()):
@@ -360,6 +480,7 @@ def run(policy: dict, org: str | None, app: str, body: dict) -> dict:
         for volume in request["volumes"]:
             args += ["--volume", f"{volume['host']}:{volume['path']}:{'ro' if volume['read_only'] else 'rw'}"]
         podman(*args, request["image"], *request["command"])
+        _join_legacy_network(org, request["group"], network, name, request["alias"])
         info = _inspect(name)
     if info is None:
         raise Refused("the container did not start", 502)
@@ -383,16 +504,9 @@ def _lines(query: dict) -> str:
     return str(max(1, min(lines, MAX_LOG_LINES)))
 
 
-def _container_id(name: str) -> str:
-    """podman's own id of a container, so that no name from a request reaches a command line."""
-    info = _inspect(name)
-    if info is None:
-        raise Refused("No such container", 404)
-    return str(info["Id"])
-
-
-def app_logs(name: str, query: dict) -> dict:
-    return {"logs": _output("podman", "logs", "--tail", _lines(query), _container_id(name))}
+def app_logs(info: dict, query: dict) -> dict:
+    """The last lines of the container's logs. podman takes its own id, so no name from a request reaches it."""
+    return {"logs": _output("podman", "logs", "--tail", _lines(query), str(info["Id"]))}
 
 
 def _controlled(policy: dict, kind: str, name: str) -> bool:
@@ -436,7 +550,7 @@ def host_control(policy: dict, kind: str, name: str, action: str, query: dict) -
 def health(org: str | None, app: str, port: int, path: str | None) -> dict:
     """GET path on the container's port, from the host: on 127.0.0.1 when the port is published, else on the
     container's own address. With path None, only check that the port accepts a connection."""
-    info = _inspect(container_name(org, app))
+    info = find(org, app)
     if info is None:
         return {"ok": False, "error": "No container"}
     if path is not None and not CONTAINER_PATH.match(path):
@@ -514,13 +628,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._answer(404, {"error": "Not found"})
                 result = host_control(self.policy, kind, host_name, action, parse_qs(url.query))
                 return self._answer(200, result)
-            if len(parts) >= 2 and parts[0] == "shared" and NAME.match(parts[1]):
+            if len(parts) >= 3 and parts[0] == "apps" and "--" in parts[1]:
+                raise Refused("An org prefix with two dashes in a row cannot have apps on this server")
+            if len(parts) >= 2 and parts[0] == "shared" and APP.match(parts[1]):
                 org, app, action = None, parts[1], (parts[2] if len(parts) > 2 else None)
-            elif len(parts) >= 3 and parts[0] == "apps" and ORG.match(parts[1]) and NAME.match(parts[2]):
+            elif len(parts) >= 3 and parts[0] == "apps" and ORG.match(parts[1]) and APP.match(parts[2]):
                 org, app, action = parts[1], parts[2], (parts[3] if len(parts) > 3 else None)
             else:
                 return self._answer(404, {"error": "Not found"})
-            name = container_name(org, app)
             if method == "PUT" and action is None:
                 return self._answer(200, run(self.policy, org, app, self._body()))
             if method == "GET" and action == "health":
@@ -528,19 +643,21 @@ class Handler(BaseHTTPRequestHandler):
                 port = int((query.get("port") or ["0"])[0])
                 path = None if query.get("tcp") else (query.get("path") or ["/"])[0]
                 return self._answer(200, health(org, app, port, path))
-            info = _inspect(name)
-            if info is None or ((info.get("Config") or {}).get("Labels") or {}).get(LABEL) != "1":
+            # Only a container whose labels name this org and app
+            info = find(org, app)
+            if info is None:
                 return self._answer(404, {"error": "No app container"})
+            container = str(info["Id"])
             if method == "GET" and action is None:
                 return self._answer(200, describe(info))
             if method == "GET" and action == "logs":
-                return self._answer(200, app_logs(name, parse_qs(url.query)))
+                return self._answer(200, app_logs(info, parse_qs(url.query)))
             if method == "POST" and action in ("start", "stop", "restart"):
-                podman(action, name)
-                return self._answer(200, describe(_inspect(name) or info))
+                podman(action, container)
+                return self._answer(200, describe(_inspect(container) or info))
             if method == "DELETE" and action is None:
-                podman("rm", "--force", name)
-                return self._answer(200, {"deleted": name})
+                podman("rm", "--force", container)
+                return self._answer(200, {"deleted": describe(info)["id"]})
             return self._answer(404, {"error": "Not found"})
         except Refused as e:
             return self._answer(e.status, {"error": e.message})

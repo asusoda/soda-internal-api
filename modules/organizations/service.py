@@ -60,7 +60,8 @@ class SettingsError(ServiceError, ValueError):
     pass
 
 
-PREFIX_PATTERN = re.compile(r"^[a-z0-9_-]{2,20}$")
+# No two dashes in a row: they separate the org and the app in container names on This server
+PREFIX_PATTERN = re.compile(r"^(?!.*--)[a-z0-9_-]{2,20}$")
 ACCENT_PATTERN = re.compile(r"#[0-9a-fA-F]{6}")
 BRANDING_KEYS = ("logo_url", "accent_color", "website_url")
 MAX_URL = 500
@@ -140,7 +141,7 @@ def create_organization(
     from modules.organizations.config import OrganizationSettings
 
     if not PREFIX_PATTERN.match(prefix):
-        raise OrganizationError("Prefix must be 2-20 characters of lowercase letters, numbers, - and _")
+        raise OrganizationError("Prefix must be 2-20 characters of lowercase letters, numbers, - and _, with no --")
     if not str(guild_id).isdigit():
         raise OrganizationError("Guild id must be a Discord id (digits only)")
     if find_by_prefix(db, prefix):
