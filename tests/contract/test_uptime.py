@@ -333,7 +333,7 @@ def test_probe_checks_each_redirect(monkeypatch):
         return hops[url]
 
     monkeypatch.setattr(net, "check_public", check_public)
-    monkeypatch.setattr(probe.requests, "get", get)
+    monkeypatch.setattr(net, "get", get)
     result = probe.fetch("https://a.example.org/", 5)
     assert result.status_code == 204 and result.error is None and result.latency_ms is not None
     assert checked == ["https://a.example.org/", "https://a.example.org/next"]
@@ -344,7 +344,7 @@ def test_probe_checks_each_redirect(monkeypatch):
     def slow(url, **kwargs):
         raise requests.Timeout()
 
-    monkeypatch.setattr(probe.requests, "get", slow)
+    monkeypatch.setattr(net, "get", slow)
     assert probe.fetch("https://a.example.org/", 5).error == "No answer in 5 seconds"
 
 

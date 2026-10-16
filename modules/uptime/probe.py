@@ -1,4 +1,5 @@
-"""One HTTP check of an address. Each URL and each redirect must resolve to public addresses. No Flask here."""
+"""One HTTP check of an address. Each URL and each redirect must resolve to public addresses, and the connection goes
+to an address that passed the check. No Flask here."""
 
 import time
 from dataclasses import dataclass
@@ -38,9 +39,11 @@ def fetch(url: str, timeout: float) -> Result:
         except ValueError as e:
             return Result(error=str(e))
         try:
-            response = requests.get(
+            response = net.get(
                 url, headers={"User-Agent": USER_AGENT}, timeout=left, allow_redirects=False, stream=True
             )
+        except net.NotPublic as e:
+            return Result(error=str(e))
         except requests.Timeout:
             return Result(error=f"No answer in {timeout:g} seconds")
         except requests.RequestException as e:

@@ -247,6 +247,7 @@ def test_embeddings_use_the_openrouter_key(client, officer_headers, cleared, pub
         return _Response(200, {"data": [{"embedding": [0.5] * embedder.DIMENSIONS}]})
 
     monkeypatch.setattr(embedder.requests, "post", fake_post)
+    monkeypatch.setattr(embedder.net, "post", fake_post)
     result = client.post(f"{BASE}/embeddings/test", headers=officer_headers).get_json()
     assert result["ok"] is True, result
     assert posted == [

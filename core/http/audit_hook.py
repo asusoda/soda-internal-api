@@ -33,10 +33,11 @@ def _actor(token_manager) -> tuple[str | None, str | None]:
     kind, discord_id = credential(token_manager)
     if discord_id:
         return kind, str(discord_id)
-    email = g.get("clerk_user_email") if g.get("clerk_user") else None
-    if email:
+    email = g.get("clerk_user_email")
+    if email and g.get("clerk_user"):
         return "clerk", email
-    return kind, None
+    # dual_auth_required sets clerk_user_email to the platform username for a session or header token
+    return kind, email or None
 
 
 def register_audit(app: Flask, token_manager) -> None:

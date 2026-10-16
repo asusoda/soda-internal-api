@@ -42,7 +42,7 @@ A container that goes over its memory cap is stopped and starts again (`restart:
 
 ## Host agent
 
-The host agent lists each container and host process on the server for the Services card on the Superadmin page. It runs on the host as root, because only root sees every container. It only reads: `podman ps`, `podman stats`, the proxy hosts of Nginx Proxy Manager (opened read-only), the listening ports, and the cgroups of host processes. Every 30 seconds it writes `data/host.json`, which the API reads as `/app/data/host.json`. The API has no access to the podman socket.
+The host agent lists each container and host process on the server for the Services card on the Superadmin page. It runs on the host as root, because only root sees every container. It only reads: `podman ps`, `podman stats`, the proxy hosts of Nginx Proxy Manager (opened read-only), the listening ports, and the cgroups of host processes. Every 30 seconds it writes `data/host.json`, which the API reads as `/app/data/host.json`. It writes a new temporary file with a random name and renames it to `data/host.json`. Thus it never writes through a symlink that a container puts in `data/`. The API has no access to the podman socket.
 
 1. Copy the unit: `cp deploy/host-agent/platform-host-agent.service /etc/systemd/system/`.
 2. Add one `--port` to `ExecStart` for each host process that no proxy host forwards to.

@@ -8,7 +8,7 @@ Checks public URLs and the health URLs of Hosting apps on a schedule. Keeps each
 | --- | --- |
 | `api.py` | Officer routes to list, add, change, delete and check monitors |
 | `service.py` | Monitors, checks, uptime percents, state changes and events, the monitors of Hosting apps; declares `uptime:read` |
-| `probe.py` | One HTTP check. Each URL and redirect must resolve to public addresses (`core/net.py`) |
+| `probe.py` | One HTTP check. Each URL and redirect must resolve to public addresses, and the connection goes to an address that passed the check (`core/net.py`) |
 | `models.py` | Monitors and their checks |
 | `jobs.py` | The scheduled checks and the removal of old checks |
 | `tools.py` | The `uptime.*` tools |

@@ -80,14 +80,17 @@ def settings() -> SimpleNamespace:
 
 
 def search_json(url: str, public_only: bool) -> dict[str, Any]:
-    """GET a SearXNG JSON answer. An org's own server must be on a public address."""
+    """GET a SearXNG JSON answer. An org's own server must be on a public address, and the connection goes there."""
     if public_only:
         try:
             net.check_public(url)
         except ValueError as e:
             raise fetch.FetchRejected(str(e)) from e
+    get = net.get if public_only else requests.get
     try:
-        response = requests.get(url, timeout=TIMEOUT_SECONDS, allow_redirects=False)
+        response = get(url, timeout=TIMEOUT_SECONDS, allow_redirects=False)
+    except net.NotPublic as e:
+        raise fetch.FetchRejected(str(e)) from e
     except requests.RequestException as e:
         raise fetch.FetchError("SearXNG could not be reached") from e
     if response.status_code != 200:

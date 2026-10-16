@@ -93,3 +93,20 @@ def test_superadmin_audit_needs_the_superadmin(client, monkeypatch, app):
         assert all(e["org"] == "ais" for e in response.get_json()["entries"])
     finally:
         access.clear_cache()
+
+
+@pytest.mark.parametrize(
+    "clerk_user, expected",
+    [(None, ("session", "officer-name")), ({"id": "user_1"}, ("clerk", "officer-name"))],
+)
+def test_actor_names_a_session_user_without_clerk(app, monkeypatch, clerk_user, expected):
+    from flask import g
+
+    from core.http import audit_hook
+
+    monkeypatch.setattr(audit_hook, "credential", lambda token_manager: ("session", None))
+    with app.test_request_context("/api/x", method="POST"):
+        g.clerk_user_email = "officer-name"
+        if clerk_user is not None:
+            g.clerk_user = clerk_user
+        assert audit_hook._actor(None) == expected

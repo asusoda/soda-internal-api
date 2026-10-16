@@ -3,8 +3,8 @@
 Pages come
 through Firecrawl when one is set (JavaScript rendered, markdown out), else through a plain GET. An org
 sets its own Firecrawl on the Integrations page; else FIRECRAWL_URL and FIRECRAWL_API_KEY in .env give
-the deployment default. Every URL, and every redirect, must resolve to a public address, so a source
-cannot make the platform read its own network.
+the deployment default. Every URL, and every redirect, must resolve to a public address, and the connection
+goes to an address that passed the check, so a source cannot make the platform read its own network.
 """
 
 import os
@@ -71,13 +71,15 @@ def _get(url: str, *, limit: int = MAX_BYTES) -> _Response:
     for _ in range(MAX_REDIRECTS + 1):
         check_url(url)
         try:
-            response = requests.get(
+            response = net.get(
                 url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=TIMEOUT_SECONDS,
                 allow_redirects=False,
                 stream=True,
             )
+        except net.NotPublic as e:
+            raise FetchRejected(str(e)) from e
         except requests.RequestException as e:
             raise FetchError(f"{url} could not be reached") from e
         if response.is_redirect and response.headers.get("location"):
@@ -188,16 +190,20 @@ def firecrawl_scope(firecrawl: Firecrawl | None) -> Iterator[None]:
 
 
 def fetch_firecrawl(url: str, firecrawl: Firecrawl) -> Fetched:
+    """A page through Firecrawl. An org's own Firecrawl gets a connection to a checked public address only."""
     if firecrawl.public_only:
         check_url(firecrawl.url)
+    post = net.post if firecrawl.public_only else requests.post
     try:
-        response = requests.post(
+        response = post(
             firecrawl.url.rstrip("/") + "/v2/scrape",
             json={"url": url, "formats": ["markdown"], "onlyMainContent": True, "timeout": 60000},
             headers={"Authorization": f"Bearer {firecrawl.api_key}"} if firecrawl.api_key else {},
             timeout=90,
             allow_redirects=False,
         )
+    except net.NotPublic as e:
+        raise FetchRejected(str(e)) from e
     except requests.RequestException as e:
         raise FetchError("Firecrawl could not be reached") from e
     if response.status_code >= 500:

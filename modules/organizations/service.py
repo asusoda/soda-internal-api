@@ -1,5 +1,6 @@
 """Organization logic shared by the REST API, the bot and jobs. No Flask here."""
 
+import datetime
 import re
 from typing import cast
 from urllib.parse import urlparse
@@ -335,10 +336,13 @@ def mcp_connection() -> dict:
     return {"url": url or None, "oauth": bool(url)}
 
 
-def issue_token(db, org_id: int, data: dict, created_by: str | None) -> dict:
+def issue_token(
+    db, org_id: int, data: dict, created_by: str | None, not_after: datetime.datetime | None = None
+) -> dict:
     """Issue a machine token from {"name", "kind", "scopes", "expires_days", "limits"}. The value is in the result only.
 
-    Raises machine_tokens.TokenError when the request is refused.
+    With not_after, the token expires at not_after or earlier. Raises machine_tokens.TokenError when the request is
+    refused.
     """
     value, row = machine_tokens.issue(
         db,
@@ -349,6 +353,7 @@ def issue_token(db, org_id: int, data: dict, created_by: str | None) -> dict:
         created_by=created_by,
         expires_days=data.get("expires_days"),
         limits=data.get("limits"),
+        not_after=not_after,
     )
     return {"token": value, **machine_tokens.to_dict(row)}
 
@@ -361,7 +366,8 @@ def revoke_token(db, org_id: int, token_id: int) -> bool:
 def issue_child_token(db, caller: machine_tokens.MachineCaller, data: dict) -> dict:
     """Issue a token for the caller's org with a subset of the caller's scopes and the caller's limits.
 
-    The value is in the result only. Raises SettingsError when the request asks for more than the caller has.
+    The token expires no later than the caller's token. The value is in the result only. Raises SettingsError when
+    the request asks for more than the caller has.
     """
     wanted = data.get("scopes")
     if isinstance(wanted, list):
@@ -369,8 +375,10 @@ def issue_child_token(db, caller: machine_tokens.MachineCaller, data: dict) -> d
         if extra:
             raise SettingsError(f"The calling token does not have these scopes: {', '.join(extra)}", 403)
     request = {**data, "limits": dict(caller.limits) or None}
+    parent = db.get(machine_tokens.MachineToken, caller.token_id)
+    not_after = parent.expires_at if parent is not None else None
     try:
-        return issue_token(db, caller.organization_id, request, caller.actor)
+        return issue_token(db, caller.organization_id, request, caller.actor, not_after)
     except machine_tokens.TokenError as e:
         raise SettingsError(str(e)) from e
 

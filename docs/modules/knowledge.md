@@ -49,7 +49,7 @@ The `POST /search` body has `query`, and optional `category`, `top_k` (1 to 50; 
 
 The `knowledge.crawl_due` job runs every 10 minutes. It crawls up to `KNOWLEDGE_CRAWL_BATCH` sources that are due, with `KNOWLEDGE_CRAWL_GAP_SECONDS` between fetches to the same host. Each crawl does these steps:
 
-1. Checks that the URL is http or https and resolves only to public addresses. It follows redirects one at a time and checks each one. Thus a source cannot point Platform at its own network.
+1. Checks that the URL is http or https and resolves only to public addresses. It follows redirects one at a time and checks each one. Each connection goes to an address that passed the check, so a second DNS answer cannot change it. Thus a source cannot point Platform at its own network.
 2. Reads robots.txt with `KNOWLEDGE_USER_AGENT` and skips pages that it does not allow.
 3. Gets the page through the org's Firecrawl (Integrations tab of Explore, else `FIRECRAWL_URL`), else with a GET of up to 10 MB.
 4. Stops if the page hash did not change, unless `force` is set.

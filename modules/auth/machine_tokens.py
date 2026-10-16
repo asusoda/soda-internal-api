@@ -102,8 +102,12 @@ def issue(
     created_by: str | None = None,
     expires_days: object = None,
     limits: object = None,
+    not_after: datetime.datetime | None = None,
 ) -> tuple[str, MachineToken]:
-    """Create a token from untrusted input. Returns the token value (shown once) and its row. Commits."""
+    """Create a token from untrusted input. Returns the token value (shown once) and its row. Commits.
+
+    With not_after, the token expires at not_after or earlier.
+    """
     if not isinstance(name, str) or not name.strip():
         raise TokenError("name is required")
     if kind not in KINDS:
@@ -116,6 +120,9 @@ def issue(
     if expires_days is not None and (not isinstance(expires_days, int) or expires_days < 1):
         raise TokenError("expires_days must be a positive integer")
     cleaned_limits = check_limits(limits)
+    expires_at = utcnow() + datetime.timedelta(days=expires_days) if expires_days else None
+    if not_after is not None and (expires_at is None or expires_at > not_after):
+        expires_at = not_after
     row = MachineToken(
         organization_id=organization_id,
         name=name.strip(),
@@ -123,7 +130,7 @@ def issue(
         scopes=sorted(set(scopes)),
         limits=cleaned_limits,
         created_by=created_by,
-        expires_at=utcnow() + datetime.timedelta(days=expires_days) if expires_days else None,
+        expires_at=expires_at,
     )
     value = _set_value(row)
     db.add(row)

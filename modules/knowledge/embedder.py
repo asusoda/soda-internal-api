@@ -79,8 +79,9 @@ class Embedder:
                 net.check_public(self.url)
             except ValueError as e:
                 raise EmbeddingError(str(e)) from e
+        post = net.post if self.public_only else requests.post
         try:
-            response = requests.post(
+            response = post(
                 self.url.rstrip("/") + "/embeddings",
                 json={"model": self.model, "input": batch},
                 headers=headers,
@@ -91,6 +92,8 @@ class Embedder:
             rows = enumerate(response.json()["data"])
             data = [row for _, row in sorted(rows, key=lambda pair: pair[1].get("index", pair[0]))]
             vectors = [[float(x) for x in row["embedding"]] for row in data]
+        except net.NotPublic as e:
+            raise EmbeddingError(str(e)) from e
         except (requests.RequestException, ValueError, KeyError, TypeError) as e:
             logger.warning("embedding request failed: %s", e)
             raise EmbeddingError("The embedding service failed") from e
