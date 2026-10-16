@@ -273,6 +273,9 @@ def test_an_item_another_run_claimed_is_not_posted_again(client, officer_headers
 
 def test_run_now_is_refused_while_a_run_is_queued(client, officer_headers, alerts, monkeypatch):
     from core import jobs
+
+    if jobs.queue_backend() != "inline":
+        pytest.skip("This test sets the state of the inline job queue")
     from modules.organizations.models import Organization
 
     _put(client, officer_headers)

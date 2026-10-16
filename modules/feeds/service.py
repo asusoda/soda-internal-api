@@ -200,6 +200,8 @@ def put_feed(db, org_id: int, key: str, body: dict, actor: str | None = None) ->
     feed = db.query(AlertFeed).filter_by(organization_id=org_id, key=key).first()
     created = feed is None
     if created:
+        # The org row stays locked until the commit, so two new feeds cannot both pass the limit
+        db.query(Organization.id).filter_by(id=org_id).with_for_update().first()
         limits.check(db, org_id, FEEDS_LIMIT)
     kind = body.get("kind", feed.kind if feed else None)
     if kind not in KINDS:
@@ -302,7 +304,7 @@ def run(db, feed: AlertFeed, post_existing: bool = False) -> dict:
             continue
         try:
             post_webhook(webhook, {"embeds": [embed(item, str(feed.kind))]})
-        except requests.RequestException as e:
+        except Exception as e:
             # Unposted items stay new and go out on the next run
             db.delete(row)
             db.commit()
