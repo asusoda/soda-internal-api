@@ -236,7 +236,7 @@ The checks have two modes:
 
 Superadmin routes do not follow the setting: they always refuse a caller who is not in `SYS_ADMIN` (`not_superadmin`, 403), because they add and remove orgs and set their limits.
 
-The reasons are `not_org_officer`, `not_officer`, `not_superadmin`, `no_discord_id`, `no_platform_credential`, `bot_unavailable`, `oauth_state_mismatch`, `member_login_unverified`, `checkout_price_mismatch` (409) and `member_details_hidden`. For `member_details_hidden`, public member lists remove emails and student ids. They do not refuse the request.
+The reasons are `not_org_officer`, `not_officer`, `not_superadmin`, `no_discord_id`, `no_platform_credential`, `bot_unavailable`, `oauth_state_mismatch`, `member_login_unverified`, and `checkout_price_mismatch` (409). Public member lists remove emails and student ids for callers that are not officers of the org, also while `ACCESS_ENFORCE` is false. They do not refuse the request.
 
 Turn on enforcement when the log shows no `would_deny` lines from real callers.
 

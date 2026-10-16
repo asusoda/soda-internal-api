@@ -205,7 +205,7 @@ def manage_user(org_prefix):
         user_data = {k: v for k, v in user_data.items() if v is not None}
 
         user, success, message = users.manage_user_in_organization(
-            db, organization.id, user_data, data.get("discord_id"), data.get("user_identifier")
+            db, organization.id, user_data, data.get("discord_id"), data.get("user_identifier"), by_officer=True
         )
         if not success:
             return jsonify({"error": message}), 400

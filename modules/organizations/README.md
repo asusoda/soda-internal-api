@@ -24,4 +24,5 @@ Config keys: `modules` (a module name set to false for each module that is off; 
 ## Known gaps
 
 - Views in `api.py` open their own session and query the org. The settings route checks the prefix in the view, not with `PREFIX_PATTERN` in `service.py`.
+- `PUT /<id>/settings` changes `officer_role_id` and `prefix` only for the superadmin. Its `config` keeps the stored values of the keys that have their own routes. The description and points settings go through `set_settings`.
 - `/stats`, `/activity` and `/roles` return fixed sample data.

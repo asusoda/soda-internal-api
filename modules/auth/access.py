@@ -228,11 +228,9 @@ def is_org_officer(org) -> bool:
 def member_details_allowed(org) -> bool:
     """Whether the caller may see members' emails and student IDs: officers of org and the superadmin.
 
-    Anyone else is logged as member_details_hidden, and the details are left out only when enforcing.
+    The details are left out for anyone else, also while ACCESS_ENFORCE is off.
     """
-    if is_org_officer(org):
-        return True
-    return not decide("member_details_hidden", current_principal(), org.prefix)
+    return is_org_officer(org)
 
 
 def superadmin_denial(discord_id: str | None) -> tuple[str, int] | None:
