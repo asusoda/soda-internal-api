@@ -192,7 +192,7 @@ def test_settings_config_keeps_keys_that_have_their_own_routes(client, restore_s
     headers = headers_for(OFFICER_DISCORD_ID)
     body = {"config": {"access": {"knowledge_publisher": True}, "theme": "dark"}}
     assert client.put("/api/organizations/1/settings", json=body, headers=headers).status_code == 200
-    for bad in ({"config": None}, {"config": ["x"]}, {"points_per_message": -1}, {"points_cooldown": "60"}):
+    for bad in ({"config": None}, {"config": ["x"]}, {"points_per_message": -1}, {"points_cooldown": "60"}, ["x"]):
         assert client.put("/api/organizations/1/settings", json=bad, headers=headers).status_code == 400, bad
     db = db_connect.SessionLocal()
     try:
@@ -214,12 +214,14 @@ def test_officer_cannot_edit_a_member_of_another_org(client):
     db = db_connect.SessionLocal()
     try:
         bob = db.query(User).filter_by(email="bob@asu.edu").one()
-        assert (bob.name, bob.discord_id) == ("Bob", None)
         rows = db.query(UserOrganizationMembership).filter_by(user_id=bob.id, organization_id=2).all()
-        assert rows
-        for row in rows:
-            db.delete(row)
-        db.commit()
+        try:
+            assert (bob.name, bob.discord_id) == ("Bob", None)
+            assert rows
+        finally:
+            for row in rows:
+                db.delete(row)
+            db.commit()
     finally:
         db.close()
 
