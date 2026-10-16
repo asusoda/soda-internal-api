@@ -68,3 +68,18 @@ def test_proxy_hosts_reads_enabled_hosts_only(tmp_path):
     db.close()
     assert agent.proxy_hosts(str(path)) == {3002: ["a.example.org", "www.a.example.org"]}
     assert agent.proxy_hosts(str(tmp_path / "none.sqlite")) == {}
+
+
+def test_write_does_not_follow_a_planted_symlink(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    victim = tmp_path / "victim"
+    victim.write_text("keep")
+    (data / "host.tmp").symlink_to(victim)
+    (data / "host.json").symlink_to(victim)
+    agent.write(data / "host.json", {"version": 1})
+    assert victim.read_text() == "keep"
+    assert not (data / "host.json").is_symlink()
+    assert json.loads((data / "host.json").read_text()) == {"version": 1}
+    assert (data / "host.json").stat().st_mode & 0o777 == 0o644
+    assert sorted(p.name for p in data.iterdir()) == ["host.json", "host.tmp"]

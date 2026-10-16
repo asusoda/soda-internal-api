@@ -17,6 +17,7 @@ import re
 import shutil
 import sqlite3
 import subprocess  # nosec B404 - runs podman and ss with fixed arguments
+import tempfile
 import time
 from pathlib import Path
 
@@ -186,12 +187,21 @@ def snapshot(root: str, extra_ports: list[int], npm_database: str) -> dict:
 
 
 def write(path: Path, data: dict) -> None:
-    """Write the file in one step, so the API never reads half a file."""
+    """Write the file in one step, so the API never reads half a file.
+
+    Containers can write to the directory. The temporary file is new, with a random name, and the rename replaces a
+    symlink at path, so the agent never writes through a link that a container made.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(data))
-    temporary.chmod(0o644)
-    temporary.replace(path)
+    descriptor, name = tempfile.mkstemp(prefix=".host-", suffix=".json", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w") as file:
+            os.fchmod(file.fileno(), 0o644)
+            file.write(json.dumps(data))
+        os.replace(name, path)
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
 
 
 def main() -> None:
