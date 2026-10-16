@@ -16,7 +16,7 @@ This page tells you how callers sign in and how a route decides who may call it.
 
 1. The browser opens `GET /api/auth/login`. The API stores a random `state` in the session and sends the browser to Discord.
 2. Discord sends the browser to `REDIRECT_URI` (`/api/auth/callback`) with a code.
-3. The API checks the `state`, gets the Discord user, and finds the orgs where the user has the officer role. It reads the roles over Discord's REST API with `BOT_TOKEN`.
+3. The API checks the `state`, gets the Discord user, and finds the orgs where the user has the officer role. It reads the roles over Discord's REST API with `BOT_TOKEN`. If Discord does not answer for the guild of one org, the API leaves out that org and logs a warning. If Discord answers for no guild, the sign-in fails.
 4. If the user is an officer of one or more orgs, the API makes a token pair. It sends the browser to `<CLIENT_URL>/auth/?code=...` with a one-time code that is valid for 60 seconds. If the user is not an officer, the URL has `error=Unauthorized Access`.
 5. The client sends the code to `POST /api/auth/exchange` and gets `access_token` and `refresh_token`.
 
@@ -39,7 +39,7 @@ sequenceDiagram
   A-->>B: access_token and refresh_token
 ```
 
-With `?client=dashboard`, step 4 uses `DASHBOARD_URL` in place of `CLIENT_URL`. If `BOT_TOKEN` is not set or Discord does not answer, the callback returns 503.
+With `?client=dashboard`, step 4 uses `DASHBOARD_URL` in place of `CLIENT_URL`. If `BOT_TOKEN` is not set or Discord answers for no guild, the callback returns 503.
 
 The API keeps the one-time codes in process memory. Thus the API runs one gunicorn worker.
 

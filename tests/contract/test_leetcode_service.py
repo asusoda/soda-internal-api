@@ -128,6 +128,27 @@ def test_verify_records_and_announces_each_solve_once(db, daily_env):
     assert service.leaderboard(db) == [("1", "alice_lc", 1)]
 
 
+@pytest.mark.parametrize("error", [TimeoutError(), "client"])
+def test_verify_skips_a_member_whose_read_fails(db, daily_env, error):
+    import aiohttp
+
+    from modules.leetcode import daily, service
+
+    sent, send = daily_env
+    daily.post_daily(db, _at(9), lambda: QUESTION, send, lambda *a: None)
+    service.link(db, "1", "alice_lc")
+    service.link(db, "2", "bob_lc")
+    solved = [{"titleSlug": "two-sum", "timestamp": str(int(_at(11).timestamp()))}]
+
+    def submissions(name):
+        if name == "alice_lc":
+            raise aiohttp.ClientConnectionError("reset") if error == "client" else error
+        return solved
+
+    assert daily.verify(db, _at(12), submissions, send) == {"checked": 2, "verified": 1}
+    assert service.leaderboard(db) == [("2", "bob_lc", 1)]
+
+
 def test_no_channel_means_no_post(db, daily_env, monkeypatch):
     from core.config import config
     from modules.leetcode import daily

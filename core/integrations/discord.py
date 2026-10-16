@@ -165,12 +165,29 @@ class DiscordDirectory:
         return bool(member) and str(role_id) in {str(r) for r in member.get("roles", [])}
 
     def officer_guilds(self, user_id, org_roles: list[tuple[str, str | None]]) -> list[str]:
-        """Guild ids from org_roles, (guild id, officer role id) pairs, where the user holds the role."""
-        return [
-            guild_id
-            for guild_id, role_id in org_roles
-            if role_id and self.check_user_officer_status(user_id, guild_id, role_id)
-        ]
+        """Guild ids from org_roles, (guild id, officer role id) pairs, where the user holds the role.
+
+        A guild that Discord does not answer for is skipped and logged. Raises DiscordUnavailable when
+        Discord answers for none of them.
+        """
+        found: list[str] = []
+        answered = False
+        failure: DiscordUnavailable | None = None
+        for guild_id, role_id in org_roles:
+            if not role_id:
+                continue
+            try:
+                officer = self.check_user_officer_status(user_id, guild_id, role_id)
+            except DiscordUnavailable as e:
+                logger.warning("officer role check skipped guild=%s error=%s", guild_id, e)
+                failure = e
+                continue
+            answered = True
+            if officer:
+                found.append(guild_id)
+        if failure is not None and not answered:
+            raise failure
+        return found
 
 
 def _call(method: str, path: str, token: str | None, payload: dict | None = None) -> dict:

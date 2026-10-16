@@ -73,6 +73,7 @@ Campus content is a submodule in `submodules/`, such as `submodules/asu`. Anothe
 ## Known faults
 
 - Checkout reads the points balance and writes the purchase with no row lock. Two checkouts at the same time can both pass the balance check.
+- `POST /api/storefront/<org>/members/orders` writes a pending order and takes no points. An officer must check the balance before delivery.
 - `error_handler` returns the exception text to the client.
 - `GET /api/organizations/<id>/stats`, `/activity` and `/roles` return fixed sample data.
 - `superadmin_required` accepts a session only with `role == "admin"`, which sign-in never sets. Only the header path works.

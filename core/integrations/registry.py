@@ -146,7 +146,10 @@ def org_values(db, org_id: int, key: str) -> dict[str, str] | None:
 
 
 def save(db, org_id: int, key: str, values: object, actor: str | None) -> None:
-    """Set or clear the fields of an integration. A null value clears that field; a missing key leaves it."""
+    """Set or clear the fields of an integration. A null value clears that field; a missing key leaves it.
+
+    Every value is checked before the first write, so a bad value changes no field.
+    """
     integration = INTEGRATIONS.get(key)
     if integration is None or not integration.fields:
         raise IntegrationError("This integration has no keys to set")
@@ -158,7 +161,11 @@ def save(db, org_id: int, key: str, values: object, actor: str | None) -> None:
         raise IntegrationError(f"Unknown fields: {', '.join(sorted(unknown))}")
     changes = cast(dict[str, Any], values)
     kinds = {f.name: f.kind for f in integration.fields}
+    if any(v is not None for v in changes.values()) and not secrets.configured():
+        raise IntegrationError("SECRETS_KEY is not configured on this server")
     for name, value in changes.items():
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise IntegrationError(f"{name} must be a non-empty string")
         if value is not None and kinds[name] == "json" and not _json_object(value):
             raise IntegrationError(f"{name} must be a JSON object")
         if value is not None and kinds[name] == "url":
