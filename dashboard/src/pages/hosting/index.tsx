@@ -97,6 +97,7 @@ function Services() {
       >
         <RegisterApp
           prefix={prefix}
+          existing={apps.map((a) => a.name)}
           onDone={(name) => {
             setRegistering(false);
             if (name) setOpen(name);

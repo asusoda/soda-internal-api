@@ -33,3 +33,13 @@ export const storePath = (prefix: string) => `/store/${encodeURIComponent(prefix
 // Starts the member's Discord sign-in. The API returns the browser to the store, with ?error= when it fails.
 export const storeLoginUrl = (prefix: string) =>
   `${API_URL}/api/auth/store_login?org=${encodeURIComponent(prefix)}&client=dashboard`;
+
+// The cart lines with current product details: missing or sold-out products go, quantities stop at stock.
+export function freshCart(lines: CartLine[], products: StoreProduct[]): CartLine[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return lines.flatMap((line) => {
+    const product = byId.get(line.product.id);
+    const quantity = product ? Math.min(line.quantity, product.stock) : 0;
+    return product && quantity > 0 ? [{ product, quantity }] : [];
+  });
+}

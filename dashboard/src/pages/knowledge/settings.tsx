@@ -58,7 +58,7 @@ export function KnowledgeSettingsForm({ prefix, onDone }: { prefix: string; onDo
     queryKey: ['knowledge', prefix, 'settings'],
     queryFn: () => api<KnowledgeSettings>(`/api/dashboard/${prefix}/knowledge/settings`),
   });
-  if (query.isLoading || !query.data) return <SkeletonRows />;
+  if (!query.data) return query.error ? <ErrorNote error={query.error} /> : <SkeletonRows />;
   return (
     <SettingsDraft
       prefix={prefix}

@@ -5,7 +5,15 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { AuthFrame } from '../../components/auth-frame';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorNote, OkNote, SkeletonRows } from '../../components/ui';
 import { compact, timeAgo } from '../../lib/format';
-import { type CartLine, type MemberOrder, type MemberProfile, memberApi, type StoreBody, storePath } from './shared';
+import {
+  type CartLine,
+  freshCart,
+  type MemberOrder,
+  type MemberProfile,
+  memberApi,
+  type StoreBody,
+  storePath,
+} from './shared';
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'bad' | 'muted'> = {
   pending: 'warn',
@@ -51,6 +59,10 @@ export function MemberStorePage() {
     retry: false,
   });
   const signedIn = orders.isSuccess;
+  // Rebuilds the cart from the current products each time the store loads.
+  useEffect(() => {
+    if (store.data) setCart((lines) => freshCart(lines, store.data.products));
+  }, [store.data]);
   const profile = useQuery({
     queryKey: ['member-store', prefix, 'profile'],
     queryFn: () => memberApi<MemberProfile>(`/api/points/${prefix}/member_profile`),
@@ -203,7 +215,7 @@ export function MemberStorePage() {
                   </div>
                   {order.error ? <ErrorNote error={order.error} /> : null}
                   {signedIn ? (
-                    <Button variant="primary" className="w-full" onClick={() => order.mutate()} disabled={order.isPending}>
+                    <Button variant="primary" className="w-full" onClick={() => order.mutate()} disabled={order.isPending || !store.data}>
                       Place order
                     </Button>
                   ) : (
