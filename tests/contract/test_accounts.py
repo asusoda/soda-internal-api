@@ -193,6 +193,20 @@ def test_refresh_outage_keeps_the_grant(app, agent, endpoint, monkeypatch):
     assert client.get(f"/api/accounts/members/{discord_id}", headers=agent).get_json()["accounts"]
 
 
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [(400, {"error": "invalid_request"}), (401, {"error": "invalid_client"}), (400, {}), (401, None)],
+)
+def test_refresh_error_that_is_not_invalid_grant_keeps_the_grant(app, agent, endpoint, monkeypatch, status, body):
+    client = app.test_client()
+    discord_id = _member_id()
+    _connect(client, agent, endpoint, monkeypatch, discord_id)
+    _expire(discord_id)
+    endpoint.responses.append(FakeResponse(status, body))
+    assert client.get(f"/api/accounts/members/{discord_id}/canvas/token", headers=agent).status_code == 502
+    assert client.get(f"/api/accounts/members/{discord_id}", headers=agent).get_json()["accounts"]
+
+
 def test_disabled_provider_and_missing_key(client, agent, monkeypatch):
     assert client.get("/api/accounts/providers").get_json()["providers"] == ["canvas"]
     assert client.post(f"/api/accounts/members/{_member_id()}/google/login", headers=agent).status_code == 404

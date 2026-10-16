@@ -214,3 +214,25 @@ def test_similar_needs_an_embedder_and_facts_survive_a_failed_one(client, agent,
     labels = [n["label"] for n in client.get(f"{member}/profile", headers=agent).get_json()["nodes"]]
     assert "MAT 343" in labels
     assert client.get(f"{member}/profile/similar?text=MAT 343", headers=agent).get_json()["nodes"] == []
+
+
+def test_an_org_over_its_embeddings_limit_still_commits_turns(client, agent, member, monkeypatch):
+    from core import limits
+    from modules.knowledge import embedder as embedder_module
+
+    class OverLimit(WordEmbedder):
+        def embed(self, texts):
+            raise limits.LimitError("over the limit", 429)
+
+        def embed_query(self, text):
+            raise limits.LimitError("over the limit", 429)
+
+    monkeypatch.setattr(embedder_module, "configured", lambda: OverLimit())
+    cid = str(uuid.uuid4())
+    body = _turn(cid, messages=[{"role": "user", "content": "hi"}], facts=[_fact("course", "CSE 340")])
+    response = client.post(f"{member}/turn/commit", json=body, headers=agent)
+    assert response.status_code == 201, response.get_json()
+    context = client.post(f"{member}/turn/context", json=_turn(cid, profile_query="CSE 340"), headers=agent)
+    assert context.status_code == 200, context.get_json()
+    assert context.get_json()["profile"]["similar"] == []
+    assert "CSE 340" in [n["label"] for n in context.get_json()["profile"]["nodes"]]
