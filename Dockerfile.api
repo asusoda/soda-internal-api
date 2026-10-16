@@ -18,8 +18,8 @@ WORKDIR /app
 # Copy dependency files first (better caching)
 COPY pyproject.toml uv.lock ./
 
-# Install the runtime dependencies, without the dev group
-RUN uv sync --locked --no-dev
+# Install the runtime dependencies and the Playwright client, without the dev group
+RUN uv sync --locked --no-dev --extra browser
 
 # Runtime stage
 FROM mirror.gcr.io/library/python:3.12-slim

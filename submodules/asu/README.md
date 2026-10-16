@@ -56,4 +56,4 @@ An officer of an org that subscribes to ASU signs in on the ASU card of the Shar
 | `signin/service.py` | Sign-in attempts, the saved session, page loads with it, and the `asu.session_expired` event |
 | `signin/tools.py` | The `asu:read` scope and the two tools |
 
-Playwright is an optional extra: `uv sync --extra browser`, then `uv run playwright install --with-deps chromium`. Without it, the card says so and the tools do not show. The results are never added to knowledge. See [docs/integrations.md](../../docs/integrations.md#sign-in-to-asu).
+Playwright is an optional extra: `uv sync --extra browser`. The API image has it. With `BROWSER_URL` set, the sign-in uses the shared browser ([operations](../../docs/operations.md#run-the-shared-browser)); else run `uv run playwright install --with-deps chromium` on the machine. Without the package, the card says so and the tools do not show. The results are never added to knowledge. See [docs/integrations.md](../../docs/integrations.md#sign-in-to-asu).

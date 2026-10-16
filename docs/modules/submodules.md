@@ -58,7 +58,7 @@ Platform checks the parameters of a live query before it gets a page. An unknown
 
 ## How the shared pages are crawled
 
-- **Fetch:** the deployment's Firecrawl (`FIRECRAWL_URL`), not an org's.
+- **Fetch:** the deployment's Firecrawl (`FIRECRAWL_URL`), not an org's. Without it, the shared browser (`BROWSER_URL`) renders thin pages; these renders count against no org.
 - **Passages:** the deployment's chunk settings (`KNOWLEDGE_CHUNK_CHARS`), not an org's.
 - **Vectors:** the deployment's embedder (`EMBEDDINGS_URL`). Vector search reads only passages of the org's own model, so an org with its own embedding model finds the shared pages by text search.
 - **Runs:** a crawl of a shared page is not in an org's run log. Its last error stays on the page and shows on the Superadmin page.
@@ -69,8 +69,9 @@ An org sets its own Firecrawl and SearXNG on the Integrations tab of the dashboa
 
 | Variable | Default | Does |
 | --- | --- | --- |
-| `FIRECRAWL_URL` | not set | Renders JavaScript pages. If it is not set, those pages are almost empty |
-| `SEARXNG_URL` | not set | The search service for the `web` query. If it is not set, that query returns 503 |
+| `FIRECRAWL_URL` | not set | Renders JavaScript pages. If neither it nor `BROWSER_URL` is set, those pages are almost empty |
+| `BROWSER_URL` | not set | The shared browser. A query marked `needs_js` is rendered there within the org's `knowledge.renders_per_day` |
+| `SEARXNG_URL` | not set | The search service for the `web` query. If it is not set, that query returns 503. The `searxng` compose service gives one; see [operations](../operations.md#run-web-search) |
 | `SEARXNG_ENGINES` | `google,brave,bing` | The engines SearXNG asks |
 | `SUBMODULE_QUERY_MAX_CHARS` | 30000 | The maximum text length of a live query result. `ASU_QUERY_MAX_CHARS` still works |
 

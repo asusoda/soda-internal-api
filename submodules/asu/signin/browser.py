@@ -1,13 +1,15 @@
 """The browser that signs in to ASU and loads Sun Devil Central pages with the saved cookies.
 
 Browser is the interface that service.py uses; tests give a fake one. Chromium is the real one. It needs
-the browser extra (uv sync --extra browser) and Chromium (playwright install chromium). At most
-MAX_OPEN browsers are open at one time in a process.
+the browser extra (uv sync --extra browser). With BROWSER_URL set it uses the deployment's shared browser,
+the browser compose service; else it starts Chromium on this machine (playwright install chromium). At
+most MAX_OPEN browsers are open at one time in a process.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,6 +28,7 @@ SKIPPED = frozenset({"image", "media", "font"})
 # The optional package that runs the browser
 PACKAGE = "playwright"
 INSTALL = "Install the browser extra on the API: uv sync --extra browser, then playwright install chromium"
+CONNECT_MS = 10_000
 
 _open = threading.BoundedSemaphore(MAX_OPEN)
 
@@ -70,9 +73,13 @@ def _reason(error: Exception) -> str:
 
 @contextmanager
 def _chromium() -> Iterator[Any]:
-    """A headless Chromium. Waits while MAX_OPEN browsers are open."""
+    """A headless Chromium: the shared browser at BROWSER_URL, else a local one. Waits while MAX_OPEN are open."""
+    server = os.environ.get("BROWSER_URL", "").strip()
     with _open, sso.api().sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        if server:
+            browser = playwright.chromium.connect(server, timeout=CONNECT_MS)
+        else:
+            browser = playwright.chromium.launch(headless=True)
         try:
             yield browser
         finally:

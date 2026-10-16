@@ -187,6 +187,7 @@ source_modules = [
     "modules.knowledge.embedder",
     "modules.knowledge.extract",
     "modules.knowledge.fetch",
+    "modules.knowledge.render",
     "modules.knowledge.runs",
     "modules.knowledge.reembed",
     "modules.knowledge.search",

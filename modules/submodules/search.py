@@ -16,7 +16,7 @@ import requests
 
 from core import net
 from core.integrations.registry import Field, Integration, IntegrationError, org_values, register, use
-from modules.knowledge import fetch
+from modules.knowledge import fetch, render
 
 URL_SECRET = "searxng_url"  # nosec B105 - the name of an org secret, not its value
 ENGINES_SECRET = "searxng_engines"  # nosec B105 - the name of an org secret, not its value
@@ -54,10 +54,10 @@ _SEARCH: ContextVar[SimpleNamespace | None] = ContextVar("searxng", default=None
 
 @contextmanager
 def query_scope(db, org_id: int) -> Iterator[None]:
-    """Live queries inside the block use the org's SearXNG and Firecrawl."""
+    """Live queries inside the block use the org's SearXNG and Firecrawl, and the browser within its render limit."""
     token = _SEARCH.set(search_for(db, org_id))
     try:
-        with fetch.firecrawl_scope(fetch.firecrawl_for(db, org_id)):
+        with fetch.firecrawl_scope(fetch.firecrawl_for(db, org_id)), render.scope(db, org_id):
             yield
     finally:
         _SEARCH.reset(token)

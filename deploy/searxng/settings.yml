@@ -1,0 +1,18 @@
+# SearXNG for the web live query and agent web search; unset values keep upstream defaults.
+use_default_settings: true
+
+general:
+  instance_name: platform-search
+
+server:
+  # Overridden by SEARXNG_SECRET.
+  secret_key: "set-SEARXNG_SECRET-in-env"
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json
