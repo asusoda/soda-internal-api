@@ -42,8 +42,8 @@ Agent routes are under `/api/accounts/members/<discord_id>` and need a machine t
 `token` returns these errors:
 
 - 404: the member has no connection.
-- 409: the member must connect again. The grant has no refresh token, or the provider revoked it. In that case Platform deletes the grant.
-- 502: the provider does not answer.
+- 409: the member must connect again. The grant has no refresh token, or the provider answered the refresh with `invalid_grant`. In that case Platform deletes the grant.
+- 502: the provider does not answer, or refuses the refresh with another error. Platform keeps the grant.
 - 503: `SECRETS_KEY` is not set or cannot decrypt the grant.
 
 Other routes:

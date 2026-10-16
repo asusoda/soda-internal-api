@@ -1,10 +1,15 @@
 """Product and order queries for the storefront. No Flask here."""
 
+import math
+from collections import Counter
+from datetime import UTC, datetime
+
 from core import webhooks
 from core.errors import ServiceError
 from core.log import get_logger
 from modules.auth import scopes
-from modules.storefront.models import Order, Product
+from modules.points.models import Points
+from modules.storefront.models import Order, OrderItem, Product
 
 logger = get_logger(__name__)
 
@@ -34,10 +39,80 @@ def prices_mismatch(total_amount, priced) -> bool:
 
     priced holds (product, quantity, client unit price).
     """
-    catalog_total = sum(float(product.price) * quantity for product, quantity, _ in priced)
-    return abs(catalog_total - float(total_amount)) > 0.005 or any(
+    return abs(catalog_total(priced) - float(total_amount)) > 0.005 or any(
         abs(float(product.price) - client_price) > 0.005 for product, _, client_price in priced
     )
+
+
+def parse_total(value) -> float:
+    """The client's total as a positive number. Raises StoreError for a value that is not a positive number."""
+    if isinstance(value, bool):
+        raise StoreError("Total amount must be a number")
+    try:
+        total = float(value)
+    except (TypeError, ValueError):
+        raise StoreError("Total amount must be a number") from None
+    if not math.isfinite(total) or total <= 0:
+        raise StoreError("Total amount must be greater than 0")
+    return total
+
+
+def price_items(db, organization_id, items) -> tuple[list[OrderItem], list[tuple[Product, int, float]]]:
+    """Order items at catalog prices, and the (product, quantity, client unit price) of each. Changes no stock.
+
+    Raises StoreError for a bad item, a product that is not in the org, or too little stock.
+    """
+    if not isinstance(items, list) or not items:
+        raise StoreError("Order items are required")
+    order_items: list[OrderItem] = []
+    priced: list[tuple[Product, int, float]] = []
+    wanted: Counter[int] = Counter()
+    for item in items:
+        if not isinstance(item, dict) or not all(k in item for k in ("product_id", "quantity", "price")):
+            raise StoreError("Each item must have product_id, quantity, and price")
+        try:
+            product_id = int(item["product_id"])
+            quantity = int(item["quantity"])
+            client_price = float(item["price"])
+        except (TypeError, ValueError):
+            raise StoreError("Each item must have a numeric product_id, quantity, and price") from None
+        if quantity < 1:
+            raise StoreError("Quantity must be at least 1")
+        found = product(db, product_id, organization_id, for_update=True)
+        if not found:
+            raise StoreError(f"Product {product_id} not found", 404)
+        wanted[found.id] += quantity
+        if found.stock < wanted[found.id]:
+            raise StoreError(f"Insufficient stock for product {found.name}")
+        priced.append((found, quantity, client_price))
+        order_items.append(OrderItem(product_id=found.id, quantity=quantity, price_at_time=float(found.price)))
+    return order_items, priced
+
+
+def catalog_total(priced) -> float:
+    """The sum of catalog price times quantity. priced holds (product, quantity, client unit price)."""
+    return float(sum(float(product.price) * quantity for product, quantity, _ in priced))
+
+
+def take_stock(priced) -> None:
+    """Lower the stock of each product by its quantity. The caller commits."""
+    for found, quantity, _ in priced:
+        found.stock -= quantity
+
+
+def points_number(value: float) -> float | int:
+    """The value as an int when it has no fraction, else the float."""
+    return int(value) if float(value).is_integer() else value
+
+
+def purchase_event(order_id) -> str:
+    """The event of the points entry that pays for an order."""
+    return f"Storefront Purchase - Order #{order_id}"
+
+
+def refund_event(order_id) -> str:
+    """The event of the points entry that gives back the points of an order."""
+    return f"Refund - Order #{order_id}"
 
 
 def create_product(db, product, organization_id):
@@ -55,8 +130,11 @@ def create_product(db, product, organization_id):
         raise
 
 
-def create_order(db, order, order_items, organization_id):
-    """Add the order and its items to the org and commit. Rolls back and raises on an error."""
+def create_order(db, order, order_items, organization_id, charge: float | None = None):
+    """Add the order and its items to the org and commit. Rolls back and raises on an error.
+
+    With charge, a negative points entry of that amount pays for the order in the same commit.
+    """
     try:
         order.organization_id = organization_id
         db.add(order)
@@ -66,6 +144,18 @@ def create_order(db, order, order_items, organization_id):
             item.organization_id = organization_id
             item.order_id = order.id
             db.add(item)
+
+        if charge is not None:
+            db.add(
+                Points(
+                    user_id=order.user_id,
+                    organization_id=organization_id,
+                    points=-charge,
+                    event=purchase_event(order.id),
+                    timestamp=datetime.now(UTC),
+                    awarded_by_officer="System",
+                )
+            )
 
         db.commit()
         db.refresh(order)
@@ -97,10 +187,11 @@ def products(db, organization_id):
         return []
 
 
-def product(db, product_id, organization_id):
-    """The org's product with this id, or None."""
+def product(db, product_id, organization_id, for_update=False):
+    """The org's product with this id, or None. for_update locks the row until the caller commits."""
     try:
-        return db.query(Product).filter(Product.id == product_id, Product.organization_id == organization_id).first()
+        query = db.query(Product).filter(Product.id == product_id, Product.organization_id == organization_id)
+        return (query.with_for_update() if for_update else query).first()
     except Exception as e:
         logger.error(f"Error getting storefront product: {str(e)}")
         return None
@@ -115,19 +206,31 @@ def orders(db, organization_id):
         return []
 
 
-def order(db, order_id, organization_id):
-    """The org's order with this id, or None."""
+def order(db, order_id, organization_id, for_update: bool = False):
+    """The org's order with this id, or None. With for_update, the row stays locked until the commit."""
     try:
-        return db.query(Order).filter(Order.id == order_id, Order.organization_id == organization_id).first()
+        query = db.query(Order).filter(Order.id == order_id, Order.organization_id == organization_id)
+        return (query.with_for_update() if for_update else query).first()
     except Exception as e:
         logger.error(f"Error getting storefront order: {str(e)}")
         return None
 
 
+def _check_no_orders(db, product_ids) -> None:
+    """Raises StoreError 409 if an order item refers to one of the products."""
+    if db.query(OrderItem.id).filter(OrderItem.product_id.in_(product_ids)).first():
+        raise StoreError("Product has orders. Set its stock to 0 to hide it from the store.", 409)
+
+
 def delete_product(db, product_id, organization_id) -> bool:
-    """Delete the org's product and commit. False if it is missing or the delete fails."""
+    """Delete the org's product and commit. False if it is missing or the delete fails.
+
+    Raises StoreError 409 if an order has the product.
+    """
+    found = product(db, product_id, organization_id)
+    if found:
+        _check_no_orders(db, [found.id])
     try:
-        found = product(db, product_id, organization_id)
         if found:
             db.delete(found)
             db.commit()
@@ -190,28 +293,76 @@ def change_product(product: Product, data: dict) -> None:
         product.category = normalize_category(data["category"])
 
 
-def change_order(order: Order, data: dict) -> None:
-    """Set the status and message that data has. Raises StoreError for an unknown status. The caller commits."""
+def _restock(db, order: Order, organization_id) -> None:
+    """Put the items of the order back in stock. The caller commits."""
+    for item in order.items:
+        found = product(db, item.product_id, organization_id, for_update=True)
+        if found:
+            found.stock += item.quantity
+
+
+def _refund(db, order: Order, organization_id) -> None:
+    """Add a points entry that gives back what the order took, less refunds already given. The caller commits.
+
+    An order with no purchase entry, such as a pending member order, gets no refund.
+    """
+    rows = (
+        db.query(Points.points)
+        .filter(
+            Points.organization_id == organization_id,
+            Points.user_id == order.user_id,
+            Points.event.in_([purchase_event(order.id), refund_event(order.id)]),
+        )
+        .all()
+    )
+    owed = -sum(float(row.points or 0) for row in rows)
+    if owed > 0:
+        db.add(
+            Points(
+                user_id=order.user_id,
+                organization_id=organization_id,
+                points=owed,
+                event=refund_event(order.id),
+                timestamp=datetime.now(UTC),
+                awarded_by_officer="System",
+            )
+        )
+
+
+def change_order(db, order: Order, data: dict) -> None:
+    """Set the status and message that data has. The caller commits.
+
+    A change to cancelled puts the items back in stock and refunds the points. Raises StoreError for an unknown
+    status, and 409 for a change away from cancelled.
+    """
     if "status" in data:
-        if data["status"] not in ORDER_STATUSES:
+        status = data["status"]
+        if status not in ORDER_STATUSES:
             raise StoreError(f"Invalid status. Must be one of: {', '.join(ORDER_STATUSES)}")
-        order.status = data["status"]
+        if order.status == "cancelled" and status != "cancelled":
+            raise StoreError("A cancelled order cannot change status. Place a new order.", 409)
+        if status == "cancelled" and order.status != "cancelled":
+            _restock(db, order, order.organization_id)
+            _refund(db, order, order.organization_id)
+        order.status = status
     if "message" in data:
         order.message = data["message"]
 
 
 def remove_order(db, order: Order, organization_id) -> None:
-    """Delete an order. Its items go back in stock unless it is cancelled or delivered. The caller commits."""
+    """Delete an order. The caller commits.
+
+    Unless the order is cancelled or delivered, its items go back in stock and its points are refunded.
+    """
     if order.status not in ["cancelled", "delivered"]:
-        for item in order.items:
-            found = product(db, item.product_id, organization_id)
-            if found:
-                found.stock += item.quantity
+        _restock(db, order, organization_id)
+        _refund(db, order, organization_id)
     db.delete(order)
 
 
-def _all(db, model, ids: list[int], organization_id, label: str) -> list:
-    rows = db.query(model).filter(model.id.in_(ids), model.organization_id == organization_id).all()
+def _all(db, model, ids: list[int], organization_id, label: str, for_update: bool = False) -> list:
+    query = db.query(model).filter(model.id.in_(ids), model.organization_id == organization_id)
+    rows = (query.with_for_update() if for_update else query).all()
     missing = sorted(set(ids) - {row.id for row in rows})
     if missing:
         raise StoreError(f"No {label} with ids {', '.join(str(i) for i in missing)}", 404)
@@ -242,8 +393,9 @@ def save_product(db, organization_id, data: dict, product_id: int | None = None)
 
 
 def delete_products(db, organization_id, ids: list[int]) -> dict:
-    """Delete products by id in one commit. If one id is missing, nothing changes."""
+    """Delete products by id in one commit. If one id is missing or has orders, nothing changes."""
     rows = _all(db, Product, ids, organization_id, "products")
+    _check_no_orders(db, [row.id for row in rows])
     for row in rows:
         db.delete(row)
     db.commit()
@@ -258,16 +410,16 @@ def order_list(db, organization_id, status: str | None = None) -> list[dict]:
 
 def update_orders(db, organization_id, ids: list[int], data: dict) -> list[dict]:
     """Set the status or message of orders in one commit. If one id is missing, nothing changes."""
-    rows = _all(db, Order, ids, organization_id, "orders")
+    rows = _all(db, Order, ids, organization_id, "orders", for_update=True)
     for row in rows:
-        change_order(row, data)
+        change_order(db, row, data)
     db.commit()
     return [order_dict(row) for row in rows]
 
 
 def delete_orders(db, organization_id, ids: list[int]) -> dict:
-    """Delete orders in one commit and put their items back in stock as remove_order does."""
-    for row in _all(db, Order, ids, organization_id, "orders"):
+    """Delete orders in one commit. Stock and points go back as remove_order does."""
+    for row in _all(db, Order, ids, organization_id, "orders", for_update=True):
         remove_order(db, row, organization_id)
     db.commit()
     return {"deleted": sorted(ids)}

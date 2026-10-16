@@ -19,7 +19,7 @@ Upload a CSV with an event name and the points for each person. A background job
 | `First Name`, `Last Name` | Required. The name of a new member |
 | `Checked-In Date` | Rows with no value get no points |
 
-A person with no member record becomes a member of the org.
+A person with no member record becomes a member of the org. A person who is a member of another org only also becomes a member of this org. A person with an inactive membership keeps it inactive.
 
 ```mermaid
 flowchart LR

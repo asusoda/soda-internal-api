@@ -54,7 +54,7 @@ def store_save_product(db, org, caller, id: int | None = None, **data):
 
 @tool(
     "store.delete_products",
-    description="Delete products by id, up to 100. If one id is missing, nothing changes.",
+    description="Delete products by id, up to 100. If one id is missing or has orders, nothing changes.",
     scope="store:write",
     module="storefront",
     confirm=True,
@@ -66,7 +66,11 @@ def store_delete_products(db, org, caller, ids: list[int]):
 
 @tool(
     "store.update_orders",
-    description="Set the status, the message to the buyer, or both, of up to 100 orders.",
+    description=(
+        "Set the status, the message to the buyer, or both, of up to 100 orders. "
+        "A change to cancelled puts the items back in stock and refunds the points. "
+        "A cancelled order cannot change to another status."
+    ),
     scope="store:write",
     module="storefront",
     input_schema={
@@ -84,7 +88,8 @@ def store_update_orders(db, org, caller, ids: list[int], **data):
 @tool(
     "store.delete_orders",
     description=(
-        "Delete orders by id, up to 100. The items of an order that is not cancelled or delivered go back in stock."
+        "Delete orders by id, up to 100. The items of an order that is not cancelled or delivered go back in stock, "
+        "and its points are refunded."
     ),
     scope="store:write",
     module="storefront",

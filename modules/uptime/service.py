@@ -82,15 +82,16 @@ def _check_url(url: object) -> str:
     if not isinstance(url, str) or not url.strip() or len(url.strip()) > MAX_URL:
         raise UptimeError(f"target must be an http or https URL of {MAX_URL} characters or fewer")
     url = url.strip()
-    if urlsplit(url).scheme not in ("http", "https"):
-        raise UptimeError("target must be an http or https URL")
     try:
+        if urlsplit(url).scheme not in ("http", "https"):
+            raise UptimeError("target must be an http or https URL")
         net.check_public(url)
-    except net.NotPublic as e:
-        raise UptimeError(str(e)) from e
     except net.NoHost:
         # A host that does not resolve now can resolve later. Each check reports it as down.
         pass
+    except ValueError as e:
+        # NotPublic, and the ValueError of a bad port, IPv6 address or host name
+        raise UptimeError(str(e) or "target must be an http or https URL") from e
     return url
 
 
