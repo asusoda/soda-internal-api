@@ -109,6 +109,12 @@ def active_membership(db, user_id, organization_id) -> UserOrganizationMembershi
     )
 
 
+def officer_may_edit(db, user_id, organization_id) -> bool:
+    """Whether an officer of the org may change the user's own fields: the user is a member of this org only."""
+    memberships = db.query(UserOrganizationMembership.organization_id).filter_by(user_id=user_id, is_active=True).all()
+    return {row.organization_id for row in memberships} == {int(organization_id)}
+
+
 def update_user_field(db, user, field_name, field_value, organization_id=None):
     """Set one user field and commit. A unique field must not belong to another user. Returns (ok, message)."""
     try:
@@ -158,12 +164,16 @@ def update_member(db, organization_id, user_identifier, data: Mapping[str, Any])
         raise MemberError("User is not a member of this organization", 400)
     updated_fields: list[str] = []
     errors: list[str] = []
+    may_edit_user = officer_may_edit(db, user.id, organization_id)
     for field_name, field_value in data.items():
         if field_name == "user_identifier":
             continue
         column = LEGACY_MEMBER_KEYS.get(field_name, field_name)
         if column != field_name and column in data:
             continue  # the column name sent alongside wins
+        if column != "profile_fields" and not may_edit_user:
+            errors.append(f"{field_name}: the user is a member of another organization")
+            continue
         if column == "profile_fields":
             error = merge_profile_fields(membership, field_value)
             if error:
@@ -230,9 +240,12 @@ def _announce_join(organization_id, user: User) -> None:
     webhooks.emit(int(organization_id), "member.joined", message)
 
 
-def manage_user_in_organization(db, organization_id, user_data, discord_id=None, user_identifier=None):
+def manage_user_in_organization(
+    db, organization_id, user_data, discord_id=None, user_identifier=None, by_officer=False
+):
     """Find, update or create a user and make them a member of the org. Commits.
 
+    With by_officer, an existing user's own fields and Discord id change only when officer_may_edit allows it.
     Returns (user or None, ok, message).
     """
     try:
@@ -242,6 +255,8 @@ def manage_user_in_organization(db, organization_id, user_data, discord_id=None,
 
         if user:
             updated_fields = []
+            if by_officer and not officer_may_edit(db, user.id, organization_id):
+                user_data, discord_id = {}, None
             for field, value in user_data.items():
                 if value is not None and hasattr(user, field):
                     current_value = getattr(user, field)
@@ -343,11 +358,13 @@ def get_or_create_user(discord_id, organization_id, username=None):
         db.close()
 
 
-def link_or_create_user(organization_id, user_data, discord_id=None):
+def link_or_create_user(organization_id, user_data, discord_id=None, by_officer=False):
     """The member that user_data names (by student id, email or username), created when missing. None on an error."""
     db = next(db_connect.get_db())
     try:
-        user, success, message = manage_user_in_organization(db, organization_id, user_data, discord_id=discord_id)
+        user, success, message = manage_user_in_organization(
+            db, organization_id, user_data, discord_id=discord_id, by_officer=by_officer
+        )
 
         if success:
             logger.debug(f"{message} - User {user.id if user else 'None'} for org {organization_id}")
