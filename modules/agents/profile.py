@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import aliased
 
+from core import limits
 from core.log import get_logger
 from core.time import iso, utcnow
 from modules.agents import service
@@ -55,13 +56,16 @@ def _node(db, who: Owner, kind: str, label: str, confidence: float) -> AgentProf
 
 
 def _embed_nodes(nodes: list[AgentProfileNode], embedder: Embedder) -> None:
-    """Give nodes without a vector from this model one, from "kind: label". A failure leaves them without."""
+    """Give nodes without a vector from this model one, from "kind: label".
+
+    A failure, or an org over its embeddings limit, leaves them without.
+    """
     todo = [n for n in nodes if n.embedding is None or n.embedding_model != embedder.model]
     if not todo:
         return
     try:
         vectors = embedder.embed([f"{n.kind}: {n.label}" for n in todo])
-    except EmbeddingError:
+    except (EmbeddingError, limits.LimitError):
         logger.warning("profile nodes stored without embeddings count=%s", len(todo))
         return
     if any(len(v) != DIMENSIONS for v in vectors):
@@ -139,7 +143,10 @@ def profile_nodes(db, who: Owner, limit: object = None) -> list[dict]:
 
 
 def similar(db, who: Owner, query: object, limit: object, embedder: Embedder | None) -> list[dict]:
-    """The member's profile nodes nearest to the text, nearest first, each with its cosine distance."""
+    """The member's profile nodes nearest to the text, nearest first, each with its cosine distance.
+
+    Empty when the org is over its embeddings limit.
+    """
     if embedder is None:
         raise AgentError("Similar nodes need an embeddings service. Set one on the Integrations page", 503)
     query_text = service.text(query, "text", 2000)
@@ -148,6 +155,9 @@ def similar(db, who: Owner, query: object, limit: object, embedder: Embedder | N
         vector = embedder.embed_query(query_text)
     except EmbeddingError as e:
         raise AgentError("The embedding service failed", 502) from e
+    except limits.LimitError:
+        logger.warning("profile query not embedded, the org is over its embeddings limit")
+        return []
     if vector_sql(db, "agent_profile_nodes"):
         params = {
             "org": who.organization_id,

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import aiohttp
 from sqlalchemy.exc import IntegrityError
 
 from core.config import config
@@ -226,7 +227,7 @@ def verify(
     for discord_id, username in pending.items():
         try:
             found = submissions(username) if submissions else asyncio.run(client.fetch_recent_ac_submissions(username))
-        except RuntimeError:
+        except (RuntimeError, aiohttp.ClientError, TimeoutError, ValueError):
             logger.warning("Could not read submissions of %s", username, exc_info=True)
             continue
         slug = _solved_on(found, slugs, today, zone)

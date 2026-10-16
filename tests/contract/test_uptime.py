@@ -11,6 +11,7 @@ from core import net
 BASE = "/api/uptime/soda/monitors"
 HOOK = "https://discord.com/api/webhooks/1234567890/uptime-TOKEN"
 NOW = datetime.datetime(2026, 10, 9, 12)
+REAL_CHECK_PUBLIC = net.check_public
 
 
 def _soda_id() -> int:
@@ -119,6 +120,14 @@ def test_monitor_lifecycle(client, officer_headers, uptime):
 )
 def test_bad_monitors_are_refused(client, officer_headers, uptime, body):
     assert _create(client, officer_headers, **body).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "target", ["https://example.org:99999/", "https://[::1/", "https://" + "a" * 64 + ".example.org/"]
+)
+def test_malformed_urls_are_refused(client, officer_headers, uptime, monkeypatch, target):
+    monkeypatch.setattr(net, "check_public", REAL_CHECK_PUBLIC)
+    assert _create(client, officer_headers, target=target).status_code == 400
 
 
 def test_private_addresses_are_refused(client, officer_headers, uptime, monkeypatch):

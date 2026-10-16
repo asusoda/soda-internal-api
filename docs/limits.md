@@ -28,6 +28,7 @@ A rate counter starts again at the start of each window, in UTC. The `usage_coun
 | `runpod.server_memory_mb` | runpod | Memory of the apps on This server, from their manifests, in MB | 1,024 |
 | `uptime.monitors` | uptime | Uptime monitors | 50 |
 | `alerts.destinations` | alerts | Alert destinations | 20 |
+| `feeds.feeds` | feeds | Feeds | 20 |
 | `submodules.subscriptions` | submodules | Shared content the org subscribes to. Its pages count against no org | 20 |
 | `mcp.calls_per_minute` | mcp | Tool calls a minute, over MCP and `/api/tools`. Each call in a batch counts | 300 |
 
@@ -72,7 +73,7 @@ An override can be a whole number, `null` (no limit) or `"default"` (remove the 
 
 | Protection | Setting | Default |
 | --- | --- | --- |
-| One run at a time of `knowledge.reindex` and `knowledge.reembed` for each org, and of `knowledge.crawl_source` for each source. A second request gets 409 | `once` on the job in `core/jobs.py` | on |
+| One run at a time of `knowledge.reindex` and `knowledge.reembed` for each org, of `knowledge.crawl_source` for each source, and of `feeds.run_feed` for each feed. A second request gets 409 | `once` on the job in `core/jobs.py` | on |
 | Jobs that run at the same time in a process with the inline (SQLite) backend | `JOB_THREADS` | 4 |
 | The crawl of due sources takes one source of each org in turn. Orgs that are inactive or have knowledge off are left out | `KNOWLEDGE_CRAWL_BATCH` | 20 |
 | The largest request body, in MB. A bigger body gets 413 | `MAX_REQUEST_MB` | 110 |

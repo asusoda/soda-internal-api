@@ -46,7 +46,7 @@ DEFAULTS = {
 
 
 class ProviderError(RuntimeError):
-    """A token request failed. `refused` means the provider rejected the grant itself."""
+    """A token request failed. `refused` means the provider answered invalid_grant: the grant itself is gone."""
 
     def __init__(self, message: str, refused: bool = False):
         super().__init__(message)
@@ -114,7 +114,7 @@ class Provider:
             logger.warning(
                 "token request refused provider=%s status=%s error=%s", self.name, response.status_code, code
             )
-            raise ProviderError(f"{self.name} refused the token request", refused=response.status_code in (400, 401))
+            raise ProviderError(f"{self.name} refused the token request", refused=code == "invalid_grant")
         return body
 
     @staticmethod

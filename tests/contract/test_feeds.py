@@ -237,6 +237,70 @@ def test_post_existing_and_failures(client, officer_headers, alerts, monkeypatch
     assert client.get("/api/feeds/soda/feeds/nope/history", headers=officer_headers).status_code == 404
 
 
+def test_an_item_another_run_claimed_is_not_posted_again(client, officer_headers, alerts, monkeypatch):
+    from core.db import db_connect
+    from modules.feeds import service
+    from modules.feeds.github_jobs import fetch, validate
+    from modules.feeds.models import AlertFeed, AlertPost
+
+    _put(client, officer_headers)
+    _run()
+    alerts["readme"] = _readme(
+        _row("Acme", "Intern", "https://jobs.acme.com/1"),
+        _row("Beta", "Intern", "https://b.io/1"),
+        _row("Gamma", "Intern", "https://g.io/1"),
+    )
+    listed = fetch(validate({"repo": "someone/jobs"}), lambda url: alerts["readme"], datetime.date(2026, 10, 8))
+
+    def post_while_another_run_claims_the_rest(url, payload):
+        alerts["sent"].append(payload)
+        other = db_connect.SessionLocal()
+        try:
+            feed_id = other.query(AlertFeed.id).filter_by(key="internships").scalar()
+            known = {k for (k,) in other.query(AlertPost.item_key).filter_by(feed_id=feed_id)}
+            for item in listed:
+                if item.key not in known:
+                    other.add(AlertPost(feed_id=feed_id, item_key=item.key, title=item.title, posted=True))
+            other.commit()
+        finally:
+            other.close()
+
+    monkeypatch.setattr(service, "post_webhook", post_while_another_run_claims_the_rest)
+    result = _run()
+    assert result["new"] == 2 and result["posted"] == 1 and "error" not in result
+    assert len(alerts["sent"]) == 1
+
+
+def test_run_now_is_refused_while_a_run_is_queued(client, officer_headers, alerts, monkeypatch):
+    from core import jobs
+
+    if jobs.queue_backend() != "inline":
+        pytest.skip("This test sets the state of the inline job queue")
+    from modules.organizations.models import Organization
+
+    _put(client, officer_headers)
+    from core.db import db_connect
+
+    db = db_connect.SessionLocal()
+    try:
+        org_id = db.query(Organization.id).filter_by(prefix="soda").scalar()
+    finally:
+        db.close()
+    lock = jobs._lock_key(jobs.JOBS["feeds.run_feed"], {"org_id": org_id, "key": "internships"})
+    assert lock is not None
+    monkeypatch.setattr(jobs, "_running", {lock})
+    response = client.post("/api/feeds/soda/feeds/internships/run", json={}, headers=officer_headers)
+    assert response.status_code == 409
+
+
+def test_new_feeds_stop_at_the_limit(client, officer_headers, alerts, monkeypatch):
+    monkeypatch.setenv("LIMIT_FEEDS_FEEDS", "1")
+    assert _put(client, officer_headers).status_code == 201
+    refused = _put(client, officer_headers, key="second")
+    assert refused.status_code == 409 and "limit" in refused.get_json()["error"].lower()
+    assert _put(client, officer_headers, every_hours=6).status_code == 200
+
+
 def test_runs_are_pruned(client, officer_headers, alerts, monkeypatch):
     from modules.feeds import service
 

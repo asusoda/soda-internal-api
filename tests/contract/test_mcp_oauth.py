@@ -582,6 +582,28 @@ def test_refresh_when_discord_does_not_answer(oauth_client, client, officer_head
     assert "cannot check the officer role" in stale.json()["error_description"]
 
 
+def test_refresh_asks_discord_only_about_the_tokens_org(oauth_client, client, officer_headers, monkeypatch):
+    from modules.mcp import oauth
+
+    registered, tokens = _connect(oauth_client, client, officer_headers)
+    asked: list = []
+
+    class Recording(FakeBot):
+        def officer_guilds(self, user_id, org_roles):
+            asked.append(org_roles)
+            return [guild_id for guild_id, _ in org_roles]
+
+    monkeypatch.setattr(oauth, "discord_directory", Recording)
+    refreshed = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=tokens["refresh_token"],
+        client_id=registered["client_id"],
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    assert asked and all(len(roles) == 1 for roles in asked)
+
+
 def test_requests_of_one_ip_are_limited(oauth_client, monkeypatch):
     from modules.mcp import oauth
 

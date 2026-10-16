@@ -73,6 +73,16 @@ def test_bad_saves_are_refused(client, officer_headers, cleared):
         assert client.put(f"{BASE}/{key}", json=body, headers=officer_headers).status_code == 400, (key, body)
 
 
+def test_a_bad_field_saves_no_field(client, officer_headers, cleared, public_dns):
+    # The test client sends the keys sorted, so the blank prefix comes after the key and the model
+    fields = {"embeddings_api_key": "k", "embeddings_model": "m", "embeddings_query_prefix": "  "}
+    fields["embeddings_url"] = "https://e.example/v1"
+    assert client.put(f"{BASE}/embeddings", json={"fields": fields}, headers=officer_headers).status_code == 400
+    entry = _by_key(client.get(BASE, headers=officer_headers).get_json())["embeddings"]
+    assert entry["source"] != "org"
+    assert not any(f["set"] for f in entry["fields"])
+
+
 def test_failed_test_says_why(client, officer_headers, monkeypatch):
     monkeypatch.delenv("EMBEDDINGS_URL", raising=False)
     result = client.post(f"{BASE}/embeddings/test", headers=officer_headers).get_json()

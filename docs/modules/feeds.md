@@ -17,11 +17,11 @@ If the module is off for the org, its feeds do not show and do not run.
 | `github_jobs` | `github_jobs.py` | The job table in a GitHub repo's README (Company, Role, Location, Application/Link, Date Posted), as in the internship and new grad lists | A hash of company, role, first location, and link with no tracking parameters |
 | `hackathons` | `hackathons.py` | Hack Club, Euro-Hackathons and Hackalist | The event name, in lowercase |
 
-The `careers` [submodule](./submodules.md) gives ready feeds of both kinds. When the org subscribes to it, the Feeds card on Explore lists them. **Add** on a feed opens the page of its kind with the new feed form filled. A feed you make is your own: it counts against no shared limit.
+The `careers` [submodule](./submodules.md) gives ready feeds of both kinds. When the org subscribes to it, the Feeds card on Explore lists them. **Add** on a feed opens the page of its kind with the new feed form filled. A feed you make is your own. It counts against the org's `feeds.feeds` limit, default 20 (see [Limits](../limits.md)).
 
 Before 2026-10, the two kinds were the modules `job_webhook` and `hackathon_webhook`. Migration `a3c5e7f9b1d3` turned `feeds` on for each org that had either one on.
 
-The first run of a feed records all current items and posts none. Thus a new feed does not post hundreds of old listings. Later runs post up to 25 new items, with half a second between posts. If a post fails, the item stays new and goes out on the next run.
+The first run of a feed records all current items and posts none. Thus a new feed does not post hundreds of old listings. Later runs post up to 25 new items, with half a second between posts. If a post fails, the item stays new and goes out on the next run. A run records an item before it posts it, so two runs at the same time do not post the same item.
 
 ## Dashboard
 
@@ -39,10 +39,10 @@ All routes are under `/api/feeds/<org>`, for officers of the org. When the Feeds
 | --- | --- |
 | `GET /feeds` | Each feed with its schedule, last run, last error and number of posts |
 | `GET /feeds/<key>` | One feed |
-| `PUT /feeds/<key>` | Creates (201) or updates (200) a feed. Body below |
+| `PUT /feeds/<key>` | Creates (201) or updates (200) a feed. Body below. 409 when a new feed takes the org over its `feeds.feeds` limit |
 | `DELETE /feeds/<key>` | Deletes the feed, its posted items and its older webhook secret, if any |
 | `GET /feeds/<key>/history` | The last 50 runs (time, duration, items found, new and posted, error) and the last 50 items the feed posted or recorded |
-| `POST /feeds/<key>/run` | Starts a run now and returns 202. With `{"post_existing": true}`, a first run posts the current items |
+| `POST /feeds/<key>/run` | Starts a run now and returns 202. With `{"post_existing": true}`, a first run posts the current items. 409 while a run of the feed is queued |
 | `GET /presets` | The feeds that the [submodules](./submodules.md) the org subscribes to offer, when Feeds is on, with `module`, the `kind` and `config` to send to `PUT /feeds/<key>`, and `added` when the org has a feed with that key |
 
 ```json

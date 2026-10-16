@@ -56,3 +56,17 @@ def test_identity_names_the_app_of_the_token(app):
     body = {"id": "77", "name": "sparky", "bot": {"username": "Sparky"}}
     directory = DiscordDirectory("token", http=FakeHttp({"/oauth2/applications/@me": FakeResponse(200, body)}))
     assert directory.identity() == {"app_id": "77", "app_name": "sparky", "bot_name": "Sparky"}
+
+
+def test_a_guild_discord_refuses_is_skipped(app):
+    officer = FakeResponse(200, {"roles": ["2001"], "user": {"username": "a"}})
+    http = FakeHttp({"/guilds/1001/members/42": FakeResponse(403), "/guilds/1002/members/42": officer})
+    directory = DiscordDirectory("token", http=http)
+    assert directory.officer_guilds("42", [("1001", "2001"), ("1002", "2001")]) == ["1002"]
+
+
+def test_officer_guilds_raise_when_discord_answers_for_none(app):
+    http = FakeHttp({"/guilds/1001/members/42": FakeResponse(503), "/guilds/1002/members/42": FakeResponse(500)})
+    directory = DiscordDirectory("token", http=http)
+    with pytest.raises(DiscordUnavailable):
+        directory.officer_guilds("42", [("1001", "2001"), ("1002", "2002")])
