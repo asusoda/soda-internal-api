@@ -512,6 +512,54 @@ def test_consent_refuses_bad_limits_and_keeps_the_form(oauth_client, client, off
     assert "not a repo!" in response.text
 
 
+def test_a_narrow_refresh_keeps_the_grant(oauth_client, client, officer_headers):
+    registered, tokens = _connect(oauth_client, client, officer_headers, scope=["org:read", "points:read"])
+    assert tokens["scope"] == "org:read points:read"
+    narrow = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=tokens["refresh_token"],
+        client_id=registered["client_id"],
+        scope="org:read",
+    )
+    assert narrow.status_code == 200, narrow.text
+    assert narrow.json()["scope"] == "org:read"
+    assert _oauth_row(client, officer_headers)["scopes"] == ["org:read"]
+    wide = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=narrow.json()["refresh_token"],
+        client_id=registered["client_id"],
+        scope="org:read points:read",
+    )
+    assert wide.status_code == 200, wide.text
+    assert wide.json()["scope"] == "org:read points:read"
+    narrow_again = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=wide.json()["refresh_token"],
+        client_id=registered["client_id"],
+        scope="org:read",
+    )
+    full = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=narrow_again.json()["refresh_token"],
+        client_id=registered["client_id"],
+    )
+    assert full.status_code == 200, full.text
+    assert full.json()["scope"] == "org:read points:read"
+    assert _oauth_row(client, officer_headers)["scopes"] == ["org:read", "points:read"]
+    more = _token(
+        oauth_client,
+        grant_type="refresh_token",
+        refresh_token=full.json()["refresh_token"],
+        client_id=registered["client_id"],
+        scope="org:read points:write",
+    )
+    assert more.status_code == 400
+
+
 def test_refresh_stops_when_the_officer_loses_the_role(oauth_client, client, officer_headers, monkeypatch):
     from core.db import db_connect
     from modules.auth.models import MachineToken

@@ -72,6 +72,9 @@ class OAuthGrant(Base):
     refresh_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     refresh_expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     resource: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The scopes the officer approved. A refresh can ask for fewer for the access token, never for more.
+    # None on a grant from before this column: the scopes of its machine token are the grant.
+    scopes: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     # The last time a refresh found that the approving officer still has the officer role
     checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)

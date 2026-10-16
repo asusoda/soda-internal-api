@@ -716,11 +716,17 @@ def exchange_code(db, client_id: str, code: str) -> dict:
             refresh_hash=_hash(refresh),
             refresh_expires_at=_now() + datetime.timedelta(days=REFRESH_DAYS),
             resource=row.resource,
+            scopes=strings(token_row.scopes),
         )
     )
     _touch(db, client_id)
     db.commit()
     return _token(access, refresh, strings(token_row.scopes))
+
+
+def _granted_scopes(grant: OAuthGrant, token: MachineToken) -> list[str]:
+    """The scopes of the grant, which a refresh can narrow for one access token but never changes."""
+    return strings(grant.scopes) if grant.scopes is not None else strings(token.scopes)
 
 
 def _grant_for_refresh(db, client_id: str, refresh: str) -> tuple[OAuthGrant, MachineToken] | None:
@@ -742,7 +748,7 @@ def load_refresh(db, client_id: str, refresh: str) -> dict | None:
     grant, token = found
     return {
         "token_id": token.id,
-        "scopes": strings(token.scopes),
+        "scopes": _granted_scopes(grant, token),
         "expires_at": _epoch(grant.refresh_expires_at),
         "resource": optional_text(grant.resource),
         "subject": optional_text(token.created_by),
@@ -750,7 +756,10 @@ def load_refresh(db, client_id: str, refresh: str) -> dict | None:
 
 
 def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dict:
-    """New access and refresh tokens for a grant. The old values stop working. Raises OAuthError. Commits."""
+    """New access and refresh tokens for a grant. The old values stop working. Raises OAuthError. Commits.
+
+    The access token gets scopes, or all the scopes of the grant when scopes is empty. The grant keeps its scopes.
+    """
     found = _grant_for_refresh(db, client_id, refresh)
     if found is None:
         raise OAuthError("The refresh token is not valid")
@@ -769,6 +778,7 @@ def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dic
         raise OAuthError("The officer who approved this connection is no longer an officer of the org")
     if checked is None and grant.checked_at <= now - RECHECK_GRACE:
         raise OAuthError("Platform cannot check the officer role now. Try again later")
+    granted = _granted_scopes(grant, token)
     new_refresh = REFRESH_PREFIX + secrets.token_urlsafe(32)
     # The update finds the old hash only once, so a refresh token that two requests send rotates once
     changed = (
@@ -778,6 +788,7 @@ def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dic
             {
                 "refresh_hash": _hash(new_refresh),
                 "refresh_expires_at": now + datetime.timedelta(days=REFRESH_DAYS),
+                "scopes": granted,
                 **({"checked_at": now} if checked else {}),
             }
         )
@@ -785,7 +796,8 @@ def exchange_refresh(db, client_id: str, refresh: str, scopes: list[str]) -> dic
     if changed != 1:
         db.rollback()
         raise OAuthError("The refresh token is not valid")
-    access = machine_tokens.rotate(db, token, ACCESS_SECONDS, scopes)
+    token.scopes = granted
+    access = machine_tokens.rotate(db, token, ACCESS_SECONDS, scopes or granted)
     _touch(db, client_id)
     db.commit()
     return _token(access, new_refresh, strings(token.scopes))
