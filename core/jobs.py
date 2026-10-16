@@ -4,7 +4,7 @@ Modules declare jobs with @job in their jobs.py and start them with defer(). On 
 jobs go through Procrastinate: defer() writes a row and the worker process (worker_main.py)
 runs it, with retries and run history in the procrastinate_jobs table. On SQLite there is no
 queue: defer() runs the job in a thread of the calling process and periodic jobs run from a
-thread in the API, which is how the platform behaved before the queue existed. At most JOB_THREADS
+scheduler thread in the API, which is how the platform behaved before the queue existed. At most JOB_THREADS
 (default 4) of those threads run a job at the same time; the others wait.
 
 A job made with once names the arguments that make a run unique, such as ("org_id",), or () for one
@@ -234,11 +234,35 @@ def _open_app() -> None:
             _app_open = True
 
 
-def start_inline_scheduler() -> threading.Thread | None:
-    """Run periodic jobs from a thread in this process. Only for the inline backend.
+def _start_due(periodic: list[tuple[Job, str]], due: dict[str, datetime], active: dict[str, threading.Thread]) -> None:
+    """Start each due periodic job in its own thread. A run that is due while the last run still runs is skipped."""
+    now = datetime.now(UTC)
+    for entry, cron in periodic:
+        if due[entry.name] > now:
+            continue
+        due[entry.name] = croniter(cron, now).get_next(datetime)
+        last = active.get(entry.name)
+        if last is not None and last.is_alive():
+            logger.info("periodic job skipped name=%s, the last run still runs", entry.name)
+            continue
+        thread = threading.Thread(target=_run_in_slot, args=(entry, {}, None), name=f"job-{entry.name}", daemon=True)
+        active[entry.name] = thread
+        thread.start()
 
+
+_scheduler: threading.Thread | None = None
+_scheduler_lock = threading.Lock()
+
+
+def start_inline_scheduler() -> threading.Thread | None:
+    """Run periodic jobs from a thread in this process, once per process. Only for the inline backend.
+
+    The API calls it when it serves its first request, so CLI commands that import main start no scheduler.
     JOBS_SCHEDULER=false turns it off; the tests set it, so no periodic job runs between their steps.
     """
+    global _scheduler
+    if _scheduler is not None:
+        return _scheduler
     if queue_backend() != "inline" or os.environ.get("JOBS_SCHEDULER", "true").lower() == "false":
         return None
     periodic = [(entry, entry.cron) for entry in JOBS.values() if entry.cron]
@@ -248,18 +272,17 @@ def start_inline_scheduler() -> threading.Thread | None:
     def loop() -> None:
         now = datetime.now(UTC)
         due = {entry.name: croniter(cron, now).get_next(datetime) for entry, cron in periodic}
+        active: dict[str, threading.Thread] = {}
         while True:
-            now = datetime.now(UTC)
-            for entry, cron in periodic:
-                if due[entry.name] <= now:
-                    _run(entry, {})
-                    due[entry.name] = croniter(cron, now).get_next(datetime)
+            _start_due(periodic, due, active)
             time.sleep(30)
 
-    thread = threading.Thread(target=loop, name="job-scheduler", daemon=True)
-    thread.start()
-    logger.info("inline job scheduler started jobs=%s", ",".join(entry.name for entry, _ in periodic))
-    return thread
+    with _scheduler_lock:
+        if _scheduler is None:
+            _scheduler = threading.Thread(target=loop, name="job-scheduler", daemon=True)
+            _scheduler.start()
+            logger.info("inline job scheduler started jobs=%s", ",".join(entry.name for entry, _ in periodic))
+    return _scheduler
 
 
 def queue_counts(db) -> dict[str, int] | None:

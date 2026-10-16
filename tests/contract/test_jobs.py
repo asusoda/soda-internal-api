@@ -93,3 +93,61 @@ def test_queued_job_runs_in_the_worker(procrastinate_backend):
     finally:
         jobs.JOBS.pop("test.queued")
     assert seen == [7]
+
+
+def test_periodic_jobs_do_not_wait_for_each_other():
+    from datetime import UTC, datetime, timedelta
+
+    from core import jobs
+
+    release = threading.Event()
+    fast_ran = threading.Event()
+    slow_runs = []
+
+    def slow():
+        slow_runs.append(1)
+        release.wait(timeout=10)
+
+    slow_entry = jobs.Job(name="test.slow", func=slow, cron="* * * * *", retry=0, audit=False)
+    fast_entry = jobs.Job(name="test.fast", func=fast_ran.set, cron="* * * * *", retry=0, audit=False)
+    periodic = [(slow_entry, "* * * * *"), (fast_entry, "* * * * *")]
+    past = datetime.now(UTC) - timedelta(minutes=1)
+    due = {"test.slow": past, "test.fast": past}
+    active: dict[str, threading.Thread] = {}
+    try:
+        jobs._start_due(periodic, due, active)
+        assert fast_ran.wait(timeout=5)
+        # The slow job is due again while its first run still runs; no second run starts
+        due["test.slow"] = past
+        jobs._start_due(periodic, due, active)
+        assert len(slow_runs) == 1
+    finally:
+        release.set()
+        for thread in active.values():
+            thread.join(timeout=10)
+
+
+def test_scheduler_starts_when_the_api_serves_not_on_import(tmp_path):
+    import os
+    import subprocess  # nosec B404 - runs this repo's Python in a child process
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    script = (
+        "import sys, threading\n"
+        f"sys.path.insert(0, {str(root)!r})\n"
+        "import main\n"
+        "names = lambda: [t.name for t in threading.enumerate()]\n"
+        "print('import', 'job-scheduler' in names())\n"
+        "main.app.test_client().get('/health')\n"
+        "print('serve', 'job-scheduler' in names())\n"
+    )
+    env = {**os.environ, "JOBS_SCHEDULER": "true", "JOBS_BACKEND": "inline"}
+    env["DATABASE_URL"] = f"sqlite:///{tmp_path / 'user.db'}"
+    result = subprocess.run(  # nosec B603 - fixed arguments, no user input
+        [sys.executable, "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stderr
+    assert "import False" in result.stdout
+    assert "serve True" in result.stdout

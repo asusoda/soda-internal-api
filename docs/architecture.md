@@ -145,7 +145,7 @@ The superadmins (`SYS_ADMIN`) see the server's health and each org's use on the 
 A module declares a job in its `jobs.py` with `@job(name, cron=..., retry=...)` from `core/jobs.py`. Code starts a job with `jobs.defer(name, **kwargs)`. Each module README lists its jobs. `flask --app main jobs list` lists all of them.
 
 - On Postgres, `defer` adds a row to the Procrastinate queue. The worker runs the job, tries it again if it fails, and runs the periodic jobs.
-- On SQLite, there is no queue. `defer` runs the job in a thread of the calling process. A thread in the API runs the periodic jobs, and `worker_main.py` stops.
+- On SQLite, there is no queue. `defer` runs the job in a thread of the calling process. A scheduler thread in the API runs the periodic jobs, and `worker_main.py` stops. The API starts the scheduler at its first request, so a `flask --app main` command starts none. Each due job runs in its own thread, so a slow job does not delay the others. If the last run of a job still runs, the scheduler skips the next run of that job.
 
 `JOBS_BACKEND=inline|procrastinate` sets the choice. The tests use `inline`. `JOBS_SCHEDULER=false` stops the thread that runs periodic jobs with the inline backend; the tests set it, so no periodic job changes rows during a test. Each run of a job with `audit=True` (the default) is written to `audit_log`.
 
