@@ -51,7 +51,7 @@ The `knowledge.crawl_due` job runs every 10 minutes. It crawls up to `KNOWLEDGE_
 
 1. Checks that the URL is http or https and resolves only to public addresses. It follows redirects one at a time and checks each one. Each connection goes to an address that passed the check, so a second DNS answer cannot change it. Thus a source cannot point Platform at its own network.
 2. Reads robots.txt with `KNOWLEDGE_USER_AGENT` and skips pages that it does not allow.
-3. Gets the page through the org's Firecrawl (Integrations tab of Explore, else `FIRECRAWL_URL`), else with a GET of up to 10 MB.
+3. Gets the page through the org's Firecrawl (Integrations tab of Explore, else `FIRECRAWL_URL`), else with a GET of up to 10 MB. Without Firecrawl, a page with less than `KNOWLEDGE_RENDER_THIN_CHARS` characters of text, or one that asks the reader to turn on JavaScript, is loaded again in the shared browser when `BROWSER_URL` is set and the org's `knowledge.renders_per_day` allows it. If the render fails, the GET page is kept.
 4. Stops if the page hash did not change, unless `force` is set.
 5. Removes navigation, headers, footers, forms and scripts. Splits the text into chunks of the org's passage size with the page title on each, makes the embeddings and replaces the source's version. The old version and its chunks are deleted.
 6. Refuses the new text if it is less than half of the last version (when that was 500 characters or more), so a broken page cannot remove a good index. `force` accepts it.
@@ -59,7 +59,7 @@ The `knowledge.crawl_due` job runs every 10 minutes. It crawls up to `KNOWLEDGE_
 ```mermaid
 flowchart LR
   job["knowledge.crawl_due"] --> check["Check URL and robots.txt"]
-  check --> fetch["Fetch: Firecrawl or GET"]
+  check --> fetch["Fetch: Firecrawl, or GET then browser if thin"]
   fetch --> same{"Same page hash?"}
   same -->|"yes, no force"| stop["Stop, keep version"]
   same -->|no| extract["Extract text"]
@@ -167,3 +167,6 @@ An org sets its own embeddings service and Firecrawl on the Integrations tab of 
 | `KNOWLEDGE_CRAWL_GAP_SECONDS` | 2 | The time between fetches to one host |
 | `KNOWLEDGE_USER_AGENT` | `PlatformKnowledgeBot/1.0` | Sent with fetches and matched against robots.txt |
 | `FIRECRAWL_URL`, `FIRECRAWL_API_KEY` | not set | A Firecrawl for JavaScript pages |
+| `BROWSER_URL` | not set | The shared browser, a Playwright server such as `ws://browser:3000/`. See [operations](../operations.md#run-the-shared-browser) |
+| `BROWSER_MAX_PAGES` | 2 | Pages that one process renders at one time; the others wait |
+| `KNOWLEDGE_RENDER_THIN_CHARS` | 400 | A GET page with less text than this is rendered in the browser |

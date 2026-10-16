@@ -16,7 +16,7 @@ from sqlalchemy import or_, select
 from core import limits
 from core.log import get_logger
 from core.time import utcnow
-from modules.knowledge import extract, fetch, runs, settings
+from modules.knowledge import extract, fetch, render, runs, settings
 from modules.knowledge.embedder import Embedder
 from modules.knowledge.models import KnowledgeSource, KnowledgeVersion
 from modules.knowledge.service import (
@@ -159,7 +159,7 @@ def _crawl(db, source: KnowledgeSource, embedder: Embedder | None, *, force: boo
         pacer.wait(url)
     org_id = source.organization_id
     firecrawl = fetch.firecrawl_for(db, org_id) if org_id is not None else fetch.deployment_firecrawl()
-    with fetch.firecrawl_scope(firecrawl):
+    with fetch.firecrawl_scope(firecrawl), render.scope(db, org_id):
         page = fetch.fetch(url)
     content_hash = hashlib.sha256(page.body).hexdigest()
     previous = db.query(KnowledgeVersion).filter_by(id=source.current_version_id).first()

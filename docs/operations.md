@@ -15,6 +15,8 @@ This page tells you how to deploy Platform, roll it back, move it to Postgres, r
 | `worker` | `python3 worker_main.py` | `postgres` |
 | `mcp` | `python3 mcp_main.py` on `127.0.0.1:8001`, reached at `<API URL>/mcp` | `mcp` |
 | `site` | The landing and docs site (`Dockerfile.site`, Next.js) on `127.0.0.1:3010`, for platform.thesoda.io | `site` |
+| `searxng` | SearXNG, the deployment default for web search, on `soda-network` only | `search` |
+| `browser` | The shared browser, a Playwright server on `browser-network` only | `browser` |
 
 The `api` and `mcp` ports bind only `127.0.0.1`, so a client reaches them only through the reverse proxy and its TLS. Nginx Proxy Manager forwards the API host to `127.0.0.1:8000` and its `/mcp` location to `127.0.0.1:8001`.
 
@@ -37,6 +39,8 @@ Each container has a memory and a CPU cap, so one process cannot take the whole 
 | `dashboard` | 256m | 0.5 | `DASHBOARD_MEM_LIMIT`, `DASHBOARD_CPUS` |
 | `site` | 384m | 0.5 | `SITE_MEM_LIMIT`, `SITE_CPUS` |
 | `postgres` | 1g | 1 | `POSTGRES_MEM_LIMIT`, `POSTGRES_CPUS` |
+| `searxng` | 512m | 0.5 | `SEARXNG_MEM_LIMIT`, `SEARXNG_CPUS` |
+| `browser` | 1g | 1 | `BROWSER_MEM_LIMIT`, `BROWSER_CPUS` |
 
 A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container, and with the [host agent](#host-agent) of every container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
 
@@ -264,6 +268,30 @@ The `site` service serves `site/` with `next start`, because the site uses redir
 2. Point the domain at the server, and forward it in the reverse proxy to `http://127.0.0.1:3010`.
 
 After this, `make deploy` pulls a new site image when `site/` or `docs/` changes. A deploy that does not change the site starts `soda-site` again when `soda-site:latest` exists. `make health` checks the site.
+
+## Run web search
+
+The `searxng` service is the deployment's SearXNG. Every org without its own SearXNG on the Integrations tab uses it, for the `web` live query and the `search` agent tool. It has no port on the host; the API reaches it on `soda-network`.
+
+1. Add `SEARXNG_SECRET` to `.env`, a random string: `openssl rand -hex 32`.
+2. Add `SEARXNG_URL=http://searxng:8080` to `.env`.
+3. Start it: `docker compose --profile search up -d searxng`, then recreate the API, worker and MCP containers so they read the new `.env`.
+
+The settings are in `deploy/searxng/settings.yml`. They turn on the JSON format, which Platform reads, and turn off the rate limiter, since only Platform calls it.
+
+## Run the shared browser
+
+The `browser` service is a Playwright server with Chromium. Platform uses it for pages that need JavaScript and for the ASU sign-in. Every org shares it:
+
+- Each page opens a new browser context, with its own cookies and storage, and closes it after the page. The ASU session of an org goes only into the context of that org's request.
+- The browser is only on `browser-network`, which `api`, `worker` and `mcp` join. It cannot reach Postgres or the other services. Platform also stops it from loading any address that is not public.
+- `BROWSER_MAX_PAGES` (default 2) caps the pages that one process renders at one time. The container is capped at 1 GB and one CPU.
+- An org renders pages only within `knowledge.renders_per_day`, which is 0 by default. Raise it for an org on the Superadmin page. Shared submodule pages count against no org.
+
+1. Add `BROWSER_URL=ws://browser:3000/` to `.env`.
+2. Build and start it: `docker compose --profile browser up -d --build browser`, then recreate the API, worker and MCP containers so they read the new `.env` and join `browser-network`.
+
+`deploy/browser/Dockerfile` installs the Playwright server at build time, so the container starts without the npm registry. Its `PLAYWRIGHT_VERSION` must match the `playwright` package in `uv.lock`; change both together.
 
 ## Command-line tools
 

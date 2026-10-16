@@ -1,7 +1,9 @@
 """Fetching pages for crawled sources: robots.txt, per-host pacing, public addresses only. No Flask here.
 
 Pages come
-through Firecrawl when one is set (JavaScript rendered, markdown out), else through a plain GET. An org
+through Firecrawl when one is set (JavaScript rendered, markdown out), else through a plain GET. Inside a
+render_scope, a page from a plain GET goes to the renderer, which can load it again in a browser
+(render.py). An org
 sets its own Firecrawl on the Integrations page; else FIRECRAWL_URL and FIRECRAWL_API_KEY in .env give
 the deployment default. Every URL, and every redirect, must resolve to a public address, and the connection
 goes to an address that passed the check, so a source cannot make the platform read its own network.
@@ -178,6 +180,20 @@ def firecrawl_for(db, org_id: int) -> Firecrawl | None:
 
 _FIRECRAWL: ContextVar[Firecrawl | None] = ContextVar("firecrawl", default=None)
 
+# Takes the page of a plain GET and whether the caller asked for a render; returns the page to keep
+Renderer = Callable[[Fetched, bool], Fetched]
+_RENDER: ContextVar[Renderer | None] = ContextVar("render", default=None)
+
+
+@contextmanager
+def render_scope(renderer: Renderer | None) -> Iterator[None]:
+    """fetch() inside the block passes each plain GET page to renderer."""
+    token = _RENDER.set(renderer)
+    try:
+        yield
+    finally:
+        _RENDER.reset(token)
+
 
 @contextmanager
 def firecrawl_scope(firecrawl: Firecrawl | None) -> Iterator[None]:
@@ -218,13 +234,21 @@ def fetch_firecrawl(url: str, firecrawl: Firecrawl) -> Fetched:
         raise FetchError(f"Firecrawl sent a body that is not JSON for {url}") from e
 
 
-def fetch(url: str) -> Fetched:
-    """A page that robots.txt allows us to read, through the Firecrawl of the current firecrawl_scope."""
+def fetch(url: str, *, render: bool = False) -> Fetched:
+    """A page that robots.txt allows us to read, through the Firecrawl of the current firecrawl_scope.
+
+    Without Firecrawl, the renderer of the current render_scope sees the page of the plain GET. render asks it to
+    render the page even when the page has enough text.
+    """
     check_url(url)
     if not robots_allowed(url):
         raise FetchRejected(f"robots.txt disallows {url}")
     firecrawl = _FIRECRAWL.get()
-    return fetch_firecrawl(url, firecrawl) if firecrawl else fetch_http(url)
+    if firecrawl:
+        return fetch_firecrawl(url, firecrawl)
+    page = fetch_http(url)
+    renderer = _RENDER.get()
+    return renderer(page, render) if renderer else page
 
 
 def _test(db, org_id: int) -> str:

@@ -60,7 +60,7 @@ def queued(monkeypatch):
 def pages(monkeypatch):
     served: dict = {}
 
-    def fake_fetch(url):
+    def fake_fetch(url, render=False):
         page = served.get(url, fetch.FetchError(f"{url} is not served in this test"))
         if isinstance(page, Exception):
             raise page

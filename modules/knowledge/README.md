@@ -11,6 +11,7 @@ Keeps an org's knowledge sources and searches them. Writers send a source as chu
 | `search.py` | Hybrid search with reciprocal rank fusion |
 | `crawl.py` | Crawls: fetch, extract, chunk, embed, index; `queue` starts the crawl job for one source |
 | `fetch.py` | Fetches with robots.txt, per-host pauses and public addresses only; registers the Firecrawl integration and uses the org's Firecrawl |
+| `render.py` | Renders a thin page again in the shared browser (`BROWSER_URL`), in a new context for each page; declares `knowledge.renders_per_day` |
 | `extract.py` | HTML to text, text to chunks, and the extractors that other modules register |
 | `documents.py` | Uploaded files (text, Markdown, HTML, PDF, Word) indexed as sources |
 | `settings.py` | Per-org passage size and search settings, kept in the org config |
@@ -27,6 +28,6 @@ Keeps an org's knowledge sources and searches them. Writers send a source as chu
 - Webhook events: `knowledge.crawl_failed`, from `runs.record()`. See [docs/webhooks.md](../../docs/webhooks.md).
 - Tables: `knowledge_sources`, `knowledge_versions`, `knowledge_chunks`, `knowledge_runs`.
 - Search reads the org's own sources, public sources, and the shared sources of the submodules it subscribes to (`submodule_id`, no org; see the submodules module). Shared sources are crawled with the deployment's embedder, Firecrawl and chunk settings, and are not in an org's run log.
-- Limits: `knowledge.sources` and `knowledge.passages` (`service.py`, shared sources not counted), `knowledge.uploads_per_day` and `knowledge.jobs_per_day` (`service.py`), `knowledge.embeddings_per_day` (`embedder.py`, each text that an org's embedder embeds). `knowledge.reindex` and `knowledge.reembed` run once at a time for each org, `knowledge.crawl_source` once for each source. The crawl of due sources takes one source of each org in turn. See [docs/limits.md](../../docs/limits.md).
+- Limits: `knowledge.sources` and `knowledge.passages` (`service.py`, shared sources not counted), `knowledge.uploads_per_day` and `knowledge.jobs_per_day` (`service.py`), `knowledge.embeddings_per_day` (`embedder.py`, each text that an org's embedder embeds), `knowledge.renders_per_day` (`render.py`, each page an org renders in the browser; 0 by default, so an org renders only after the superadmin raises it). `knowledge.reindex` and `knowledge.reembed` run once at a time for each org, `knowledge.crawl_source` once for each source. The crawl of due sources takes one source of each org in turn. See [docs/limits.md](../../docs/limits.md).
 
 See [docs/modules/knowledge.md](../../docs/modules/knowledge.md).

@@ -20,8 +20,8 @@ _SPACE = re.compile(r"\s+")
 
 
 def fetch(url: str, *, needs_js: bool = False) -> Fetched:
-    """The page at url through the knowledge fetcher. needs_js pages need Firecrawl (FIRECRAWL_URL) to render."""
-    return knowledge_fetch.fetch(url)
+    """The page at url through the knowledge fetcher. needs_js pages are rendered by Firecrawl or the browser."""
+    return knowledge_fetch.fetch(url, render=needs_js)
 
 
 def get_text(url: str) -> str:
