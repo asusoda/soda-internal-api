@@ -44,7 +44,16 @@ function SourceChoice({ value, onChange }: { value: Source; onChange: (v: Source
   );
 }
 
-export function RegisterApp({ prefix, onDone }: { prefix: string; onDone: (name: string | null) => void }) {
+// existing holds the names of the apps of the org.
+export function RegisterApp({
+  prefix,
+  existing,
+  onDone,
+}: {
+  prefix: string;
+  existing: string[];
+  onDone: (name: string | null) => void;
+}) {
   const invalidate = useInvalidate(prefix);
   const [name, setName] = useState('');
   const [source, setSource] = useState<Source>('repo');
@@ -57,7 +66,8 @@ export function RegisterApp({ prefix, onDone }: { prefix: string; onDone: (name:
   const nameOk = !name || NAME_PATTERN.test(name);
   const repoOk = !repo || REPO_PATTERN.test(repo);
   const parsed = readManifest(text);
-  const ready = NAME_PATTERN.test(name) && (source === 'repo' ? REPO_PATTERN.test(repo) && path.trim() : parsed.manifest);
+  const taken = existing.includes(name);
+  const ready = !taken && NAME_PATTERN.test(name) && (source === 'repo' ? REPO_PATTERN.test(repo) && path.trim() : parsed.manifest);
   const create = useMutation({
     mutationFn: () =>
       send<App>(
@@ -109,7 +119,7 @@ export function RegisterApp({ prefix, onDone }: { prefix: string; onDone: (name:
       ) : (
         <ManifestInput value={text} onChange={setText} />
       )}
-      <FormActions error={create.error}>
+      <FormActions error={taken ? `An app named ${name} exists.` : create.error}>
         <Button variant="primary" disabled={!ready || create.isPending}>
           {create.isPending ? <Spinner className="size-3.5" /> : null}
           Register app

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Dialog, Field, FormActions, Input, Spinner } from '../../components/ui';
+import { Button, Dialog, ErrorNote, Field, FormActions, Input, Spinner } from '../../components/ui';
 import { send } from '../../lib/api';
 import { type GodfatherSettings, godfatherPath, useGodfatherSettings } from './shared';
 
@@ -9,7 +9,13 @@ export function GodfatherSettingsDialog({ prefix, onClose }: { prefix: string; o
   const current = useGodfatherSettings(prefix);
   return (
     <Dialog open onClose={onClose} title="Pod settings">
-      {current.data ? <Form prefix={prefix} saved={current.data} onClose={onClose} /> : <Spinner className="size-4" />}
+      {current.data ? (
+        <Form prefix={prefix} saved={current.data} onClose={onClose} />
+      ) : current.error ? (
+        <ErrorNote error={current.error} />
+      ) : (
+        <Spinner className="size-4" />
+      )}
     </Dialog>
   );
 }

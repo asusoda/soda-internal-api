@@ -46,6 +46,8 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
   const alerts = useQuery({ queryKey: ['webhooks', prefix], queryFn: () => api<WebhookList>(`/api/dashboard/${prefix}/webhooks`) });
   const destinations = (alerts.data?.webhooks ?? []).filter((h) => h.kind === 'discord');
   const choices = (presets.data?.presets ?? []).filter((p) => !p.added && p.kind === kind);
+  const feeds = useQuery({ queryKey: ['feeds', prefix], queryFn: () => api<{ feeds: Feed[] }>(`/api/feeds/${prefix}/feeds`) });
+  const taken = Boolean(draft.key) && (feeds.data?.feeds ?? []).some((f) => f.key === draft.key);
   const pick = (id: string) => {
     const chosen = choices.find((p) => `${p.submodule}/${p.key}` === id) ?? null;
     setPreset(chosen);
@@ -88,7 +90,7 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
         className="grid gap-5 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          if (feeds.isSuccess && !taken) create.mutate();
         }}
       >
         {choices.length ? (
@@ -138,8 +140,8 @@ function NewFeed({ prefix, kind, initial, onDone }: { prefix: string; kind: Kind
           <Input type="number" min={1} max={168} value={draft.every} onChange={set('every')} />
         </Field>
         <div className="sm:col-span-2">
-          <FormActions error={create.error}>
-            <Button variant="primary" disabled={create.isPending || !draft.destination}>
+          <FormActions error={feeds.error ?? (taken ? `A feed named ${draft.key} exists.` : create.error)}>
+            <Button variant="primary" disabled={create.isPending || !feeds.isSuccess || !draft.destination || taken}>
               Create feed
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
@@ -254,6 +256,11 @@ function FeedsPage({ kind, title }: { kind: Kind; title: string }) {
   });
   const run = useMutation({ mutationFn: (key: string) => send(`/api/feeds/${prefix}/feeds/${key}/run`, 'POST', {}), onSuccess: refresh });
   const remove = useMutation({ mutationFn: (key: string) => send(`/api/feeds/${prefix}/feeds/${key}`, 'DELETE'), onSuccess: refresh });
+  // The error of the action that ran last
+  const actionError = [toggle, run, remove].reduce<(typeof toggle | typeof run | typeof remove) | null>(
+    (last, m) => (!last || m.submittedAt > last.submittedAt ? m : last),
+    null,
+  )?.error;
   const newFeed = (
     <Button variant="primary" onClick={() => setAdding(true)}>
       <Plus className="size-4" /> New feed
@@ -270,9 +277,9 @@ function FeedsPage({ kind, title }: { kind: Kind; title: string }) {
       <Dialog open={adding} onClose={closeNew} title="New feed" description="The first run posts nothing; later runs post new listings." wide>
         {adding ? <NewFeed prefix={prefix} kind={kind} initial={initial} onDone={closeNew} /> : null}
       </Dialog>
-      {feeds.error ? (
+      {feeds.error || actionError ? (
         <div className="mb-4">
-          <ErrorNote error={feeds.error} />
+          <ErrorNote error={actionError ?? feeds.error} />
         </div>
       ) : null}
       <Card>

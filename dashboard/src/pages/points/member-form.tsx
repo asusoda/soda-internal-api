@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button, Dialog, Field, FormActions, Input } from '../../components/ui';
 import { send } from '../../lib/api';
 import type { PointsMember } from '../../lib/types';
-import { memberKey } from './shared';
+import { memberChanges, memberKey } from './shared';
 
 const EMPTY = { email: '', name: '', asu_id: '', academic_standing: '', major: '' };
 
@@ -39,7 +39,7 @@ export function MemberDialog({
     mutationFn: () => {
       const fields = { name: draft.name, asu_id: draft.asu_id, academic_standing: draft.academic_standing, major: draft.major };
       return member
-        ? send(`/api/points/${prefix}/users/${encodeURIComponent(memberKey(member))}`, 'PUT', fields)
+        ? send(`/api/points/${prefix}/users/${encodeURIComponent(memberKey(member))}`, 'PUT', memberChanges(member, fields))
         : send(`/api/points/${prefix}/users`, 'POST', {
             email: draft.email,
             ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v)),
