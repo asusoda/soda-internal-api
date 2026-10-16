@@ -36,8 +36,10 @@ The sync gets all pages of the Notion database and all events of the Google Cale
 
 1. Creates an event for each new page, and updates the events whose content changed.
 2. Deletes Google events that point to the same page as a different event.
-3. Deletes Google events whose Notion page is gone.
+3. Deletes Google events whose Notion page is gone, is not published, or has no valid date.
 4. Sets `last_sync_at` on the org.
+
+A time with no offset is in the time zone of the Notion date, else in `TIMEZONE`. The last day of an all-day range is part of the Google event.
 
 A sync occurs only when a caller starts it, with `POST /api/calendar/<org_prefix>/sync` or `POST /api/calendar/sync-all`. To sync on a schedule, set `CALENDAR_SYNC_CRON` (for example `0 */2 * * *`). The `calendar.sync_all` job then syncs each org with `calendar_sync_enabled`.
 

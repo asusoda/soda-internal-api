@@ -15,9 +15,10 @@ class DateParser:
     """Parse Notion dates and fill in a missing end."""
 
     @staticmethod
-    def parse_notion_date(date_str: str | None) -> dict | None:
+    def parse_notion_date(date_str: str | None, time_zone: str | None = None) -> dict | None:
         """{"date": ...} for a YYYY-MM-DD string, {"dateTime": ..., "timeZone": ...} for ISO 8601, else None.
 
+        A time with no offset is in time_zone, the time zone of the Notion date, else in config.TIMEZONE.
         A time zone with no IANA name and a non-zero offset gets config.TIMEZONE.
         """
         if not date_str:
@@ -43,7 +44,7 @@ class DateParser:
                             time_zone_str = config.TIMEZONE
 
                 if not time_zone_str:
-                    time_zone_str = config.TIMEZONE
+                    time_zone_str = time_zone or config.TIMEZONE
 
                 return {
                     "dateTime": dt_obj.isoformat(),
@@ -63,6 +64,17 @@ class DateParser:
             logger.error(f"Unexpected error parsing date string: {str(e_date)}")
             capture_exception(e_date)
             return None
+
+    @staticmethod
+    def exclusive_end(end_date_dict: dict | None) -> dict | None:
+        """The day after an all-day end, else end_date_dict.
+
+        A Notion all-day end is the last day; a Google Calendar all-day end is the day after the last day.
+        """
+        if not end_date_dict or "date" not in end_date_dict:
+            return end_date_dict
+        last_day = datetime.strptime(end_date_dict["date"], "%Y-%m-%d")
+        return {"date": (last_day + timedelta(days=1)).strftime("%Y-%m-%d")}
 
     @staticmethod
     def ensure_end_date(start_date_dict: dict, end_date_dict: dict | None = None) -> dict:
