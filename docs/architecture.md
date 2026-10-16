@@ -213,7 +213,7 @@ Both need a machine token: `Authorization: Bearer plat_...`. An MCP client can a
 
 A tool marked confirm changes or deletes something that is hard to undo. It runs only when the call has `confirm=true`. Without it, nothing changes and the result has `confirm_required`, the arguments, and for `apps.deploy` and `apps.rollback` the dry run. An agent shows that to a person, then calls again with `confirm=true`. Over MCP, read tools have `readOnlyHint` and confirm tools have `destructiveHint`.
 
-No tool returns a secret value or a webhook URL. `tokens.create` returns the new token once. It gives only the scopes and limits of the calling token. A write tool that takes `ids` changes up to 100 rows in one commit; if one id is missing, nothing changes. To send many calls in one request, use `batch` with `{"calls": [{"tool", "arguments"}], "stop_on_error"}`. Its result has one entry for each call: `tool`, `ok`, `result` or `error`, and `status`.
+No tool returns a secret value or a webhook URL. `tokens.create` returns the new token once. It gives only the scopes and limits of the calling token, and the new token expires no later than the calling token. A write tool that takes `ids` changes up to 100 rows in one commit; if one id is missing, nothing changes. To send many calls in one request, use `batch` with `{"calls": [{"tool", "arguments"}], "stop_on_error"}`. Its result has one entry for each call: `tool`, `ok`, `result` or `error`, and `status`.
 
 The flows that need a browser have no tool: the OAuth sign-in to an integration, the ASU sign-in, file upload and download on a pod, and the Godfather CLI sign-in. Superadmin routes and member routes have no tool.
 

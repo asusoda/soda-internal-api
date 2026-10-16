@@ -240,6 +240,38 @@ def test_tokens_get_only_the_callers_scopes(client):
     assert _call(client, child_headers, "org.info").status_code == 401
 
 
+def test_child_token_expires_with_its_parent(client):
+    import datetime
+
+    from core.time import utcnow
+    from modules.auth import machine_tokens
+
+    db = db_connect.SessionLocal()
+    try:
+        value, row = machine_tokens.issue_oauth(
+            db,
+            organization_id=1,
+            name="oauth-client",
+            scopes=["tokens:manage", "org:read"],
+            created_by="officer",
+            expires_seconds=3600,
+        )
+        db.commit()
+        parent_expiry = row.expires_at
+    finally:
+        db.close()
+    assert parent_expiry is not None
+    headers = {"Authorization": f"Bearer {value}"}
+    forever = _result(client, headers, "tokens.create", name="child", kind="agent", scopes=["org:read"], confirm=True)
+    assert forever["expires_at"] is not None
+    assert datetime.datetime.fromisoformat(forever["expires_at"]) <= parent_expiry
+    longer = _result(
+        client, headers, "tokens.create", name="child", kind="agent", scopes=["org:read"], expires_days=30, confirm=True
+    )
+    assert datetime.datetime.fromisoformat(longer["expires_at"]) <= parent_expiry
+    assert parent_expiry < utcnow() + datetime.timedelta(days=1)
+
+
 def test_webhook_tools(client, sent):
     headers = _issue("webhooks:manage")
     url = "https://discord.com/api/webhooks/1/tool-test"
