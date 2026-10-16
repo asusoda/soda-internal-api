@@ -215,6 +215,7 @@
 /api/points/<string:org_prefix>/assignPoints OPTIONS,POST points.assign_points_to_org
 /api/points/<string:org_prefix>/assign_points OPTIONS,POST points.assign_points_to_org
 /api/points/<string:org_prefix>/delete_points DELETE,OPTIONS points.delete_points_by_event
+/api/points/<string:org_prefix>/entries/<int:entry_id> DELETE,OPTIONS points.delete_entry
 /api/points/<string:org_prefix>/getUserPoints GET,HEAD,OPTIONS points.get_user_points_in_org
 /api/points/<string:org_prefix>/getUserTotalPoints GET,HEAD,OPTIONS points.get_user_total_points_in_org
 /api/points/<string:org_prefix>/get_points GET,HEAD,OPTIONS points.get_org_points

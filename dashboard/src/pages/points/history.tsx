@@ -24,13 +24,10 @@ export function HistoryDialog({
     enabled: Boolean(key),
   });
   const remove = useMutation({
-    mutationFn: (event: string) => send(`/api/points/${prefix}/delete_points`, 'DELETE', { user_email: member?.email, event }),
+    mutationFn: (id: number) => send(`/api/points/${prefix}/entries/${id}`, 'DELETE'),
     onSuccess: () => client.invalidateQueries({ queryKey: ['points', prefix] }),
   });
   const entries = history.data?.points_history ?? [];
-  // The delete route removes the first entry with the event name. Only a row with a unique event name has delete.
-  const eventCounts = new Map<string, number>();
-  for (const e of entries) if (e.event) eventCounts.set(e.event, (eventCounts.get(e.event) ?? 0) + 1);
   return (
     <Dialog
       open={Boolean(member)}
@@ -81,15 +78,13 @@ export function HistoryDialog({
                 <Td className="hidden max-w-40 truncate text-xs text-muted sm:table-cell">{e.awarded_by_officer ?? ''}</Td>
                 <Td className="hidden text-right text-xs whitespace-nowrap text-muted sm:table-cell">{timeAgo(e.timestamp)}</Td>
                 <Td className="pr-2 pl-0">
-                  {member?.email && e.event && eventCounts.get(e.event) === 1 ? (
-                    <DeleteButton
-                      title="Delete entry"
-                      label={`Delete the entry for ${e.event}`}
-                      question={`Delete ${signed(e.points)} points for ${e.event}?`}
-                      onDelete={() => remove.mutate(e.event as string)}
-                      disabled={remove.isPending}
-                    />
-                  ) : null}
+                  <DeleteButton
+                    title="Delete entry"
+                    label={e.event ? `Delete the entry for ${e.event}` : 'Delete the entry with no event'}
+                    question={e.event ? `Delete ${signed(e.points)} points for ${e.event}?` : `Delete ${signed(e.points)} points?`}
+                    onDelete={() => remove.mutate(e.id)}
+                    disabled={remove.isPending}
+                  />
                 </Td>
               </Tr>
             ))}
