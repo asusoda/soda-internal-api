@@ -44,6 +44,12 @@ def _refuse(message: str, status: int):
     return jsonify({"message": message}), status
 
 
+def header_token_refusal(token: str):
+    """The refusal for a bad platform token sent in the header, or None when the token is good."""
+    problem = _token_problem(token)
+    return _refuse(*_HEADER_REFUSALS[problem]) if problem else None
+
+
 def _session_refusal():
     """The refusal for a bad session token, which also leaves the session. None when the token is good."""
     problem = _token_problem(session["token"])

@@ -6,7 +6,7 @@ from core import secrets
 from core.db import db_connect
 from core.log import get_logger
 from modules.auth import machine_tokens
-from modules.auth.access import current_principal, visible_org_filter
+from modules.auth.access import current_principal, is_superadmin, visible_org_filter
 from modules.auth.decorators import auth_required
 from modules.organizations import service
 from modules.organizations.models import Organization
@@ -114,6 +114,11 @@ def get_organization_activity(org_id):
         db.close()
 
 
+def _superadmin_caller() -> bool:
+    principal = current_principal()
+    return bool(principal) and is_superadmin(principal.discord_id)
+
+
 @organizations_blueprint.route("/<int:org_id>/settings", methods=["PUT"])
 @auth_required
 def update_organization_settings(org_id):
@@ -126,12 +131,16 @@ def update_organization_settings(org_id):
         if not org:
             return jsonify({"error": "Organization not found"}), 404
 
+        if ("officer_role_id" in data or "prefix" in data) and not _superadmin_caller():
+            return jsonify({"error": "Only the superadmin can change the officer role or the prefix"}), 403
+        if "officer_role_id" in data:
+            org.officer_role_id = data["officer_role_id"]
         if "config" in data:
-            # Keys with their own routes are kept when the rest is replaced
+            if not isinstance(data["config"], dict):
+                return jsonify({"error": "config must be an object"}), 400
+            # Keys with their own routes keep their stored values
             kept = {k: v for k, v in (org.config or {}).items() if k in OWN_ROUTE_KEYS}
-            org.config = data["config"]
-            if isinstance(org.config, dict):
-                org.config = {**kept, **org.config}
+            org.config = {**{k: v for k, v in data["config"].items() if k not in OWN_ROUTE_KEYS}, **kept}
         if "prefix" in data:
             new_prefix = data["prefix"].strip()
 
@@ -149,14 +158,13 @@ def update_organization_settings(org_id):
                 return jsonify({"error": "Prefix is already taken by another organization"}), 400
 
             org.prefix = new_prefix
-        if "description" in data:
-            org.description = data["description"]
-        if "officer_role_id" in data:
-            org.officer_role_id = data["officer_role_id"]
-        if "points_per_message" in data:
-            org.points_per_message = data["points_per_message"]
-        if "points_cooldown" in data:
-            org.points_cooldown = data["points_cooldown"]
+        changes = {k: data[k] for k in service.SETTING_KEYS if k in data}
+        if changes:
+            try:
+                service.set_settings(db, org, changes)
+            except service.SettingsError as e:
+                db.rollback()
+                return jsonify({"error": str(e)}), 400
 
         db.commit()
         return jsonify({"message": "Settings updated successfully"})
