@@ -33,3 +33,15 @@ export function usePoints(prefix: string) {
   const entries = useQuery(pointsEntriesQuery(prefix));
   return { members, entries };
 }
+
+export type MemberDraft = { name: string; asu_id: string; academic_standing: string; major: string };
+
+// The fields of the draft that differ from the member. An empty field is null, so no member gets an empty student id.
+export function memberChanges(member: Partial<Record<keyof MemberDraft, string | null>>, draft: MemberDraft) {
+  const changes: Partial<Record<keyof MemberDraft, string | null>> = {};
+  for (const key of Object.keys(draft) as (keyof MemberDraft)[]) {
+    const value = draft[key].trim() || null;
+    if (value !== (member[key] || null)) changes[key] = value;
+  }
+  return changes;
+}

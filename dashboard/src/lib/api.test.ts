@@ -54,4 +54,14 @@ describe('api', () => {
     await expect(api('/api/points/soda/users')).rejects.toMatchObject({ status: 403 });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('clears the tokens when the refresh token is refused', async () => {
+    const fetch = vi.fn(async (url: string) =>
+      url.endsWith('/api/auth/refresh') ? json(401, { error: 'Invalid refresh token' }) : json(401, { message: 'Token is invalid!' }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    await expect(api('/api/points/soda/users')).rejects.toMatchObject({ status: 401 });
+    expect(tokens.access()).toBeNull();
+    expect(tokens.refresh()).toBeNull();
+  });
 });
