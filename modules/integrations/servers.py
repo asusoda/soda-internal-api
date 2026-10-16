@@ -48,6 +48,9 @@ def register(server: RemoteServer) -> None:
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/(?:[A-Za-z0-9_.-]+|\*)$")
 TOOL_PATTERN = re.compile(r"^[a-z0-9_.*?-]{1,100}$")
+# A GitHub account name and a repo name: one path segment each, never . or ..
+OWNER_NAME = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+REPO_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 MAX_ITEMS = 50
 
 scopes.declare("github:read", "Read the org's GitHub repos, issues, pull requests and Actions runs", "github")
@@ -62,10 +65,13 @@ def _github_headers(db, org_id: int) -> dict[str, str] | None:
 
 
 def _github_target(arguments: dict) -> str | None:
+    """owner/repo in lowercase, or None when either is missing or is not one valid name."""
     owner, repo = arguments.get("owner"), arguments.get("repo")
-    if isinstance(owner, str) and isinstance(repo, str) and owner and repo:
-        return f"{owner}/{repo}".lower()
-    return None
+    if not isinstance(owner, str) or not isinstance(repo, str):
+        return None
+    if not OWNER_NAME.fullmatch(owner) or not REPO_NAME.fullmatch(repo) or repo in (".", ".."):
+        return None
+    return f"{owner}/{repo}".lower()
 
 
 def _check_list(value: object, name: str, pattern: re.Pattern, example: str) -> list[str]:

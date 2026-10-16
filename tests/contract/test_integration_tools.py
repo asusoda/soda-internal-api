@@ -188,3 +188,14 @@ def test_remote_errors_are_tool_errors(client, officer_headers, soda, monkeypatc
     service.clear_cache()
     headers = _token(client, officer_headers, soda, ["github:read"])
     assert _names(client, headers) == []
+
+
+@pytest.mark.parametrize(
+    "owner, repo",
+    [("ais", "../soda/x"), ("ais", ".."), ("ais/../soda", "x"), ("ais", "x/../../soda/y"), ("ais", "x?y")],
+)
+def test_repo_limit_refuses_path_parts(client, officer_headers, soda, github, owner, repo):
+    headers = _token(client, officer_headers, soda, ["github:read"], {"github": {"repos": ["ais/*"]}})
+    response = client.post("/api/tools/github.list_issues", json={"owner": owner, "repo": repo}, headers=headers)
+    assert response.status_code == 403
+    assert github == []

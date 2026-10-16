@@ -79,7 +79,7 @@ Platform gives tools in two ways:
 - Google and Notion tools use only the org's own keys, never a default in `.env`. So an agent reads only its own org's data.
 - Google: share a calendar, Drive file or Sheet with the service account's email to let the tools see it. A service account has no mailbox, so the Gmail tools show only when the org sets **Act as Workspace user**. That works only in a Google Workspace domain whose admin allows the service account's client ID these scopes under domain-wide delegation: `calendar`, `drive.readonly`, `spreadsheets`, `gmail.readonly`, `gmail.send`.
 - Notion: share each page or database with the integration in Notion.
-- Token limits narrow a token further. `repos` lists the GitHub repos a call may act on, as `owner/name` or `owner/*`. With `repos`, the token sees only tools that take one repo. `tools` lists GitHub tool name patterns, such as `github.*issue*`. Set both on the Tokens page.
+- Token limits narrow a token further. `repos` lists the GitHub repos a call may act on, as `owner/name` or `owner/*`. With `repos`, the token sees only tools that take one repo. A call with `repos` must give `owner` and `repo` as one name each. A name with `/`, `..` or another character that GitHub does not allow gets 403. `tools` lists GitHub tool name patterns, such as `github.*issue*`. Set both on the Tokens page.
 - Each call is in the audit log and its failures are in the error log, as for other tools.
 - The list of tools of each MCP server is kept for 10 minutes per org. The key must allow what the tools do, for example write access to Issues and Pull requests for the GitHub write tools.
 
