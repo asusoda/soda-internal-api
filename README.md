@@ -1,5 +1,7 @@
 # Platform
 
+[![GitHub stars](https://img.shields.io/github/stars/asusoda/platform?style=social)](https://github.com/asusoda/platform/stargazers) [![GitHub forks](https://img.shields.io/github/forks/asusoda/platform?style=social)](https://github.com/asusoda/platform/forks)
+
 Platform is shared infrastructure for student orgs. One deployment serves many orgs. Each org is a Discord server and turns on only the modules it uses.
 
 Each org route checks access. The audit log records each change that an officer or a token makes. Org secrets are encrypted in the database.
