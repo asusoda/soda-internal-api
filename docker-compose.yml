@@ -9,7 +9,7 @@ services:
         - COMMIT_HASH=${COMMIT_HASH:-unknown}
     image: soda-internal-api:latest
     container_name: soda-internal-api
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${API_MEM_LIMIT:-1536m}
     cpus: ${API_CPUS:-1.5}
@@ -56,7 +56,7 @@ services:
     # The Discord bot (LeetCode daily post, helper and game cogs), from the same image as the API
     image: soda-internal-api:latest
     container_name: soda-bot
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${BOT_MEM_LIMIT:-768m}
     cpus: ${BOT_CPUS:-1}
@@ -82,7 +82,7 @@ services:
     # the API runs jobs itself, so this service is under the postgres profile.
     image: soda-internal-api:latest
     container_name: soda-worker
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${WORKER_MEM_LIMIT:-1536m}
     cpus: ${WORKER_CPUS:-1}
@@ -110,7 +110,7 @@ services:
     # with --profile mcp.
     image: soda-internal-api:latest
     container_name: soda-mcp
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${MCP_MEM_LIMIT:-768m}
     cpus: ${MCP_CPUS:-1}
@@ -146,7 +146,7 @@ services:
         - soda-site:latest
     image: soda-site:latest
     container_name: soda-site
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${SITE_MEM_LIMIT:-384m}
     cpus: ${SITE_CPUS:-0.5}
@@ -175,7 +175,7 @@ services:
         - soda-dashboard:latest
     image: soda-dashboard:latest
     container_name: soda-dashboard
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${DASHBOARD_MEM_LIMIT:-256m}
     cpus: ${DASHBOARD_CPUS:-0.5}
@@ -208,7 +208,7 @@ services:
   searxng:
     image: mirror.gcr.io/searxng/searxng:2026.9.12-d4f00d15d
     container_name: soda-searxng
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${SEARXNG_MEM_LIMIT:-512m}
     cpus: ${SEARXNG_CPUS:-0.5}
@@ -239,7 +239,7 @@ services:
       context: ./deploy/browser
     image: soda-browser:latest
     container_name: soda-browser
-    restart: unless-stopped
+    restart: always
     init: true
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${BROWSER_MEM_LIMIT:-1g}
@@ -260,7 +260,7 @@ services:
     # Postgres 16 with pgvector, for knowledge search
     image: mirror.gcr.io/pgvector/pgvector:pg16
     container_name: soda-postgres
-    restart: unless-stopped
+    restart: always
     # Memory and CPU cap of the container. See docs/operations.md, "Container limits".
     mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
     cpus: ${POSTGRES_CPUS:-1}
