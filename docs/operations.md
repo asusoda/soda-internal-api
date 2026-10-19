@@ -42,7 +42,7 @@ Each container has a memory and a CPU cap, so one process cannot take the whole 
 | `searxng` | 512m | 0.5 | `SEARXNG_MEM_LIMIT`, `SEARXNG_CPUS` |
 | `browser` | 1g | 1 | `BROWSER_MEM_LIMIT`, `BROWSER_CPUS` |
 
-A container that goes over its memory cap is stopped and starts again (`restart: unless-stopped`). A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container, and with the [host agent](#host-agent) of every container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
+A container that goes over its memory cap is stopped and starts again (`restart: always`). After a reboot, `podman-restart.service` starts only the containers with the `always` policy. A new value applies when the container is made again, for example at the next deploy. The Superadmin page shows the memory use and cap of the API container, and with the [host agent](#host-agent) of every container. These caps are for each service, not each org: [Limits](./limits.md) caps what each org uses.
 
 ## Host agent
 
